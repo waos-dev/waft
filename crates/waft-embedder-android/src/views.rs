@@ -69,12 +69,19 @@ impl Views {
     /// one whose window is on screen; none while no view has a window, when Android would show
     /// nothing an activity starts.
     pub(crate) fn activity_in_front(&self) -> Option<Activity> {
+        Some(self.view_in_front()?.1)
+    }
+
+    /// The view in front, as [`activity_in_front`](Self::activity_in_front) picks it, with its
+    /// activity.
+    pub(crate) fn view_in_front(&self) -> Option<(ViewId, Activity)> {
         let views = self.views.borrow();
         let focused = views
             .values()
             .find(|view| view.is_focused() && view.has_window());
         let in_sight = || views.values().find(|view| view.has_window());
-        focused.or_else(in_sight)?.activity()
+        let view = focused.or_else(in_sight)?;
+        Some((view.id(), view.activity()?))
     }
 
     /// Whether the system gives any view a window now.

@@ -91,10 +91,10 @@ impl DocumentPickers {
 
     /// The activity a picker for `parent` starts from: the parent's, or the one in front for
     /// none.
-    fn activity_for(&self, parent: Option<ViewId>) -> Option<Activity> {
+    fn activity_for(&self, parent: Option<ViewId>) -> Option<(ViewId, Activity)> {
         match parent {
-            Some(parent) => self.views.get(parent)?.activity(),
-            None => self.views.activity_in_front(),
+            Some(parent) => Some((parent, self.views.get(parent)?.activity()?)),
+            None => self.views.view_in_front(),
         }
     }
 
@@ -105,12 +105,12 @@ impl DocumentPickers {
         parent: Option<ViewId>,
         intent: impl for<'local> FnOnce(&mut Env<'local>) -> jni::errors::Result<JObject<'local>>,
     ) -> UrisPicked {
-        let Some(activity) = self.activity_for(parent) else {
+        let Some((view, activity)) = self.activity_for(parent) else {
             return failed_pick("no activity of the app is in sight to show the picker over");
         };
         let request = NEXT_REQUEST.fetch_add(1, Ordering::Relaxed);
         let (answer, answered) = one_shot();
-        locked(&PENDING).insert(request, answer);
+        locked(&PENDING).insert(request, Pending { answer, view });
         let started = activity.with(|env, activity| {
             let intent = intent(env)?;
             env.call_method(
@@ -380,7 +380,38 @@ pub(crate) fn string(
 }
 
 /// The picks waiting for their results, by request code.
-static PENDING: LazyLock<Mutex<HashMap<jint, Answer<Picked>>>> = LazyLock::new(Mutex::default);
+static PENDING: LazyLock<Mutex<HashMap<jint, Pending>>> = LazyLock::new(Mutex::default);
+
+/// A pick waiting for its result: where the result goes, and the view whose activity started the
+/// picker, which Android hands the result to.
+struct Pending {
+    answer: Answer<Picked>,
+    view: ViewId,
+}
+
+/// The activity of the view numbered `view` is gone for good: every pick it started fails, since
+/// Android hands a result to the activity that asked and drops one whose activity is gone, which
+/// would leave the pick waiting for good. One that Android makes again in its place, as for a
+/// change of configuration, gets the result, and is not this.
+pub(crate) fn activity_finished(view: ViewId) {
+    let failed: Vec<Pending> = {
+        let mut pending = locked(&PENDING);
+        let requests: Vec<jint> = pending
+            .iter()
+            .filter(|(_, waiting)| waiting.view == view)
+            .map(|(request, _)| *request)
+            .collect();
+        requests
+            .iter()
+            .filter_map(|request| pending.remove(request))
+            .collect()
+    };
+    for waiting in failed {
+        waiting.answer.give(Err(FileDialogError::Failed(
+            "the screen the picker was shown over closed before it answered".to_owned(),
+        )));
+    }
+}
 /// The request codes, counted from one.
 static NEXT_REQUEST: AtomicI32 = AtomicI32::new(1);
 
@@ -415,7 +446,7 @@ extern "system" fn on_result<'local>(
     data: JObject<'local>,
 ) {
     env.with_env(|env| -> jni::errors::Result<()> {
-        let Some(answer) = locked(&PENDING).remove(&request) else {
+        let Some(Pending { answer, .. }) = locked(&PENDING).remove(&request) else {
             return Ok(());
         };
         if result != RESULT_OK || data.is_null() {

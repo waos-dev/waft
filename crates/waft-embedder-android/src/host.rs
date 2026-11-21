@@ -326,6 +326,7 @@ impl<C: EmbedderClient> Host<C> {
                 view.detach(&activity);
             }
             if finishing {
+                crate::file_dialogs::activity_finished(id);
                 self.remove_view(id);
             }
         }
