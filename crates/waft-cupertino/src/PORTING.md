@@ -170,6 +170,8 @@ Ported against: 4765bd950d31784578608cfbb0c723453cc49216
 ## Deferred
 - checkbox.rs: the deprecated `inactiveColor`, which nothing reads. Trigger: Flutter un-deprecating it.
 - slider.rs: `describeSemanticsConfiguration`, `_increaseAction`, `_decreaseAction`, `_semanticActionUnit`, `_kAdjustmentUnit`, and the setters' `markNeedsSemanticsUpdate`. Trigger: the semantics tree.
+- slider.rs: `_RenderCupertinoSlider`'s inherited `additionalConstraints` line. Trigger: `waft-rendering`'s `RenderConstrainedBoxBase` gaining the shared diagnostics body.
+- dialog.rs: `RenderAlertDialogActionsLayout` and `RenderPriorityColumn`'s inherited `RenderFlex` lines. Trigger: `waft-rendering`'s `RenderFlexMixin` gaining the shared diagnostics body.
 - text_field.rs: the placeholder and the editable sharing a `Stack` with baseline alignment. Trigger: the next edit of text_field.rs (widgets' `SlottedMultiChildRenderObjectWidget` exists).
 - text_field.rs: `CupertinoTextField.defaultSpellCheckSuggestionsToolbarBuilder` and its use as the spell-check configuration's fallback. Trigger: wiring spell_check_suggestions_toolbar.rs into text_field.rs.
 - spell_check_suggestions_toolbar.rs: nothing gives `EditableTextState` spell-check results, so `build_button_items` answers `None` and no field shows the toolbar. Trigger: widgets' spell-check fetch.

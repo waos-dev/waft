@@ -9,7 +9,7 @@ use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticsNode, Handle};
 use waft_rendering::{
     AnyRenderObject, ErasedRenderObject, PipelineOwner, RenderHandle, RenderObject,
 };
@@ -223,6 +223,24 @@ pub trait SlottedContainerRenderObjectMixin<S: SlotValue>: RenderObject {
         for child in self.children(app) {
             visitor(child.as_object());
         }
+    }
+
+    /// Flutter's `SlottedContainerRenderObjectMixin.debugDescribeChildren`: the children in slot
+    /// order, each named by [`debug_name_for_slot`](Self::debug_name_for_slot).
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        self.slotted_container_data(app)
+            .slot_to_child
+            .iter()
+            .map(|(slot, child)| {
+                Rc::new(child.as_object().to_diagnostics_node(
+                    app,
+                    SlottedContainerRenderObjectMixin::debug_name_for_slot(self.get(app), slot),
+                )) as Rc<dyn DiagnosticsNode>
+            })
+            .collect()
     }
 
     /// Dart's `_setChild`.
@@ -625,7 +643,7 @@ where
 #[cfg(test)]
 mod tests {
     use waft_embedder::{Offset, Size};
-    use waft_foundation::{AppCell, ValueKey};
+    use waft_foundation::{AppCell, DiagnosticLevel, ValueKey};
     use waft_rendering::{
         AnyRenderBox, BoxConstraints, BoxParentData, PaintingContext, RenderBox, RenderBoxData,
         RenderObjectData,
@@ -748,6 +766,13 @@ mod tests {
             visitor: &mut dyn FnMut(AnyRenderObject),
         ) {
             SlottedContainerRenderObjectMixin::visit_children(self, app, visitor);
+        }
+
+        fn debug_describe_children(
+            self: RenderHandle<Self>,
+            app: &App,
+        ) -> Vec<Rc<dyn DiagnosticsNode>> {
+            SlottedContainerRenderObjectMixin::debug_describe_children(self, app)
         }
 
         fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
@@ -939,6 +964,40 @@ mod tests {
             render.debug_name_for_slot(&DiagonalSlot::TopLeft),
             "TopLeft"
         );
+    }
+
+    /// `slotted_render_object_widget_test.dart`'s "debugDescribeChildren": each child is named
+    /// by the slot it occupies.
+    #[test]
+    fn a_slotted_dump_names_children_by_their_slots() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let harness = mount_diagonal(
+            &mut app,
+            None,
+            Diagonal {
+                top_left: Some(sized(80.0, 100.0)),
+                bottom_right: Some(sized(110.0, 120.0)),
+                null_slot: None,
+            },
+        )
+        .expect("mounted");
+        let render = diagonal(&app, &harness);
+
+        let dump = render
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("TopLeft: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("BottomRight: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(!dump.contains("child 1"), "{dump}");
     }
 
     /// "key reparenting": keyed children that change slots keep their render objects.
@@ -1281,6 +1340,13 @@ mod tests {
 
     impl RenderObject for RenderTest {
         waft_rendering::render_object_accessors!();
+
+        fn debug_describe_children(
+            self: RenderHandle<Self>,
+            app: &App,
+        ) -> Vec<Rc<dyn DiagnosticsNode>> {
+            SlottedContainerRenderObjectMixin::debug_describe_children(self, app)
+        }
 
         fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
             let size = self.constraints(app).smallest();

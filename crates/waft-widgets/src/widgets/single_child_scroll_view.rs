@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use waft_animation::Curve;
 use waft_embedder::{Clip, Matrix4, Offset, Rect, Size};
-use waft_foundation::{App, Handle, Listener};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, Listener};
 use waft_gestures::DragStartBehavior;
 use waft_painting::{
     Axis, AxisDirection, EdgeInsetsGeometry, axis_direction_to_axis, transform_rect,
@@ -937,6 +937,17 @@ impl RenderObject for RenderSingleChildViewport {
         );
     }
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<Offset>::new(
+            "offset",
+            Some(self.paint_offset(app)),
+        ));
+    }
+
     fn interface(self: RenderHandle<Self>, id: TypeId) -> Option<Box<dyn Any>> {
         (id == TypeId::of::<AnyRenderAbstractViewport>())
             .then(|| Box::new(self.as_abstract_viewport()) as Box<dyn Any>)
@@ -1075,6 +1086,7 @@ mod tests {
     use std::any::Any;
 
     use waft_embedder::{SceneBuilder, Size, TextDirection, valo::Op};
+    use waft_foundation::DiagnosticLevel;
     use waft_gestures::{HitTestEntry, HitTestResult};
     use waft_painting::{EdgeInsets, transform_point};
     use waft_rendering::{BoxHitTestEntry, RenderPadding};
@@ -1256,6 +1268,28 @@ mod tests {
                 content_offset(&tester.cell.borrow(), viewport),
                 Offset::new(0.0, -120.0)
             );
+        });
+    }
+
+    /// `single_child_scroll_view.dart`'s `_RenderSingleChildViewport.debugFillProperties`: the
+    /// offset the child is painted at.
+    #[test]
+    fn a_viewport_dump_shows_the_paint_offset() {
+        test_widgets(|tester| {
+            let controller = tester.update(ScrollController::default);
+            let viewport = mount(
+                tester,
+                SingleChildScrollView::new()
+                    .controller(controller.erase())
+                    .child(SizedBox::new().width(CONTENT_WIDTH).height(CONTENT_HEIGHT)),
+            );
+            tester.update(|app| controller.jump_to(app, 120.0));
+            tester.pump();
+
+            let dump = viewport
+                .as_object()
+                .to_string_deep_with(&tester.cell.borrow(), DiagnosticLevel::Info);
+            assert!(dump.contains("offset: Offset(0.0, -120.0)"), "{dump}");
         });
     }
 

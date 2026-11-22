@@ -4,7 +4,7 @@ use std::any::{Any, TypeId};
 use std::fmt;
 
 use waft_embedder::{Offset, Size, TextBaseline, TextDirection};
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DoubleProperty, EnumProperty, Handle};
 use waft_painting::VerticalDirection;
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BaselineOffset, BoxConstraints, BoxHitTestResult, BoxParentData,
@@ -517,6 +517,37 @@ impl RenderBoxContainerDefaultsMixin for RenderOverflowBar {}
 impl RenderObject for RenderOverflowBar {
     waft_rendering::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(DoubleProperty::new("spacing", Some(this.spacing)).default_value(Some(0.0)));
+        properties.add(
+            DoubleProperty::new("overflowSpacing", Some(this.overflow_spacing))
+                .default_value(Some(0.0)),
+        );
+        properties.add(
+            EnumProperty::<OverflowBarAlignment>::new(
+                "overflowAlignment",
+                Some(this.overflow_alignment),
+            )
+            .default_value(Some(OverflowBarAlignment::Start)),
+        );
+        properties.add(
+            EnumProperty::<VerticalDirection>::new(
+                "overflowDirection",
+                Some(this.overflow_direction),
+            )
+            .default_value(Some(VerticalDirection::Down)),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", Some(this.text_direction))
+                .default_value(None),
+        );
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         let mut child = self.first_child(app);
@@ -862,7 +893,7 @@ impl RenderBox for RenderOverflowBar {
 mod tests {
 
     use waft_embedder::Rect;
-    use waft_foundation::AppCell;
+    use waft_foundation::{AppCell, DiagnosticLevel};
     use waft_painting::AlignmentGeometry;
 
     use super::*;
@@ -944,6 +975,47 @@ mod tests {
         assert_eq!(bar.overflow_direction, VerticalDirection::Down);
         assert_eq!(bar.text_direction, None);
         assert!(bar.children.is_empty());
+    }
+
+    /// `overflow_bar.dart`'s `_RenderOverflowBar.debugFillProperties`: the spacing, overflow
+    /// alignment and direction, and the text direction; not the horizontal alignment, which
+    /// only the widget adds.
+    #[test]
+    fn an_overflow_bar_dump_shows_its_layout_properties() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let key = GlobalKey::new();
+        let tree = Directionality::new(
+            TextDirection::Ltr,
+            OverflowBar::new()
+                .key(key.clone().into())
+                .spacing(8.0)
+                .alignment(MainAxisAlignment::Center)
+                .overflow_spacing(4.0)
+                .overflow_alignment(OverflowBarAlignment::End)
+                .overflow_direction(VerticalDirection::Up)
+                .children(vec![SizedBox::new().width(20.0).height(20.0).into_widget()]),
+        )
+        .into_widget();
+        let harness = Harness::mount(&mut app, tree);
+        harness.pump(&mut app);
+        let bar = key
+            .current_context(&app)
+            .expect("mounted")
+            .find_render_object(&app)
+            .expect("a render object")
+            .downcast::<RenderOverflowBar>(&app)
+            .expect("an overflow bar");
+
+        let dump = bar
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(dump.contains("spacing: 8.0"), "{dump}");
+        assert!(dump.contains("overflowSpacing: 4.0"), "{dump}");
+        assert!(dump.contains("overflowAlignment: end"), "{dump}");
+        assert!(dump.contains("overflowDirection: up"), "{dump}");
+        assert!(dump.contains("textDirection: ltr"), "{dump}");
+        assert!(!dump.contains(" alignment:"), "{dump}");
     }
 
     /// "Empty OverflowBar".

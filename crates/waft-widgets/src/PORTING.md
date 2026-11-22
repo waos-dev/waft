@@ -686,6 +686,10 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
   Reason: language — `layout` and `dispose` are not virtuals a leaf can wrap.
   Affect: a region stops being registered as soon as it detaches, not only when it is disposed, and the next layout registers it again.
 
+- Change: `TapRegionGroupId` prints a type group as its `TypeId`'s debug form and a handle group as `#` and its identity hash, where Dart prints the group object's `toString`.
+  Reason: language — a `TypeId` is opaque and carries no name, and a `HandleId` has no `toString`.
+  Affect: a dump's `groupId:` line reads `TypeId(…)` or `#00001` where Flutter's reads `EditableText` or `Instance of '…'`.
+
 ## widgets/drag_target.rs → drag_target.dart
 
 - Change: a drag payload is an `Rc<T>` and a target accepts a draggable by matching that concrete Rust type.
@@ -797,6 +801,7 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - selectable_region.rs: selectable_region_test.dart's cases beyond the mouse, spy, keyboard-granular and handle-drag ones ported (double- and triple-click drags, shift-click, directional extension, the toolbar and magnifier cases, onSelectionChanged, SelectionListener). Trigger: the next edit of `SelectableRegion`'s gestures or actions; `SelectionListener`.
 - page_view.rs, sliver_fill.rs: `PageView`'s and `SliverFillRemaining`'s `debugFillProperties`. Trigger: diagnostics.
 - raw_tooltip.rs: the `SemanticsService.tooltip` announcement. Trigger: the semantics tree.
+- raw_tooltip.rs: `_RenderExclusiveMouseRegion`'s inherited `RenderMouseRegion` lines (`listeners`, `cursor`, `opaque`, `validForMouseTracker`); its `behavior` line shows. Trigger: `waft-rendering`'s `RenderMouseRegionBase` gaining the shared diagnostics body.
 - form.rs: `Form.onWillPop`, the `WillPopScope` it builds, and the deprecated `Form.onPopInvoked`. Trigger: `WillPopScope` (deferred; Flutter deprecates both).
 - form.rs: the error announcement `FormState._validate` sends through `SemanticsService`. Trigger: the semantics tree.
 - stretch_effect.rs: the shader stretch (`_StretchOverscrollEffect`, `_StretchEffectPainter`, `_StretchEffectShader` and the `ImageFilter.isShaderFilterSupported` branch), so the stretch is always the matrix scale Flutter uses where shader filters are unsupported. Trigger: the next edit of stretch_effect.rs (embedder's `FragmentProgram` and `ImageFilter::shader` exist).
@@ -865,7 +870,7 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - Scroll semantics: `ScrollContext.setSemanticsActions`, scrollable.rs's semantics widget and its render object with `excludeFromSemantics` and `semanticChildCount`, and scroll_position.rs's semantic action bookkeeping. Trigger: the semantics tree.
 - scrollable.rs, scroll_configuration.rs, primary_scroll_controller.rs: diagnostics, and `ScrollableDetails.hashCode` (no `Hash` over an erased physics). Trigger: diagnostics; a map keyed by scrollable details.
 - scroll_view.rs: the scroll view diagnostics. Trigger: diagnostics.
-- single_child_scroll_view.rs: the semantics clip and the approximate paint clip (deferred crate-wide in rendering's PORTING.md), and its diagnostics. Trigger: the semantics tree; the inspector; diagnostics.
+- single_child_scroll_view.rs: the semantics clip and the approximate paint clip (deferred crate-wide in rendering's PORTING.md). Trigger: the semantics tree; the inspector.
 - scrollbar.rs: the painter's semantics and the structured error reports, which are plain assert messages here. Trigger: the semantics tree; diagnostics.
 - toggleable.rs: the tap's `TapSemanticEvent`. Trigger: the semantics tree.
 - radio_group.rs: the post-frame check that at most one radio carries the group value. Trigger: diagnostics, and a post-frame callback usable from a state that may run without a binding.
@@ -880,7 +885,7 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - modal_barrier.rs: the barrier's `_SemanticsClipper`. Trigger: the semantics tree.
 - modal_barrier.rs: the alert sound when a non-dismissible barrier is tapped. Trigger: services' `SystemSound`.
 - overlay.rs: the theater's intrinsics, dry layout and baselines, and the deferred layout box's dry baseline. Trigger: intrinsics and baselines through a theater child.
-- overlay.rs: the overlay diagnostics, including the stack trace an invalidated entry location records (a flag stands in). Trigger: diagnostics.
+- overlay.rs: the overlay widgets' diagnostics (the entries, the theater's `skipCount`, the entry state's children and location), and the stack trace an invalidated entry location records (a flag stands in). Trigger: diagnostics.
 - overlay.rs: the overlay's semantics wrappers with their `traversalParentIdentifier` child identifiers, and its semantics updates. Trigger: the next edit of overlay.rs (the semantics widgets exist); the semantics tree.
 - overlay.rs: the theater's clip layer handle and the entry location's compositing-bits update. Trigger: layer handles and compositing bits in `waft-rendering`.
 - overlay.rs: the deferred-child gates on the theater's `markNeedsLayout` and the layout box's dirty flag. Trigger: a public `RenderBox` super-hook for `markNeedsLayout` and a readable dirty flag in `waft-rendering`.

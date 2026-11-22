@@ -7,7 +7,8 @@ use std::rc::Rc;
 
 use waft_embedder::{Clip, Matrix4, Offset, Size, TextDirection};
 use waft_foundation::{
-    App, Handle, ListenableObject, Listener, OptionRetained, Retained, ValueNotifier,
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsTreeStyle, EnumProperty, Handle,
+    IntProperty, ListenableObject, Listener, OptionRetained, Retained, ValueNotifier, message,
 };
 use waft_painting::{Alignment, AlignmentGeometry};
 use waft_rendering::{
@@ -2112,6 +2113,91 @@ impl RenderObject for RenderTheater {
             LayerHandle::set_layer(app, |app| &mut self.get_mut(app).clip_rect_layer, None);
             RenderTheaterMixin::paint(self, app, context, offset);
         }
+    }
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(IntProperty::<usize>::new(
+            "skipCount",
+            Some(this.skip_count),
+        ));
+        properties.add(EnumProperty::<TextDirection>::new(
+            "textDirection",
+            Some(this.text_direction),
+        ));
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let mut offstage_children: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        let mut onstage_children: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+
+        let mut count = 1;
+        let mut onstage = false;
+        let first_onstage_child = self.first_onstage_child(app);
+        let mut child = self.first_child(app);
+        while let Some(current) = child {
+            let child_parent_data = current.as_object().parent_data_of::<TheaterParentData>(app);
+            if Some(current) == first_onstage_child {
+                onstage = true;
+                count = 1;
+            }
+
+            if onstage {
+                onstage_children.push(Rc::new(
+                    current
+                        .as_object()
+                        .to_diagnostics_node(app, format!("onstage {count}")),
+                ));
+            } else {
+                offstage_children.push(Rc::new(
+                    current
+                        .as_object()
+                        .to_diagnostics_node(app, format!("offstage {count}"))
+                        .with_style(DiagnosticsTreeStyle::Offstage),
+                ));
+            }
+
+            let mut portal_children = Vec::new();
+            child_parent_data
+                .visit_overlay_portal_children_on_overlay_entry(app, &mut |render_object| {
+                    portal_children.push(render_object)
+                });
+            for (index, render_object) in portal_children.into_iter().enumerate() {
+                let subcount = index + 1;
+                if onstage {
+                    onstage_children.push(Rc::new(
+                        render_object
+                            .to_diagnostics_node(app, format!("onstage {count} - {subcount}")),
+                    ));
+                } else {
+                    offstage_children.push(Rc::new(
+                        render_object
+                            .to_diagnostics_node(app, format!("offstage {count} - {subcount}"))
+                            .with_style(DiagnosticsTreeStyle::Offstage),
+                    ));
+                }
+            }
+
+            child = child_parent_data.next_sibling();
+            count += 1;
+        }
+
+        let mut result = onstage_children;
+        if offstage_children.is_empty() {
+            result.push(Rc::new(
+                message("no offstage children").with_style(DiagnosticsTreeStyle::Offstage),
+            ));
+        } else {
+            result.extend(offstage_children);
+        }
+        result
     }
 
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
@@ -4343,7 +4429,7 @@ mod tests {
     use crate::test_harness::Harness;
     use crate::widgets::basic::SizedBox;
     use crate::widgets::media_query::MediaQueryData;
-    use waft_foundation::AppCell;
+    use waft_foundation::{AppCell, DiagnosticLevel};
 
     fn test_entry(app: &mut App) -> Ref<OverlayEntry> {
         OverlayEntry::new(
@@ -4552,6 +4638,13 @@ mod tests {
         // The theater's child model still holds one entry child.
         assert_eq!(theater.child_count(&app), 1);
 
+        // The overlay child is named after its entry and its position in that entry's paint
+        // order, as Dart's `_RenderTheater.debugDescribeChildren` names it.
+        let dump = theater
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(dump.contains("onstage 1 - 1:"), "{dump}");
+
         // Resume the lazy generator after entry layout removes its portal.
         let mut children = theater.children_in_paint_order(&app);
         assert_eq!(children.next(&app), Some(painted[0]));
@@ -4657,5 +4750,82 @@ mod tests {
             controller.hide(&mut app);
             harness.pump(&mut app);
         }
+    }
+
+    /// `overlay_test.dart`'s "OverflowEntries context contains Overlay": the theater names its
+    /// onstage children and says when no child is offstage.
+    #[test]
+    fn a_theater_dump_names_onstage_children_and_says_when_none_are_offstage() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let first = test_entry(&mut app);
+        let second = test_entry(&mut app);
+        let harness = mount_overlay(&mut app, vec![first, second]);
+        let theater = theater_of(&harness, &app);
+
+        let dump = theater
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(dump.contains("skipCount: 0"), "{dump}");
+        assert!(dump.contains("textDirection: ltr"), "{dump}");
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("onstage 1: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("onstage 2: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(dump.contains("╌no offstage children"), "{dump}");
+    }
+
+    /// `overlay_test.dart`'s "Offstage overlay": children below the first onstage child are
+    /// named offstage and marked with the offstage style.
+    #[test]
+    fn a_theater_dump_names_offstage_children_and_marks_them_offstage() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let entry = |app: &mut App| {
+            OverlayEntry::new(
+                app,
+                Rc::new(|_app, _context| SizedBox::shrink().into_widget()),
+                true,
+                true,
+                false,
+            )
+        };
+        let first = entry(&mut app);
+        let second = entry(&mut app);
+        let third = entry(&mut app);
+        let harness = mount_overlay(&mut app, vec![first, second, third]);
+        let theater = theater_of(&harness, &app);
+
+        let dump = theater
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(dump.contains("skipCount: 2"), "{dump}");
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("onstage 1: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("offstage 1: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("offstage 2: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("╌offstage 1: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(!dump.contains("no offstage children"), "{dump}");
     }
 }
