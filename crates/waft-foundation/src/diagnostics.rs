@@ -3,7 +3,6 @@
 use std::any::Any;
 use std::cell::OnceCell;
 use std::fmt;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 use std::sync::LazyLock;
 
@@ -1458,61 +1457,35 @@ impl DiagnosticsNode for Rc<dyn DiagnosticsNode> {
     }
 }
 
+/// A property's name, which Dart lets be `null`: a string where there is one, `None` where
+/// there is not, so a property reads as Dart's does: `IntProperty::new("depth", depth)`.
+pub trait IntoPropertyName {
+    fn into_property_name(self) -> Option<String>;
+}
+
+impl IntoPropertyName for &str {
+    fn into_property_name(self) -> Option<String> {
+        Some(self.to_owned())
+    }
+}
+
+impl IntoPropertyName for String {
+    fn into_property_name(self) -> Option<String> {
+        Some(self)
+    }
+}
+
+impl IntoPropertyName for Option<String> {
+    fn into_property_name(self) -> Option<String> {
+        self
+    }
+}
+
 /// Signature for computing the value of a property.
 ///
-/// May panic if accessing the property would throw; the panic is caught and
-/// reported through [`DiagnosticsProperty::exception`].
+/// It is called the first time the value is read, as Dart's `computeValue` is. Dart catches what
+/// it throws and shows `EXCEPTION`; a panic here ends the program, as any panic does.
 pub type ComputePropertyValueCallback<T> = Rc<dyn Fn() -> Option<T>>;
-
-/// What a lazily computed property stores when its callback panicked.
-///
-/// Dart keeps the thrown object. Rust panic payloads do not carry a runtime
-/// type, so a callback that panics with a `DiagnosticsException` names its type;
-/// any other payload is reported as `panic`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DiagnosticsException {
-    type_name: String,
-    message: String,
-}
-
-impl DiagnosticsException {
-    /// Creates an exception whose `type_name` is what Dart would print as
-    /// `exception.runtimeType`.
-    pub fn new(type_name: impl Into<String>, message: impl Into<String>) -> Self {
-        DiagnosticsException {
-            type_name: type_name.into(),
-            message: message.into(),
-        }
-    }
-
-    /// Dart's `exception.runtimeType.toString()`.
-    pub fn type_name(&self) -> &str {
-        &self.type_name
-    }
-
-    /// Dart's `exception.toString()`.
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-
-    fn from_panic(payload: &(dyn Any + Send)) -> Self {
-        if let Some(exception) = payload.downcast_ref::<DiagnosticsException>() {
-            exception.clone()
-        } else if let Some(message) = payload.downcast_ref::<String>() {
-            DiagnosticsException::new("String", message.clone())
-        } else if let Some(message) = payload.downcast_ref::<&'static str>() {
-            DiagnosticsException::new("&str", (*message).to_string())
-        } else {
-            DiagnosticsException::new("panic", "")
-        }
-    }
-}
-
-impl fmt::Display for DiagnosticsException {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
 
 enum PropertyValue<T> {
     Direct(Option<T>),
@@ -1522,14 +1495,12 @@ enum PropertyValue<T> {
 struct LazyValue<T> {
     compute: ComputePropertyValueCallback<T>,
     value: OnceCell<Option<T>>,
-    exception: OnceCell<Option<DiagnosticsException>>,
 }
 
 /// Dart's `DiagnosticsProperty<T>` fields and shared behavior.
 ///
-/// The property classes have no inheritance in Rust; each one owns one of these
-/// and reads it through `Deref`, as Flutter's subclasses read the inherited
-/// fields.
+/// The property classes have no inheritance in Rust; each one owns one of these and hands it out
+/// through `property_data`, as Flutter's subclasses inherit the fields.
 pub struct PropertyData<T> {
     /// Label describing the node.
     pub name: Option<String>,
@@ -1614,7 +1585,6 @@ impl<T> PropertyData<T> {
             value: PropertyValue::Lazy(LazyValue {
                 compute,
                 value: OnceCell::new(),
-                exception: OnceCell::new(),
             }),
         }
     }
@@ -1624,29 +1594,7 @@ impl<T> PropertyData<T> {
     pub fn value(&self) -> Option<&T> {
         match &self.value {
             PropertyValue::Direct(value) => value.as_ref(),
-            PropertyValue::Lazy(lazy) => lazy
-                .value
-                .get_or_init(
-                    || match catch_unwind(AssertUnwindSafe(|| (lazy.compute)())) {
-                        Ok(value) => value,
-                        Err(payload) => {
-                            let _ = lazy
-                                .exception
-                                .set(Some(DiagnosticsException::from_panic(&*payload)));
-                            None
-                        }
-                    },
-                )
-                .as_ref(),
-        }
-    }
-
-    /// Exception the property value's computation panicked with, if any.
-    pub fn exception(&self) -> Option<&DiagnosticsException> {
-        let _ = self.value();
-        match &self.value {
-            PropertyValue::Direct(_) => None,
-            PropertyValue::Lazy(lazy) => lazy.exception.get().and_then(Option::as_ref),
+            PropertyValue::Lazy(lazy) => lazy.value.get_or_init(|| (lazy.compute)()).as_ref(),
         }
     }
 
@@ -1704,10 +1652,6 @@ impl<T> PropertyData<T> {
             return self.add_tooltip(description);
         }
 
-        if let Some(exception) = self.exception() {
-            return format!("EXCEPTION ({})", exception.type_name());
-        }
-
         if let Some(if_null) = self.effective_if_null()
             && self.value().is_none()
         {
@@ -1737,9 +1681,6 @@ impl<T: PartialEq> PropertyData<T> {
     pub fn base_level(&self) -> DiagnosticLevel {
         if self.default_level == DiagnosticLevel::Hidden {
             return self.default_level;
-        }
-        if self.exception().is_some() {
-            return DiagnosticLevel::Error;
         }
         if self.value().is_none() && self.missing_if_null {
             return DiagnosticLevel::Warning;
@@ -1792,17 +1733,18 @@ pub struct DiagnosticsProperty<T> {
     data: PropertyData<T>,
 }
 
-impl<T> std::ops::Deref for DiagnosticsProperty<T> {
-    type Target = PropertyData<T>;
-
-    fn deref(&self) -> &Self::Target {
+impl<T> DiagnosticsProperty<T> {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<T> {
         &self.data
     }
 }
 
 impl<T> DiagnosticsProperty<T> {
     /// Creates a diagnostics property.
-    pub fn new(name: Option<String>, value: Option<T>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<T>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         DiagnosticsProperty {
             data: PropertyData::new(name, value),
         }
@@ -1811,7 +1753,11 @@ impl<T> DiagnosticsProperty<T> {
     /// Property with a value that is computed only when needed.
     ///
     /// Use if computing the value may panic or is expensive.
-    pub fn lazy(name: Option<String>, compute_value: ComputePropertyValueCallback<T>) -> Self {
+    pub fn lazy(
+        name: impl IntoPropertyName,
+        compute_value: ComputePropertyValueCallback<T>,
+    ) -> Self {
+        let name = name.into_property_name();
         DiagnosticsProperty {
             data: PropertyData::lazy(name, compute_value),
         }
@@ -2009,11 +1955,11 @@ impl MessageProperty {
     }
 }
 
-impl std::ops::Deref for MessageProperty {
-    type Target = DiagnosticsProperty<String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.property
+impl MessageProperty {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<String> {
+        self.property.property_data()
     }
 }
 
@@ -2066,10 +2012,10 @@ pub struct StringProperty {
     pub quoted: bool,
 }
 
-impl std::ops::Deref for StringProperty {
-    type Target = PropertyData<String>;
-
-    fn deref(&self) -> &Self::Target {
+impl StringProperty {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<String> {
         &self.data
     }
 }
@@ -2081,7 +2027,8 @@ impl StringProperty {
     }
 
     /// Create a diagnostics property for strings.
-    pub fn new(name: Option<String>, value: Option<String>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<String>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         StringProperty {
             data: PropertyData::new(name, value),
             quoted: true,
@@ -2233,10 +2180,10 @@ pub struct DoubleProperty {
     pub unit: Option<String>,
 }
 
-impl std::ops::Deref for DoubleProperty {
-    type Target = PropertyData<f64>;
-
-    fn deref(&self) -> &Self::Target {
+impl DoubleProperty {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<f64> {
         &self.data
     }
 }
@@ -2248,7 +2195,8 @@ impl DoubleProperty {
     }
 
     /// Create a diagnostics property for doubles.
-    pub fn new(name: Option<String>, value: Option<f64>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<f64>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         DoubleProperty {
             data: PropertyData::new(name, value),
             unit: None,
@@ -2256,7 +2204,11 @@ impl DoubleProperty {
     }
 
     /// Property with a value that is computed only when needed.
-    pub fn lazy(name: Option<String>, compute_value: ComputePropertyValueCallback<f64>) -> Self {
+    pub fn lazy(
+        name: impl IntoPropertyName,
+        compute_value: ComputePropertyValueCallback<f64>,
+    ) -> Self {
+        let name = name.into_property_name();
         DoubleProperty {
             data: PropertyData::lazy(name, compute_value),
             unit: None,
@@ -2380,10 +2332,10 @@ pub struct IntProperty<T = i64> {
     pub unit: Option<String>,
 }
 
-impl<T> std::ops::Deref for IntProperty<T> {
-    type Target = PropertyData<T>;
-
-    fn deref(&self) -> &Self::Target {
+impl<T> IntProperty<T> {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<T> {
         &self.data
     }
 }
@@ -2395,7 +2347,8 @@ impl<T> IntProperty<T> {
     }
 
     /// Create a diagnostics property for integers.
-    pub fn new(name: Option<String>, value: Option<T>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<T>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         IntProperty {
             data: PropertyData::new(name, value),
             unit: None,
@@ -2540,7 +2493,8 @@ impl PercentProperty {
 
     /// Create a diagnostics property for doubles that represent percentages or
     /// fractions.
-    pub fn new(name: Option<String>, fraction: Option<f64>) -> Self {
+    pub fn new(name: impl IntoPropertyName, fraction: impl Into<Option<f64>>) -> Self {
+        let (fraction, name) = (fraction.into(), name.into_property_name());
         PercentProperty {
             inner: DoubleProperty::new(name, fraction),
         }
@@ -2661,10 +2615,10 @@ pub struct FlagProperty {
     pub if_false: Option<String>,
 }
 
-impl std::ops::Deref for FlagProperty {
-    type Target = PropertyData<bool>;
-
-    fn deref(&self) -> &Self::Target {
+impl FlagProperty {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<bool> {
         &self.data
     }
 }
@@ -2679,7 +2633,8 @@ impl FlagProperty {
     ///
     /// `show_name` defaults to false as typically `if_true` and `if_false`
     /// should be descriptions that make the property name redundant.
-    pub fn new(name: Option<String>, value: Option<bool>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<bool>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         FlagProperty {
             data: PropertyData::new(name, value),
             if_true: None,
@@ -2805,10 +2760,10 @@ pub struct IterableProperty<T> {
     data: PropertyData<Vec<T>>,
 }
 
-impl<T> std::ops::Deref for IterableProperty<T> {
-    type Target = PropertyData<Vec<T>>;
-
-    fn deref(&self) -> &Self::Target {
+impl<T> IterableProperty<T> {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<Vec<T>> {
         &self.data
     }
 }
@@ -2823,7 +2778,8 @@ impl<T> IterableProperty<T> {
     ///
     /// The `if_empty` argument indicates how an iterable value with 0 elements
     /// is displayed.
-    pub fn new(name: Option<String>, value: Option<Vec<T>>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<Vec<T>>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         IterableProperty {
             data: PropertyData::new(name, value),
         }
@@ -2989,10 +2945,10 @@ pub struct EnumProperty<T> {
     data: PropertyData<T>,
 }
 
-impl<T> std::ops::Deref for EnumProperty<T> {
-    type Target = PropertyData<T>;
-
-    fn deref(&self) -> &Self::Target {
+impl<T> EnumProperty<T> {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<T> {
         &self.data
     }
 }
@@ -3004,7 +2960,8 @@ impl<T> EnumProperty<T> {
     }
 
     /// Create a diagnostics property that displays an enum.
-    pub fn new(name: Option<String>, value: Option<T>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<T>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         EnumProperty {
             data: PropertyData::new(name, value),
         }
@@ -3091,10 +3048,10 @@ pub struct ObjectFlagProperty<T> {
     pub if_present: Option<String>,
 }
 
-impl<T> std::ops::Deref for ObjectFlagProperty<T> {
-    type Target = PropertyData<T>;
-
-    fn deref(&self) -> &Self::Target {
+impl<T> ObjectFlagProperty<T> {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<T> {
         &self.data
     }
 }
@@ -3107,7 +3064,8 @@ impl<T> ObjectFlagProperty<T> {
 
     /// Create a diagnostics property for values that can be present (non-null)
     /// or absent (null).
-    pub fn new(name: Option<String>, value: Option<T>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<T>>) -> Self {
+        let (value, name) = (value.into(), name.into_property_name());
         ObjectFlagProperty {
             data: PropertyData::new(name, value),
             if_present: None,
@@ -3249,17 +3207,10 @@ pub struct FlagsSummary<T> {
     data: PropertyData<IndexMap<String, Option<T>>>,
 }
 
-impl<T> std::ops::Deref for FlagsSummary<T> {
-    type Target = PropertyData<IndexMap<String, Option<T>>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
 impl<T> FlagsSummary<T> {
     /// Create a summary for multiple properties.
-    pub fn new(name: Option<String>, value: IndexMap<String, Option<T>>) -> Self {
+    pub fn new(name: impl IntoPropertyName, value: IndexMap<String, Option<T>>) -> Self {
+        let name = name.into_property_name();
         FlagsSummary {
             data: PropertyData::new(name, Some(value)),
         }
@@ -3589,10 +3540,11 @@ pub struct DiagnosticableNode {
 impl DiagnosticableNode {
     /// Creates a node for `value`, filling its properties eagerly.
     pub fn new(
-        name: Option<String>,
+        name: impl IntoPropertyName,
         value: &impl Diagnosticable,
         style: Option<DiagnosticsTreeStyle>,
     ) -> Self {
+        let name = name.into_property_name();
         let mut builder = DiagnosticPropertiesBuilder::new();
         value.debug_fill_properties(&mut builder);
         let mut node = Self::from_parts(name, value.to_string_short(), builder);
@@ -3608,10 +3560,11 @@ impl DiagnosticableNode {
     /// This is how an arena object's node is built: read the object with
     /// `&App`, fill a [`DiagnosticPropertiesBuilder`], and pass both.
     pub fn from_parts(
-        name: Option<String>,
+        name: impl IntoPropertyName,
         description: impl Into<String>,
         builder: DiagnosticPropertiesBuilder,
     ) -> Self {
+        let name = name.into_property_name();
         assert_node_name(&name);
         let DiagnosticPropertiesBuilder {
             properties,
@@ -3683,10 +3636,11 @@ pub struct DiagnosticableTreeNode {
 impl DiagnosticableTreeNode {
     /// Creates a node for `value`, filling its properties and children eagerly.
     pub fn new(
-        name: Option<String>,
+        name: impl IntoPropertyName,
         value: &impl DiagnosticableTree,
         style: Option<DiagnosticsTreeStyle>,
     ) -> Self {
+        let name = name.into_property_name();
         let mut builder = DiagnosticPropertiesBuilder::new();
         value.debug_fill_properties(&mut builder);
         let mut inner = DiagnosticableNode::from_parts(name, value.to_string_short(), builder);
@@ -3706,11 +3660,12 @@ impl DiagnosticableTreeNode {
     /// children with `&App`, fill a [`DiagnosticPropertiesBuilder`], and pass
     /// both.
     pub fn from_parts(
-        name: Option<String>,
+        name: impl IntoPropertyName,
         description: impl Into<String>,
         builder: DiagnosticPropertiesBuilder,
         children: Vec<Rc<dyn DiagnosticsNode>>,
     ) -> Self {
+        let name = name.into_property_name();
         DiagnosticableTreeNode {
             inner: DiagnosticableNode::from_parts(name, description, builder),
             children,

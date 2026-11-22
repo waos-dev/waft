@@ -1,10 +1,4 @@
-use std::panic::panic_any;
-
 use super::*;
-
-fn n(name: &str) -> Option<String> {
-    Some(name.to_string())
-}
 
 fn node(node: impl DiagnosticsNode + 'static) -> Rc<dyn DiagnosticsNode> {
     Rc::new(node)
@@ -90,10 +84,10 @@ impl TestTree {
 
     fn debug_node(
         &self,
-        name: Option<String>,
+        name: impl IntoPropertyName,
         style: Option<DiagnosticsTreeStyle>,
     ) -> DiagnosticableTreeNode {
-        self.to_diagnostics_tree_node(name, style)
+        self.to_diagnostics_tree_node(name.into_property_name(), style)
     }
 }
 
@@ -350,7 +344,7 @@ fn tree_diagnostics_mixin_control_test() {
 }
 
 fn golden_property_style_test(
-    name: Option<String>,
+    name: impl IntoPropertyName,
     style: Option<DiagnosticsTreeStyle>,
     last_child_style: Option<DiagnosticsTreeStyle>,
     property_style: DiagnosticsTreeStyle,
@@ -359,31 +353,30 @@ fn golden_property_style_test(
     let tree = TestTree::new()
         .maybe_style(last_child_style)
         .property(
-            StringProperty::new(n("stringProperty1"), Some("value1".into()))
+            StringProperty::new("stringProperty1", Some("value1".into()))
                 .quoted(false)
                 .with_style(property_style),
         )
-        .property(DoubleProperty::new(n("doubleProperty1"), Some(42.5)).with_style(property_style))
+        .property(DoubleProperty::new("doubleProperty1", Some(42.5)).with_style(property_style))
         .property(
-            DoubleProperty::new(n("roundedProperty"), Some(1.0 / 3.0)).with_style(property_style),
+            DoubleProperty::new("roundedProperty", Some(1.0 / 3.0)).with_style(property_style),
         )
         .property(
-            StringProperty::new(n("DO_NOT_SHOW"), Some("DO_NOT_SHOW".into()))
+            StringProperty::new("DO_NOT_SHOW", Some("DO_NOT_SHOW".into()))
                 .with_level(DiagnosticLevel::Hidden)
                 .quoted(false)
                 .with_style(property_style),
         )
         .property(
-            DiagnosticsProperty::<TestObject>::new(n("DO_NOT_SHOW_NULL"), None)
+            DiagnosticsProperty::<TestObject>::new("DO_NOT_SHOW_NULL", None)
                 .default_value(None)
                 .with_style(property_style),
         )
         .property(
-            DiagnosticsProperty::<TestObject>::new(n("nullProperty"), None)
-                .with_style(property_style),
+            DiagnosticsProperty::<TestObject>::new("nullProperty", None).with_style(property_style),
         )
         .property(
-            StringProperty::new(n("node_type"), Some("<root node>".into()))
+            StringProperty::new("node_type", Some("<root node>".into()))
                 .with_show_name(false)
                 .quoted(false)
                 .with_style(property_style),
@@ -394,19 +387,19 @@ fn golden_property_style_test(
                 .name("node B")
                 .maybe_style(style)
                 .property(
-                    StringProperty::new(n("p1"), Some("v1".into()))
+                    StringProperty::new("p1", Some("v1".into()))
                         .quoted(false)
                         .with_style(property_style),
                 )
                 .property(
-                    StringProperty::new(n("p2"), Some("v2".into()))
+                    StringProperty::new("p2", Some("v2".into()))
                         .quoted(false)
                         .with_style(property_style),
                 )
                 .child(TestTree::new().name("node B1").maybe_style(style))
                 .child(
                     TestTree::new().name("node B2").maybe_style(style).property(
-                        StringProperty::new(n("property1"), Some("value1".into()))
+                        StringProperty::new("property1", Some("value1".into()))
                             .quoted(false)
                             .with_style(property_style),
                     ),
@@ -416,12 +409,12 @@ fn golden_property_style_test(
                         .name("node B3")
                         .maybe_style(last_child_style.or(style))
                         .property(
-                            StringProperty::new(n("node_type"), Some("<leaf node>".into()))
+                            StringProperty::new("node_type", Some("<leaf node>".into()))
                                 .with_show_name(false)
                                 .quoted(false)
                                 .with_style(property_style),
                         )
-                        .property(IntProperty::new(n("foo"), Some(42)).with_style(property_style)),
+                        .property(IntProperty::new("foo", 42_i64).with_style(property_style)),
                 ),
         )
         .child(
@@ -429,7 +422,7 @@ fn golden_property_style_test(
                 .name("node C")
                 .maybe_style(last_child_style.or(style))
                 .property(
-                    StringProperty::new(n("foo"), Some("multi\nline\nvalue!".into()))
+                    StringProperty::new("foo", Some("multi\nline\nvalue!".into()))
                         .quoted(false)
                         .with_style(property_style),
                 ),
@@ -750,7 +743,7 @@ fn tree_diagnostics_mixin_tree_with_properties_test() {
     );
 
     golden_property_style_test(
-        n("some name"),
+        "some name",
         Some(DiagnosticsTreeStyle::SingleLine),
         None,
         DiagnosticsTreeStyle::SingleLine,
@@ -767,7 +760,7 @@ fn tree_diagnostics_mixin_tree_with_properties_test() {
     );
 
     golden_property_style_test(
-        n("some name"),
+        "some name",
         Some(DiagnosticsTreeStyle::ErrorProperty),
         None,
         DiagnosticsTreeStyle::SingleLine,
@@ -837,16 +830,16 @@ fn tree_diagnostics_mixin_tree_with_properties_test() {
 #[test]
 fn to_string_test() {
     let tree = TestTree::new()
-        .property(StringProperty::new(n("stringProperty1"), Some("value1".into())).quoted(false))
-        .property(DoubleProperty::new(n("doubleProperty1"), Some(42.5)))
-        .property(DoubleProperty::new(n("roundedProperty"), Some(1.0 / 3.0)))
+        .property(StringProperty::new("stringProperty1", Some("value1".into())).quoted(false))
+        .property(DoubleProperty::new("doubleProperty1", Some(42.5)))
+        .property(DoubleProperty::new("roundedProperty", Some(1.0 / 3.0)))
         .property(
-            StringProperty::new(n("DO_NOT_SHOW"), Some("DO_NOT_SHOW".into()))
+            StringProperty::new("DO_NOT_SHOW", Some("DO_NOT_SHOW".into()))
                 .with_level(DiagnosticLevel::Hidden)
                 .quoted(false),
         )
         .property(
-            StringProperty::new(n("DEBUG_ONLY"), Some("DEBUG_ONLY".into()))
+            StringProperty::new("DEBUG_ONLY", Some("DEBUG_ONLY".into()))
                 .with_level(DiagnosticLevel::Debug)
                 .quoted(false),
         )
@@ -868,18 +861,18 @@ fn transition_test() {
     let tree = TestTree::new()
         .style(DiagnosticsTreeStyle::Sparse)
         .property(StringProperty::new(
-            n("stringProperty1"),
+            "stringProperty1",
             Some("value1".into()),
         ))
         .child(
             TestTree::new()
                 .style(DiagnosticsTreeStyle::Transition)
                 .name("node transition")
-                .property(StringProperty::new(n("p1"), Some("v1".into())))
+                .property(StringProperty::new("p1", Some("v1".into())))
                 .property_rc(node(
                     TestTree::new()
-                        .property(DiagnosticsProperty::<bool>::new(n("survived"), Some(true)))
-                        .debug_node(n("tree property"), Some(DiagnosticsTreeStyle::Whitespace)),
+                        .property(DiagnosticsProperty::<bool>::new("survived", Some(true)))
+                        .debug_node("tree property", Some(DiagnosticsTreeStyle::Whitespace)),
                 ))
                 .child(
                     TestTree::new()
@@ -890,18 +883,18 @@ fn transition_test() {
                     TestTree::new()
                         .name("dense")
                         .style(DiagnosticsTreeStyle::Dense)
-                        .property(StringProperty::new(n("property1"), Some("value1".into()))),
+                        .property(StringProperty::new("property1", Some("value1".into()))),
                 )
                 .child(
                     TestTree::new()
                         .name("node B3")
                         .style(DiagnosticsTreeStyle::Dense)
                         .property(
-                            StringProperty::new(n("node_type"), Some("<leaf node>".into()))
+                            StringProperty::new("node_type", Some("<leaf node>".into()))
                                 .with_show_name(false)
                                 .quoted(false),
                         )
-                        .property(IntProperty::new(n("foo"), Some(42))),
+                        .property(IntProperty::new("foo", 42_i64)),
                 ),
         )
         .child(
@@ -909,7 +902,7 @@ fn transition_test() {
                 .name("node C")
                 .style(DiagnosticsTreeStyle::Sparse)
                 .property(
-                    StringProperty::new(n("foo"), Some("multi\nline\nvalue!".into())).quoted(false),
+                    StringProperty::new("foo", Some("multi\nline\nvalue!".into())).quoted(false),
                 ),
         );
 
@@ -956,20 +949,20 @@ fn describe_enum_test() {
 #[test]
 fn string_property_test() {
     assert_eq!(
-        StringProperty::new(n("name"), Some("value".into()))
+        StringProperty::new("name", Some("value".into()))
             .quoted(false)
             .to_string(),
         "name: value"
     );
 
-    let string_property = StringProperty::new(n("name"), Some("value".into()))
+    let string_property = StringProperty::new("name", Some("value".into()))
         .description("VALUE")
         .if_empty("<hidden>")
         .quoted(false);
     assert_eq!(string_property.to_string(), "name: VALUE");
 
     assert_eq!(
-        StringProperty::new(n("name"), Some("value".into()))
+        StringProperty::new("name", Some("value".into()))
             .with_show_name(false)
             .if_empty("<hidden>")
             .quoted(false)
@@ -978,41 +971,41 @@ fn string_property_test() {
     );
 
     assert_eq!(
-        StringProperty::new(n("name"), Some(String::new()))
+        StringProperty::new("name", Some(String::new()))
             .if_empty("<hidden>")
             .to_string(),
         "name: <hidden>"
     );
 
     assert_eq!(
-        StringProperty::new(n("name"), Some(String::new()))
+        StringProperty::new("name", Some(String::new()))
             .if_empty("<hidden>")
             .with_show_name(false)
             .to_string(),
         "<hidden>"
     );
 
-    assert!(!StringProperty::new(n("name"), None).is_filtered(DiagnosticLevel::Info));
+    assert!(!StringProperty::new("name", None).is_filtered(DiagnosticLevel::Info));
     assert!(
-        StringProperty::new(n("name"), Some("value".into()))
+        StringProperty::new("name", Some("value".into()))
             .with_level(DiagnosticLevel::Hidden)
             .is_filtered(DiagnosticLevel::Info)
     );
     assert!(
-        StringProperty::new(n("name"), None)
+        StringProperty::new("name", None)
             .default_value(None)
             .is_filtered(DiagnosticLevel::Info)
     );
-    let quoted = StringProperty::new(n("name"), Some("value".into()));
+    let quoted = StringProperty::new("name", Some("value".into()));
     assert_eq!(quoted.to_string(), "name: \"value\"");
     assert_eq!(
-        StringProperty::new(n("name"), Some("value".into()))
+        StringProperty::new("name", Some("value".into()))
             .with_show_name(false)
             .to_string(),
         "\"value\""
     );
     assert_eq!(
-        StringProperty::new(n("name"), None)
+        StringProperty::new("name", None)
             .with_show_name(false)
             .to_string(),
         "null"
@@ -1021,8 +1014,8 @@ fn string_property_test() {
 
 #[test]
 fn bool_property_test() {
-    let true_property = DiagnosticsProperty::<bool>::new(n("name"), Some(true));
-    let false_property = DiagnosticsProperty::<bool>::new(n("name"), Some(false));
+    let true_property = DiagnosticsProperty::<bool>::new("name", Some(true));
+    let false_property = DiagnosticsProperty::<bool>::new("name", Some(false));
     assert_eq!(true_property.to_string(), "name: true");
     assert!(!true_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(true_property.value(), Some(&true));
@@ -1030,34 +1023,34 @@ fn bool_property_test() {
     assert_eq!(false_property.value(), Some(&false));
     assert!(!false_property.is_filtered(DiagnosticLevel::Info));
     let truthy_property =
-        DiagnosticsProperty::<bool>::new(n("name"), Some(true)).description("truthy");
+        DiagnosticsProperty::<bool>::new("name", Some(true)).description("truthy");
     assert_eq!(truthy_property.to_string(), "name: truthy");
     assert_eq!(
-        DiagnosticsProperty::<bool>::new(n("name"), Some(true))
+        DiagnosticsProperty::<bool>::new("name", Some(true))
             .with_show_name(false)
             .to_string(),
         "true"
     );
 
-    assert!(!DiagnosticsProperty::<bool>::new(n("name"), None).is_filtered(DiagnosticLevel::Info));
+    assert!(!DiagnosticsProperty::<bool>::new("name", None).is_filtered(DiagnosticLevel::Info));
     assert!(
-        DiagnosticsProperty::<bool>::new(n("name"), Some(true))
+        DiagnosticsProperty::<bool>::new("name", Some(true))
             .with_level(DiagnosticLevel::Hidden)
             .is_filtered(DiagnosticLevel::Info)
     );
     assert!(
-        DiagnosticsProperty::<bool>::new(n("name"), None)
+        DiagnosticsProperty::<bool>::new("name", None)
             .default_value(None)
             .is_filtered(DiagnosticLevel::Info)
     );
-    let missing_bool = DiagnosticsProperty::<bool>::new(n("name"), None).if_null("missing");
+    let missing_bool = DiagnosticsProperty::<bool>::new("name", None).if_null("missing");
     assert_eq!(missing_bool.to_string(), "name: missing");
 }
 
 #[test]
 fn flag_property_test() {
-    let true_flag = FlagProperty::new(n("myFlag"), Some(true)).if_true("myFlag");
-    let false_flag = FlagProperty::new(n("myFlag"), Some(false)).if_true("myFlag");
+    let true_flag = FlagProperty::new("myFlag", Some(true)).if_true("myFlag");
+    let false_flag = FlagProperty::new("myFlag", Some(false)).if_true("myFlag");
     assert_eq!(true_flag.to_string(), "myFlag");
     assert_eq!(true_flag.value(), Some(&true));
     assert_eq!(false_flag.value(), Some(&false));
@@ -1068,7 +1061,7 @@ fn flag_property_test() {
 #[test]
 fn property_with_tooltip_test() {
     let with_tooltip =
-        DiagnosticsProperty::<String>::new(n("name"), Some("value".into())).tooltip("tooltip");
+        DiagnosticsProperty::<String>::new("name", Some("value".into())).tooltip("tooltip");
     assert_eq!(with_tooltip.to_string(), "name: value (tooltip)");
     assert_eq!(with_tooltip.value(), Some(&"value".to_string()));
     assert!(!with_tooltip.is_filtered(DiagnosticLevel::Fine));
@@ -1076,83 +1069,63 @@ fn property_with_tooltip_test() {
 
 #[test]
 fn double_property_test() {
-    let double_property = DoubleProperty::new(n("name"), Some(42.0));
+    let double_property = DoubleProperty::new("name", Some(42.0));
     assert_eq!(double_property.to_string(), "name: 42.0");
     assert!(!double_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(double_property.value(), Some(&42.0));
 
     assert_eq!(
-        DoubleProperty::new(n("name"), Some(1.3333)).to_string(),
+        DoubleProperty::new("name", Some(1.3333)).to_string(),
         "name: 1.3"
     );
+    assert_eq!(DoubleProperty::new("name", None).to_string(), "name: null");
+    assert!(!DoubleProperty::new("name", None).is_filtered(DiagnosticLevel::Info));
     assert_eq!(
-        DoubleProperty::new(n("name"), None).to_string(),
-        "name: null"
-    );
-    assert!(!DoubleProperty::new(n("name"), None).is_filtered(DiagnosticLevel::Info));
-    assert_eq!(
-        DoubleProperty::new(n("name"), None)
+        DoubleProperty::new("name", None)
             .if_null("missing")
             .to_string(),
         "name: missing"
     );
 
-    let double_with_unit = DoubleProperty::new(n("name"), Some(42.0)).unit("px");
+    let double_with_unit = DoubleProperty::new("name", Some(42.0)).unit("px");
     assert_eq!(double_with_unit.to_string(), "name: 42.0px");
 }
 
 #[test]
 fn double_infinity_serialization_test() {
-    let inf_property_1 = DoubleProperty::new(n("double1"), Some(f64::INFINITY));
+    let inf_property_1 = DoubleProperty::new("double1", Some(f64::INFINITY));
     assert_eq!(inf_property_1.to_string(), "double1: Infinity");
 
-    let inf_property_2 = DoubleProperty::new(n("double2"), Some(f64::NEG_INFINITY));
+    let inf_property_2 = DoubleProperty::new("double2", Some(f64::NEG_INFINITY));
     assert_eq!(inf_property_2.to_string(), "double2: -Infinity");
 }
 
 #[test]
 fn unsafe_double_property_test() {
-    let safe = DoubleProperty::lazy(n("name"), Rc::new(|| Some(42.0)));
+    let safe = DoubleProperty::lazy("name", Rc::new(|| Some(42.0)));
     assert_eq!(safe.to_string(), "name: 42.0");
     assert!(!safe.is_filtered(DiagnosticLevel::Info));
     assert_eq!(safe.value(), Some(&42.0));
     assert_eq!(
-        DoubleProperty::lazy(n("name"), Rc::new(|| Some(1.3333))).to_string(),
+        DoubleProperty::lazy("name", Rc::new(|| Some(1.3333))).to_string(),
         "name: 1.3"
     );
 
     assert_eq!(
-        DoubleProperty::lazy(n("name"), Rc::new(|| None)).to_string(),
+        DoubleProperty::lazy("name", Rc::new(|| None)).to_string(),
         "name: null"
     );
-    assert!(!DoubleProperty::lazy(n("name"), Rc::new(|| None)).is_filtered(DiagnosticLevel::Info));
-
-    let throwing_property = DoubleProperty::lazy(
-        n("name"),
-        Rc::new(|| {
-            panic_any(DiagnosticsException::new(
-                "FlutterError",
-                "Invalid constraints",
-            ))
-        }),
-    );
-    assert_eq!(throwing_property.value(), None);
-    assert!(!throwing_property.is_filtered(DiagnosticLevel::Info));
-    assert_eq!(
-        throwing_property.to_string(),
-        "name: EXCEPTION (FlutterError)"
-    );
-    assert_eq!(throwing_property.level(), DiagnosticLevel::Error);
+    assert!(!DoubleProperty::lazy("name", Rc::new(|| None)).is_filtered(DiagnosticLevel::Info));
 }
 
 #[test]
 fn percent_property_test() {
     assert_eq!(
-        PercentProperty::new(n("name"), Some(0.4)).to_string(),
+        PercentProperty::new("name", Some(0.4)).to_string(),
         "name: 40.0%"
     );
 
-    let complex_percent_property = PercentProperty::new(n("name"), Some(0.99))
+    let complex_percent_property = PercentProperty::new("name", Some(0.99))
         .unit("invisible")
         .tooltip("almost transparent");
     assert_eq!(
@@ -1161,52 +1134,46 @@ fn percent_property_test() {
     );
 
     assert_eq!(
-        PercentProperty::new(n("name"), None)
+        PercentProperty::new("name", None)
             .unit("invisible")
             .tooltip("!")
             .to_string(),
         "name: null (!)"
     );
 
+    assert_eq!(PercentProperty::new("name", Some(0.4)).value(), Some(&0.4));
     assert_eq!(
-        PercentProperty::new(n("name"), Some(0.4)).value(),
-        Some(&0.4)
-    );
-    assert_eq!(
-        PercentProperty::new(n("name"), Some(0.0)).to_string(),
+        PercentProperty::new("name", Some(0.0)).to_string(),
         "name: 0.0%"
     );
     assert_eq!(
-        PercentProperty::new(n("name"), Some(-10.0)).to_string(),
+        PercentProperty::new("name", Some(-10.0)).to_string(),
         "name: 0.0%"
     );
     assert_eq!(
-        PercentProperty::new(n("name"), Some(1.0)).to_string(),
+        PercentProperty::new("name", Some(1.0)).to_string(),
         "name: 100.0%"
     );
     assert_eq!(
-        PercentProperty::new(n("name"), Some(3.0)).to_string(),
+        PercentProperty::new("name", Some(3.0)).to_string(),
         "name: 100.0%"
     );
+    assert_eq!(PercentProperty::new("name", None).to_string(), "name: null");
     assert_eq!(
-        PercentProperty::new(n("name"), None).to_string(),
-        "name: null"
-    );
-    assert_eq!(
-        PercentProperty::new(n("name"), None)
+        PercentProperty::new("name", None)
             .if_null("missing")
             .to_string(),
         "name: missing"
     );
     assert_eq!(
-        PercentProperty::new(n("name"), None)
+        PercentProperty::new("name", None)
             .if_null("missing")
             .with_show_name(false)
             .to_string(),
         "missing"
     );
     assert_eq!(
-        PercentProperty::new(n("name"), Some(0.5))
+        PercentProperty::new("name", Some(0.5))
             .with_show_name(false)
             .to_string(),
         "50.0%"
@@ -1215,10 +1182,9 @@ fn percent_property_test() {
 
 #[test]
 fn callback_property_test() {
-    let present = ObjectFlagProperty::<TestClosure>::new(n("onClick"), Some(TestClosure))
+    let present = ObjectFlagProperty::<TestClosure>::new("onClick", Some(TestClosure))
         .if_present("clickable");
-    let missing =
-        ObjectFlagProperty::<TestClosure>::new(n("onClick"), None).if_present("clickable");
+    let missing = ObjectFlagProperty::<TestClosure>::new("onClick", None).if_present("clickable");
 
     assert_eq!(present.to_string(), "clickable");
     assert!(!present.is_filtered(DiagnosticLevel::Info));
@@ -1230,8 +1196,8 @@ fn callback_property_test() {
 #[test]
 fn missing_callback_property_test() {
     let present =
-        ObjectFlagProperty::<TestClosure>::new(n("onClick"), Some(TestClosure)).if_null("disabled");
-    let missing = ObjectFlagProperty::<TestClosure>::new(n("onClick"), None).if_null("disabled");
+        ObjectFlagProperty::<TestClosure>::new("onClick", Some(TestClosure)).if_null("disabled");
+    let missing = ObjectFlagProperty::<TestClosure>::new("onClick", None).if_null("disabled");
 
     assert_eq!(present.to_string(), "onClick: Closure: () => void");
     assert!(present.is_filtered(DiagnosticLevel::Fine));
@@ -1242,11 +1208,11 @@ fn missing_callback_property_test() {
 
 #[test]
 fn describe_bool_property() {
-    let yes = FlagProperty::new(n("name"), Some(true))
+    let yes = FlagProperty::new("name", Some(true))
         .if_true("YES")
         .if_false("NO")
         .with_show_name(true);
-    let no = FlagProperty::new(n("name"), Some(false))
+    let no = FlagProperty::new("name", Some(false))
         .if_true("YES")
         .if_false("NO")
         .with_show_name(true);
@@ -1258,21 +1224,21 @@ fn describe_bool_property() {
     assert_eq!(no.value(), Some(&false));
 
     assert_eq!(
-        FlagProperty::new(n("name"), Some(true))
+        FlagProperty::new("name", Some(true))
             .if_true("YES")
             .if_false("NO")
             .to_string(),
         "YES"
     );
     assert_eq!(
-        FlagProperty::new(n("name"), Some(false))
+        FlagProperty::new("name", Some(false))
             .if_true("YES")
             .if_false("NO")
             .to_string(),
         "NO"
     );
     assert_eq!(
-        FlagProperty::new(n("name"), Some(true))
+        FlagProperty::new("name", Some(true))
             .if_true("YES")
             .if_false("NO")
             .with_level(DiagnosticLevel::Hidden)
@@ -1284,11 +1250,10 @@ fn describe_bool_property() {
 
 #[test]
 fn enum_property_test() {
-    let hello = EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::Hello));
-    let world = EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::World));
-    let defer_to_child =
-        EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::DeferToChild));
-    let null_enum = EnumProperty::<ExampleEnum>::new(n("name"), None);
+    let hello = EnumProperty::<ExampleEnum>::new("name", Some(ExampleEnum::Hello));
+    let world = EnumProperty::<ExampleEnum>::new("name", Some(ExampleEnum::World));
+    let defer_to_child = EnumProperty::<ExampleEnum>::new("name", Some(ExampleEnum::DeferToChild));
+    let null_enum = EnumProperty::<ExampleEnum>::new("name", None);
     assert_eq!(hello.level(), DiagnosticLevel::Info);
     assert_eq!(hello.value(), Some(&ExampleEnum::Hello));
     assert_eq!(hello.to_string(), "name: hello");
@@ -1305,14 +1270,14 @@ fn enum_property_test() {
     assert_eq!(null_enum.value(), None);
     assert_eq!(null_enum.to_string(), "name: null");
 
-    let matches_default = EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::Hello))
+    let matches_default = EnumProperty::<ExampleEnum>::new("name", Some(ExampleEnum::Hello))
         .default_value(Some(ExampleEnum::Hello));
     assert_eq!(matches_default.to_string(), "name: hello");
     assert_eq!(matches_default.value(), Some(&ExampleEnum::Hello));
     assert!(matches_default.is_filtered(DiagnosticLevel::Info));
 
     assert_eq!(
-        EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::Hello))
+        EnumProperty::<ExampleEnum>::new("name", Some(ExampleEnum::Hello))
             .with_level(DiagnosticLevel::Hidden)
             .level(),
         DiagnosticLevel::Hidden
@@ -1321,47 +1286,47 @@ fn enum_property_test() {
 
 #[test]
 fn int_property_test() {
-    let regular = IntProperty::new(n("name"), Some(42));
+    let regular = IntProperty::new("name", 42_i64);
     assert_eq!(regular.to_string(), "name: 42");
     assert_eq!(regular.value(), Some(&42));
     assert_eq!(regular.level(), DiagnosticLevel::Info);
 
-    let null_value = IntProperty::<i32>::new(n("name"), None);
+    let null_value = IntProperty::<i32>::new("name", None);
     assert_eq!(null_value.to_string(), "name: null");
     assert_eq!(null_value.value(), None);
     assert_eq!(null_value.level(), DiagnosticLevel::Info);
 
-    let hide_null = IntProperty::<i32>::new(n("name"), None).default_value(None);
+    let hide_null = IntProperty::<i32>::new("name", None).default_value(None);
     assert_eq!(hide_null.to_string(), "name: null");
     assert_eq!(hide_null.value(), None);
     assert!(hide_null.is_filtered(DiagnosticLevel::Info));
 
-    let null_description = IntProperty::<i32>::new(n("name"), None).if_null("missing");
+    let null_description = IntProperty::<i32>::new("name", None).if_null("missing");
     assert_eq!(null_description.to_string(), "name: missing");
     assert_eq!(null_description.value(), None);
     assert_eq!(null_description.level(), DiagnosticLevel::Info);
 
-    let hide_name = IntProperty::new(n("name"), Some(42)).with_show_name(false);
+    let hide_name = IntProperty::new("name", 42_i64).with_show_name(false);
     assert_eq!(hide_name.to_string(), "42");
     assert_eq!(hide_name.value(), Some(&42));
     assert_eq!(hide_name.level(), DiagnosticLevel::Info);
 
-    let with_unit = IntProperty::new(n("name"), Some(42)).unit("pt");
+    let with_unit = IntProperty::new("name", 42_i64).unit("pt");
     assert_eq!(with_unit.to_string(), "name: 42pt");
     assert_eq!(with_unit.value(), Some(&42));
     assert_eq!(with_unit.level(), DiagnosticLevel::Info);
 
-    let default_value = IntProperty::new(n("name"), Some(42)).default_value(Some(42));
+    let default_value = IntProperty::new("name", 42_i64).default_value(Some(42));
     assert_eq!(default_value.to_string(), "name: 42");
     assert_eq!(default_value.value(), Some(&42));
     assert!(default_value.is_filtered(DiagnosticLevel::Info));
 
-    let not_default_value = IntProperty::new(n("name"), Some(43)).default_value(Some(42));
+    let not_default_value = IntProperty::new("name", 43_i64).default_value(Some(42));
     assert_eq!(not_default_value.to_string(), "name: 43");
     assert_eq!(not_default_value.value(), Some(&43));
     assert_eq!(not_default_value.level(), DiagnosticLevel::Info);
 
-    let hidden = IntProperty::new(n("name"), Some(42)).with_level(DiagnosticLevel::Hidden);
+    let hidden = IntProperty::new("name", 42_i64).with_level(DiagnosticLevel::Hidden);
     assert_eq!(hidden.to_string(), "name: 42");
     assert_eq!(hidden.value(), Some(&42));
     assert_eq!(hidden.level(), DiagnosticLevel::Hidden);
@@ -1370,7 +1335,7 @@ fn int_property_test() {
 #[test]
 fn object_property_test() {
     let rect = TestRect;
-    let simple = DiagnosticsProperty::<TestRect>::new(n("name"), Some(rect));
+    let simple = DiagnosticsProperty::<TestRect>::new("name", Some(rect));
     assert_eq!(simple.value(), Some(&rect));
     assert_eq!(simple.level(), DiagnosticLevel::Info);
     assert_eq!(
@@ -1379,29 +1344,28 @@ fn object_property_test() {
     );
 
     let with_description =
-        DiagnosticsProperty::<TestRect>::new(n("name"), Some(rect)).description("small rect");
+        DiagnosticsProperty::<TestRect>::new("name", Some(rect)).description("small rect");
     assert_eq!(with_description.value(), Some(&rect));
     assert_eq!(with_description.level(), DiagnosticLevel::Info);
     assert_eq!(with_description.to_string(), "name: small rect");
 
-    let null_property = DiagnosticsProperty::<TestObject>::new(n("name"), None);
+    let null_property = DiagnosticsProperty::<TestObject>::new("name", None);
     assert_eq!(null_property.value(), None);
     assert_eq!(null_property.level(), DiagnosticLevel::Info);
     assert_eq!(null_property.to_string(), "name: null");
 
     let hide_null_property =
-        DiagnosticsProperty::<TestObject>::new(n("name"), None).default_value(None);
+        DiagnosticsProperty::<TestObject>::new("name", None).default_value(None);
     assert_eq!(hide_null_property.value(), None);
     assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_null_property.to_string(), "name: null");
 
-    let null_description =
-        DiagnosticsProperty::<TestObject>::new(n("name"), None).if_null("missing");
+    let null_description = DiagnosticsProperty::<TestObject>::new("name", None).if_null("missing");
     assert_eq!(null_description.value(), None);
     assert_eq!(null_description.level(), DiagnosticLevel::Info);
     assert_eq!(null_description.to_string(), "name: missing");
 
-    let hide_name = DiagnosticsProperty::<TestRect>::new(n("name"), Some(rect))
+    let hide_name = DiagnosticsProperty::<TestRect>::new("name", Some(rect))
         .with_show_name(false)
         .with_level(DiagnosticLevel::Warning);
     assert_eq!(hide_name.value(), Some(&rect));
@@ -1409,7 +1373,7 @@ fn object_property_test() {
     assert_eq!(hide_name.to_string(), "Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)");
 
     let hide_separator =
-        DiagnosticsProperty::<TestRect>::new(n("Creator"), Some(rect)).with_show_separator(false);
+        DiagnosticsProperty::<TestRect>::new("Creator", Some(rect)).with_show_separator(false);
     assert_eq!(hide_separator.value(), Some(&rect));
     assert_eq!(hide_separator.level(), DiagnosticLevel::Info);
     assert_eq!(
@@ -1421,83 +1385,39 @@ fn object_property_test() {
 #[test]
 fn lazy_object_property_test() {
     let rect = TestRect;
-    let simple = DiagnosticsProperty::<TestRect>::lazy(n("name"), Rc::new(move || Some(rect)))
+    let simple = DiagnosticsProperty::<TestRect>::lazy("name", Rc::new(move || Some(rect)))
         .description("small rect");
     assert_eq!(simple.value(), Some(&rect));
     assert_eq!(simple.level(), DiagnosticLevel::Info);
     assert_eq!(simple.to_string(), "name: small rect");
 
     let null_property =
-        DiagnosticsProperty::<TestObject>::lazy(n("name"), Rc::new(|| None::<TestObject>))
+        DiagnosticsProperty::<TestObject>::lazy("name", Rc::new(|| None::<TestObject>))
             .description("missing");
     assert_eq!(null_property.value(), None);
     assert!(!null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(null_property.to_string(), "name: missing");
 
     let hide_null_property =
-        DiagnosticsProperty::<TestObject>::lazy(n("name"), Rc::new(|| None::<TestObject>))
+        DiagnosticsProperty::<TestObject>::lazy("name", Rc::new(|| None::<TestObject>))
             .description("missing")
             .default_value(None);
     assert_eq!(hide_null_property.value(), None);
     assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_null_property.to_string(), "name: missing");
 
-    let hide_name = DiagnosticsProperty::<TestRect>::lazy(n("name"), Rc::new(move || Some(rect)))
+    let hide_name = DiagnosticsProperty::<TestRect>::lazy("name", Rc::new(move || Some(rect)))
         .description("small rect")
         .with_show_name(false);
     assert_eq!(hide_name.value(), Some(&rect));
     assert!(!hide_name.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_name.to_string(), "small rect");
-
-    let throwing_with_description = DiagnosticsProperty::<TestObject>::lazy(
-        n("name"),
-        Rc::new(|| {
-            panic_any(DiagnosticsException::new(
-                "FlutterError",
-                "Property not available",
-            ))
-        }),
-    )
-    .description("missing")
-    .default_value(None);
-    assert_eq!(throwing_with_description.value(), None);
-    assert_eq!(
-        throwing_with_description
-            .exception()
-            .map(DiagnosticsException::type_name),
-        Some("FlutterError")
-    );
-    assert!(!throwing_with_description.is_filtered(DiagnosticLevel::Info));
-    assert_eq!(throwing_with_description.to_string(), "name: missing");
-
-    let throwing_property = DiagnosticsProperty::<TestObject>::lazy(
-        n("name"),
-        Rc::new(|| {
-            panic_any(DiagnosticsException::new(
-                "FlutterError",
-                "Property not available",
-            ))
-        }),
-    )
-    .default_value(None);
-    assert_eq!(throwing_property.value(), None);
-    assert_eq!(
-        throwing_property
-            .exception()
-            .map(DiagnosticsException::type_name),
-        Some("FlutterError")
-    );
-    assert!(!throwing_property.is_filtered(DiagnosticLevel::Info));
-    assert_eq!(
-        throwing_property.to_string(),
-        "name: EXCEPTION (FlutterError)"
-    );
 }
 
 #[test]
 fn color_property_test() {
     let color = TestColor;
-    let simple = DiagnosticsProperty::<TestColor>::new(n("name"), Some(color));
+    let simple = DiagnosticsProperty::<TestColor>::new("name", Some(color));
     assert!(!simple.is_filtered(DiagnosticLevel::Info));
     assert_eq!(simple.value(), Some(&color));
     assert_eq!(simple.to_string(), "name: Color(0xffffffff)");
@@ -1505,19 +1425,19 @@ fn color_property_test() {
 
 #[test]
 fn flag_property_was_layout_test() {
-    let show = FlagProperty::new(n("wasLayout"), Some(true)).if_true("layout computed");
+    let show = FlagProperty::new("wasLayout", Some(true)).if_true("layout computed");
     assert_eq!(show.name(), Some("wasLayout"));
     assert_eq!(show.value(), Some(&true));
     assert!(!show.is_filtered(DiagnosticLevel::Info));
     assert_eq!(show.to_string(), "layout computed");
 
-    let hide = FlagProperty::new(n("wasLayout"), Some(false)).if_true("layout computed");
+    let hide = FlagProperty::new("wasLayout", Some(false)).if_true("layout computed");
     assert_eq!(hide.name(), Some("wasLayout"));
     assert_eq!(hide.value(), Some(&false));
     assert_eq!(hide.level(), DiagnosticLevel::Hidden);
     assert_eq!(hide.to_string(), "wasLayout: false");
 
-    let hide_true = FlagProperty::new(n("wasLayout"), Some(true)).if_false("no layout computed");
+    let hide_true = FlagProperty::new("wasLayout", Some(true)).if_false("no layout computed");
     assert_eq!(hide_true.name(), Some("wasLayout"));
     assert_eq!(hide_true.value(), Some(&true));
     assert_eq!(hide_true.level(), DiagnosticLevel::Hidden);
@@ -1544,7 +1464,7 @@ fn iterable_flags_property_test() {
     let mut value = IndexMap::new();
     value.insert("click".to_string(), Some(TestClosure));
     value.insert("move".to_string(), Some(TestClosure));
-    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    let flags = FlagsSummary::<TestClosure>::new("listeners", value);
     assert_eq!(flags.name(), Some("listeners"));
     assert_eq!(flags.value().len(), 2);
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
@@ -1553,25 +1473,25 @@ fn iterable_flags_property_test() {
     let mut value = IndexMap::new();
     value.insert("move".to_string(), Some(TestClosure));
     value.insert("click".to_string(), Some(TestClosure));
-    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    let flags = FlagsSummary::<TestClosure>::new("listeners", value);
     assert_eq!(flags.to_string(), "listeners: move, click");
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
 
     let mut value = IndexMap::new();
     value.insert("move".to_string(), None);
     value.insert("click".to_string(), Some(TestClosure));
-    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    let flags = FlagsSummary::<TestClosure>::new("listeners", value);
     assert_eq!(flags.to_string(), "listeners: click");
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
 
     let mut value = IndexMap::new();
     value.insert("enter".to_string(), None::<TestClosure>);
-    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    let flags = FlagsSummary::<TestClosure>::new("listeners", value);
     assert!(flags.is_filtered(DiagnosticLevel::Info));
 
     let mut value = IndexMap::new();
     value.insert("enter".to_string(), None::<TestClosure>);
-    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value).if_empty("<none>");
+    let flags = FlagsSummary::<TestClosure>::new("listeners", value).if_empty("<none>");
     assert_eq!(flags.to_string(), "listeners: <none>");
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
 }
@@ -1579,36 +1499,35 @@ fn iterable_flags_property_test() {
 #[test]
 fn iterable_property_test() {
     let ints = vec![1, 2, 3];
-    let ints_property = IterableProperty::<i32>::new(n("ints"), Some(ints.clone()));
+    let ints_property = IterableProperty::<i32>::new("ints", Some(ints.clone()));
     assert_eq!(ints_property.value(), Some(&ints));
     assert!(!ints_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(ints_property.to_string(), "ints: 1, 2, 3");
 
     let doubles = vec![1.0, 2.0, 3.0];
-    let doubles_property = IterableProperty::<f64>::new(n("doubles"), Some(doubles.clone()));
+    let doubles_property = IterableProperty::<f64>::new("doubles", Some(doubles.clone()));
     assert_eq!(doubles_property.value(), Some(&doubles));
     assert!(!doubles_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(doubles_property.to_string(), "doubles: 1.0, 2.0, 3.0");
 
-    let empty_property = IterableProperty::<TestObject>::new(n("name"), Some(Vec::new()));
+    let empty_property = IterableProperty::<TestObject>::new("name", Some(Vec::new()));
     assert_eq!(empty_property.value().map(Vec::len), Some(0));
     assert!(!empty_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(empty_property.to_string(), "name: []");
 
-    let null_property = IterableProperty::<TestObject>::new(n("list"), None);
+    let null_property = IterableProperty::<TestObject>::new("list", None);
     assert_eq!(null_property.value(), None);
     assert!(!null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(null_property.to_string(), "list: null");
 
-    let hide_null_property =
-        IterableProperty::<TestObject>::new(n("list"), None).default_value(None);
+    let hide_null_property = IterableProperty::<TestObject>::new("list", None).default_value(None);
     assert_eq!(hide_null_property.value(), None);
     assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_null_property.level(), DiagnosticLevel::Fine);
     assert_eq!(hide_null_property.to_string(), "list: null");
 
     let objects = vec![TestObject::Rect, TestObject::Color];
-    let objects_property = IterableProperty::<TestObject>::new(n("objects"), Some(objects.clone()));
+    let objects_property = IterableProperty::<TestObject>::new("objects", Some(objects.clone()));
     assert_eq!(objects_property.value(), Some(&objects));
     assert!(!objects_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(
@@ -1616,9 +1535,8 @@ fn iterable_property_test() {
         "objects: Rect.fromLTRB(0.0, 0.0, 20.0, 20.0), Color(0xffffffff)"
     );
 
-    let multi_line_property =
-        IterableProperty::<TestObject>::new(n("objects"), Some(objects.clone()))
-            .with_style(DiagnosticsTreeStyle::Whitespace);
+    let multi_line_property = IterableProperty::<TestObject>::new("objects", Some(objects.clone()))
+        .with_style(DiagnosticsTreeStyle::Whitespace);
     assert_eq!(multi_line_property.value(), Some(&objects));
     assert!(!multi_line_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(
@@ -1641,7 +1559,7 @@ fn iterable_property_test() {
     assert_deep(
         &TestTree::new()
             .property(
-                IterableProperty::<TestObject>::new(n("objects"), Some(objects.clone()))
+                IterableProperty::<TestObject>::new("objects", Some(objects.clone()))
                     .with_style(DiagnosticsTreeStyle::Whitespace),
             )
             .to_string_deep_with("", None, DiagnosticLevel::Debug, 100),
@@ -1656,7 +1574,7 @@ fn iterable_property_test() {
     assert_deep(
         &TestTree::new()
             .property_rc(node(objects_property))
-            .property(IntProperty::new(n("foo"), Some(42)))
+            .property(IntProperty::new("foo", 42_i64))
             .style(DiagnosticsTreeStyle::SingleLine)
             .to_string_deep(),
         "TestTree#00000(objects: [Rect.fromLTRB(0.0, 0.0, 20.0, 20.0), Color(0xffffffff)], foo: 42)",
@@ -1667,7 +1585,7 @@ fn iterable_property_test() {
     let single_element_list = vec![TestObject::Color];
 
     let object_property =
-        IterableProperty::<TestObject>::new(n("object"), Some(single_element_list.clone()))
+        IterableProperty::<TestObject>::new("object", Some(single_element_list.clone()))
             .with_style(DiagnosticsTreeStyle::Whitespace);
     assert_eq!(object_property.value(), Some(&single_element_list));
     assert!(!object_property.is_filtered(DiagnosticLevel::Info));
@@ -1763,7 +1681,7 @@ fn create_tree_with_wrapping_nodes(
         )
         .property(message("--- example property at max length --").with_style(property_style))
         .property(
-            DiagnosticsProperty::<String>::new(n("multi-line value"), Some(matrix.to_string()))
+            DiagnosticsProperty::<String>::new("multi-line value", Some(matrix.to_string()))
                 .with_style(property_style),
         )
         .property(message("--- example property at max length --").with_style(property_style))
@@ -2021,16 +1939,19 @@ fn error_message_style_wrap_test() {
 
 #[test]
 fn int_property_arguments_passed_to_super() {
-    let property = IntProperty::new(n("Example"), Some(0))
+    let property = IntProperty::new("Example", 0_i64)
         .if_null("is null")
         .with_show_name(false)
         .default_value(Some(1))
         .with_style(DiagnosticsTreeStyle::None)
         .with_level(DiagnosticLevel::Off);
     assert_eq!(property.value(), Some(&0));
-    assert_eq!(property.effective_if_null(), Some("is null"));
+    assert_eq!(
+        property.property_data().effective_if_null(),
+        Some("is null")
+    );
     assert!(!property.show_name());
-    assert_eq!(property.default_value, Some(Some(1)));
+    assert_eq!(property.property_data().default_value, Some(Some(1)));
     assert_eq!(property.style(), Some(DiagnosticsTreeStyle::None));
     assert_eq!(property.level(), DiagnosticLevel::Off);
 }
@@ -2038,10 +1959,10 @@ fn int_property_arguments_passed_to_super() {
 #[test]
 fn arena_object_snapshot_renders_as_a_diagnosticable_tree_node() {
     let mut builder = DiagnosticPropertiesBuilder::new();
-    builder.add(IntProperty::new(n("depth"), Some(3)));
+    builder.add(IntProperty::new("depth", 3_i64));
     let child = |name: &str| {
         node(DiagnosticableTreeNode::from_parts(
-            n(name),
+            name,
             "RenderPadding#a1f2c",
             DiagnosticPropertiesBuilder::new(),
             Vec::new(),
@@ -2068,7 +1989,7 @@ fn arena_object_snapshot_renders_as_a_diagnosticable_tree_node() {
 #[test]
 fn diagnosticable_tree_string_short_and_shallow_test() {
     let tree = TestTree::new()
-        .property(StringProperty::new(n("name"), Some("value".into())).quoted(false))
+        .property(StringProperty::new("name", Some("value".into())).quoted(false))
         .child(TestTree::new().name("child"));
     assert_deep(&tree.to_string_short(), "TestTree#00000");
     assert_deep(
@@ -2079,32 +2000,38 @@ fn diagnosticable_tree_string_short_and_shallow_test() {
 
 #[test]
 fn missing_if_null_derives_the_description() {
-    let missing = DiagnosticsProperty::<i32>::new(n("name"), None).missing_if_null(true);
-    assert_eq!(missing.if_null.as_deref(), Some("MISSING"));
+    let missing = DiagnosticsProperty::<i32>::new("name", None).missing_if_null(true);
+    assert_eq!(missing.property_data().if_null.as_deref(), Some("MISSING"));
     assert_eq!(missing.to_string(), "name: MISSING");
     assert_eq!(missing.level(), DiagnosticLevel::Warning);
 
-    let explicit_wins = DiagnosticsProperty::<i32>::new(n("name"), None)
+    let explicit_wins = DiagnosticsProperty::<i32>::new("name", None)
         .missing_if_null(true)
         .if_null("nothing");
-    assert_eq!(explicit_wins.if_null.as_deref(), Some("nothing"));
+    assert_eq!(
+        explicit_wins.property_data().if_null.as_deref(),
+        Some("nothing")
+    );
 
-    let explicit_before = DiagnosticsProperty::<i32>::new(n("name"), None)
+    let explicit_before = DiagnosticsProperty::<i32>::new("name", None)
         .if_null("nothing")
         .missing_if_null(true);
-    assert_eq!(explicit_before.if_null.as_deref(), Some("nothing"));
+    assert_eq!(
+        explicit_before.property_data().if_null.as_deref(),
+        Some("nothing")
+    );
 
-    let cleared = DiagnosticsProperty::<i32>::new(n("name"), None)
+    let cleared = DiagnosticsProperty::<i32>::new("name", None)
         .missing_if_null(true)
         .missing_if_null(false);
-    assert_eq!(cleared.if_null, None);
+    assert_eq!(cleared.property_data().if_null, None);
 }
 
 #[test]
 fn snapshot_node_matches_a_live_tree_node() {
     let tree = TestTree::new()
         .style(DiagnosticsTreeStyle::Sparse)
-        .property(IntProperty::new(n("depth"), Some(3)))
+        .property(IntProperty::new("depth", 3_i64))
         .child(
             TestTree::new()
                 .name("child")

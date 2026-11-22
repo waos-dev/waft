@@ -13,9 +13,9 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — render objects and layers live in the arena and are read with `&App`, so a node cannot keep the value and ask it for properties when it renders.
   Affect: the rendering crate builds the node once with `DiagnosticableTreeNode::from_parts`; `to_string_deep` prints the same tree Dart prints for a `DiagnosticableTreeNode`, while `value()` on a snapshot node answers none where Dart returns the value.
 
-- Change: a lazily computed property catches a panic and stores a `DiagnosticsException`; `EXCEPTION (...)` names the payload's Dart-like type when the payload is a `DiagnosticsException`, and `panic` otherwise.
-  Reason: language — Rust panics carry no runtime type.
-  Affect: a throwing property prints `name: EXCEPTION (FlutterError)` for a callback that panics with `DiagnosticsException::new("FlutterError", …)`, and `EXCEPTION (panic)` for any other payload.
+- Change: a lazily computed property's callback is not guarded: where Dart catches what `computeValue` throws and shows `EXCEPTION (…)` at the error level, a panic in it ends the program.
+  Reason: language — there is no catchable exception; a panic ends the program anywhere else in Waft too.
+  Affect: a property whose value cannot be computed must answer `None` (shown as `null` or its `ifNull`) rather than panic.
 
 - Change: `DiagnosticsProperty<T>` formats a value with `Display`; Dart prints `toStringShort` for values that are `DiagnosticableTree`.
   Reason: language — Rust cannot test a generic `T` for a trait implementation.
