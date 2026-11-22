@@ -68,7 +68,7 @@ fn covered(fixture: &Fixture) -> usize {
 
 /// Which quadrants of the 32-pixel ring carry the accent arc.
 fn quadrants(fixture: &Fixture) -> [bool; 4] {
-    let pixels = fixture.view.pixels();
+    let pixels = fixture.pixels();
     let accent = |x: usize, y: usize| {
         let index = (y * VIEW[0] as usize + x) * 4;
         let pixel = &pixels[index..index + 3];
@@ -231,7 +231,7 @@ fn changing_a_running_segment_replaces_its_clock() {
     );
     advance(&mut f, Duration::from_millis(600));
     let expected = ring_at_top_left(ProgressRing::new().is_indeterminate(false).value(75.0));
-    assert_eq!(*f.view.pixels(), *expected.view.pixels());
+    assert_eq!(f.pixels(), expected.pixels());
 
     replace(&mut f, ProgressRing::new());
     replace(
@@ -240,7 +240,7 @@ fn changing_a_running_segment_replaces_its_clock() {
     );
     advance(&mut f, Duration::from_secs(2));
     let expected = ring_at_top_left(ProgressRing::new().is_indeterminate(false).value(25.0));
-    assert_eq!(*f.view.pixels(), *expected.view.pixels());
+    assert_eq!(f.pixels(), expected.pixels());
 }
 
 #[test]
@@ -251,7 +251,7 @@ fn changing_an_indeterminate_value_does_not_restart_the_loop() {
     advance(&mut unchanged, Duration::from_millis(640));
     replace(&mut changed, ProgressRing::new().value(50.0));
     advance(&mut unchanged, Duration::from_millis(20));
-    assert_eq!(*changed.view.pixels(), *unchanged.view.pixels());
+    assert_eq!(changed.pixels(), unchanged.pixels());
 }
 
 #[test]
@@ -334,7 +334,7 @@ fn a_rectangular_ring_stretches_its_visual_to_fill() {
             .into_widget()
         }),
     );
-    let pixels = f.view.pixels();
+    let pixels = f.pixels();
     let filled = |x: usize, y: usize| {
         let index = (y * 64 + x) * 4;
         pixels[index..index + 3] != [255, 255, 255]

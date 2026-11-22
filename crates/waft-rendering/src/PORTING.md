@@ -33,6 +33,10 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 ## selection.rs → selection.dart
 
+- Change: `OffsetLayer.toImage`'s scene is `OffsetLayer::to_picture(bounds, pixel_ratio)`, the layer's scene flattened into one picture (`slices`) as a host draws a frame, offset and scaled as Dart's `_createSceneForImage`, which the host draws into an image (`Platform::picture_to_image_sync`).
+  Reason: platform — Waft draws a scene as one picture, and the host already draws a picture into an image, so `Scene.toImage` has no counterpart of its own.
+  Affect: the scene builder's transform is not pushed; the picture is drawn under it instead, since Waft's builder asserts every push is popped. A composition layer shows as the room made for it.
+
 - Change: `SelectionEvent` is one enum with a variant per Dart subclass, its `type` read with `ty()`.
   Reason: language — Rust has no subclasses to downcast an event to.
   Affect: a handler matches the event's variant where Dart casts it to `SelectionEdgeUpdateEvent` and the rest.
@@ -272,7 +276,8 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - `RenderImage`'s `centerSlice`. Trigger: an image drawn as a resizable frame.
 - `RenderImage`'s `filterQuality` and `isAntiAlias`. Trigger: a caller that needs to choose how an image is sampled.
 - `RenderImage`'s semantics label. Trigger: the semantics tree.
-- `PlatformViewLayer`, `PerformanceOverlayLayer`, `ClipRSuperellipseLayer`, `ColorFilterLayer`, `ShaderMaskLayer`, `OffsetLayer.toImage` / `toImageSync`, `PaintingContext.pushColorFilter`. Trigger: a platform view, a superellipse clip, a colour or shader-mask widget, `RepaintBoundary.toImage`, `SnapshotWidget`'s snapshot (Material's zoom page transition).
+- `PlatformViewLayer`, `PerformanceOverlayLayer`, `ClipRSuperellipseLayer`, `ColorFilterLayer`, `ShaderMaskLayer`, `PaintingContext.pushColorFilter`. Trigger: a platform view, a superellipse clip, a colour or shader-mask widget.
+- `OffsetLayer.toImage` / `toImageSync` and `RepaintBoundary.toImage`: an image is `OffsetLayer::to_picture` drawn by `Platform::picture_to_image_sync`, as flutter_test's capture does (`waft_widgets::testing::capture_image`), a line once something else holds one. Trigger: `SnapshotWidget`'s snapshot (Material's zoom page transition), an app taking a widget's picture.
 - `PaintingContext.addCompositionCallback`. Trigger: a caller that needs composition callbacks on the painting context (layers already have them).
 - Debug paint overlays on boxes, slivers and the viewport, and the overflow indicators of `RenderFlex` and `RenderConstraintsTransformBox` (an overflowing box clips but paints no striped hint). Trigger: inspector.
 - Semantics on `PipelineOwner`, `RenderObject`, `RenderCustomPaint`, the ignore- and absorb-pointer boxes, `RenderOffstage`, the opacity boxes' `alwaysIncludeSemantics`, `RenderTable`, the viewport and the slivers. Trigger: the semantics tree.

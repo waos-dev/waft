@@ -20,8 +20,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use waft_embedder::{
-    BlendMode, Clip, EngineLayer, ImageFilter, Matrix4, Offset, Picture, RRect, Rect, Scene,
-    SceneBuilder, Size,
+    BlendMode, Canvas, Clip, EngineLayer, ImageFilter, Matrix4, Offset, Picture, RRect, Rect,
+    Scene, SceneBuilder, Size, slices,
 };
 use waft_embedder::{CompositionLayer, VideoFrameReader};
 use waft_foundation::{App, Handle, HandleId, Ref};
@@ -2016,6 +2016,28 @@ impl AnyOffsetLayer {
     /// See [`OffsetLayerMixin::offset`].
     pub fn offset(self, app: &App) -> Offset {
         (self.vtable.offset_data)(app, self.id).offset
+    }
+
+    /// What this layer and its children paint within `bounds`, in this layer's coordinates,
+    /// scaled by `pixel_ratio`: one picture whose origin is `bounds`' top-left, to be drawn
+    /// `(pixel_ratio * bounds.size).ceil()` pixels large. `OffsetLayer.toImage`'s scene, kept as
+    /// the picture Waft draws a scene as, which the host draws into an image
+    /// (`Platform::picture_to_image_sync`). A composition layer in it, such as a video's, shows
+    /// as the room made for it.
+    pub fn to_picture(self, app: &mut App, bounds: Rect, pixel_ratio: f64) -> Picture {
+        let scene = self
+            .as_container_layer()
+            .build_scene(app, SceneBuilder::new());
+        let painted = slices(&scene, |_| None).picture_with_room();
+        let offset = self.offset(app);
+        let mut canvas = Canvas::new();
+        canvas.scale(pixel_ratio as f32, pixel_ratio as f32);
+        canvas.translate(
+            -(bounds.left + offset.dx()) as f32,
+            -(bounds.top + offset.dy()) as f32,
+        );
+        canvas.draw_display_list(&Arc::new(painted));
+        canvas.build()
     }
 
     /// See [`OffsetLayerMixin::set_offset`].

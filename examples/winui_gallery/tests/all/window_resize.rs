@@ -3,37 +3,45 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 use waft_embedder::{PointerChange, PointerData, PointerDataPacket, PointerDeviceKind};
-use waft_embedder::{SystemFontSource, TargetPlatform, View};
+use waft_embedder::{Size, TargetPlatform, View};
 use waft_foundation::{AppCell, Listener};
 use waft_gestures::GestureBinding;
 use waft_rendering::RendererBinding;
 use waft_scheduler::SchedulerBinding;
-use waft_test::TestPlatform;
+use waft_test::{TestPlatform, TestView};
 use waft_widgets::*;
 use waft_winui::*;
-use waft_winui_test_support::CaptureView;
 
 /// One refresh of `view` at `time`, processing microtasks between its phases.
-fn refresh(cell: &AppCell, view: &CaptureView, time: Duration) {
+fn refresh(cell: &AppCell, view: &TestView, time: Duration) {
     let views = [view.id()];
     SchedulerBinding::handle_begin_frame(&mut cell.borrow_mut(), &views, Some(time));
     cell.checkpoint();
     SchedulerBinding::handle_draw_frame(&mut cell.borrow_mut(), &views);
     cell.checkpoint();
 }
-/// A macOS host showing `view`, with the system fonts.
-fn host(view: &Rc<CaptureView>) -> TestPlatform {
+/// A macOS host showing `view`, with the system fonts and a GPU.
+fn host(view: &Rc<TestView>) -> TestPlatform {
     TestPlatform::new()
         .on(TargetPlatform::MacOS)
         .with_view(view.clone())
-        .with_font_source(|| {
-            Box::new(SystemFontSource::new(valo_system_fonts::fontmgr::platform()))
-        })
+        .with_system_fonts()
+        .with_gpu()
+}
+
+/// The size of what the app's view shows, captured from its `View`.
+fn captured_size(cell: &AppCell) -> [u32; 2] {
+    let mut app = cell.borrow_mut();
+    let view =
+        waft_widgets::testing::find::by_type::<waft_widgets::View>().evaluate_in(&mut app)[0];
+    waft_widgets::testing::capture_image(&mut app, view)
+        .expect("the platform draws images")
+        .size()
 }
 
 #[test]
 fn real_window_resize_relayouts_navigation_overlay() {
-    let view = Rc::new(CaptureView::new([1200, 800]));
+    let view = Rc::new(TestView::new(1200.0, 800.0));
     let cell = AppCell::with_platform(Rc::new(host(&view)));
     let tooltip_opened = Rc::new(Cell::new(false));
     {
@@ -111,7 +119,7 @@ fn real_window_resize_relayouts_navigation_overlay() {
             [400, 400],
         ]
     }) {
-        view.set_size(size);
+        view.set_physical_size(Size::new(size[0].into(), size[1].into()));
         {
             let mut app = cell.borrow_mut();
             RendererBinding::instance(&mut app).handle_metrics_changed(&mut app);
@@ -119,14 +127,14 @@ fn real_window_resize_relayouts_navigation_overlay() {
         {
             time += Duration::from_millis(16);
             refresh(&cell, &view, time);
-            assert_eq!(view.pixels().len(), (size[0] * size[1] * 4) as usize);
+            assert_eq!(captured_size(&cell), size);
         }
     }
 }
 
 #[test]
 fn real_gallery_window_resize_keeps_overlay_parent_data() {
-    let view = Rc::new(CaptureView::new([1200, 800]));
+    let view = Rc::new(TestView::new(1200.0, 800.0));
     let cell = AppCell::with_platform(Rc::new(host(&view)));
     {
         let mut app = cell.borrow_mut();
@@ -146,7 +154,7 @@ fn real_gallery_window_resize_keeps_overlay_parent_data() {
             [400, 400],
         ]
     }) {
-        view.set_size(size);
+        view.set_physical_size(Size::new(size[0].into(), size[1].into()));
         {
             let mut app = cell.borrow_mut();
             RendererBinding::instance(&mut app).handle_metrics_changed(&mut app);
@@ -154,7 +162,7 @@ fn real_gallery_window_resize_keeps_overlay_parent_data() {
         {
             time += Duration::from_millis(16);
             refresh(&cell, &view, time);
-            assert_eq!(view.pixels().len(), (size[0] * size[1] * 4) as usize);
+            assert_eq!(captured_size(&cell), size);
         }
     }
 }

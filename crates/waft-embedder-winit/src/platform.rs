@@ -350,6 +350,24 @@ impl Platform for WinitPlatform {
         )
     }
 
+    fn read_image_pixels(
+        &self,
+        image: &waft_embedder::Image,
+    ) -> waft_embedder::image_codecs::ImageFuture<valo::PixelBuffer> {
+        let dispatcher = self.dispatcher();
+        self.state
+            .images()
+            .snapshots()
+            .read_pixels(image, |device| {
+                // The GPU answers once polled: the wait goes off the main thread.
+                let device = device.clone();
+                dispatcher.dispatch(Box::new(move || {
+                    // A lost device fails the read, which says so.
+                    let _ = device.poll(wgpu::PollType::wait_indefinitely());
+                }));
+            })
+    }
+
     /// The frame's buffer as an image, as any buffer is.
     fn import_video_frame(&self, frame: &dyn VideoFrame) -> Option<valo::Image> {
         self.import_hardware_buffer(&*frame.hardware_buffer())

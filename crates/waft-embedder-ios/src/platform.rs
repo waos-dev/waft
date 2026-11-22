@@ -19,11 +19,10 @@ use objc2_foundation::{NSLocale, NSString};
 use waft_embedder::image_codecs::ImageCodecs;
 use waft_embedder::{
     Brightness, Cameras, CaptionSettings, Clipboard, Compositor, Dispatcher, FileDialogs, Files,
-    FontSource, HardwareBuffer, HardwareBufferAllocator, HttpClient, ImageCodec, ImageCodecFuture,
-    ImageDecodeError, ImageFrame, ImageFrameFuture, ImageRepetition, Locale, MediaAssets,
-    Notifications, Offset, Opener, Platform, Players, RequestId, Screen, Screens, SignedDuration,
-    SnapshotDelegate, SystemFontSource, TargetPlatform, VideoFrame, VideoFrameReaders, ViewError,
-    ViewId, ViewRef, VsyncWaiter, WindowConfig,
+    FontSource, HardwareBuffer, HardwareBufferAllocator, HttpClient, ImageCodecFuture, Locale,
+    MediaAssets, Notifications, Offset, Opener, Platform, Players, RequestId, Screen, Screens,
+    SignedDuration, SnapshotDelegate, SystemFontSource, TargetPlatform, VideoFrame,
+    VideoFrameReaders, ViewError, ViewId, ViewRef, VsyncWaiter, WindowConfig,
 };
 use waft_embedder_apple::composition::CoreAnimationCompositor;
 use waft_embedder_apple::hardware_buffers::SurfaceBufferAllocator;
@@ -278,26 +277,7 @@ impl Platform for IosPlatform {
     }
 
     fn open_image_codec(&self, bytes: Arc<[u8]>) -> ImageCodecFuture {
-        let loader = self.image_loader.clone();
-        Box::pin(async move {
-            if bytes.is_empty() {
-                return Err(ImageDecodeError::Empty);
-            }
-            let loader = loader.ok_or(ImageDecodeError::NoDecoder)?;
-            let codec = loader
-                .open(
-                    bytes,
-                    valo_codec::DecodeOptions {
-                        // Pictures are routinely drawn smaller than they decode, and mip levels are
-                        // the difference between a smooth downscale and a shimmering one.
-                        mipmaps: true,
-                        ..Default::default()
-                    },
-                )
-                .await
-                .map_err(as_decode_error)?;
-            Ok(Box::new(IosImageCodec { codec }) as Box<dyn ImageCodec>)
-        })
+        waft_embedder::valo_images::open_image_codec(self.image_loader.clone(), bytes)
     }
 
     fn import_pixels(&self, pixels: valo::PixelBuffer) -> Option<waft_embedder::Image> {
@@ -315,6 +295,21 @@ impl Platform for IosPlatform {
             self.snapshots
                 .make_raster_snapshot_sync(picture, width, height),
         )
+    }
+
+    fn read_image_pixels(
+        &self,
+        image: &waft_embedder::Image,
+    ) -> waft_embedder::image_codecs::ImageFuture<valo::PixelBuffer> {
+        let dispatcher = self.dispatcher();
+        self.snapshots.read_pixels(image, |device| {
+            // The GPU answers once polled: the wait goes off the main thread.
+            let device = device.clone();
+            dispatcher.dispatch(Box::new(move || {
+                // A lost device fails the read, which says so.
+                let _ = device.poll(wgpu::PollType::wait_indefinitely());
+            }));
+        })
     }
 
     /// The frame's buffer, imported as any hardware buffer is.
@@ -437,44 +432,5 @@ impl Screens for IosPlatform {
 
     fn pointer_location(&self) -> Option<Offset> {
         None
-    }
-}
-
-/// Adapts valo's drawable frames to the framework's codec contract.
-struct IosImageCodec {
-    codec: valo_codec::Codec,
-}
-
-impl ImageCodec for IosImageCodec {
-    fn frame_count(&self) -> u32 {
-        self.codec.info().frame_count
-    }
-
-    fn repetition(&self) -> ImageRepetition {
-        match self.codec.info().repetition {
-            valo_codec::Repetition::Once => ImageRepetition::Once,
-            valo_codec::Repetition::Times(times) => ImageRepetition::Times(times),
-            valo_codec::Repetition::Forever => ImageRepetition::Forever,
-        }
-    }
-
-    fn next_frame(&mut self) -> ImageFrameFuture<'_> {
-        let frame = self.codec.next_frame();
-        Box::pin(async move {
-            let frame = frame.await.map_err(as_decode_error)?;
-            Ok(ImageFrame {
-                image: frame.image,
-                duration: frame.duration,
-            })
-        })
-    }
-}
-
-fn as_decode_error(error: valo_codec::DecodeError) -> ImageDecodeError {
-    match error {
-        valo_codec::DecodeError::NoDecoder => ImageDecodeError::NoDecoder,
-        valo_codec::DecodeError::Unsupported(_) => ImageDecodeError::UnknownFormat,
-        valo_codec::DecodeError::InvalidData(reason) => ImageDecodeError::Damaged(reason),
-        other => ImageDecodeError::Failed(other.to_string()),
     }
 }

@@ -366,3 +366,85 @@ fn a_view_metric_set_mid_case_reaches_the_framework_and_reset_puts_it_back() {
         assert_eq!(data().view_insets.bottom, 0.0);
     });
 }
+
+mod capturing {
+    use waft_embedder::Color;
+    use waft_embedder::valo::PixelBuffer;
+    use waft_test::TestPlatform;
+
+    use super::super::capture_image;
+    use super::*;
+    use crate::framework::AnyElement;
+    use crate::widgets::basic::{ColoredBox, RepaintBoundary};
+
+    /// A red box of `width` by `height` inside its own repaint boundary, in the middle of the
+    /// view, on a platform with a GPU.
+    fn red_box(width: f64, height: f64) -> WidgetTester {
+        let mut tester = WidgetTester::with_platform(TestPlatform::new().with_gpu());
+        tester.pump_widget(
+            Center::new().child(
+                RepaintBoundary::new().child(
+                    SizedBox::new()
+                        .width(width)
+                        .height(height)
+                        .child(ColoredBox::new(Color::from_argb(255, 255, 0, 0))),
+                ),
+            ),
+        );
+        tester
+    }
+
+    /// `element` captured, and its image read back.
+    fn captured(tester: &WidgetTester, element: AnyElement) -> PixelBuffer {
+        tester.update(|app| {
+            let image = capture_image(app, element).expect("the platform draws images");
+            pollster::block_on(app.platform().read_image_pixels(&image))
+                .expect("the platform reads images back")
+        })
+    }
+
+    #[test]
+    fn a_widget_is_captured_with_its_repaint_boundary_at_its_logical_size() {
+        let tester = red_box(20.0, 10.0);
+        let element = find::by_type::<ColoredBox>().evaluate(&tester)[0];
+        let pixels = captured(&tester, element);
+        assert_eq!(pixels.layout().size, [20, 10]);
+        assert!(
+            pixels
+                .bytes()
+                .chunks(4)
+                .all(|pixel| pixel == [255, 0, 0, 255]),
+            "red throughout"
+        );
+    }
+
+    #[test]
+    fn the_view_is_captured_in_physical_pixels_with_what_it_leaves_unpainted_clear() {
+        let tester = red_box(20.0, 10.0);
+        let view = find::by_type::<crate::View>().evaluate(&tester)[0];
+        let pixels = captured(&tester, view);
+        let [width, height] = pixels.layout().size;
+        let ratio = WidgetTester::DEVICE_PIXEL_RATIO;
+        assert_eq!(
+            [width, height],
+            [
+                (WidgetTester::SIZE.width() * ratio) as u32,
+                (WidgetTester::SIZE.height() * ratio) as u32
+            ]
+        );
+        let at = |x: u32, y: u32| {
+            let start = ((y * width + x) * 4) as usize;
+            &pixels.bytes()[start..start + 4]
+        };
+        assert_eq!(at(width / 2, height / 2), [255, 0, 0, 255], "the box");
+        assert_eq!(at(0, 0), [0, 0, 0, 0], "nothing painted at the corner");
+    }
+
+    #[test]
+    fn a_platform_with_no_gpu_draws_no_image() {
+        let mut tester = WidgetTester::new();
+        tester.pump_widget(RepaintBoundary::new().child(SizedBox::new()));
+        let element = find::by_type::<SizedBox>().evaluate(&tester)[0];
+        assert!(tester.update(|app| capture_image(app, element)).is_none());
+    }
+}

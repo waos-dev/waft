@@ -9,7 +9,17 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - text_input.rs → test_text_input.dart, widget_tester.dart (`TestTextInput`, `showKeyboard`, `enterText`)
 - matchers.rs → matchers.dart (`findsNothing`, `findsOneWidget`, `findsWidgets`, `findsNWidgets`, `findsAtLeastNWidgets`)
 
+## capture.rs → _matchers_io.dart (`captureImage`)
+
+- Change: `captureImage(element)` is `capture_image(app, element)`, answering at once: the nearest repaint boundary's layer as a picture (`OffsetLayer::to_picture`) drawn by the platform (`Platform::picture_to_image_sync`), which is synchronous here.
+  Reason: platform — the host draws a picture into an image at the call, so there is nothing to wait for.
+  Affect: `None` where the platform has no renderer, as a test platform until given a GPU (`TestPlatform::with_gpu`); a test reads the image's pixels with `Platform::read_image_pixels` and encodes them with `waft_test::encode_png`. `matchesGoldenFile` and its `GoldenFileComparator` are not ported. Trigger: the golden tests the Material notes list.
+
 ## tester.rs → widget_tester.dart, binding.dart (`AutomatedTestWidgetsFlutterBinding`)
+
+- Change: the tester installs the platform's fonts (`install_platform_fonts`), which on a `TestPlatform` are flutter_test's, every family FlutterTest, unless a case gives the platform others (`TestPlatform::with_system_fonts`).
+  Reason: platform — the test platform says what fonts there are, as a host does, where flutter_test's binding loads its fonts itself.
+  Affect: a case that looks at what its text draws as gives its platform the system's fonts.
 
 - Change: `WidgetTester::pump()` and `pump_by(duration)` frame only the views that asked for a frame since the last pump, each frame of them at once.
   Reason: platform — a host frames the views that asked (`Platform::request_frame` names its view), where flutter_test's binding has one `hasScheduledFrame` for the app.

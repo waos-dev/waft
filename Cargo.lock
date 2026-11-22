@@ -5239,6 +5239,8 @@ dependencies = [
  "serde",
  "serde_json",
  "valo",
+ "valo-codec",
+ "valo-codec-software",
  "valo-geometry",
  "valo-system-fonts",
  "web-time",
@@ -5554,6 +5556,9 @@ name = "waft-test"
 version = "0.9.1"
 dependencies = [
  "http",
+ "pollster",
+ "valo-codec-software",
+ "valo-system-fonts",
  "waft-embedder",
  "waft-foundation",
  "wgpu",
@@ -5564,6 +5569,7 @@ name = "waft-widgets"
 version = "0.9.1"
 dependencies = [
  "indexmap",
+ "pollster",
  "valo-system-fonts",
  "waft-animation",
  "waft-embedder",
@@ -5598,9 +5604,7 @@ dependencies = [
 name = "waft-winui-test-support"
 version = "0.9.1"
 dependencies = [
- "png 0.17.16",
  "pollster",
- "valo-system-fonts",
  "waft-animation",
  "waft-embedder",
  "waft-foundation",
@@ -5611,7 +5615,6 @@ dependencies = [
  "waft-services",
  "waft-test",
  "waft-widgets",
- "wgpu",
 ]
 
 [[package]]

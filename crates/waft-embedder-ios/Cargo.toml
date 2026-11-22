@@ -22,7 +22,7 @@ image-worker = ["valo-codec/worker"]
 test-support = []
 
 [target.'cfg(target_os = "ios")'.dependencies]
-waft-embedder.workspace = true
+waft-embedder = { workspace = true, features = ["valo-codec"] }
 # Core Animation's compositor and the layer a view draws into, IOSurface buffers, AVFoundation's
 # media, Image I/O's codecs and the notification center, which macOS shares.
 waft-embedder-apple = { workspace = true, default-features = false }

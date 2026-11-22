@@ -1,24 +1,24 @@
 //! Reusable application fixture with simulated time and input.
 
-use crate::{CaptureView, gpu};
 use std::{rc::Rc, time::Duration};
+use waft_embedder::valo::PixelBuffer;
 use waft_embedder::{
-    Offset, PointerChange, PointerData, PointerDataPacket, PointerDeviceKind, SystemFontSource,
-    TargetPlatform, View,
+    Offset, PointerChange, PointerData, PointerDataPacket, PointerDeviceKind, TargetPlatform, View,
 };
 use waft_foundation::{App, AppCell};
 use waft_gestures::GestureBinding;
 use waft_rendering::RenderParagraph;
 use waft_scheduler::SchedulerBinding;
-use waft_test::{MockClipboard, TestPlatform};
+use waft_test::{MockClipboard, TestPlatform, TestView};
+use waft_widgets::testing::{capture_image, find};
 use waft_widgets::{AnyElement, WidgetRef, WidgetsBinding};
 
 /// Mounts an arbitrary application with simulated time and pointer input.
 pub struct Fixture {
     /// Application arena and scheduler checkpoints.
     pub cell: Rc<AppCell>,
-    /// Headless rendered output.
-    pub view: Rc<CaptureView>,
+    /// The view the app draws into, which draws its last frame when its pixels are read.
+    pub view: Rc<TestView>,
     /// Simulated event timestamp.
     pub at: Duration,
     /// Gesture identifiers increase on each down, as in the engine converter.
@@ -33,28 +33,19 @@ pub struct Fixture {
 impl Fixture {
     /// Mounts whatever `run` starts, for a test of one control.
     pub fn with_root(size: [u32; 2], run: impl FnOnce(&mut App)) -> Self {
-        let view = Rc::new(CaptureView::new(size));
+        let view = Rc::new(TestView::new(size[0].into(), size[1].into()));
         let clipboard = MockClipboard::new();
         let platform = TestPlatform::new()
             .on(TargetPlatform::MacOS)
             .with_view(view.clone())
             .with_clipboard(Rc::new(clipboard.clone()))
-            .with_font_source(|| {
-                Box::new(SystemFontSource::new(valo_system_fonts::fontmgr::platform()))
-            })
-            .with_pixel_import(|pixels| {
-                // Images made from pixels go to the binary's renderer, which draws them.
-                gpu::with_context(|context| {
-                    context.image_context().upload_pixels(pixels, false).ok()
-                })
-                .flatten()
-            });
+            .with_system_fonts()
+            .with_gpu();
         let cell = AppCell::with_platform(Rc::new(platform));
         {
             let mut app = cell.borrow_mut();
-            waft_painting::PaintingBinding::instance(&mut app).install_fonts(&mut app, |fonts| {
-                fonts.add_source(SystemFontSource::new(valo_system_fonts::fontmgr::platform()));
-            });
+            // What the shell installs at start-up, which a fixture runs the app without.
+            waft_painting::PaintingBinding::instance(&mut app).install_platform_fonts(&mut app);
             run(&mut app);
         }
         cell.elapse(Duration::ZERO);
@@ -273,20 +264,55 @@ impl Fixture {
         self.send(PointerChange::Up, p);
         self.pump();
     }
-    /// Checks the frame and optionally writes it under WINUI_CAPTURE_DIR.
+    /// What the view shows over a white window, the backdrop the WinUI tests are written
+    /// against, as RGBA rows of [`size`](Self::size): its `View` captured (`capture_image`) and read back,
+    /// clear where nothing is painted, then laid over white.
+    pub fn pixels(&self) -> Vec<u8> {
+        over_white(self.captured().into_bytes())
+    }
+
+    /// The view's size in physical pixels, the size of what [`pixels`](Self::pixels) captures.
+    pub fn size(&self) -> [u32; 2] {
+        self.view
+            .metrics()
+            .physical_size
+            .map(|length| length.ceil() as u32)
+    }
+
+    /// Captures the frame, written under WINUI_CAPTURE_DIR as `name` where it is set.
     pub fn capture(&self, name: &str) {
-        let pixels = self.view.pixels();
-        assert_eq!(
-            pixels.len(),
-            (self.view.size()[0] * self.view.size()[1] * 4) as usize
-        );
-        assert!(pixels.as_chunks::<4>().0.iter().all(|p| p[3] == 255));
+        let pixels = self.captured();
         if let Ok(dir) = std::env::var("WINUI_CAPTURE_DIR") {
-            let dir = std::path::Path::new(&dir);
-            std::fs::create_dir_all(dir).unwrap();
-            gpu::write_png(&dir.join(format!("{name}.png")), self.view.size(), &pixels);
+            std::fs::create_dir_all(&dir).expect("the capture folder is made");
+            let path = std::path::Path::new(&dir).join(format!("{name}.png"));
+            std::fs::write(path, waft_test::encode_png(&pixels)).expect("the capture is written");
         }
     }
+
+    fn captured(&self) -> PixelBuffer {
+        let mut app = self.cell.borrow_mut();
+        let view = *find::by_type::<waft_widgets::View>()
+            .evaluate_in(&mut app)
+            .first()
+            .expect("the app's view");
+        let image = capture_image(&mut app, view).expect("the test platform draws images");
+        let pixels = pollster::block_on(app.platform().read_image_pixels(&image))
+            .expect("the frame reads back");
+        assert_eq!(pixels.layout().size, self.size());
+        pixels
+    }
+}
+
+/// Straight-alpha RGBA `pixels` laid over opaque white, as a window's white backdrop shows them.
+fn over_white(mut pixels: Vec<u8>) -> Vec<u8> {
+    for pixel in pixels.as_chunks_mut::<4>().0 {
+        let alpha = u32::from(pixel[3]);
+        for channel in &mut pixel[..3] {
+            *channel = ((u32::from(*channel) * alpha + 255 * (255 - alpha) + 127) / 255) as u8;
+        }
+        pixel[3] = 255;
+    }
+    pixels
 }
 
 /// `waft_widgets::run_app` for a widget built once the app exists.

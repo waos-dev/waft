@@ -28,10 +28,29 @@ For testing widget trees, menus, file dialogs, clipboard, media, and rendering w
 
 ```toml
 [dev-dependencies]
-waft-test = "0.8"
+waft-test = "0.9"
 ```
 
 `waft-test` provides:
 - `TestPlatform`, `TestDispatcher`, `TestView`, and `TestViewHost` (modeled after `flutter_test`'s `TestPlatformDispatcher` and `TestFlutterView`)
 - Mock host services: `MockClipboard`, `MockMenuBar`, `MockPopupMenus`, `MockDockMenu`, `MockTrayIcons`, `MockFileDialogs` (`MemoryFile`, `MemoryFolder`), `MockHttpClient`, `MockNotifications`, `MockOpener`, `MockCompositor`, `MockPlayers`, `MockCameras`, and `MockImageCodecs`
 - `object_snapshot` and `assert_no_new_objects` (in debug builds) to verify that widget lifecycles leave no leaked objects in the `App` arena.
+
+## Seeing What a Widget Paints
+
+A test can look at what a widget paints, as flutter_test's `captureImage` does. `capture_image(app, element)` draws the layer of the widget's nearest repaint boundary into an image; an app's `View` is the boundary of everything it shows. The platform reads an image's pixels back (`read_image_pixels`, dart:ui's `Image.toByteData`), and `waft_test::encode_png` encodes them to write to a file.
+
+The platform decides what there is to draw with. By default text is in flutter_test's font, where every letter is a box, which keeps layout tests the same on every machine, and no image is drawn at all. A test that looks at what it paints gives the platform the system's fonts, and a GPU with no window:
+
+```rust
+let platform = TestPlatform::new()
+    .with_system_fonts()
+    .with_gpu();
+// Start the app on `platform` and pump it, as the app's other tests do; then:
+let view = find::by_type::<View>().evaluate_in(&mut app)[0];
+let image = capture_image(&mut app, view).expect("the platform has a GPU");
+let pixels = pollster::block_on(app.platform().read_image_pixels(&image))?;
+std::fs::write("target/frames/home.png", waft_test::encode_png(&pixels))?;
+```
+
+What is left unpainted reads back clear, and a composition layer, such as a video's or another process's view, shows as the room made for it. Text is in the fonts of the machine the test runs on, so a page in a system's own font, such as Segoe UI on Windows, is drawn in another font elsewhere; its layout and colors still show. These tests need a graphics device, which `cargo test` on a desktop has; a Linux CI runner needs a software one such as Mesa's lavapipe.

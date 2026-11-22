@@ -16,6 +16,7 @@
 //! Each case has its own `App`, so nothing a case sets (a debug flag, the clock, a singleton)
 //! reaches another; flutter_test's resets between tests have no counterpart.
 
+mod capture;
 mod delayed;
 mod entry;
 mod finder;
@@ -29,6 +30,7 @@ mod tester;
 mod tests;
 mod text_input;
 
+pub use capture::capture_image;
 pub use delayed::delayed;
 pub use entry::{TargetPlatformVariant, test_widgets, test_widgets_variant};
 pub use finder::{Finder, FindsOne, RenderTarget, find};

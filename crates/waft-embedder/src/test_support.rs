@@ -86,6 +86,44 @@ pub fn drawn_pixels(picture: Picture, size: [u32; 2]) -> Vec<u8> {
         .into_bytes()
 }
 
+/// `image`'s pixels read back from the test device, as a host's `Platform::read_image_pixels`
+/// reads them, through the same read-back, the device waited on at once.
+///
+/// # Panics
+///
+/// Panics if no GPU adapter is available.
+pub fn read_image_pixels(image: &Image) -> crate::image_codecs::ImageFuture<valo::PixelBuffer> {
+    crate::snapshot_delegate::read_image_pixels(&mut gpu(), image, |device| {
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("the test GPU device answers");
+    })
+}
+
+/// An image of `pixels` on the test device, which [`drawn_pixels`] draws: what a host's
+/// `Platform::import_pixels` makes; none where the pixels do not upload.
+///
+/// # Panics
+///
+/// Panics if no GPU adapter is available.
+pub fn imported_pixels(pixels: valo::PixelBuffer) -> Option<Image> {
+    gpu().image_context().upload_pixels(pixels, false).ok()
+}
+
+/// `bytes` opened as a picture on the test device, which [`drawn_pixels`] draws: what a host's
+/// `Platform::open_image_codec` answers, decoded by valo's software decoders, the same on every
+/// machine.
+///
+/// # Panics
+///
+/// Panics if no GPU adapter is available.
+pub fn open_image_codec(bytes: Arc<[u8]>) -> crate::ImageCodecFuture {
+    let decoders: Vec<Box<dyn valo_codec::Decoder>> =
+        vec![Box::new(valo_codec_software::SoftwareDecoder)];
+    let loader = valo_codec::ImageLoader::new(gpu().image_context().clone(), decoders);
+    crate::valo_images::open_image_codec(Some(loader), bytes)
+}
+
 /// `picture` drawn into an image of `size` on the test device, as a host's
 /// `Platform::picture_to_image_sync` draws it.
 ///
@@ -135,5 +173,49 @@ impl CompositionLayer for IdleLayer {
 
     fn current_picture(&self) -> Option<crate::LayerPicture> {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Dispatcher, Instant, SnapshotDelegate};
+
+    /// A host's dispatcher: work runs on a thread of its own, as a system queue runs it.
+    struct ThreadDispatcher;
+
+    impl Dispatcher for ThreadDispatcher {
+        fn wake_at(&self, _timer_wakeup: Option<Instant>) {}
+
+        fn wake_now(&self) {}
+
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "the test plays a host, which runs dispatched work on threads of its own"
+        )]
+        fn dispatch(&self, work: Box<dyn FnOnce() + Send>) {
+            std::thread::spawn(work);
+        }
+    }
+
+    #[test]
+    fn a_host_reads_an_image_back_with_the_gpu_waited_on_off_the_calling_thread() {
+        let image = solid_image([3, 2], [255, 0, 0, 255]);
+        let snapshots = SnapshotDelegate::new(gpu().image_context().clone());
+        let pixels = pollster::block_on(snapshots.read_pixels(&image, |device| {
+            let device = device.clone();
+            ThreadDispatcher.dispatch(Box::new(move || {
+                let _ = device.poll(wgpu::PollType::wait_indefinitely());
+            }));
+        }))
+        .expect("the image reads back");
+        assert_eq!(pixels.layout().size, [3, 2]);
+        assert!(
+            pixels
+                .bytes()
+                .chunks(4)
+                .all(|pixel| pixel == [255, 0, 0, 255]),
+            "red throughout"
+        );
     }
 }
