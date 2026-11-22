@@ -640,13 +640,8 @@ impl InheritedWidget for TimePickerTheme {
 impl waft_foundation::Diagnosticable for TimePickerThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "backgroundColor",
-                self.background_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("backgroundColor", self.background_color.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<ButtonStyle>::new(
@@ -670,104 +665,64 @@ impl waft_foundation::Diagnosticable for TimePickerThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "dayPeriodColor",
-                self.day_period_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("dayPeriodColor", self.day_period_color.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<OutlinedBorderRef>>::new(
+            DiagnosticsProperty::<OutlinedBorderRef>::new(
                 "dayPeriodShape",
-                self.day_period_shape
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.day_period_shape.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+            DiagnosticsProperty::<AnyColor>::new(
                 "dayPeriodTextColor",
-                self.day_period_text_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.day_period_text_color.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
+            DiagnosticsProperty::<AnyTextStyle>::new(
                 "dayPeriodTextStyle",
-                self.day_period_text_style
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.day_period_text_style.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+            DiagnosticsProperty::<AnyColor>::new(
                 "dialBackgroundColor",
-                self.dial_background_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.dial_background_color.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "dialHandColor",
-                self.dial_hand_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("dialHandColor", self.dial_hand_color.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "dialTextColor",
-                self.dial_text_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("dialTextColor", self.dial_text_color.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
-                "dialTextStyle",
-                self.dial_text_style
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyTextStyle>::new("dialTextStyle", self.dial_text_style.clone())
+                .default_value(None),
         );
         properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+            DiagnosticsProperty::<AnyColor>::new(
                 "entryModeIconColor",
-                self.entry_mode_icon_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.entry_mode_icon_color.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
-                "helpTextStyle",
-                self.help_text_style
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyTextStyle>::new("helpTextStyle", self.help_text_style.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "hourMinuteColor",
-                self.hour_minute_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("hourMinuteColor", self.hour_minute_color.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<ShapeBorderRef>::new(
@@ -777,29 +732,23 @@ impl waft_foundation::Diagnosticable for TimePickerThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+            DiagnosticsProperty::<AnyColor>::new(
                 "hourMinuteTextColor",
-                self.hour_minute_text_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.hour_minute_text_color.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
+            DiagnosticsProperty::<AnyTextStyle>::new(
                 "hourMinuteTextStyle",
-                self.hour_minute_text_style
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.hour_minute_text_style.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<InputDecorationThemeData>>::new(
+            DiagnosticsProperty::<InputDecorationThemeData>::new(
                 "inputDecorationTheme",
-                self.input_decoration_theme
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.input_decoration_theme.clone(),
             )
             .default_value(None),
         );
@@ -812,20 +761,20 @@ impl waft_foundation::Diagnosticable for TimePickerThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "timeSelectorSeparatorColor",
                 self.time_selector_separator_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "timeSelectorSeparatorTextStyle",
                 self.time_selector_separator_text_style
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

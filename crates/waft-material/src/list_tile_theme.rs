@@ -812,18 +812,12 @@ impl waft_foundation::Diagnosticable for ListTileThemeData {
         properties
             .add(ColorProperty::new("selectedColor", self.selected_color).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "iconColor",
-                self.icon_color.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("iconColor", self.icon_color.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "textColor",
-                self.text_color.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("textColor", self.text_color.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<TextStyle>::new("titleTextStyle", self.title_text_style.clone())
@@ -869,11 +863,11 @@ impl waft_foundation::Diagnosticable for ListTileThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "mouseCursor",
                 self.mouse_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
@@ -882,16 +876,16 @@ impl waft_foundation::Diagnosticable for ListTileThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<ListTileTitleAlignment>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ListTileTitleAlignment>>::new(
                 "titleAlignment",
-                self.title_alignment.map(crate::theme_data::DartEnum),
+                self.title_alignment.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<ListTileControlAffinity>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ListTileControlAffinity>>::new(
                 "controlAffinity",
-                self.control_affinity.map(crate::theme_data::DartEnum),
+                self.control_affinity.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

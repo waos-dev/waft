@@ -722,21 +722,18 @@ impl StatelessWidget for ToggleButtons {
         );
         properties.add(DoubleProperty::new("borderWidth", self.border_width).default_value(None));
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Axis>>::new(
                 "direction",
-                Some(crate::diagnostics::typed_enum("Axis", &self.direction)),
+                Some(waft_foundation::DartEnum(self.direction)),
             )
-            .default_value(Some("Axis.horizontal".to_string())),
+            .default_value(Some(waft_foundation::DartEnum(Axis::Horizontal))),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<VerticalDirection>>::new(
                 "verticalDirection",
-                Some(crate::diagnostics::typed_enum(
-                    "VerticalDirection",
-                    &self.vertical_direction,
-                )),
+                Some(waft_foundation::DartEnum(self.vertical_direction)),
             )
-            .default_value(Some("VerticalDirection.down".to_string())),
+            .default_value(Some(waft_foundation::DartEnum(VerticalDirection::Down))),
         );
     }
 

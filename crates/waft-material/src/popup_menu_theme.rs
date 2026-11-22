@@ -407,11 +407,11 @@ impl waft_foundation::Diagnosticable for PopupMenuThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "labelTextStyle",
                 self.label_text_style
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
@@ -420,11 +420,11 @@ impl waft_foundation::Diagnosticable for PopupMenuThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "mouseCursor",
                 self.mouse_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

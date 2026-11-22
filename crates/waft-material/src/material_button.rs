@@ -355,15 +355,12 @@ impl StatelessWidget for MaterialButton {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
-        // Dart's `visualDensity` line waits for `VisualDensity`'s `Display` in `theme_data.rs`.
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(FlagProperty::new("enabled", Some(self.enabled())).if_false("disabled"));
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ButtonTextTheme>>::new(
                 "textTheme",
-                self.text_theme.map(|text_theme| {
-                    crate::diagnostics::typed_enum("ButtonTextTheme", &text_theme)
-                }),
+                self.text_theme.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -380,10 +377,9 @@ impl StatelessWidget for MaterialButton {
             .add(ColorProperty::new("highlightColor", self.highlight_color).default_value(None));
         properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Brightness>>::new(
                 "colorBrightness",
-                self.color_brightness
-                    .map(|brightness| crate::diagnostics::typed_enum("Brightness", &brightness)),
+                self.color_brightness.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -392,23 +388,27 @@ impl StatelessWidget for MaterialButton {
                 .default_value(None),
         );
         properties.add(
+            DiagnosticsProperty::<crate::theme_data::VisualDensity>::new(
+                "visualDensity",
+                self.visual_density,
+            )
+            .default_value(None),
+        );
+        properties.add(
             DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
                 .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "focusNode",
-                self.focus_node.as_ref().map(|node| {
-                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
-                }),
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MaterialTapTargetSize>>::new(
                 "materialTapTargetSize",
-                self.material_tap_target_size
-                    .map(|size| crate::diagnostics::typed_enum("MaterialTapTargetSize", &size)),
+                self.material_tap_target_size.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

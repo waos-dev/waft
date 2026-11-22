@@ -706,24 +706,17 @@ impl PartialEq for ChipThemeData {
 impl waft_foundation::Diagnosticable for ChipThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "color",
-                self.color
-                    .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                self.color.as_deref().map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties
             .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "deleteIconColor",
-                self.delete_icon_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("deleteIconColor", self.delete_icon_color.clone())
+                .default_value(None),
         );
         properties
             .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
@@ -756,18 +749,12 @@ impl waft_foundation::Diagnosticable for ChipThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyBorderSide>>::new(
-                "side",
-                self.side.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyBorderSide>::new("side", self.side.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<OutlinedBorderRef>>::new(
-                "shape",
-                self.shape.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<OutlinedBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<TextStyle>::new("labelStyle", self.label_style.clone())
@@ -787,11 +774,9 @@ impl waft_foundation::Diagnosticable for ChipThemeData {
         properties
             .add(DoubleProperty::new("pressElevation", self.press_elevation).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
                 "iconTheme",
-                self.icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
+                self.icon_theme.clone(),
             )
             .default_value(None),
         );

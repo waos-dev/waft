@@ -10,7 +10,7 @@ use std::rc::Rc;
 use waft_embedder::Clip;
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
-    FlagProperty, describe_identity,
+    FlagProperty,
 };
 use waft_gestures::DragStartBehavior;
 use waft_painting::{Axis, AxisDirection, EdgeInsetsGeometry};
@@ -229,7 +229,7 @@ pub struct ScrollViewData {
 impl ScrollViewData {
     /// Dart's `ScrollView.debugFillProperties`, which every scroll view's own body calls where
     /// Dart writes `super`.
-    pub fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    pub fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("scrollDirection", self.scroll_direction));
         properties.add(
             FlagProperty::new("reverse", Some(self.reverse))
@@ -239,9 +239,9 @@ impl ScrollViewData {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "controller",
-                self.controller.as_ref().map(|controller| {
-                    describe_identity("ScrollController", controller.identity_hash())
-                }),
+                self.controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
             )
             .with_show_name(false)
             .default_value(None),
@@ -772,8 +772,8 @@ impl StatelessWidget for CustomScrollView {
         self.scroll_view.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
-        self.scroll_view.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.scroll_view.debug_fill_properties(app, properties);
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
@@ -1238,8 +1238,8 @@ impl StatelessWidget for ListView {
         self.scroll_view.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
-        self.scroll_view.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.scroll_view.debug_fill_properties(app, properties);
         self.box_scroll_view.debug_fill_properties(properties);
         properties.add(DoubleProperty::new("itemExtent", self.item_extent).default_value(None));
     }
@@ -1606,8 +1606,8 @@ impl StatelessWidget for GridView {
         self.scroll_view.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
-        self.scroll_view.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.scroll_view.debug_fill_properties(app, properties);
         self.box_scroll_view.debug_fill_properties(properties);
     }
 

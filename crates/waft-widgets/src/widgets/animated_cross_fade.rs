@@ -11,7 +11,7 @@ use waft_animation::{
 use waft_embedder::Clip;
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DiagnosticsProperty, EnumProperty, Handle, IntProperty,
-    Listener, OptionRetained, ValueKey, describe_identity,
+    Listener, OptionRetained, ValueKey,
 };
 use waft_painting::AlignmentGeometry;
 use waft_scheduler::{Ticker, TickerCallback, TickerProviderObject};
@@ -436,9 +436,10 @@ impl State for AnimatedCrossFadeState {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "controller",
-                app.get(self).controller.as_ref().map(|controller| {
-                    describe_identity("AnimationController", controller.id().identity_hash())
-                }),
+                app.get(self)
+                    .controller
+                    .as_ref()
+                    .map(|controller| controller.handle().to_string(app)),
             )
             .with_show_name(false),
         );

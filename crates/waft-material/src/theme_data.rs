@@ -15,8 +15,9 @@ use waft_cupertino::{
 };
 use waft_embedder::{Brightness, Color, Offset, TargetPlatform, clamp_double, lerp_double};
 use waft_foundation::{
-    App, DiagnosticLevel, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty,
-    EnumProperty, IterableProperty, K_IS_WEB, PRECISION_ERROR_TOLERANCE,
+    App, DartEnum, DiagnosticLevel, DiagnosticPropertiesBuilder, Diagnosticable,
+    DiagnosticsProperty, EnumProperty, InstanceOf, IterableProperty, K_IS_WEB,
+    PRECISION_ERROR_TOLERANCE,
 };
 use waft_painting::AnyColor;
 use waft_rendering::{BoxConstraints, Constraints};
@@ -87,205 +88,6 @@ use crate::toggle_buttons_theme::ToggleButtonsThemeData;
 use crate::tooltip_theme::TooltipThemeData;
 use crate::typography::Typography;
 
-/// A diagnostics value printed as Dart's `Enum.toString`, `Brightness.light`.
-///
-/// Dart's `DiagnosticsProperty<SomeEnum>` prints the enum's `toString`, which prefixes the
-/// enum's type; [`waft_foundation::EnumProperty`] prints only the variant name.
-pub(crate) struct DartEnum<T>(pub T);
-
-impl<T: Debug> fmt::Display for DartEnum<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}.{}",
-            waft_foundation::short_type_name(std::any::type_name::<T>()),
-            waft_foundation::describe_enum(&self.0)
-        )
-    }
-}
-
-impl<T: PartialEq> PartialEq for DartEnum<T> {
-    fn eq(&self, other: &DartEnum<T>) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T: Clone> Clone for DartEnum<T> {
-    fn clone(&self) -> DartEnum<T> {
-        DartEnum(self.0.clone())
-    }
-}
-
-/// Text a diagnostics property prints as its value, without the quotes a `String` property
-/// would add.
-#[derive(Clone, PartialEq)]
-pub(crate) struct DiagnosticsText(pub String);
-
-impl fmt::Display for DiagnosticsText {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl fmt::Debug for DiagnosticsText {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-/// A diagnostics value printed by its `Debug`, for a type whose `Debug` is Dart's `toString`
-/// but which has no `Display` (the widgets crate's value types, whose file this stage leaves
-/// to its own port).
-pub(crate) struct DartDebug<T>(pub T);
-
-impl<T: Debug> fmt::Display for DartDebug<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Debug::fmt(&self.0, f)
-    }
-}
-
-impl<T: PartialEq> PartialEq for DartDebug<T> {
-    fn eq(&self, other: &DartDebug<T>) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T: Clone> Clone for DartDebug<T> {
-    fn clone(&self) -> DartDebug<T> {
-        DartDebug(self.0.clone())
-    }
-}
-
-/// A [`Radius`] printed as `dart:ui`'s `Radius.toString` does.
-#[derive(Clone, Copy, PartialEq)]
-pub(crate) struct RadiusDiagnostics(pub waft_embedder::Radius);
-
-impl fmt::Display for RadiusDiagnostics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.0.x == self.0.y {
-            write!(f, "Radius.circular({:.1})", self.0.x)
-        } else {
-            write!(f, "Radius.elliptical({:.1}, {:.1})", self.0.x, self.0.y)
-        }
-    }
-}
-
-/// A value whose Dart class does not override `toString`, so Dart prints
-/// `Instance of 'RoundSliderThumbShape'`.
-pub(crate) struct InstanceOf<T>(pub T);
-
-impl<T: Debug> fmt::Display for InstanceOf<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let debug = format!("{:?}", self.0);
-        let name = debug
-            .split(|c: char| !(c.is_alphanumeric() || c == '_'))
-            .next()
-            .unwrap_or(&debug);
-        write!(f, "Instance of '{name}'")
-    }
-}
-
-impl<T: PartialEq> PartialEq for InstanceOf<T> {
-    fn eq(&self, other: &InstanceOf<T>) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T: Clone> Clone for InstanceOf<T> {
-    fn clone(&self) -> InstanceOf<T> {
-        InstanceOf(self.0.clone())
-    }
-}
-
-/// An [`IconThemeData`] printed as Dart's `Diagnosticable.toString` does:
-/// `IconThemeData#1a2b3(color: …)`.
-///
-/// `waft-widgets` has no `Diagnosticable` for `IconThemeData` yet; this is the property list
-/// of its `debugFillProperties`, at the info level its `toString` prints.
-pub(crate) struct IconThemeDiagnostics(pub IconThemeData);
-
-impl IconThemeDiagnostics {
-    fn properties(&self) -> Vec<String> {
-        let mut properties = Vec::new();
-        if let Some(size) = self.0.size {
-            properties.push(format!(
-                "size: {}",
-                waft_foundation::debug_format_double(Some(size))
-            ));
-        }
-        if let Some(fill) = self.0.fill {
-            properties.push(format!(
-                "fill: {}",
-                waft_foundation::debug_format_double(Some(fill))
-            ));
-        }
-        if let Some(weight) = self.0.weight {
-            properties.push(format!(
-                "weight: {}",
-                waft_foundation::debug_format_double(Some(weight))
-            ));
-        }
-        if let Some(grade) = self.0.grade {
-            properties.push(format!(
-                "grade: {}",
-                waft_foundation::debug_format_double(Some(grade))
-            ));
-        }
-        if let Some(optical_size) = self.0.optical_size {
-            properties.push(format!(
-                "opticalSize: {}",
-                waft_foundation::debug_format_double(Some(optical_size))
-            ));
-        }
-        if let Some(color) = &self.0.color {
-            properties.push(format!("color: {}", color.color()));
-        }
-        if let Some(opacity) = self.0.opacity {
-            properties.push(format!(
-                "opacity: {}",
-                waft_foundation::debug_format_double(Some(opacity))
-            ));
-        }
-        if let Some(shadows) = &self.0.shadows {
-            properties.push(format!("shadows: {shadows:?}"));
-        }
-        if let Some(apply_text_scaling) = self.0.apply_text_scaling {
-            properties.push(format!("applyTextScaling: {apply_text_scaling}"));
-        }
-        properties
-    }
-}
-
-impl fmt::Display for IconThemeDiagnostics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let properties = self.properties();
-        write!(
-            f,
-            "{}",
-            waft_foundation::describe_identity(
-                "IconThemeData",
-                &self.0 as *const IconThemeData as *const () as usize as u64
-            )
-        )?;
-        if !properties.is_empty() {
-            write!(f, "({})", properties.join(", "))?;
-        }
-        Ok(())
-    }
-}
-
-impl PartialEq for IconThemeDiagnostics {
-    fn eq(&self, other: &IconThemeDiagnostics) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Clone for IconThemeDiagnostics {
-    fn clone(&self) -> IconThemeDiagnostics {
-        IconThemeDiagnostics(self.0.clone())
-    }
-}
-
 /// Defines a customized theme for components with an `adaptive` factory constructor.
 ///
 /// Currently, only `Switch.adaptive` supports this class.
@@ -352,6 +154,13 @@ impl PartialEq for AdaptationRef {
 impl Debug for AdaptationRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&*self.adaptation, f)
+    }
+}
+
+impl fmt::Display for AdaptationRef {
+    /// Dart's `Adaptation.toString`, which [`Debug`] already renders.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
     }
 }
 
@@ -4163,21 +3972,12 @@ impl Diagnosticable for ThemeData {
 
         // GENERAL CONFIGURATION
         properties.add(
-            IterableProperty::<DartDebug<AdaptationRef>>::new(
+            IterableProperty::<AdaptationRef>::new(
                 "adaptations",
-                Some(
-                    self.adaptation_map
-                        .values()
-                        .map(|adaptation| DartDebug(adaptation.clone()))
-                        .collect(),
-                ),
+                Some(self.adaptation_map.values().cloned().collect()),
             )
             .default_value(Some(
-                default_data
-                    .adaptation_map
-                    .values()
-                    .map(|adaptation| DartDebug(adaptation.clone()))
-                    .collect(),
+                default_data.adaptation_map.values().cloned().collect(),
             ))
             .with_level(DiagnosticLevel::Debug),
         );
@@ -4202,12 +4002,12 @@ impl Diagnosticable for ThemeData {
             .with_level(DiagnosticLevel::Debug),
         );
         properties.add(
-            IterableProperty::<DiagnosticsText>::new(
+            IterableProperty::<String>::new(
                 "extensions",
                 Some(
                     self.extensions
                         .values()
-                        .map(|extension| DiagnosticsText(format!("{extension:?}")))
+                        .map(|extension| format!("{extension:?}"))
                         .collect(),
                 ),
             )
@@ -4215,15 +4015,15 @@ impl Diagnosticable for ThemeData {
                 default_data
                     .extensions
                     .values()
-                    .map(|extension| DiagnosticsText(format!("{extension:?}")))
+                    .map(|extension| format!("{extension:?}"))
                     .collect(),
             ))
             .with_level(DiagnosticLevel::Debug),
         );
         properties.add(
-            DiagnosticsProperty::<DartDebug<InputDecorationThemeData>>::new(
+            DiagnosticsProperty::<InputDecorationThemeData>::new(
                 "inputDecorationTheme",
-                Some(DartDebug(self.input_decoration_theme.clone())),
+                Some(self.input_decoration_theme.clone()),
             )
             .with_level(DiagnosticLevel::Debug),
         );
@@ -4313,16 +4113,13 @@ impl Diagnosticable for ThemeData {
 
         // TYPOGRAPHY & ICONOGRAPHY
         properties.add(
-            DiagnosticsProperty::<IconThemeDiagnostics>::new(
-                "iconTheme",
-                Some(IconThemeDiagnostics(self.icon_theme.clone())),
-            )
-            .with_level(DiagnosticLevel::Debug),
+            DiagnosticsProperty::<IconThemeData>::new("iconTheme", Some(self.icon_theme.clone()))
+                .with_level(DiagnosticLevel::Debug),
         );
         properties.add(
-            DiagnosticsProperty::<IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<IconThemeData>::new(
                 "primaryIconTheme",
-                Some(IconThemeDiagnostics(self.primary_icon_theme.clone())),
+                Some(self.primary_icon_theme.clone()),
             )
             .with_level(DiagnosticLevel::Debug),
         );

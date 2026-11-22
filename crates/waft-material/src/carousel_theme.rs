@@ -252,18 +252,15 @@ impl waft_foundation::Diagnosticable for CarouselViewThemeData {
             .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
         properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<OutlinedBorderRef>>::new(
-                "shape",
-                self.shape.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<OutlinedBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "overlayColor",
                 self.overlay_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

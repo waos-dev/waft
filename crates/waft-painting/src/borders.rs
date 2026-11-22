@@ -635,6 +635,13 @@ impl Debug for OutlinedBorderRef {
     }
 }
 
+impl std::fmt::Display for OutlinedBorderRef {
+    /// Dart's `OutlinedBorder.toString`, which [`Debug`] already renders.
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(self, f)
+    }
+}
+
 /// Dart's `==` on an `OutlinedBorder`, which is `ShapeBorder`'s.
 impl PartialEq for dyn OutlinedBorder {
     fn eq(&self, other: &dyn OutlinedBorder) -> bool {
@@ -1047,6 +1054,13 @@ impl Debug for AnyBorderSide {
             Some(extension) => extension.fmt(f),
             None => self.value.fmt(f),
         }
+    }
+}
+
+impl std::fmt::Display for AnyBorderSide {
+    /// Dart's `BorderSide.toString`, which [`Debug`] already renders.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
     }
 }
 

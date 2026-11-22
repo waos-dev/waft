@@ -667,7 +667,7 @@ impl StatefulWidget for SelectableText {
     }
 
     #[allow(deprecated)]
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `selectionControls` line waits for that type's `Display`.
         properties
             .add(DiagnosticsProperty::<String>::new("data", self.data.clone()).default_value(None));
@@ -678,9 +678,7 @@ impl StatefulWidget for SelectableText {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "focusNode",
-                self.focus_node.as_ref().map(|node| {
-                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
-                }),
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
             )
             .default_value(None),
         );

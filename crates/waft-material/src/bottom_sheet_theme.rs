@@ -317,22 +317,17 @@ impl waft_foundation::Diagnosticable for BottomSheetThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "dragHandleColor",
-                self.drag_handle_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("dragHandleColor", self.drag_handle_color.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<Size>::new("dragHandleSize", self.drag_handle_size)
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<Clip>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Clip>>::new(
                 "clipBehavior",
-                self.clip_behavior.map(crate::theme_data::DartEnum),
+                self.clip_behavior.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

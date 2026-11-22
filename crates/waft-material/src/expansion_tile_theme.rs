@@ -393,7 +393,7 @@ impl InheritedWidget for ExpansionTileTheme {
 }
 
 /// Dart's `AnimationStyle.toString`: its `debugFillProperties` properties, at the info level.
-fn expansion_animation_style(value: &AnimationStyle) -> crate::theme_data::DiagnosticsText {
+fn expansion_animation_style(value: &AnimationStyle) -> String {
     let mut properties = Vec::new();
     if let Some(curve) = &value.curve {
         properties.push(format!("curve: {curve:?}"));
@@ -417,12 +417,11 @@ fn expansion_animation_style(value: &AnimationStyle) -> crate::theme_data::Diagn
         "AnimationStyle",
         value as *const AnimationStyle as *const () as usize as u64,
     );
-    let text = if properties.is_empty() {
+    if properties.is_empty() {
         identity
     } else {
         format!("{identity}({})", properties.join(", "))
-    };
-    crate::theme_data::DiagnosticsText(text)
+    }
 }
 
 impl waft_foundation::Diagnosticable for ExpansionTileThemeData {
@@ -471,14 +470,14 @@ impl waft_foundation::Diagnosticable for ExpansionTileThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<Clip>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Clip>>::new(
                 "clipBehavior",
-                self.clip_behavior.map(crate::theme_data::DartEnum),
+                self.clip_behavior.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "expansionAnimationStyle",
                 self.expansion_animation_style
                     .as_ref()

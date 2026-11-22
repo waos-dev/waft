@@ -408,15 +408,13 @@ impl Debug for MenuStyle {
 
 impl Diagnosticable for MenuStyle {
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        // Dart's `visualDensity` line is left out: `VisualDensity`'s `Display` comes with
-        // `theme_data.rs`.
         macro_rules! property {
             ($(($field:ident, $name:literal)),* $(,)?) => {
                 $(
                     properties.add(
                         DiagnosticsProperty::<String>::new(
                             $name,
-                            self.$field.as_ref().map(crate::diagnostics::widget_state_property),
+                            self.$field.as_ref().map(|property| property.to_string()),
                         )
                         .default_value(None),
                     );
@@ -437,20 +435,23 @@ impl Diagnosticable for MenuStyle {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "shape",
-                self.shape
-                    .as_ref()
-                    .map(crate::diagnostics::widget_state_property_shape),
+                self.shape.as_ref().map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "mouseCursor",
-                self.mouse_cursor.as_ref().map(|property| {
-                    crate::diagnostics::widget_state_property_with(property, |pointer| {
-                        pointer.debug_description()
-                    })
-                }),
+                self.mouse_cursor
+                    .as_ref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::VisualDensity>::new(
+                "visualDensity",
+                self.visual_density,
             )
             .default_value(None),
         );

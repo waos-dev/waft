@@ -370,74 +370,73 @@ impl InheritedWidget for SwitchTheme {
 impl waft_foundation::Diagnosticable for SwitchThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "thumbColor",
                 self.thumb_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "trackColor",
                 self.track_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "trackOutlineColor",
                 self.track_outline_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "trackOutlineWidth",
                 self.track_outline_width
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<MaterialTapTargetSize>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MaterialTapTargetSize>>::new(
                 "materialTapTargetSize",
-                self.material_tap_target_size
-                    .map(crate::theme_data::DartEnum),
+                self.material_tap_target_size.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "mouseCursor",
                 self.mouse_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "overlayColor",
                 self.overlay_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(DoubleProperty::new("splashRadius", self.splash_radius).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "thumbIcon",
                 self.thumb_icon
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

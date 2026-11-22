@@ -616,10 +616,9 @@ impl StatefulWidget for Tooltip {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TooltipTriggerMode>>::new(
                 "triggerMode",
-                self.trigger_mode
-                    .map(|mode| crate::diagnostics::typed_enum("TooltipTriggerMode", &mode)),
+                self.trigger_mode.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -630,10 +629,9 @@ impl StatefulWidget for Tooltip {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TextAlign>>::new(
                 "textAlign",
-                self.text_align
-                    .map(|text_align| crate::diagnostics::typed_enum("TextAlign", &text_align)),
+                self.text_align.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

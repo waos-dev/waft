@@ -11,19 +11,17 @@ use std::time::Duration;
 use waft_embedder::{Color, SignedDuration, Size, lerp_double};
 use waft_foundation::{App, DiagnosticsProperty, EnumProperty};
 use waft_painting::{
-    AlignmentGeometry, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, ShapeBorderRef, TextStyle,
+    AlignmentGeometry, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, TextStyle,
 };
 use waft_services::MouseCursorRef;
 use waft_widgets::{
-    BuildContext, IconThemeData, WidgetRef, WidgetStateBorderSide, WidgetStateProperty,
-    WidgetStatePropertyAll, WidgetStatePropertyRef, WidgetStates,
+    BuildContext, WidgetRef, WidgetStateBorderSide, WidgetStateProperty, WidgetStatePropertyRef,
+    WidgetStates,
 };
 
 use crate::button_style_button::IconAlignment;
 use crate::ink_well::InteractiveInkFeatureFactoryRef;
-use crate::theme_data::{
-    DiagnosticsText, IconThemeDiagnostics, MaterialTapTargetSize, VisualDensity,
-};
+use crate::theme_data::{MaterialTapTargetSize, VisualDensity};
 
 /// Defines size variants for Material 3 Expressive button components.
 ///
@@ -934,259 +932,120 @@ impl Debug for ButtonStyle {
     }
 }
 
-/// A [`WidgetStateProperty`] value as Dart's `toString` prints it.
-///
-/// `WidgetStatePropertyAll` prints its value; any other property prints its own `Debug`, which
-/// each ported property type writes as Dart's `toString`.
-pub(crate) fn widget_state_property_text<T>(
-    property: &dyn WidgetStateProperty<T>,
-) -> DiagnosticsText
-where
-    T: StatePropertyValue + Debug + 'static,
-{
-    if let Some(all) = property
-        .as_any()
-        .downcast_ref::<WidgetStatePropertyAll<T>>()
-    {
-        return DiagnosticsText(format!(
-            "WidgetStatePropertyAll({})",
-            all.value.state_property_value()
-        ));
-    }
-    let debug = format!("{property:?}");
-    // Dart's private `_WidgetStatePropertyWith<T>` prints as an unnamed instance; Waft's
-    // `WidgetStatePropertyWith` prints its constructor. The port belongs in `waft-widgets`.
-    if debug == "WidgetStateProperty.resolveWith" {
-        return DiagnosticsText(format!(
-            "Instance of '_WidgetStatePropertyWith<{}>'",
-            T::DART_TYPE
-        ));
-    }
-    DiagnosticsText(debug)
-}
-
-/// A [`WidgetStateProperty`]'s value printed as Dart's `toString` prints it. Dart's value type
-/// is `T?`; Waft's is `Option<T>`.
-pub(crate) trait StatePropertyValue {
-    /// The value's Dart `toString`.
-    fn state_property_value(&self) -> String;
-
-    /// The Dart type a `WidgetStateProperty` resolves to, as `_WidgetStatePropertyWith<T>`
-    /// prints it.
-    const DART_TYPE: &'static str;
-}
-
-macro_rules! display_state_value {
-    ($($t:ty),* $(,)?) => {
-        $(
-            impl StatePropertyValue for Option<$t> {
-                const DART_TYPE: &'static str = concat!(stringify!($t), "?");
-
-                fn state_property_value(&self) -> String {
-                    match self {
-                        Some(value) => value.to_string(),
-                        None => "null".to_string(),
-                    }
-                }
-            }
-        )*
-    };
-}
-
-display_state_value!(
-    Color,
-    Size,
-    EdgeInsetsGeometry,
-    BorderSide,
-    ShapeBorderRef,
-    TextStyle
-);
-
-impl StatePropertyValue for Option<bool> {
-    const DART_TYPE: &'static str = "bool?";
-
-    fn state_property_value(&self) -> String {
-        match self {
-            Some(value) => value.to_string(),
-            None => "null".to_string(),
-        }
-    }
-}
-
-impl StatePropertyValue for Option<f64> {
-    const DART_TYPE: &'static str = "double?";
-
-    fn state_property_value(&self) -> String {
-        waft_foundation::debug_format_double(*self)
-    }
-}
-
-impl StatePropertyValue for f64 {
-    const DART_TYPE: &'static str = "double";
-
-    fn state_property_value(&self) -> String {
-        waft_foundation::debug_format_double(Some(*self))
-    }
-}
-
-impl StatePropertyValue for Option<OutlinedBorderRef> {
-    const DART_TYPE: &'static str = "OutlinedBorder?";
-
-    fn state_property_value(&self) -> String {
-        match self {
-            Some(value) => format!("{value:?}"),
-            None => "null".to_string(),
-        }
-    }
-}
-
-impl StatePropertyValue for Option<MouseCursorRef> {
-    const DART_TYPE: &'static str = "MouseCursor?";
-
-    fn state_property_value(&self) -> String {
-        match self {
-            Some(value) => value.debug_description(),
-            None => "null".to_string(),
-        }
-    }
-}
-
-impl StatePropertyValue for Option<WidgetRef> {
-    const DART_TYPE: &'static str = "Widget?";
-
-    fn state_property_value(&self) -> String {
-        match self {
-            Some(widget) => widget.to_string_short(),
-            None => "null".to_string(),
-        }
-    }
-}
-
-impl StatePropertyValue for Option<Rc<waft_widgets::Icon>> {
-    const DART_TYPE: &'static str = "Icon?";
-
-    fn state_property_value(&self) -> String {
-        match self {
-            Some(icon) => match &icon.icon {
-                Some(icon_data) => {
-                    format!("Icon(IconData(U+{:05X}))", icon_data.code_point)
-                }
-                None => "Icon".to_string(),
-            },
-            None => "null".to_string(),
-        }
-    }
-}
-
-impl StatePropertyValue for Option<IconThemeData> {
-    const DART_TYPE: &'static str = "IconThemeData?";
-
-    fn state_property_value(&self) -> String {
-        match self {
-            Some(value) => IconThemeDiagnostics(value.clone()).to_string(),
-            None => "null".to_string(),
-        }
-    }
-}
-
 impl waft_foundation::Diagnosticable for ButtonStyle {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "textStyle",
-                self.text_style.as_deref().map(widget_state_property_text),
+                self.text_style
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "backgroundColor",
                 self.background_color
                     .as_deref()
-                    .map(widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "foregroundColor",
                 self.foreground_color
                     .as_deref()
-                    .map(widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "overlayColor",
                 self.overlay_color
                     .as_deref()
-                    .map(widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "shadowColor",
-                self.shadow_color.as_deref().map(widget_state_property_text),
+                self.shadow_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "surfaceTintColor",
                 self.surface_tint_color
                     .as_deref()
-                    .map(widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "elevation",
-                self.elevation.as_deref().map(widget_state_property_text),
+                self.elevation
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "padding",
-                self.padding.as_deref().map(widget_state_property_text),
+                self.padding.as_deref().map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "minimumSize",
-                self.minimum_size.as_deref().map(widget_state_property_text),
+                self.minimum_size
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "fixedSize",
-                self.fixed_size.as_deref().map(widget_state_property_text),
+                self.fixed_size
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "maximumSize",
-                self.maximum_size.as_deref().map(widget_state_property_text),
+                self.maximum_size
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "iconColor",
-                self.icon_color.as_deref().map(widget_state_property_text),
+                self.icon_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "iconSize",
-                self.icon_size.as_deref().map(widget_state_property_text),
+                self.icon_size
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
@@ -1195,23 +1054,25 @@ impl waft_foundation::Diagnosticable for ButtonStyle {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "side",
-                self.side.as_deref().map(widget_state_property_text),
+                self.side.as_deref().map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "shape",
-                self.shape.as_deref().map(widget_state_property_text),
+                self.shape.as_deref().map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "mouseCursor",
-                self.mouse_cursor.as_deref().map(widget_state_property_text),
+                self.mouse_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
@@ -1239,20 +1100,20 @@ impl waft_foundation::Diagnosticable for ButtonStyle {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "backgroundBuilder",
                 self.background_builder
                     .as_ref()
-                    .map(|builder| DiagnosticsText(builder.to_string())),
+                    .map(|builder| builder.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "foregroundBuilder",
                 self.foreground_builder
                     .as_ref()
-                    .map(|builder| DiagnosticsText(builder.to_string())),
+                    .map(|builder| builder.to_string()),
             )
             .default_value(None),
         );

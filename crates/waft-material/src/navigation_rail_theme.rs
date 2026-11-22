@@ -402,43 +402,29 @@ impl waft_foundation::Diagnosticable for NavigationRailThemeData {
             .default_value(default_theme.selected_label_text_style.clone()),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
                 "unselectedIconTheme",
-                self.unselected_icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
+                self.unselected_icon_theme.clone(),
             )
-            .default_value(
-                default_theme
-                    .unselected_icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
-            ),
+            .default_value(default_theme.unselected_icon_theme.clone()),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
                 "selectedIconTheme",
-                self.selected_icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
+                self.selected_icon_theme.clone(),
             )
-            .default_value(
-                default_theme
-                    .selected_icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
-            ),
+            .default_value(default_theme.selected_icon_theme.clone()),
         );
         properties.add(
             DoubleProperty::new("groupAlignment", self.group_alignment)
                 .default_value(default_theme.group_alignment),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<NavigationRailLabelType>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<NavigationRailLabelType>>::new(
                 "labelType",
-                self.label_type.map(crate::theme_data::DartEnum),
+                self.label_type.map(waft_foundation::DartEnum),
             )
-            .default_value(default_theme.label_type.map(crate::theme_data::DartEnum)),
+            .default_value(default_theme.label_type.map(waft_foundation::DartEnum)),
         );
         properties.add(
             DiagnosticsProperty::<bool>::new("useIndicator", self.use_indicator)

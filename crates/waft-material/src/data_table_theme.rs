@@ -433,18 +433,15 @@ impl InheritedWidget for DataTableTheme {
 impl waft_foundation::Diagnosticable for DataTableThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<DecorationRef>>::new(
-                "decoration",
-                self.decoration.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<DecorationRef>::new("decoration", self.decoration.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "dataRowColor",
                 self.data_row_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
@@ -459,11 +456,11 @@ impl waft_foundation::Diagnosticable for DataTableThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "headingRowColor",
                 self.heading_row_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
@@ -490,20 +487,20 @@ impl waft_foundation::Diagnosticable for DataTableThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "headingCellCursor",
                 self.heading_cell_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "dataRowCursor",
                 self.data_row_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

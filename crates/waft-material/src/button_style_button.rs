@@ -282,16 +282,21 @@ impl ButtonStyleButtonData {
         self.on_pressed.is_some() || self.on_long_press.is_some()
     }
 
-    /// Dart's `ButtonStyleButton.debugFillProperties`, shared by every subclass. The `style`
-    /// line waits for `ButtonStyle`'s `Display`.
-    pub(crate) fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    /// Dart's `ButtonStyleButton.debugFillProperties`, shared by every subclass.
+    pub(crate) fn debug_fill_properties(
+        &self,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
         properties.add(FlagProperty::new("enabled", Some(self.enabled())).if_false("disabled"));
+        properties.add(
+            DiagnosticsProperty::<ButtonStyle>::new("style", self.style.clone())
+                .default_value(None),
+        );
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "focusNode",
-                self.focus_node.as_ref().map(|node| {
-                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
-                }),
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
             )
             .default_value(None),
         );

@@ -248,23 +248,23 @@ impl InheritedWidget for ButtonBarTheme {
 impl waft_foundation::Diagnosticable for ButtonBarThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<MainAxisAlignment>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MainAxisAlignment>>::new(
                 "alignment",
-                self.alignment.map(crate::theme_data::DartEnum),
+                self.alignment.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<MainAxisSize>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MainAxisSize>>::new(
                 "mainAxisSize",
-                self.main_axis_size.map(crate::theme_data::DartEnum),
+                self.main_axis_size.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<ButtonTextTheme>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ButtonTextTheme>>::new(
                 "textTheme",
-                self.button_text_theme.map(crate::theme_data::DartEnum),
+                self.button_text_theme.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -280,16 +280,16 @@ impl waft_foundation::Diagnosticable for ButtonBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<ButtonBarLayoutBehavior>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ButtonBarLayoutBehavior>>::new(
                 "layoutBehavior",
-                self.layout_behavior.map(crate::theme_data::DartEnum),
+                self.layout_behavior.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<VerticalDirection>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<VerticalDirection>>::new(
                 "overflowDirection",
-                self.overflow_direction.map(crate::theme_data::DartEnum),
+                self.overflow_direction.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

@@ -504,9 +504,9 @@ impl waft_foundation::Diagnosticable for ProgressIndicatorThemeData {
         properties.add(DoubleProperty::new("strokeWidth", self.stroke_width).default_value(None));
         properties.add(DoubleProperty::new("strokeAlign", self.stroke_align).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<StrokeCap>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<StrokeCap>>::new(
                 "strokeCap",
-                self.stroke_cap.map(crate::theme_data::DartEnum),
+                self.stroke_cap.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -525,9 +525,14 @@ impl waft_foundation::Diagnosticable for ProgressIndicatorThemeData {
         properties
             .add(DiagnosticsProperty::<bool>::new("year2023", self.year2023).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<Ref<AnimationController>>>::new(
+            DiagnosticsProperty::<String>::new(
                 "controller",
-                self.controller.clone().map(crate::theme_data::DartDebug),
+                self.controller.as_ref().map(|controller| {
+                    waft_foundation::describe_identity(
+                        "AnimationController",
+                        controller.handle().id().identity_hash(),
+                    )
+                }),
             )
             .default_value(None),
         );

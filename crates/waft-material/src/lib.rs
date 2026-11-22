@@ -53,7 +53,6 @@ mod debug;
 mod desktop_text_selection;
 mod desktop_text_selection_toolbar;
 mod desktop_text_selection_toolbar_button;
-mod diagnostics;
 mod dialog;
 mod dialog_theme;
 mod divider;

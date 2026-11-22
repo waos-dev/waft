@@ -955,9 +955,7 @@ impl AppBarThemeData {
 }
 
 /// Dart's `SystemUiOverlayStyle` description in `AppBarThemeData.debugFillProperties`.
-fn system_overlay_style_description(
-    style: &SystemUiOverlayStyle,
-) -> crate::theme_data::DiagnosticsText {
+fn system_overlay_style_description(style: &SystemUiOverlayStyle) -> String {
     let mut properties = Vec::new();
     if let Some(color) = style.system_navigation_bar_color {
         properties.push(format!("systemNavigationBarColor: {color}"));
@@ -968,7 +966,7 @@ fn system_overlay_style_description(
     if let Some(brightness) = style.system_navigation_bar_icon_brightness {
         properties.push(format!(
             "systemNavigationBarIconBrightness: {}",
-            crate::theme_data::DartEnum(brightness)
+            waft_foundation::DartEnum(brightness)
         ));
     }
     if let Some(color) = style.status_bar_color {
@@ -977,13 +975,13 @@ fn system_overlay_style_description(
     if let Some(brightness) = style.status_bar_brightness {
         properties.push(format!(
             "statusBarBrightness: {}",
-            crate::theme_data::DartEnum(brightness)
+            waft_foundation::DartEnum(brightness)
         ));
     }
     if let Some(brightness) = style.status_bar_icon_brightness {
         properties.push(format!(
             "statusBarIconBrightness: {}",
-            crate::theme_data::DartEnum(brightness)
+            waft_foundation::DartEnum(brightness)
         ));
     }
     if let Some(enforced) = style.system_status_bar_contrast_enforced {
@@ -992,7 +990,7 @@ fn system_overlay_style_description(
     if let Some(enforced) = style.system_navigation_bar_contrast_enforced {
         properties.push(format!("systemNavigationBarContrastEnforced: {enforced}"));
     }
-    crate::theme_data::DiagnosticsText(format!("SystemUiOverlayStyle({})", properties.join(", ")))
+    format!("SystemUiOverlayStyle({})", properties.join(", "))
 }
 
 impl waft_foundation::Diagnosticable for AppBarThemeData {
@@ -1015,20 +1013,16 @@ impl waft_foundation::Diagnosticable for AppBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
                 "iconTheme",
-                self.icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
+                self.icon_theme.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
                 "actionsIconTheme",
-                self.actions_icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
+                self.actions_icon_theme.clone(),
             )
             .default_value(None),
         );
@@ -1051,7 +1045,7 @@ impl waft_foundation::Diagnosticable for AppBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "systemOverlayStyle",
                 self.system_overlay_style
                     .as_ref()

@@ -1952,13 +1952,11 @@ impl waft_foundation::Diagnosticable for ColorScheme {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         let default_scheme = ColorScheme::light();
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<Brightness>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Brightness>>::new(
                 "brightness",
-                crate::theme_data::DartEnum(self.brightness()),
+                waft_foundation::DartEnum(self.brightness()),
             )
-            .default_value(Some(crate::theme_data::DartEnum(
-                default_scheme.brightness(),
-            ))),
+            .default_value(Some(waft_foundation::DartEnum(default_scheme.brightness()))),
         );
         macro_rules! color_property {
             ($($name:literal => $field:ident),* $(,)?) => {

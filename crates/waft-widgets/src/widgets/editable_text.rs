@@ -450,6 +450,19 @@ impl AnyTextEditingController {
         self.id.identity_hash()
     }
 
+    /// Dart's `TextEditingController.toString`, which it inherits from `ValueNotifier`:
+    /// `TextEditingController#1a2b3(TextEditingValue(...))`.
+    pub fn to_string(self, app: &App) -> String {
+        format!(
+            "{}({})",
+            describe_identity(
+                waft_foundation::short_type_name((self.vtable.type_name)()),
+                self.id.identity_hash(),
+            ),
+            self.value(app)
+        )
+    }
+
     fn data(self, app: &App) -> &TextEditingControllerData {
         (self.vtable.data)(app, self.id)
     }
@@ -2044,20 +2057,14 @@ impl StatefulWidget for EditableText {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "controller",
-            Some(describe_identity(
-                "TextEditingController",
-                self.controller.identity_hash(),
-            )),
+            Some(self.controller.to_string(app)),
         ));
         properties.add(DiagnosticsProperty::<String>::new(
             "focusNode",
-            Some(describe_identity(
-                "FocusNode",
-                self.focus_node.id().identity_hash(),
-            )),
+            Some(self.focus_node.to_string(app)),
         ));
         properties.add(
             DiagnosticsProperty::<bool>::new("obscureText", Some(self.obscure_text))
@@ -2136,9 +2143,9 @@ impl StatefulWidget for EditableText {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "scrollController",
-                self.scroll_controller.as_ref().map(|controller| {
-                    describe_identity("ScrollController", controller.identity_hash())
-                }),
+                self.scroll_controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
             )
             .default_value(None),
         );
@@ -2201,12 +2208,9 @@ impl StatefulWidget for EditableText {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "undoController",
-                self.undo_controller.as_ref().map(|controller| {
-                    describe_identity(
-                        "UndoHistoryController",
-                        controller.handle().id().identity_hash(),
-                    )
-                }),
+                self.undo_controller
+                    .as_ref()
+                    .map(|controller| controller.handle().to_string(app)),
             )
             .default_value(None),
         );

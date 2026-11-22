@@ -703,7 +703,7 @@ impl StatelessWidget for FloatingActionButton {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             ObjectFlagProperty::<String>::new(
                 "onPressed",
@@ -744,18 +744,15 @@ impl StatelessWidget for FloatingActionButton {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "focusNode",
-                self.focus_node.as_ref().map(|node| {
-                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
-                }),
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
             )
             .default_value(None),
         );
         properties.add(FlagProperty::new("isExtended", Some(self.is_extended)).if_true("extended"));
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MaterialTapTargetSize>>::new(
                 "materialTapTargetSize",
-                self.material_tap_target_size
-                    .map(|size| crate::diagnostics::typed_enum("MaterialTapTargetSize", &size)),
+                self.material_tap_target_size.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

@@ -367,11 +367,8 @@ impl waft_foundation::Diagnosticable for ToggleButtonsThemeData {
         properties
             .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "fillColor",
-                self.fill_color.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("fillColor", self.fill_color.clone())
+                .default_value(None),
         );
         properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
         properties

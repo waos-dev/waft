@@ -14,7 +14,7 @@ use waft_embedder::{Clip, clamp_double};
 use waft_foundation::{
     App, ChangeNotifier, ChangeNotifierData, CompleterFuture, DiagnosticPropertiesBuilder,
     DiagnosticsProperty, EnumProperty, FlagProperty, Handle, OptionRetained,
-    PRECISION_ERROR_TOLERANCE, ValueChanged, describe_identity,
+    PRECISION_ERROR_TOLERANCE, ValueChanged,
 };
 use waft_gestures::DragStartBehavior;
 use waft_painting::{Axis, AxisDirection, flip_axis_direction, text_direction_to_axis_direction};
@@ -1557,9 +1557,10 @@ impl State for PageViewState {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "controller",
-                app.get(self).controller.as_ref().map(|controller| {
-                    describe_identity("PageController", controller.id().identity_hash())
-                }),
+                app.get(self)
+                    .controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
             )
             .with_show_name(false),
         );

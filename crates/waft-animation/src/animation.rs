@@ -5,7 +5,9 @@ use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::rc::{Rc, Weak};
 
-use waft_foundation::{App, Handle, HandleId, ListenableHandle, Listener, Ref, Retained};
+use waft_foundation::{
+    App, Handle, HandleId, ListenableHandle, Listener, Ref, Retained, describe_identity,
+};
 
 use crate::tween::Animatable;
 
@@ -267,6 +269,23 @@ pub trait Animation<T: 'static>: Sized + 'static {
         Self::status(self, app).is_forward_or_completed()
     }
 
+    /// Dart's `Animation.toStringDetails`: the status as its arrow.
+    fn to_string_details(self: Handle<Self>, app: &App) -> String {
+        animation_status_symbol(Self::status(self, app)).to_string()
+    }
+
+    /// Dart's `Animation.toString`: the identity and `toStringDetails`.
+    fn to_string(self: Handle<Self>, app: &App) -> String {
+        format!(
+            "{}({})",
+            describe_identity(
+                waft_foundation::short_type_name(std::any::type_name::<Self>()),
+                self.id().identity_hash(),
+            ),
+            self.to_string_details(app)
+        )
+    }
+
     /// This animation as the erased [`AnyAnimation<T>`] — what to pass where
     /// a Dart API takes an `Animation<T>`.
     ///
@@ -278,6 +297,16 @@ pub trait Animation<T: 'static>: Sized + 'static {
             id: self.id(),
             vtable: const { &AnimationVTable::of::<Self>() },
         }
+    }
+}
+
+/// The arrow Dart's `Animation.toStringDetails` prints for `status`.
+pub(crate) fn animation_status_symbol(status: AnimationStatus) -> &'static str {
+    match status {
+        AnimationStatus::Forward => "\u{25B6}",
+        AnimationStatus::Reverse => "\u{25C0}",
+        AnimationStatus::Completed => "\u{23ED}",
+        AnimationStatus::Dismissed => "\u{23EE}",
     }
 }
 
@@ -320,6 +349,7 @@ struct AnimationVTable<T> {
     is_completed: fn(&App, HandleId) -> bool,
     is_animating: fn(&App, HandleId) -> bool,
     is_forward_or_completed: fn(&App, HandleId) -> bool,
+    to_string: fn(&App, HandleId) -> String,
 }
 
 /// The typed handle for an erased id. Free: nothing is looked up; `get` checks
@@ -346,6 +376,7 @@ impl<T: 'static> AnimationVTable<T> {
             is_completed: |app, id| A::is_completed(resolve(id), app),
             is_animating: |app, id| A::is_animating(resolve(id), app),
             is_forward_or_completed: |app, id| A::is_forward_or_completed(resolve(id), app),
+            to_string: |app, id| A::to_string(resolve(id), app),
         }
     }
 }
@@ -421,6 +452,11 @@ impl<T: 'static> AnyAnimation<T> {
     /// Whether the current aim of this animation is toward completion.
     pub fn is_forward_or_completed(self, app: &App) -> bool {
         (self.vtable.is_forward_or_completed)(app, self.id)
+    }
+
+    /// Dart's `Animation.toString`: the identity and `toStringDetails`.
+    pub fn to_string(self, app: &App) -> String {
+        (self.vtable.to_string)(app, self.id)
     }
 }
 

@@ -6032,7 +6032,7 @@ impl Debug for InputDecoration {
             description.push(format!("constraints: {:?}", constraints));
         }
         if let Some(visual_density) = &self.visual_density {
-            description.push(format!("visualDensity: {:?}", visual_density));
+            description.push(format!("visualDensity: {visual_density}"));
         }
         if let Some(supporting_text_padding) = &self.supporting_text_padding {
             description.push(format!(
@@ -8377,8 +8377,6 @@ impl Debug for InputDecorationThemeData {
 
 impl Diagnosticable for InputDecorationThemeData {
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        // Dart's `visualDensity` line waits for `VisualDensity`'s `Display` in
-        // `theme_data.rs`.
         let default_theme = InputDecorationThemeData::new();
         properties.add(
             DiagnosticsProperty::<AnyTextStyle>::new("labelStyle", self.label_style.clone())
@@ -8423,16 +8421,12 @@ impl Diagnosticable for InputDecorationThemeData {
                 .default_value(default_theme.error_max_lines),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<FloatingLabelBehavior>>::new(
                 "floatingLabelBehavior",
-                Some(crate::diagnostics::typed_enum(
-                    "FloatingLabelBehavior",
-                    &self.floating_label_behavior,
-                )),
+                Some(waft_foundation::DartEnum(self.floating_label_behavior)),
             )
-            .default_value(Some(crate::diagnostics::typed_enum(
-                "FloatingLabelBehavior",
-                &default_theme.floating_label_behavior,
+            .default_value(Some(waft_foundation::DartEnum(
+                default_theme.floating_label_behavior,
             ))),
         );
         properties.add(
@@ -8631,6 +8625,13 @@ impl Diagnosticable for InputDecorationThemeData {
         properties.add(
             DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
                 .default_value(default_theme.constraints),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::VisualDensity>::new(
+                "visualDensity",
+                self.visual_density,
+            )
+            .default_value(default_theme.visual_density),
         );
     }
 }
@@ -21693,8 +21694,8 @@ pub(crate) mod tests {
         }
     }
     /// `input_decorator_test.dart`, "InputDecorationThemeData implements
-    /// debugFillDescription". The `visualDensity` line is left out until that type has a
-    /// `Display`; colors print as the `Color` the port stores, not as Dart's `MaterialColor`.
+    /// debugFillDescription". Colors print as the `Color` the port stores, not as Dart's
+    /// `MaterialColor`.
     #[test]
     fn an_input_decoration_theme_data_describes_its_properties() {
         use waft_embedder::Color;

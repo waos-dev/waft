@@ -9,7 +9,6 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 use std::time::Duration;
 
-use crate::colors::DiagnosticsText;
 use waft_animation::{
     Animation, AnimationController, AnimationStatus, Curve, CurvedAnimation, Curves,
 };
@@ -473,11 +472,11 @@ impl StatefulWidget for CupertinoSwitch {
                 .with_show_name(true),
         );
         properties.add(
-            ObjectFlagProperty::<DiagnosticsText>::new(
+            ObjectFlagProperty::<String>::new(
                 "onChanged",
                 self.on_changed
                     .as_ref()
-                    .map(|_| DiagnosticsText("Closure: (bool) => void".to_string())),
+                    .map(|_| "Closure: (bool) => void".to_string()),
             )
             .if_null("disabled"),
         );

@@ -500,12 +500,17 @@ impl State for AnimatedThemeState {
         app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.widget(app).implicitly_animated_widget,
+            properties,
+        );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "data",
-                app.get(self).data.as_ref().map(|_| {
-                    crate::theme_data::DiagnosticsText("Instance of 'ThemeDataTween'".to_string())
-                }),
+                app.get(self)
+                    .data
+                    .as_ref()
+                    .map(|_| "Instance of 'ThemeDataTween'".to_string()),
             )
             .with_show_name(false)
             .default_value(None),

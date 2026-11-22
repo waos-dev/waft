@@ -1141,38 +1141,30 @@ impl StatefulWidget for TextField {
     }
 
     #[allow(deprecated)]
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `selectionControls` line waits for `TextSelectionControls`' `Display`.
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "controller",
-                self.controller.as_ref().map(|controller| {
-                    crate::diagnostics::handle_identity(
-                        "TextEditingController",
-                        controller.handle().into(),
-                    )
-                }),
+                self.controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
             )
             .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "focusNode",
-                self.focus_node.as_ref().map(|node| {
-                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
-                }),
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
             )
             .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "undoController",
-                self.undo_controller.as_ref().map(|controller| {
-                    crate::diagnostics::handle_identity(
-                        "UndoHistoryController",
-                        controller.handle().id(),
-                    )
-                }),
+                self.undo_controller
+                    .as_ref()
+                    .map(|controller| controller.handle().to_string(app)),
             )
             .default_value(None),
         );
@@ -1304,10 +1296,9 @@ impl StatefulWidget for TextField {
             ColorProperty::new("cursorErrorColor", self.cursor_error_color).default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Brightness>>::new(
                 "keyboardAppearance",
-                self.keyboard_appearance
-                    .map(|brightness| crate::diagnostics::typed_enum("Brightness", &brightness)),
+                self.keyboard_appearance.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -1326,12 +1317,9 @@ impl StatefulWidget for TextField {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "scrollController",
-                self.scroll_controller.as_ref().map(|controller| {
-                    crate::diagnostics::handle_identity(
-                        "ScrollController",
-                        controller.handle().into(),
-                    )
-                }),
+                self.scroll_controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
             )
             .default_value(None),
         );

@@ -911,12 +911,9 @@ impl StatefulWidget for RawTooltip {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TooltipTriggerMode>>::new(
                 "triggerMode",
-                Some(format!(
-                    "TooltipTriggerMode.{}",
-                    waft_foundation::describe_enum(&self.trigger_mode)
-                )),
+                Some(waft_foundation::DartEnum(self.trigger_mode)),
             )
             .default_value(None),
         );

@@ -955,20 +955,17 @@ impl PartialEq for TabBarThemeData {
 impl waft_foundation::Diagnosticable for TabBarThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<DecorationRef>>::new(
-                "indicator",
-                self.indicator.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<DecorationRef>::new("indicator", self.indicator.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<Color>::new("indicatorColor", self.indicator_color)
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<TabBarIndicatorSize>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TabBarIndicatorSize>>::new(
                 "indicatorSize",
-                self.indicator_size.map(crate::theme_data::DartEnum),
+                self.indicator_size.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -981,11 +978,8 @@ impl waft_foundation::Diagnosticable for TabBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "labelColor",
-                self.label_color.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("labelColor", self.label_color.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<EdgeInsetsGeometry>::new("labelPadding", self.label_padding)
@@ -1007,28 +1001,28 @@ impl waft_foundation::Diagnosticable for TabBarThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "overlayColor",
                 self.overlay_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
-        properties.add(DiagnosticsProperty::<crate::theme_data::InstanceOf<InteractiveInkFeatureFactoryRef>>::new("splashFactory", self.splash_factory.clone().map(crate::theme_data::InstanceOf)).default_value(None));
+        properties.add(DiagnosticsProperty::<waft_foundation::InstanceOf<InteractiveInkFeatureFactoryRef>>::new("splashFactory", self.splash_factory.clone().map(waft_foundation::InstanceOf)).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "mouseCursor",
                 self.mouse_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<TabAlignment>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TabAlignment>>::new(
                 "tabAlignment",
-                self.tab_alignment.map(crate::theme_data::DartEnum),
+                self.tab_alignment.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -1037,9 +1031,9 @@ impl waft_foundation::Diagnosticable for TabBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<TabIndicatorAnimation>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TabIndicatorAnimation>>::new(
                 "indicatorAnimation",
-                self.indicator_animation.map(crate::theme_data::DartEnum),
+                self.indicator_animation.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

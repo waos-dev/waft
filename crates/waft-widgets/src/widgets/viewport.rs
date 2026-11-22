@@ -280,7 +280,7 @@ impl RenderObjectWidget for Viewport {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("axisDirection", self.axis_direction));
         properties.add(
             EnumProperty::<AxisDirection>::new("crossAxisDirection", self.cross_axis_direction)
@@ -289,7 +289,7 @@ impl RenderObjectWidget for Viewport {
         properties.add(DoubleProperty::new("anchor", self.anchor));
         properties.add(DiagnosticsProperty::<String>::new(
             "offset",
-            Some(self.offset.to_string_short()),
+            Some(self.offset.to_string_with_app(app)),
         ));
         if let Some(center) = &self.center {
             properties.add(DiagnosticsProperty::<String>::new(
@@ -781,7 +781,7 @@ impl RenderObjectWidget for ShrinkWrappingViewport {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("axisDirection", self.axis_direction));
         properties.add(
             EnumProperty::<AxisDirection>::new("crossAxisDirection", self.cross_axis_direction)
@@ -789,7 +789,7 @@ impl RenderObjectWidget for ShrinkWrappingViewport {
         );
         properties.add(DiagnosticsProperty::<String>::new(
             "offset",
-            Some(self.offset.to_string_short()),
+            Some(self.offset.to_string_with_app(app)),
         ));
         properties.add(
             DiagnosticsProperty::<ScrollCacheExtent>::new(

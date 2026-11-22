@@ -509,9 +509,9 @@ impl CardThemeData {
 impl waft_foundation::Diagnosticable for CardThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<Clip>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Clip>>::new(
                 "clipBehavior",
-                self.clip_behavior.map(crate::theme_data::DartEnum),
+                self.clip_behavior.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

@@ -899,9 +899,8 @@ impl StatelessWidget for ListTile {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
-        // Dart's `visualDensity` line waits for `VisualDensity`'s `Display` in
-        // `theme_data.rs`; `onTap` and `onLongPress` wait for a `Function` description.
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        // `onTap` and `onLongPress` wait for a `Function` description.
         properties.add(
             FlagProperty::new("isThreeLine", self.is_three_line)
                 .if_true("THREE_LINE")
@@ -917,14 +916,20 @@ impl StatelessWidget for ListTile {
                 .default_value(None),
         );
         properties.add(
+            DiagnosticsProperty::<crate::theme_data::VisualDensity>::new(
+                "visualDensity",
+                self.visual_density,
+            )
+            .default_value(None),
+        );
+        properties.add(
             DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ListTileStyle>>::new(
                 "style",
-                self.style
-                    .map(|style| crate::diagnostics::typed_enum("ListTileStyle", &style)),
+                self.style.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -988,9 +993,7 @@ impl StatelessWidget for ListTile {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "focusNode",
-                self.focus_node.as_ref().map(|node| {
-                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
-                }),
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
             )
             .default_value(None),
         );
@@ -1024,11 +1027,9 @@ impl StatelessWidget for ListTile {
             DoubleProperty::new("minLeadingWidth", self.min_leading_width).default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<String>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ListTileTitleAlignment>>::new(
                 "titleAlignment",
-                self.title_alignment.map(|alignment| {
-                    crate::diagnostics::typed_enum("ListTileTitleAlignment", &alignment)
-                }),
+                self.title_alignment.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -6062,13 +6063,13 @@ pub(crate) mod tests {
         assert_eq!(description, Vec::<String>::new());
     }
 
-    /// `list_tile_test.dart`, "ListTile implements debugFillProperties". The `visualDensity`
-    /// line is left out until `theme_data.rs` gives `VisualDensity` a `Display`.
+    /// `list_tile_test.dart`, "ListTile implements debugFillProperties".
     #[test]
     fn a_list_tile_describes_its_properties() {
         use waft_embedder::Color;
         use waft_foundation::DiagnosticPropertiesBuilder;
         use waft_painting::{BorderRadiusGeometry, BorderSide, EdgeInsets, RoundedRectangleBorder};
+        use waft_rendering::testing::ignoring_hash_codes;
 
         let blue = Color::new(0xff0000ff);
         let green = Color::new(0xff00ff00);
@@ -6114,12 +6115,16 @@ pub(crate) mod tests {
             |properties: &mut DiagnosticPropertiesBuilder| {
                 list_tile.debug_fill_properties(&app, properties)
             },
-        );
+        )
+        .into_iter()
+        .map(|line| ignoring_hash_codes(&line))
+        .collect();
         assert_eq!(
             description,
             [
                 "isThreeLine: THREE_LINE".to_string(),
                 "dense: true".to_string(),
+                "visualDensity: VisualDensity#00000(h: 0.0, v: 0.0)".to_string(),
                 "shape: RoundedRectangleBorder(BorderSide(width: 0.0, style: none), BorderRadius.zero)".to_string(),
                 "style: ListTileStyle.list".to_string(),
                 format!("selectedColor: {blue}"),

@@ -1889,27 +1889,25 @@ impl SnapshotPainter for ZoomExitTransitionPainter {
 }
 
 /// Dart's `Map<TargetPlatform, PageTransitionsBuilder>.toString`.
-fn builders_description(
-    builders: &IndexMap<TargetPlatform, PageTransitionsBuilderRef>,
-) -> crate::theme_data::DiagnosticsText {
+fn builders_description(builders: &IndexMap<TargetPlatform, PageTransitionsBuilderRef>) -> String {
     let entries: Vec<String> = builders
         .iter()
         .map(|(platform, builder)| {
             format!(
                 "{}: {}",
-                crate::theme_data::DartEnum(*platform),
-                crate::theme_data::InstanceOf(&**builder)
+                waft_foundation::DartEnum(*platform),
+                waft_foundation::InstanceOf(&**builder)
             )
         })
         .collect();
-    crate::theme_data::DiagnosticsText(format!("{{{}}}", entries.join(", ")))
+    format!("{{{}}}", entries.join(", "))
 }
 
 impl Diagnosticable for PageTransitionsTheme {
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
         let default_builders = PageTransitionsTheme::new().builders;
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "builders",
                 Some(builders_description(&self.builders)),
             )

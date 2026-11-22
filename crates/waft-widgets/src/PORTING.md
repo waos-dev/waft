@@ -818,9 +818,9 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
   Reason: language — Rust has no `super` call, and a trait default cannot call the body an implementor overrides.
   Affect: none; a dump's properties and their order are Dart's.
 
-- Change: a value a property reads from the arena prints its identity where Dart's `toString` collects a description: `ScrollViewData.controller`, `ScrollableState.position`, `Viewport.offset`, `PageViewState.controller`, `EditableText`'s controller, focus node, scroll controller and undo controller, `FadeTransition.opacity`, and `AnimatedWidget.listenable`.
-  Reason: language — a widget's property hook has no `App`, and a state's has no way to keep a borrow while reading the object it names.
-  Affect: those lines read the kind and a hash (`ScrollController#00012`, `Animation#00013`) rather than the controller's clients, the position's range and offset, or the animation's value, and the controller lines omit `initialScrollOffset`.
+- Change: `AnimatedWidget.listenable` prints the kind and a hash (`Listenable#00012`) where Dart prints the object's own `toString`.
+  Reason: language — the listenable is an `Rc<dyn Listenable>`, which carries no runtime class name or kind.
+  Affect: a transition's `listenable` line names no value, where Dart shows the animation's status and value.
 
 - Change: a widget held in a property is added as a diagnostics node: `SliverFillRemaining.child` is the child widget's own node.
   Reason: language — Rust has no `Widget.toString` that collects a widget's properties without minting a node.
@@ -857,7 +857,7 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - image.rs: `color` / `colorBlendMode`, `centerSlice` and `filterQuality`. Trigger: painting's colour filters; an image drawn as a resizable frame; a caller that needs to choose how an image is sampled.
 - focus_manager.rs: `FocusNode.onKey` and the Android IME key check. Trigger: services' raw key path.
 - focus_manager.rs, focus_scope.rs: `FocusManager`'s semantics action listener (`handleSemanticsAction`). Trigger: the semantics tree.
-- focus_manager.rs, focus_scope.rs: the `debugDumpFocusTree` helpers, the `Focus` widget's own `debugFillProperties` (a widget body has no `App` to reach the state's node), and the debug focus border. Trigger: an app-aware widget-property hook; the debug focus border.
+- focus_manager.rs, focus_scope.rs: the `debugDumpFocusTree` helpers and the debug focus border. Trigger: a focus-tree dump; the debug focus border.
 - focus_scope.rs: `_FocusInheritedScope` keeps the copy of the inherited-notifier element it grew before inherited_notifier.rs was ported. Trigger: the next change to that element.
 - framework/: `ErrorWidget` with its exception reporting, and the build-time diagnostics and duplicate-key checks, `Table`'s checks for duplicate row and cell keys among them. Trigger: diagnostics.
 - platform_menu_bar.rs: `PlatformMenuBar.debugDescribeChildren`, the menu items under a menu bar's dump. Trigger: a widget-level `debugDescribeChildren` (deferred in `framework/`).

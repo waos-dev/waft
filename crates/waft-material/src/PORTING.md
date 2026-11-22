@@ -839,7 +839,7 @@ Ported against: 34b89b2086d4
 - refresh_indicator.rs tests: 'RefreshIndicator responds to strokeWidth' and 'RefreshIndicator responds to edgeOffset', which only read constructor arguments back.
 - mergeable_material.rs tests: the `debugDisableShadows` toggles around the two shadow cases; Waft has no such flag (waft-painting PORTING.md), and the cases read the shadow itself.
 - menu_anchor.rs: `MenuAnchor`, `MenuBar` and `SubmenuButton` `debugDescribeChildren` (their `menuChildren`), because this port has no widget-level `debugDescribeChildren` hook; an element dump shows the built children. Trigger: a widget-level children hook in waft-widgets.
-- list_tile.rs, material_button.rs, menu_style.rs, input_decorator.rs: the `visualDensity` diagnostic line, and `StepStyle::index_style`'s default. Trigger: `VisualDensity`'s `Display` in theme_data.rs and a fallback `ThemeData` for `StepStyle`'s default.
+- stepper.rs: `StepStyle::index_style`'s default. Trigger: a fallback `ThemeData` for it.
 - list_tile.rs: the `onTap` and `onLongPress` diagnostic lines. Trigger: a `Display` for the port's callback types.
 - tooltip.rs, selectable_text.rs, text_field.rs: the `positionDelegate` and `selectionControls` diagnostic lines. Trigger: a `Display` for those function and trait-object types.
 
@@ -849,14 +849,6 @@ Ported against: 34b89b2086d4
   Reason: platform — `Diagnosticable::debug_fill_properties` takes no `App`, so there is no `defaultTargetPlatform` to read, and Dart's global is an `App` field here.
   Affect: a theme built for another platform compares against that platform's defaults, where Dart always compares against the running one.
 
-- Change: values the widgets crate owns print through a local adapter: `IconThemeData` and `AnimationStyle` with their Dart hash and properties, `MenuStyle` and `InputDecorationThemeData` with their `Debug`.
-  Reason: language — `Display` cannot be implemented for another crate's type.
-  Affect: an `IconThemeData` or `AnimationStyle` prints as Dart does; a `MenuStyle` or `InputDecorationThemeData` prints its `Debug` text, which lacks Dart's hash (the values are at the debug level, so a theme dump does not show them).
-
-- Change: `WidgetStateProperty.resolveWith` prints `Instance of '_WidgetStatePropertyWith<bool?>'`, with the resolved Dart type named by the property's field.
-  Reason: language — the widgets crate's `Debug` prints its constructor name, and `Display` cannot be added there.
-  Affect: the text is Dart's.
-
-- Change: a slider shape or range thumb selector prints `Instance of 'RoundSliderThumbShape'`.
-  Reason: language — the shape refs are trait objects with no `Display`.
-  Affect: the text is Dart's.
+- Change: `ProgressIndicatorThemeData.controller` prints `AnimationController#1a2b3`, without its status and value.
+  Reason: platform — `Diagnosticable::debug_fill_properties` takes no `App`, and an `AnimationController`'s value and status are read from the arena.
+  Affect: the controller line names the object but not its animation state.

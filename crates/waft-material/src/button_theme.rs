@@ -859,10 +859,9 @@ impl waft_foundation::Diagnosticable for ButtonThemeData {
                 .default_value(default_theme.color_scheme.clone()),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<MaterialTapTargetSize>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MaterialTapTargetSize>>::new(
                 "materialTapTargetSize",
-                self.material_tap_target_size
-                    .map(crate::theme_data::DartEnum),
+                self.material_tap_target_size.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

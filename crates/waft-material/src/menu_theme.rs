@@ -202,18 +202,14 @@ impl InheritedWidget for MenuTheme {
 impl waft_foundation::Diagnosticable for MenuThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<MenuStyle>>::new(
-                "style",
-                self.style.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<MenuStyle>::new("style", self.style.clone()).default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "submenuIcon",
                 self.submenu_icon
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

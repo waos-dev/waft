@@ -3961,6 +3961,60 @@ pub fn short_type_name(full_type_name: &'static str) -> &'static str {
     last.split('<').next().unwrap_or(last)
 }
 
+/// A value whose Dart class does not override `toString`, so Dart prints
+/// `Instance of 'RoundSliderThumbShape'`.
+pub struct InstanceOf<T>(pub T);
+
+impl<T: fmt::Debug> fmt::Display for InstanceOf<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let debug = format!("{:?}", self.0);
+        let name = debug
+            .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .next()
+            .unwrap_or(&debug);
+        write!(f, "Instance of '{name}'")
+    }
+}
+
+impl<T: PartialEq> PartialEq for InstanceOf<T> {
+    fn eq(&self, other: &InstanceOf<T>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Clone> Clone for InstanceOf<T> {
+    fn clone(&self) -> InstanceOf<T> {
+        InstanceOf(self.0.clone())
+    }
+}
+
+/// Dart's `Enum.toString`, the type then the case: what a `DiagnosticsProperty` of an enum
+/// prints, where [`EnumProperty`] prints the case alone.
+pub struct DartEnum<T>(pub T);
+
+impl<T: fmt::Debug> fmt::Display for DartEnum<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}.{}",
+            short_type_name(std::any::type_name::<T>()),
+            describe_enum(&self.0)
+        )
+    }
+}
+
+impl<T: PartialEq> PartialEq for DartEnum<T> {
+    fn eq(&self, other: &DartEnum<T>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Clone> Clone for DartEnum<T> {
+    fn clone(&self) -> DartEnum<T> {
+        DartEnum(self.0.clone())
+    }
+}
+
 /// Returns a short description of an enum value: its `Debug` text with the
 /// first character lowercased, as Dart's `Enum.name` prints `deferToChild`.
 pub fn describe_enum<T: fmt::Debug>(value: &T) -> String {

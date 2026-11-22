@@ -1045,8 +1045,8 @@ impl Debug for MediaQueryData {
             format!("devicePixelRatio: {:.1}", self.device_pixel_ratio),
             format!("textScaler: {:?}", self.text_scaler),
             format!(
-                "platformBrightness: Brightness.{}",
-                waft_foundation::describe_enum(&self.platform_brightness)
+                "platformBrightness: {}",
+                waft_foundation::DartEnum(self.platform_brightness)
             ),
             format!("padding: {:?}", self.padding),
             format!("viewPadding: {:?}", self.view_padding),

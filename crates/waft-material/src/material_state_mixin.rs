@@ -36,7 +36,7 @@ impl MaterialStateMixinData {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "materialStates",
-                Some(crate::diagnostics::widget_states(&self.material_states)),
+                Some(waft_widgets::widget_states(&self.material_states)),
             )
             .default_value(Some("{}".to_string())),
         );

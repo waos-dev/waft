@@ -468,20 +468,17 @@ impl waft_foundation::Diagnosticable for TooltipThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<DecorationRef>>::new(
-                "decoration",
-                self.decoration.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<DecorationRef>::new("decoration", self.decoration.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<TextStyle>::new("textStyle", self.text_style.clone())
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<TextAlign>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TextAlign>>::new(
                 "textAlign",
-                self.text_align.map(crate::theme_data::DartEnum),
+                self.text_align.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -507,9 +504,9 @@ impl waft_foundation::Diagnosticable for TooltipThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<TooltipTriggerMode>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TooltipTriggerMode>>::new(
                 "triggerMode",
-                self.trigger_mode.map(crate::theme_data::DartEnum),
+                self.trigger_mode.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

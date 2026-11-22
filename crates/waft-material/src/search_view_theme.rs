@@ -380,18 +380,12 @@ impl waft_foundation::Diagnosticable for SearchViewThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyBorderSide>>::new(
-                "side",
-                self.side.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyBorderSide>::new("side", self.side.clone())
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<OutlinedBorderRef>>::new(
-                "shape",
-                self.shape.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<OutlinedBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
         );
         properties.add(
             DiagnosticsProperty::<f64>::new("headerHeight", self.header_height).default_value(None),

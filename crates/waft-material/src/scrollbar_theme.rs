@@ -384,29 +384,29 @@ impl InheritedWidget for ScrollbarTheme {
 impl waft_foundation::Diagnosticable for ScrollbarThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "thumbVisibility",
                 self.thumb_visibility
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "thickness",
                 self.thickness
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "trackVisibility",
                 self.track_visibility
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
@@ -414,36 +414,33 @@ impl waft_foundation::Diagnosticable for ScrollbarThemeData {
             DiagnosticsProperty::<bool>::new("interactive", self.interactive).default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::RadiusDiagnostics>::new(
-                "radius",
-                self.radius.map(crate::theme_data::RadiusDiagnostics),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<waft_embedder::Radius>::new("radius", self.radius)
+                .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "thumbColor",
                 self.thumb_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "trackColor",
                 self.track_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "trackBorderColor",
                 self.track_border_color
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

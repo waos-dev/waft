@@ -692,7 +692,7 @@ impl StatefulWidget for MenuAnchor {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `debugDescribeChildren` has no widget-level hook in this port; the element
         // tree dump shows the built children instead of `menuChildren`.
         properties.add(
@@ -703,7 +703,7 @@ impl StatefulWidget for MenuAnchor {
             "focusNode",
             self.child_focus_node
                 .as_ref()
-                .map(|node| crate::diagnostics::handle_identity("FocusNode", node.handle().id())),
+                .map(|node| node.to_string(app)),
         ));
         properties.add(DiagnosticsProperty::<MenuStyle>::new(
             "style",
@@ -1584,7 +1584,7 @@ impl StatelessWidget for MenuBar {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, __app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `debugDescribeChildren` has no widget-level hook in this port.
         properties.add(
             DiagnosticsProperty::<MenuStyle>::new("style", self.style.clone()).default_value(None),
@@ -1974,8 +1974,7 @@ impl StatefulWidget for MenuItemButton {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
-        // Dart's `style` line waits for `ButtonStyle`'s `Display`.
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("enabled", Some(self.on_pressed.is_some())).if_false("DISABLED"),
         );
@@ -1991,9 +1990,7 @@ impl StatefulWidget for MenuItemButton {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "focusNode",
-                self.focus_node.as_ref().map(|node| {
-                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
-                }),
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
             )
             .default_value(None),
         );
@@ -2004,12 +2001,9 @@ impl StatefulWidget for MenuItemButton {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "statesController",
-                self.states_controller.as_ref().map(|controller| {
-                    crate::diagnostics::handle_identity(
-                        "MaterialStatesController",
-                        controller.handle().into(),
-                    )
-                }),
+                self.states_controller
+                    .as_ref()
+                    .map(|controller| controller.handle().to_string(app)),
             )
             .default_value(None),
         );
@@ -3349,13 +3343,11 @@ impl StatefulWidget for SubmenuButton {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `debugDescribeChildren` has no widget-level hook in this port.
         properties.add(DiagnosticsProperty::<String>::new(
             "focusNode",
-            self.focus_node
-                .as_ref()
-                .map(|node| crate::diagnostics::handle_identity("FocusNode", node.handle().id())),
+            self.focus_node.as_ref().map(|node| node.to_string(app)),
         ));
         properties.add(
             DiagnosticsProperty::<MenuStyle>::new("menuStyle", self.menu_style.clone())
@@ -4938,7 +4930,7 @@ impl StatefulWidget for MenuAcceleratorLabel {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, __app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(StringProperty::new("label", Some(self.label.clone())));
     }
 
@@ -5204,7 +5196,7 @@ impl Debug for MenuItemLabel {
 }
 
 impl StatelessWidget for MenuItemLabel {
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, __app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "shortcut",

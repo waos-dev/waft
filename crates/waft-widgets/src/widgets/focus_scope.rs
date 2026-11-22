@@ -6,7 +6,10 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::TargetPlatform;
-use waft_foundation::{App, Handle, Listener, OptionRetained, Ref, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle, Listener,
+    OptionRetained, Ref, StringProperty, ValueChanged,
+};
 
 use crate::framework::{
     AnyElement, BuildContext, ComponentElement, ComponentElementData, Element, ElementData,
@@ -259,7 +262,7 @@ impl Focus {
     /// nothing when [`AnyFocusNode::request_focus`] is called on it. Does not affect the
     /// children of this node, and [`AnyFocusNode::has_focus`] can still return true if this
     /// node is the ancestor of the primary focus.
-    pub fn get_can_request_focus(&self, app: &mut App) -> bool {
+    pub fn get_can_request_focus(&self, app: &App) -> bool {
         let (explicit, node) = (self.can_request_focus, self.focus_node.handle());
         Focus::resolve_can_request_focus(explicit, node, app)
     }
@@ -270,10 +273,10 @@ impl Focus {
     fn resolve_can_request_focus(
         explicit: Option<bool>,
         node: Option<AnyFocusNode>,
-        app: &mut App,
+        app: &App,
     ) -> bool {
         explicit
-            .or_else(|| node.map(|node| node.can_request_focus(app)))
+            .or_else(|| node.map(|node| node.can_request_focus_with(app)))
             .unwrap_or(true)
     }
 
@@ -427,6 +430,43 @@ impl StatefulWidget for Focus {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(StringProperty::new("debugLabel", self.get_debug_label(app)));
+        properties.add(
+            FlagProperty::new("autofocus", Some(self.autofocus))
+                .if_true("AUTOFOCUS")
+                .default_value(Some(false)),
+        );
+        properties.add(
+            FlagProperty::new("canRequestFocus", Some(self.get_can_request_focus(app)))
+                .if_false("NOT FOCUSABLE")
+                .default_value(Some(false)),
+        );
+        properties.add(
+            FlagProperty::new(
+                "descendantsAreFocusable",
+                Some(self.get_descendants_are_focusable(app)),
+            )
+            .if_false("DESCENDANTS UNFOCUSABLE")
+            .default_value(Some(true)),
+        );
+        properties.add(
+            FlagProperty::new(
+                "descendantsAreTraversable",
+                Some(self.get_descendants_are_traversable(app)),
+            )
+            .if_false("DESCENDANTS UNTRAVERSABLE")
+            .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.handle().map(|node| node.to_string(app)),
+            )
+            .default_value(None),
+        );
     }
 
     fn create_state(&self) -> FocusState {

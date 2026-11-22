@@ -47,7 +47,7 @@ use waft_widgets::{
 };
 
 use crate::adaptive_text_selection_toolbar::CupertinoAdaptiveTextSelectionToolbar;
-use crate::colors::{CupertinoColors, CupertinoDynamicColor, DiagnosticsText};
+use crate::colors::{CupertinoColors, CupertinoDynamicColor};
 use crate::desktop_text_selection::cupertino_desktop_text_selection_handle_controls;
 use crate::icons::CupertinoIcons;
 use crate::localizations::CupertinoLocalizations;
@@ -987,37 +987,31 @@ impl Debug for CupertinoTextField {
 }
 
 impl StatefulWidget for CupertinoTextField {
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
-        let controller = self.controller.as_ref().map(|controller| {
-            DiagnosticsText(format!(
-                "TextEditingController#{}",
-                waft_foundation::short_hash(
-                    controller as *const TextEditingControllerRef as *const () as usize as u64
-                )
-            ))
-        });
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new("controller", controller)
-                .default_value(None),
-        );
-        let focus_node = self.focus_node.as_ref().map(|focus_node| {
-            DiagnosticsText(format!(
-                "FocusNode#{}",
-                waft_foundation::short_hash(
-                    focus_node as *const FocusNodeRef as *const () as usize as u64
-                )
-            ))
-        });
-        properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new("focusNode", focus_node)
-                .default_value(None),
+            DiagnosticsProperty::<String>::new(
+                "controller",
+                self.controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
+            )
+            .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node
+                    .as_ref()
+                    .map(|focus_node| focus_node.to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
                 "undoController",
                 self.undo_controller
                     .as_ref()
-                    .map(|_| DiagnosticsText("Instance of 'UndoHistoryController'".to_string())),
+                    .map(|controller| controller.handle().to_string(app)),
             )
             .default_value(None),
         );
@@ -1038,27 +1032,27 @@ impl StatefulWidget for CupertinoTextField {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::colors::DartEnum<OverlayVisibilityMode>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<OverlayVisibilityMode>>::new(
                 "prefix",
                 self.prefix
                     .as_ref()
-                    .map(|_| crate::colors::DartEnum(self.prefix_mode)),
+                    .map(|_| waft_foundation::DartEnum(self.prefix_mode)),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::colors::DartEnum<OverlayVisibilityMode>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<OverlayVisibilityMode>>::new(
                 "suffix",
                 self.suffix
                     .as_ref()
-                    .map(|_| crate::colors::DartEnum(self.suffix_mode)),
+                    .map(|_| waft_foundation::DartEnum(self.suffix_mode)),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::colors::DartEnum<OverlayVisibilityMode>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<OverlayVisibilityMode>>::new(
                 "clearButtonMode",
-                Some(crate::colors::DartEnum(self.clear_button_mode)),
+                Some(waft_foundation::DartEnum(self.clear_button_mode)),
             )
             .default_value(None),
         );
@@ -1133,9 +1127,9 @@ impl StatefulWidget for CupertinoTextField {
         );
         properties.add(DoubleProperty::new("cursorHeight", self.cursor_height).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::colors::RadiusDiagnostics>::new(
+            DiagnosticsProperty::<waft_embedder::Radius>::new(
                 "cursorRadius",
-                Some(crate::colors::RadiusDiagnostics(self.cursor_radius)),
+                Some(self.cursor_radius),
             )
             .default_value(None),
         );
@@ -1159,29 +1153,29 @@ impl StatefulWidget for CupertinoTextField {
                 .default_value(Some(true)),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "selectionControls",
                 self.selection_controls
                     .as_ref()
-                    .map(|_| DiagnosticsText("Instance of 'TextSelectionControls'".to_string())),
+                    .map(|_| "Instance of 'TextSelectionControls'".to_string()),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "scrollController",
                 self.scroll_controller
                     .as_ref()
-                    .map(|_| DiagnosticsText("Instance of 'ScrollController'".to_string())),
+                    .map(|controller| controller.to_string(app)),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "scrollPhysics",
                 self.scroll_physics
                     .as_ref()
-                    .map(|_| DiagnosticsText("Instance of 'ScrollPhysics'".to_string())),
+                    .map(|_| "Instance of 'ScrollPhysics'".to_string()),
             )
             .default_value(None),
         );
@@ -1190,10 +1184,10 @@ impl StatefulWidget for CupertinoTextField {
                 .default_value(Some(waft_embedder::TextAlign::Start)),
         );
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "textAlignVertical",
                 self.text_align_vertical
-                    .map(|vertical| DiagnosticsText(format!("{vertical:?}"))),
+                    .map(|vertical| format!("{vertical:?}")),
             )
             .default_value(None),
         );
@@ -1202,11 +1196,13 @@ impl StatefulWidget for CupertinoTextField {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::colors::DartEnum<waft_embedder::Clip>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<waft_embedder::Clip>>::new(
                 "clipBehavior",
-                Some(crate::colors::DartEnum(self.clip_behavior)),
+                Some(waft_foundation::DartEnum(self.clip_behavior)),
             )
-            .default_value(Some(crate::colors::DartEnum(waft_embedder::Clip::HardEdge))),
+            .default_value(Some(waft_foundation::DartEnum(
+                waft_embedder::Clip::HardEdge,
+            ))),
         );
         properties.add(
             DiagnosticsProperty::<bool>::new("scribbleEnabled", Some(self.scribble_enabled))
@@ -1234,11 +1230,11 @@ impl StatefulWidget for CupertinoTextField {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::colors::InstanceOf<SpellCheckConfiguration>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<SpellCheckConfiguration>>::new(
                 "spellCheckConfiguration",
                 self.spell_check_configuration
                     .clone()
-                    .map(crate::colors::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             )
             .default_value(None),
         );
@@ -1256,11 +1252,11 @@ impl StatefulWidget for CupertinoTextField {
                 .collect()
         };
         properties.add(
-            DiagnosticsProperty::<DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "contentCommitMimeTypes",
-                Some(DiagnosticsText(list_to_string(&mime_types))),
+                Some(list_to_string(&mime_types)),
             )
-            .default_value(Some(DiagnosticsText(list_to_string(&default_mime_types)))),
+            .default_value(Some(list_to_string(&default_mime_types))),
         );
     }
 

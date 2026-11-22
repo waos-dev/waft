@@ -1048,7 +1048,7 @@ fn the_app_dump_shows_the_whole_tree_from_the_root() {
          \u{20}    └MediaQueryFromView(state: MediaQueryFromViewState#00000)\n\
          \u{20}     └MediaQuery(MediaQueryData(size: Size(800.0, 600.0), devicePixelRatio: 3.0, textScaler: no scaling, platformBrightness: Brightness.light, padding: EdgeInsets.zero, viewPadding: EdgeInsets.zero, viewInsets: EdgeInsets.zero, systemGestureInsets: EdgeInsets.zero, alwaysUse24HourFormat: false, accessibleNavigation: false, highContrast: false, onOffSwitchLabels: false, disableAnimations: false, reduceMotion: false, invertColors: false, boldText: false, navigationMode: traditional, gestureSettings: DeviceGestureSettings(touchSlop: null), supportsShowingSystemContextMenu: false, lineHeightScaleFactorOverride: null, letterSpacingOverride: null, wordSpacingOverride: null, paragraphSpacingOverride: null, displayCornerRadii: null))\n\
          \u{20}      └FocusTraversalGroup(policy: ReadingOrderTraversalPolicy#00000, state: FocusTraversalGroupState#00000)\n\
-         \u{20}       └Focus(state: FocusState#00000)\n\
+         \u{20}       └Focus(debugLabel: \"FocusTraversalGroup\", focusNode: FocusTraversalGroupNode#00000(FocusTraversalGroup)(context: Focus, NOT FOCUSABLE), state: FocusState#00000)\n\
          \u{20}        └FocusInheritedScope\n\
          \u{20}         └FocusScope(dependencies: [FocusInheritedScope], state: FocusScopeState#00000)\n\
          \u{20}          └FocusInheritedScope\n\

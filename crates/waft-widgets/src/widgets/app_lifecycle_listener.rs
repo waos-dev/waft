@@ -5,7 +5,6 @@ use std::rc::{Rc, Weak};
 
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle, Ref, Task,
-    describe_identity,
 };
 use waft_scheduler::SchedulerBinding;
 
@@ -145,10 +144,10 @@ impl AppLifecycleListener {
         let listener = app.get(self);
         properties.add(DiagnosticsProperty::<String>::new(
             "binding",
-            Some(describe_identity(
-                "WidgetsBinding",
-                listener.binding.id().identity_hash(),
-            )),
+            Some(
+                app.get(Handle::<WidgetsBinding>::from_id(listener.binding.id()))
+                    .to_string(),
+            ),
         ));
         properties.add(
             FlagProperty::new("onStateChange", Some(listener.on_state_change.is_some()))

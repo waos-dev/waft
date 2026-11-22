@@ -1055,16 +1055,8 @@ impl waft_foundation::Diagnosticable for SliderThemeData {
                 .default_value(default_theme.disabled_thumb_color),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "overlayColor",
-                self.overlay_color.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(
-                default_theme
-                    .overlay_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            ),
+            DiagnosticsProperty::<AnyColor>::new("overlayColor", self.overlay_color.clone())
+                .default_value(default_theme.overlay_color.clone()),
         );
         properties.add(
             ColorProperty::new("valueIndicatorColor", self.value_indicator_color)
@@ -1078,114 +1070,112 @@ impl waft_foundation::Diagnosticable for SliderThemeData {
             .default_value(default_theme.value_indicator_stroke_color),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderComponentShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<SliderComponentShapeRef>>::new(
                 "overlayShape",
-                self.overlay_shape
-                    .clone()
-                    .map(crate::theme_data::InstanceOf),
+                self.overlay_shape.clone().map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .overlay_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderTickMarkShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<SliderTickMarkShapeRef>>::new(
                 "tickMarkShape",
                 self.tick_mark_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .tick_mark_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderComponentShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<SliderComponentShapeRef>>::new(
                 "thumbShape",
-                self.thumb_shape.clone().map(crate::theme_data::InstanceOf),
+                self.thumb_shape.clone().map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .thumb_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderTrackShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<SliderTrackShapeRef>>::new(
                 "trackShape",
-                self.track_shape.clone().map(crate::theme_data::InstanceOf),
+                self.track_shape.clone().map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .track_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderComponentShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<SliderComponentShapeRef>>::new(
                 "valueIndicatorShape",
                 self.value_indicator_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .value_indicator_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderTickMarkShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<RangeSliderTickMarkShapeRef>>::new(
                 "rangeTickMarkShape",
                 self.range_tick_mark_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .range_tick_mark_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderThumbShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<RangeSliderThumbShapeRef>>::new(
                 "rangeThumbShape",
                 self.range_thumb_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .range_thumb_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderTrackShapeRef>>::new(
+            DiagnosticsProperty::<waft_foundation::InstanceOf<RangeSliderTrackShapeRef>>::new(
                 "rangeTrackShape",
                 self.range_track_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             )
             .default_value(
                 default_theme
                     .range_track_shape
                     .clone()
-                    .map(crate::theme_data::InstanceOf),
+                    .map(waft_foundation::InstanceOf),
             ),
         );
-        properties.add(DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderValueIndicatorShapeRef>>::new("rangeValueIndicatorShape", self.range_value_indicator_shape.clone().map(crate::theme_data::InstanceOf)).default_value(default_theme.range_value_indicator_shape.clone().map(crate::theme_data::InstanceOf)));
+        properties.add(DiagnosticsProperty::<waft_foundation::InstanceOf<RangeSliderValueIndicatorShapeRef>>::new("rangeValueIndicatorShape", self.range_value_indicator_shape.clone().map(waft_foundation::InstanceOf)).default_value(default_theme.range_value_indicator_shape.clone().map(waft_foundation::InstanceOf)));
         properties.add(
             EnumProperty::<ShowValueIndicator>::new(
                 "showValueIndicator",
@@ -1204,19 +1194,19 @@ impl waft_foundation::Diagnosticable for SliderThemeData {
             DoubleProperty::new("minThumbSeparation", self.min_thumb_separation)
                 .default_value(default_theme.min_thumb_separation),
         );
-        properties.add(DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new("thumbSelector", self.thumb_selector.as_ref().map(|_| crate::theme_data::DiagnosticsText("Closure: (TextDirection, RangeValues, double, Size, Size, double) => Thumb?".to_string()))).default_value(None));
+        properties.add(DiagnosticsProperty::<String>::new("thumbSelector", self.thumb_selector.as_ref().map(|_| "Closure: (TextDirection, RangeValues, double, Size, Size, double) => Thumb?".to_string())).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "mouseCursor",
                 self.mouse_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(
                 default_theme
                     .mouse_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             ),
         );
         properties.add(
@@ -1228,17 +1218,17 @@ impl waft_foundation::Diagnosticable for SliderThemeData {
                 .default_value(default_theme.padding),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "thumbSize",
                 self.thumb_size
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(
                 default_theme
                     .thumb_size
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             ),
         );
         properties.add(

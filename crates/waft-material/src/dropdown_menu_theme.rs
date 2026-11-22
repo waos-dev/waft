@@ -263,20 +263,15 @@ impl waft_foundation::Diagnosticable for DropdownMenuThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<InputDecorationThemeData>>::new(
+            DiagnosticsProperty::<InputDecorationThemeData>::new(
                 "inputDecorationThemeData",
-                self.input_decoration_theme
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.input_decoration_theme.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<MenuStyle>>::new(
-                "menuStyle",
-                self.menu_style.clone().map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<MenuStyle>::new("menuStyle", self.menu_style.clone())
+                .default_value(None),
         );
         properties
             .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));

@@ -10,7 +10,7 @@ use waft_embedder::{Clip, Offset, Rect};
 use waft_foundation::{
     App, ChangeNotifier, ChangeNotifierData, CompleterFuture, DiagnosticPropertiesBuilder,
     DiagnosticsProperty, EnumProperty, Handle, HandleId, Listenable, Listener, OptionRetained,
-    PRECISION_ERROR_TOLERANCE, Ref, StringProperty, describe_identity, wait_all,
+    PRECISION_ERROR_TOLERANCE, Ref, StringProperty, wait_all,
 };
 use waft_gestures::{
     DeviceGestureSettings, Drag, DragDownDetails, DragEndDetails, DragGestureRecognizer,
@@ -1169,7 +1169,7 @@ impl State for ScrollableState {
             state
                 .position
                 .as_ref()
-                .map(|position| describe_identity("ScrollPosition", position.identity_hash())),
+                .map(|position| position.to_string(app)),
         ));
         properties.add(DiagnosticsProperty::<String>::new(
             "effective physics",

@@ -198,10 +198,6 @@ Ported against: 4765bd950d31784578608cfbb0c723453cc49216
 
 ## diagnostics
 
-- Change: `CupertinoTextField`'s dump names its controller and focus node as `TextEditingController#1a2b3` and `FocusNode#1a2b3`, with no value.
-  Reason: platform — `Diagnosticable::debug_fill_properties` takes no `App`, and reading a controller's `TextEditingValue` or a node's focus state needs the arena.
-  Affect: the value's text is shorter than Dart's; the class and identity hash are the same.
-
 - Change: `CupertinoDynamicColor`'s `last resolved` property is not added.
   Reason: platform — a resolved color keeps no resolving element here (the resolve context is a `BuildContext` in Dart).
   Affect: a color resolved in a build shows no resolving context.

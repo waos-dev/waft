@@ -417,7 +417,7 @@ pub trait FocusNodeLeaf: ChangeNotifier + Sized + 'static {
     /// Dart writes `super`.
     fn debug_fill_properties(
         self: Handle<Self>,
-        app: &mut App,
+        app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
         fill_focus_node_properties(self, app, properties);
@@ -438,9 +438,9 @@ pub trait FocusNodeLeaf: ChangeNotifier + Sized + 'static {
 
     /// Dart's `FocusNode.toStringShort`: the identity, then the debug label and the focus
     /// markers.
-    fn to_string_short(self: Handle<Self>, app: &mut App) -> String {
+    fn to_string_short(self: Handle<Self>, app: &App) -> String {
         let label = self.debug_label(app).filter(|label| !label.is_empty());
-        let has_focus = self.has_focus(app);
+        let has_focus = self.as_node().has_focus_with(app);
         let has_primary_focus = self.has_primary_focus(app);
         let mut extra = String::new();
         if let Some(label) = &label {
@@ -628,9 +628,9 @@ struct FocusNodeVTable {
     traversal_children: fn(&mut App, HandleId) -> Vec<AnyFocusNode>,
     traversal_descendants: fn(&mut App, HandleId) -> Vec<AnyFocusNode>,
     do_request_focus: fn(&mut App, HandleId, bool),
-    debug_fill_properties: fn(&mut App, HandleId, &mut DiagnosticPropertiesBuilder),
+    debug_fill_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
     debug_describe_children: fn(&mut App, HandleId) -> Vec<Rc<dyn DiagnosticsNode>>,
-    to_string_short: fn(&mut App, HandleId) -> String,
+    to_string_short: fn(&App, HandleId) -> String,
     add_listener: fn(&mut App, HandleId, Listener),
     remove_listener: fn(&mut App, HandleId, &Listener),
     notify_listeners: fn(&mut App, HandleId),
@@ -718,11 +718,7 @@ impl AnyFocusNode {
 
     /// Dart's `node.debugFillProperties`: the node's own properties, after `Diagnosticable`'s
     /// none.
-    pub fn debug_fill_properties(
-        self,
-        app: &mut App,
-        properties: &mut DiagnosticPropertiesBuilder,
-    ) {
+    pub fn debug_fill_properties(self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         (self.vtable.debug_fill_properties)(app, self.id, properties);
     }
 
@@ -732,7 +728,7 @@ impl AnyFocusNode {
     }
 
     /// Dart's `node.toStringShort`.
-    pub fn to_string_short(self, app: &mut App) -> String {
+    pub fn to_string_short(self, app: &App) -> String {
         (self.vtable.to_string_short)(app, self.id)
     }
 
@@ -751,7 +747,7 @@ impl AnyFocusNode {
 
     /// Dart's `Diagnosticable.toString`, which a property holding a node prints: its short
     /// description, then the properties at the info level or above on one line.
-    pub fn to_string(self, app: &mut App) -> String {
+    pub fn to_string(self, app: &App) -> String {
         let short = self.to_string_short(app);
         let mut properties = DiagnosticPropertiesBuilder::new();
         self.debug_fill_properties(app, &mut properties);
@@ -831,10 +827,15 @@ impl AnyFocusNode {
     /// Setting [`can_request_focus`](Self::can_request_focus) to false implies that the node
     /// will also be skipped for traversal purposes.
     pub fn can_request_focus(self, app: &mut App) -> bool {
+        self.can_request_focus_with(app)
+    }
+
+    /// [`can_request_focus`](Self::can_request_focus) through `&App`, for diagnostics.
+    pub(crate) fn can_request_focus_with(self, app: &App) -> bool {
         if !self.data(app).can_request_focus {
             return false;
         }
-        let ancestors = self.ancestors(app);
+        let ancestors = self.ancestors_without_caching(app);
         ancestors
             .into_iter()
             .all(|ancestor| AnyFocusNode::allow_descendants_to_be_focused(ancestor, app))
@@ -1037,6 +1038,18 @@ impl AnyFocusNode {
             .expect("just filled the cache")
     }
 
+    /// [`ancestors`](Self::ancestors) without filling the cache, for the diagnostics that read
+    /// a node through `&App`.
+    fn ancestors_without_caching(self, app: &App) -> Vec<AnyFocusNode> {
+        let mut result = Vec::new();
+        let mut parent = self.data(app).parent;
+        while let Some(node) = parent {
+            result.push(node);
+            parent = node.data(app).parent;
+        }
+        result
+    }
+
     /// Whether this node has input focus.
     ///
     /// A [`FocusNode`] has focus when it is an ancestor of a node that returns true from
@@ -1048,13 +1061,18 @@ impl AnyFocusNode {
     /// for [`has_primary_focus`](Self::has_primary_focus) the node must be at the end of the
     /// chain to return true.
     pub fn has_focus(self, app: &mut App) -> bool {
+        self.has_focus_with(app)
+    }
+
+    /// [`has_focus`](Self::has_focus) through `&App`, for diagnostics.
+    pub(crate) fn has_focus_with(self, app: &App) -> bool {
         if self.has_primary_focus(app) {
             return true;
         }
         let primary_focus = self
             .manager(app)
             .and_then(|manager| app.get(manager).primary_focus.handle());
-        primary_focus.is_some_and(|primary| primary.ancestors(app).contains(&self))
+        primary_focus.is_some_and(|primary| primary.ancestors_without_caching(app).contains(&self))
     }
 
     /// Returns true if this node currently has the application-wide input focus.
@@ -1693,14 +1711,14 @@ impl ChangeNotifier for FocusNode {
 /// Dart's `FocusNode.debugFillProperties`, one body for [`FocusNode`] and [`FocusScopeNode`].
 fn fill_focus_node_properties<L: FocusNodeLeaf>(
     node: Handle<L>,
-    app: &mut App,
+    app: &App,
     properties: &mut DiagnosticPropertiesBuilder,
 ) {
     let context = node.context(app);
     let descendants_are_focusable = node.descendants_are_focusable(app);
     let descendants_are_traversable = node.descendants_are_traversable(app);
-    let can_request_focus = node.can_request_focus(app);
-    let has_focus = node.has_focus(app);
+    let can_request_focus = node.as_node().can_request_focus_with(app);
+    let has_focus = node.as_node().has_focus_with(app);
     let has_primary_focus = node.has_primary_focus(app);
     properties.add(
         DiagnosticsProperty::<String>::new(
@@ -1968,7 +1986,7 @@ impl FocusNodeLeaf for FocusScopeNode {
 
     fn debug_fill_properties(
         self: Handle<Self>,
-        app: &mut App,
+        app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
         fill_focus_node_properties(self, app, properties);

@@ -421,20 +421,16 @@ impl waft_foundation::Diagnosticable for BottomNavigationBarThemeData {
             .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
         properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
                 "selectedIconTheme",
-                self.selected_icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
+                self.selected_icon_theme.clone(),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
                 "unselectedIconTheme",
-                self.unselected_icon_theme
-                    .clone()
-                    .map(crate::theme_data::IconThemeDiagnostics),
+                self.unselected_icon_theme.clone(),
             )
             .default_value(None),
         );
@@ -468,9 +464,9 @@ impl waft_foundation::Diagnosticable for BottomNavigationBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<BottomNavigationBarType>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<BottomNavigationBarType>>::new(
                 "type",
-                self.r#type.map(crate::theme_data::DartEnum),
+                self.r#type.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -479,18 +475,18 @@ impl waft_foundation::Diagnosticable for BottomNavigationBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<BottomNavigationBarLandscapeLayout>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<BottomNavigationBarLandscapeLayout>>::new(
                 "landscapeLayout",
-                self.landscape_layout.map(crate::theme_data::DartEnum),
+                self.landscape_layout.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "mouseCursor",
                 self.mouse_cursor
                     .as_deref()
-                    .map(crate::button_style::widget_state_property_text),
+                    .map(|property| property.to_string()),
             )
             .default_value(None),
         );

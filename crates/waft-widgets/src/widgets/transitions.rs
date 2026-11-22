@@ -1070,13 +1070,10 @@ impl RenderObjectWidget for FadeTransition {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "opacity",
-            Some(waft_foundation::describe_identity(
-                "Animation",
-                self.opacity.id().identity_hash(),
-            )),
+            Some(self.opacity.to_string(app)),
         ));
     }
 

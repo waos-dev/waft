@@ -866,9 +866,9 @@ impl DialogThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<Clip>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Clip>>::new(
                 "clipBehavior",
-                self.clip_behavior.map(crate::theme_data::DartEnum),
+                self.clip_behavior.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );

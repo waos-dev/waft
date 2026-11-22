@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use waft_embedder::TargetPlatform;
-use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, describe_identity};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty};
 use waft_painting::Axis;
 
 use crate::framework::{BuildContext, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
@@ -215,13 +215,13 @@ impl InheritedWidget for PrimaryScrollController {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "controller",
-                self.controller.as_ref().map(|controller| {
-                    describe_identity("ScrollController", controller.identity_hash())
-                }),
+                self.controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
             )
             .if_null("no controller")
             .with_show_name(false),

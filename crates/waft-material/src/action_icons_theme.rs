@@ -250,13 +250,9 @@ impl InheritedWidget for ActionIconTheme {
 
 impl waft_foundation::Diagnosticable for ActionIconThemeData {
     fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
-        let closure = || {
-            Some(crate::theme_data::DiagnosticsText(
-                "Closure: (BuildContext) => Widget".to_string(),
-            ))
-        };
+        let closure = || Some("Closure: (BuildContext) => Widget".to_string());
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "backButtonIconBuilder",
                 self.back_button_icon_builder
                     .as_ref()
@@ -265,7 +261,7 @@ impl waft_foundation::Diagnosticable for ActionIconThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "closeButtonIconBuilder",
                 self.close_button_icon_builder
                     .as_ref()
@@ -274,7 +270,7 @@ impl waft_foundation::Diagnosticable for ActionIconThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "drawerButtonIconBuilder",
                 self.drawer_button_icon_builder
                     .as_ref()
@@ -283,7 +279,7 @@ impl waft_foundation::Diagnosticable for ActionIconThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+            DiagnosticsProperty::<String>::new(
                 "endDrawerButtonIconBuilder",
                 self.end_drawer_button_icon_builder
                     .as_ref()

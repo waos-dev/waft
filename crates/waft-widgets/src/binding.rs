@@ -75,6 +75,13 @@ pub struct WidgetsBinding {
 /// What hears a tray icon's events (`WidgetsBinding::add_tray_icon_listener`).
 pub type TrayIconListener = Rc<dyn Fn(&mut App, TrayIconEvent)>;
 
+impl std::fmt::Display for WidgetsBinding {
+    /// Dart's `BindingBase.toString`: `<WidgetsBinding>`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<WidgetsBinding>")
+    }
+}
+
 /// Interface for classes that register with the Widgets layer binding.
 ///
 /// This can be used by any class, not just widgets. It provides an interface which is used

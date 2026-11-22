@@ -519,13 +519,8 @@ impl waft_foundation::Diagnosticable for SnackBarThemeData {
         properties
             .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "actionTextColor",
-                self.action_text_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("actionTextColor", self.action_text_color.clone())
+                .default_value(None),
         );
         properties.add(
             ColorProperty::new("disabledActionTextColor", self.disabled_action_text_color)
@@ -544,9 +539,9 @@ impl waft_foundation::Diagnosticable for SnackBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<SnackBarBehavior>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<SnackBarBehavior>>::new(
                 "behavior",
-                self.behavior.map(crate::theme_data::DartEnum),
+                self.behavior.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
@@ -563,24 +558,17 @@ impl waft_foundation::Diagnosticable for SnackBarThemeData {
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
-                "closeIconColor",
-                self.close_icon_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
-            )
-            .default_value(None),
+            DiagnosticsProperty::<AnyColor>::new("closeIconColor", self.close_icon_color.clone())
+                .default_value(None),
         );
         properties.add(
             DoubleProperty::new("actionOverflowThreshold", self.action_overflow_threshold)
                 .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+            DiagnosticsProperty::<AnyColor>::new(
                 "actionBackgroundColor",
-                self.action_background_color
-                    .clone()
-                    .map(crate::theme_data::DartDebug),
+                self.action_background_color.clone(),
             )
             .default_value(None),
         );
@@ -592,9 +580,9 @@ impl waft_foundation::Diagnosticable for SnackBarThemeData {
             .default_value(None),
         );
         properties.add(
-            DiagnosticsProperty::<crate::theme_data::DartEnum<DismissDirection>>::new(
+            DiagnosticsProperty::<waft_foundation::DartEnum<DismissDirection>>::new(
                 "dismissDirection",
-                self.dismiss_direction.map(crate::theme_data::DartEnum),
+                self.dismiss_direction.map(waft_foundation::DartEnum),
             )
             .default_value(None),
         );
