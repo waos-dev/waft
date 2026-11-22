@@ -108,6 +108,12 @@ impl<T: 'static> Handle<T> {
 }
 
 impl HandleId {
+    /// Dart's `identityHashCode`, as diagnostics show an object (`RenderPadding#00007`): the
+    /// slot the object holds in the arena, which no two live objects share.
+    pub fn identity_hash(self) -> u64 {
+        slotmap::Key::data(&self).as_ffi() & 0xFFFF_FFFF
+    }
+
     /// An [`AnyRef`] while something still keeps the object; see [`Handle::upgrade`].
     pub fn upgrade(self, app: &App) -> Option<AnyRef> {
         app.handles.upgrade_id(self)

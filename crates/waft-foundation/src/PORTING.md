@@ -33,6 +33,10 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — Waft has one build of diagnostics; Dart's `kReleaseMode` is a compile-time flag with no counterpart.
   Affect: release builds print the same diagnostics as debug builds, and a timeline call always receives its arguments.
 
+- Change: Dart's `identityHashCode`, which diagnostics name an object by (`RenderPadding#00007`), is the object's slot in the `App`'s arena (`HandleId::identity_hash`).
+  Reason: language — Rust has no identity hash; the arena slot is what tells two live objects apart.
+  Affect: the numbers are small and a freed object's slot is reused, so a hash names an object only while it lives, as Dart's may collide too.
+
 ## app.rs
 
 - Change: `App` and `Handle<T>` live here; Flutter has no counterpart.

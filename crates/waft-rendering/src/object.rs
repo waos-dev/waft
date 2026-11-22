@@ -15,8 +15,12 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use waft_animation::Curve;
-use waft_embedder::{Matrix4, Offset, Rect};
-use waft_foundation::{App, Handle, HandleId};
+use waft_embedder::{Matrix4, Offset, Rect, Size};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
+    DiagnosticsProperty, FlagProperty, Handle, HandleId, IntoPropertyName, describe_identity,
+    short_type_name,
+};
 use waft_services::MouseTrackerAnnotation;
 
 use crate::layer::{
@@ -1000,6 +1004,44 @@ pub trait RenderObject: 'static + Sized {
         false
     }
 
+    /// Dart's `debugFillProperties`: the properties this class shows in a dump, after its base
+    /// classes'. A trait default cannot call `super`, so the framework adds `RenderObject`'s and
+    /// `RenderBox`'s or `RenderSliver`'s properties first and an override adds only its own,
+    /// in Dart's order.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        _app: &App,
+        _properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let _ = self;
+    }
+
+    /// Dart's `debugDescribeChildren`: the children a dump shows under this object. Dart's
+    /// default shows none and its child mixins name theirs (`child`; `child 1`, `child 2`, …);
+    /// this default shows the children [`visit_children`](Self::visit_children) visits, named
+    /// `child` when there is one and `child 1`, `child 2`, … when there are more, so a dump never
+    /// drops a child of a class that has not described its own.
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let mut children = Vec::new();
+        Self::visit_children(self, app, &mut |child| children.push(child));
+        let numbered = children.len() > 1;
+        children
+            .into_iter()
+            .enumerate()
+            .map(|(index, child)| {
+                let name = if numbered {
+                    format!("child {}", index + 1)
+                } else {
+                    "child".to_owned()
+                };
+                Rc::new(child.to_diagnostics_node(app, name)) as Rc<dyn DiagnosticsNode>
+            })
+            .collect()
+    }
+
     /// Dart's `this is MouseTrackerAnnotation`: the annotation this render object implements,
     /// read live each time the mouse tracker consults it. `None` for a render object that is
     /// not an annotation, which is the default.
@@ -1247,6 +1289,10 @@ pub(crate) struct RenderObjectVTable {
     pub interface: fn(HandleId, TypeId) -> Option<Box<dyn Any>>,
     pub paint: fn(&mut App, HandleId, &mut PaintingContext, Offset),
     pub dispose: fn(&mut App, HandleId),
+    pub debug_fill_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
+    pub debug_describe_children: fn(&App, HandleId) -> Vec<Rc<dyn DiagnosticsNode>>,
+    /// The Rust type's path, which a dump names the object by, as Dart's `runtimeType`.
+    pub type_name: fn() -> &'static str,
     /// The protocol table this object table is nested in. Exactly one is `Some`.
     pub as_box: Option<fn() -> &'static crate::box_::RenderBoxVTable>,
     pub as_sliver: Option<fn() -> &'static crate::sliver::RenderSliverVTable>,
@@ -1292,6 +1338,11 @@ impl RenderObjectVTable {
             interface: |id, interface| T::interface(resolve(id), interface),
             paint: |app, id, context, offset| T::paint(resolve(id), app, context, offset),
             dispose: |app, id| T::dispose(resolve(id), app),
+            debug_fill_properties: |app, id, properties| {
+                T::debug_fill_properties(resolve(id), app, properties)
+            },
+            debug_describe_children: |app, id| T::debug_describe_children(resolve(id), app),
+            type_name: std::any::type_name::<T>,
             as_box,
             as_sliver,
         }
@@ -1335,6 +1386,131 @@ impl Debug for AnyRenderObject {
 }
 
 impl AnyRenderObject {
+    /// Dart's `toStringShort`: the type and identity, then what is pending: how far up the
+    /// relayout boundary is, and the layout, paint and compositing updates it awaits.
+    pub fn to_string_short(self, app: &App) -> String {
+        let mut header = describe_identity(
+            short_type_name((self.vtable.type_name)()),
+            self.id.identity_hash(),
+        );
+        let mut count = 0;
+        let mut node = Some(self);
+        while let Some(current) = node {
+            match current.data(app).is_relayout_boundary {
+                Some(true) => break,
+                None => {
+                    count = -1;
+                    break;
+                }
+                Some(false) => {}
+            }
+            count += 1;
+            node = current.parent(app);
+        }
+        if count > 0 {
+            header.push_str(&format!(" relayoutBoundary=up{count}"));
+        }
+        let data = self.data(app);
+        if data.needs_layout {
+            header.push_str(" NEEDS-LAYOUT");
+        }
+        if data.needs_paint {
+            header.push_str(" NEEDS-PAINT");
+        }
+        if data.needs_compositing_bits_update {
+            header.push_str(" NEEDS-COMPOSITING-BITS-UPDATE");
+        }
+        if !self.attached(app) {
+            header.push_str(" DETACHED");
+        }
+        header
+    }
+
+    /// Dart's `toDiagnosticsNode(name:)`: a snapshot of this object as a dump shows it, read now,
+    /// with its children's.
+    pub fn to_diagnostics_node(
+        self,
+        app: &App,
+        name: impl IntoPropertyName,
+    ) -> DiagnosticableTreeNode {
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        self.debug_fill_base_properties(app, &mut properties);
+        (self.vtable.debug_fill_properties)(app, self.id, &mut properties);
+        let children = (self.vtable.debug_describe_children)(app, self.id);
+        DiagnosticableTreeNode::from_parts(name, self.to_string_short(app), properties, children)
+    }
+
+    /// Dart's `RenderObject.toStringDeep`: this object and its descendants, one property per
+    /// line, at Dart's default level for render objects (debug) and width.
+    pub fn to_string_deep(self, app: &App) -> String {
+        self.to_string_deep_with(app, DiagnosticLevel::Debug)
+    }
+
+    /// [`to_string_deep`](Self::to_string_deep) showing only properties at `min_level` or above.
+    pub fn to_string_deep_with(self, app: &App, min_level: DiagnosticLevel) -> String {
+        self.to_diagnostics_node(app, None)
+            .to_string_deep_with("", Some(""), None, min_level, 65)
+    }
+
+    /// The properties `RenderObject`'s `debugFillProperties` adds, then `RenderBox`'s or
+    /// `RenderSliver`'s.
+    fn debug_fill_base_properties(self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        let data = self.data(app);
+        properties.add(
+            FlagProperty::new("needsCompositing", data.needs_compositing)
+                .if_true("needs compositing"),
+        );
+        let mut parent_data = DiagnosticsProperty::<String>::new(
+            "parentData",
+            data.parent_data.as_ref().map(ToString::to_string),
+        )
+        .missing_if_null(true);
+        if data.debug_can_parent_use_size == Some(true) {
+            parent_data = parent_data.tooltip("can use size");
+        }
+        properties.add(parent_data);
+        if let Some(render_box) = self.as_box() {
+            properties.add(
+                DiagnosticsProperty::<String>::new(
+                    "constraints",
+                    render_box
+                        .box_data(app)
+                        .constraints()
+                        .map(|c| c.to_string()),
+                )
+                .missing_if_null(true),
+            );
+        } else if let Some(sliver) = self.as_sliver() {
+            properties.add(
+                DiagnosticsProperty::<String>::new(
+                    "constraints",
+                    sliver.sliver_data(app).constraints.map(|c| c.to_string()),
+                )
+                .missing_if_null(true),
+            );
+        }
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "layer",
+                data.layer
+                    .layer()
+                    .map(|layer| layer.as_layer().to_string_short(app)),
+            )
+            .default_value(None),
+        );
+        if let Some(render_box) = self.as_box() {
+            properties.add(
+                DiagnosticsProperty::<Size>::new("size", render_box.box_data(app).size)
+                    .missing_if_null(true),
+            );
+        } else if let Some(sliver) = self.as_sliver() {
+            properties.add(DiagnosticsProperty::<String>::new(
+                "geometry",
+                sliver.sliver_data(app).geometry.map(|g| g.to_string()),
+            ));
+        }
+    }
+
     pub(crate) fn from_vtable(
         id: HandleId,
         vtable: &'static RenderObjectVTable,

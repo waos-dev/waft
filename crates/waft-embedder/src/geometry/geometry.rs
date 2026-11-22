@@ -378,6 +378,13 @@ impl Debug for Offset {
     }
 }
 
+/// Dart's `Offset.toString`, the same text as [`Debug`].
+impl fmt::Display for Offset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 /// Holds a 2D floating-point size.
 ///
 /// You can think of this as an [`Offset`] from the origin.
@@ -829,6 +836,13 @@ impl BitAnd<Size> for Offset {
 impl Debug for Size {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Size({:.1}, {:.1})", self.width, self.height)
+    }
+}
+
+/// Dart's `Size.toString`, the same text as [`Debug`].
+impl fmt::Display for Size {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
     }
 }
 

@@ -24,7 +24,11 @@ use waft_embedder::{
     Scene, SceneBuilder, Size, slices,
 };
 use waft_embedder::{CompositionLayer, VideoFrameReader};
-use waft_foundation::{App, Handle, HandleId, Ref};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
+    DiagnosticsProperty, Handle, HandleId, IntoPropertyName, Ref, describe_identity,
+    short_type_name,
+};
 use waft_gestures::remove_perspective_transform;
 use waft_scheduler::{FrameCallback, SchedulerBinding};
 
@@ -326,6 +330,17 @@ pub trait Layer: Sized + 'static {
         LayerBase::dispose(self, app);
     }
 
+    /// Dart's `debugFillProperties`: the properties this class shows in a dump, after `Layer`'s
+    /// (engine layer, handles), which the framework adds first, since a trait default cannot call
+    /// `super`.
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        _app: &App,
+        _properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let _ = self;
+    }
+
     /// Mark this layer as attached to the given owner.
     ///
     /// Typically called only from the parent's `attach` method, and by the owner to mark the
@@ -482,11 +497,18 @@ pub struct LayerVTable {
     add_to_scene: fn(&mut App, HandleId, &mut SceneBuilder),
     fire_composition_callbacks: fn(&mut App, HandleId, bool),
     as_container: Option<fn() -> &'static ContainerLayerVTable>,
+    /// The Rust type's path, which diagnostics name the layer by, as Dart's `runtimeType`.
+    type_name: fn() -> &'static str,
+    debug_fill_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
 }
 
 impl LayerVTable {
     pub const fn of<T: Layer>() -> LayerVTable {
         LayerVTable {
+            type_name: std::any::type_name::<T>,
+            debug_fill_properties: |app, id, properties| {
+                T::debug_fill_properties(resolve(id), app, properties)
+            },
             layer_data: |app, id| T::layer_data(resolve(id), app),
             layer_data_mut: |app, id| T::layer_data_mut(resolve(id), app),
             supports_rasterization: |app, id| T::supports_rasterization(resolve(id), app),
@@ -547,6 +569,55 @@ impl Debug for AnyLayer {
 impl AnyLayer {
     pub fn id(self) -> HandleId {
         self.id
+    }
+
+    /// Dart's `toStringShort`: the layer's type and identity (`OffsetLayer#00012`).
+    pub fn to_string_short(self, _app: &App) -> String {
+        describe_identity(
+            short_type_name((self.vtable.type_name)()),
+            self.id.identity_hash(),
+        )
+    }
+
+    /// Dart's `toDiagnosticsNode(name:)`: a snapshot of this layer as a dump shows it, read now:
+    /// `Layer`'s properties, then the class's own, then a container's children, named `child 1`,
+    /// `child 2`, … as Dart's `ContainerLayer.debugDescribeChildren` names them.
+    pub fn to_diagnostics_node(
+        self,
+        app: &App,
+        name: impl IntoPropertyName,
+    ) -> DiagnosticableTreeNode {
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        let data = self.data(app);
+        if let Some(engine_layer) = &data.engine_layer {
+            properties.add(DiagnosticsProperty::<String>::new(
+                "engine layer",
+                describe_engine_layer(engine_layer),
+            ));
+        }
+        properties.add(DiagnosticsProperty::<u32>::new("handles", data.ref_count));
+        (self.vtable.debug_fill_properties)(app, self.id, &mut properties);
+        let mut children: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        if let Some(container) = self.as_container_layer() {
+            let mut child = container.first_child(app);
+            while let Some(current) = child {
+                let name = format!("child {}", children.len() + 1);
+                children.push(Rc::new(current.to_diagnostics_node(app, name)));
+                child = current.next_sibling(app);
+            }
+        }
+        DiagnosticableTreeNode::from_parts(name, self.to_string_short(app), properties, children)
+    }
+
+    /// Dart's `toStringDeep`: this layer and its descendants, at Dart's default level (debug).
+    pub fn to_string_deep(self, app: &App) -> String {
+        self.to_diagnostics_node(app, None).to_string_deep_with(
+            "",
+            Some(""),
+            None,
+            DiagnosticLevel::Debug,
+            65,
+        )
     }
 
     fn data(self, app: &App) -> &LayerData {
@@ -3995,6 +4066,22 @@ impl ContainerLayer for AnnotatedRegionLayer {
     crate::container_layer_accessors!();
 }
 
+/// An engine layer as Dart describes one (`ClipRectEngineLayer#0f3a2`): the layer's effect, then
+/// the identity of the retained engine layer. Waft keeps one engine layer type whose effect says
+/// what it does, where dart:ui has a type per effect; an offset is a transform here.
+fn describe_engine_layer(engine_layer: &EngineLayer) -> String {
+    let effect = format!("{:?}", engine_layer.effect);
+    let kind = effect
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .next()
+        .unwrap_or_default();
+    let kind = if kind == "None" { "Container" } else { kind };
+    describe_identity(
+        &format!("{kind}EngineLayer"),
+        (std::sync::Arc::as_ptr(engine_layer) as usize as u64) >> 4,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use waft_foundation::AppCell;
@@ -4003,6 +4090,28 @@ mod tests {
 
     fn offset_layer(app: &mut App) -> AnyLayer {
         OffsetLayer::new(app, Offset::ZERO).as_layer()
+    }
+
+    #[test]
+    fn a_layer_dump_shows_each_layers_handles_and_its_children_in_order() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let parent = OffsetLayer::new(&mut app, Offset::ZERO).as_container_layer();
+        let a = offset_layer(&mut app);
+        let b = offset_layer(&mut app);
+        parent.append(&mut app, a);
+        parent.append(&mut app, b);
+        let dump = parent.as_layer().to_string_deep(&app);
+        let names: Vec<&str> = dump
+            .lines()
+            .filter_map(|line| line.split_once("OffsetLayer#").map(|(head, _)| head))
+            .collect();
+        assert_eq!(names, ["", " ├─child 1: ", " └─child 2: "], "{dump}");
+        assert_eq!(dump.matches("handles: 1").count(), 2, "{dump}");
+        assert!(
+            dump.contains(" │ handles: 0\n"),
+            "the parent is kept by no handle:\n{dump}"
+        );
     }
 
     #[test]

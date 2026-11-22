@@ -2188,7 +2188,7 @@ impl AnyRenderBox {
         (self.vtable.handle_event)(app, self.id, event, entry)
     }
 
-    fn box_data(self, app: &App) -> &RenderBoxData {
+    pub(crate) fn box_data(self, app: &App) -> &RenderBoxData {
         (self.vtable.box_data)(app, self.id)
     }
 

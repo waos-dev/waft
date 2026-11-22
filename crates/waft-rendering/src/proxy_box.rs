@@ -9366,6 +9366,78 @@ mod tests {
     use crate::view::ViewConfiguration;
     use waft_embedder::SceneBuilder;
 
+    /// Dart's `equalsIgnoringHashCodes`: every `#` and five hex digits read as `#00000`.
+    fn ignoring_hash_codes(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(at) = rest.find('#') {
+            out.push_str(&rest[..at]);
+            let hash = &rest[at + 1..];
+            let digits = hash.chars().take_while(char::is_ascii_hexdigit).count();
+            if digits == 5 {
+                out.push_str("#00000");
+                rest = &hash[5..];
+            } else {
+                out.push('#');
+                rest = hash;
+            }
+        }
+        out.push_str(rest);
+        out
+    }
+
+    /// limited_box_test.dart's 'LimitedBox: parent max size is unconstrained', its base
+    /// classes' lines: each class's own properties come with its `debug_fill_properties`. The
+    /// root's parent data says `(can use size)` where Dart's does not: the test root here is a
+    /// repaint boundary, which lays its child out using its size, where Dart's is the render
+    /// view, which does not.
+    #[test]
+    fn a_limited_box_dump_shows_each_objects_layout() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let child = RenderConstrainedBox::new(
+            &mut app,
+            BoxConstraints::tight_for(Some(300.0), Some(400.0)),
+            None,
+        );
+        let limited = RenderLimitedBox::new(&mut app, 100.0, 200.0, Some(child.as_box()));
+        let parent = crate::RenderConstrainedOverflowBox::new(
+            &mut app,
+            Some(0.0),
+            Some(f64::INFINITY),
+            Some(0.0),
+            Some(f64::INFINITY),
+            crate::OverflowBoxFit::Max,
+            AlignmentGeometry::CENTER,
+            None,
+            Some(limited.as_box()),
+        );
+        crate::testing::layout(&mut app, parent.as_box());
+        assert_eq!(child.as_box().size(&app), Size::new(100.0, 200.0));
+        assert_eq!(
+            ignoring_hash_codes(
+                &parent
+                    .as_box()
+                    .as_object()
+                    .to_string_deep_with(&app, waft_foundation::DiagnosticLevel::Info)
+            ),
+            "RenderConstrainedOverflowBox#00000 NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE\n\
+             \u{20}│ parentData: <none> (can use size)\n\
+             \u{20}│ constraints: BoxConstraints(w=800.0, h=600.0)\n\
+             \u{20}│ size: Size(800.0, 600.0)\n\
+             \u{20}│\n\
+             \u{20}└─child: RenderLimitedBox#00000 relayoutBoundary=up1 NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE\n\
+             \u{20}  │ parentData: offset=Offset(350.0, 200.0) (can use size)\n\
+             \u{20}  │ constraints: BoxConstraints(unconstrained)\n\
+             \u{20}  │ size: Size(100.0, 200.0)\n\
+             \u{20}  │\n\
+             \u{20}  └─child: RenderConstrainedBox#00000 relayoutBoundary=up2 NEEDS-PAINT\n\
+             \u{20}      parentData: <none> (can use size)\n\
+             \u{20}      constraints: BoxConstraints(0.0<=w<=100.0, 0.0<=h<=200.0)\n\
+             \u{20}      size: Size(100.0, 200.0)\n"
+        );
+    }
+
     fn sized_box(app: &mut App, size: Size) -> RenderHandle<RenderConstrainedBox> {
         RenderConstrainedBox::new(app, BoxConstraints::tight(size), None)
     }

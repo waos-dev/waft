@@ -295,3 +295,25 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - `PaintingContext.pushColorFilter`. Trigger: its first caller.
 - proxy_box.rs: the physical models' diagnostics. Trigger: diagnostics.
 - proxy_box.rs: `CustomClipper.getApproximateClipRect` and the clips' `describeApproximatePaintClip`, with `_DismissibleClipper`'s override of it. Trigger: the semantics tree.
+
+## object.rs, layer.rs, binding.rs → object.dart, layer.dart, binding.dart (diagnostics)
+
+- Change: `RenderObject` and `Layer` declare `debug_fill_properties`, which a class overrides with its own properties only; the framework adds the base classes' first (`RenderObject`'s, then `RenderBox`'s or `RenderSliver`'s; `Layer`'s).
+  Reason: language — a trait default cannot call `super`, so the base bodies run before the override instead of from it.
+  Affect: a dump lists the base properties, then the class's, in Dart's order.
+
+- Change: `debug_describe_children` defaults to the children `visit_children` visits, named `child` when there is one and `child 1`, `child 2`, … when there are more; Dart's default shows none, and its child mixins name theirs.
+  Reason: language — a trait default cannot know which child mixin a class uses; a class that names its children as Dart does overrides it.
+  Affect: a dump never drops a child; a container with one child shows `child` where Dart shows `child 1` until its class describes its own.
+
+- Change: the base properties leave out `creator`, `semantics node`, `isBlockingSemanticsOfPreviouslyPaintedNodes` and `isSemanticBoundary` on render objects, and `owner` and `creator` on layers.
+  Reason: platform — there is no `debugCreator` yet (Trigger: widget diagnostics), accessibility is deferred, and a layer's owner is kept as an untyped id.
+  Affect: a dump lacks those lines; the rest are Dart's.
+
+- Change: `debug_dump_render_tree(app)` and `debug_dump_layer_tree(app)` answer the text Dart's `debugDumpRenderTree` and `debugDumpLayerTree` print.
+  Reason: platform — there is no `debugPrint` to throttle; a test, a debugger or a dev protocol takes the text.
+  Affect: the caller prints or compares it.
+
+- Change: a layer's `engine layer` line names the retained layer by its effect (`ClipRectEngineLayer#…`), and an offset as a transform (`TransformEngineLayer`).
+  Reason: platform — Waft keeps one engine layer type whose effect says what it does, where dart:ui has one type per effect, and an offset is a transform.
+  Affect: an offset layer's engine layer reads `TransformEngineLayer` where Dart's reads `OffsetEngineLayer`.

@@ -6,7 +6,7 @@ use std::hash::Hasher;
 use std::ops::{Deref, DerefMut};
 
 use waft_embedder::{Matrix4, Offset, Rect, Size, clamp_double};
-use waft_foundation::{App, Handle, HandleId, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{App, Handle, HandleId, PRECISION_ERROR_TOLERANCE, describe_enum};
 use waft_gestures::{HitTestEntry, HitTestResult, HitTestTarget, PointerEvent};
 use waft_painting::{
     Axis, AxisDirection, axis_direction_is_reversed, axis_direction_to_axis, flip_axis_direction,
@@ -148,6 +148,40 @@ pub struct SliverConstraints {
     /// Where the cache area starts relative to the
     /// [`scroll_offset`](Self::scroll_offset). Always negative or zero.
     pub cache_origin: f64,
+}
+
+impl fmt::Display for SliverConstraints {
+    /// Dart's `SliverConstraints.toString`, its enums as Dart prints them (`AxisDirection.down`).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut properties = vec![
+            format!("AxisDirection.{}", describe_enum(&self.axis_direction)),
+            format!("GrowthDirection.{}", describe_enum(&self.growth_direction)),
+            format!(
+                "ScrollDirection.{}",
+                describe_enum(&self.user_scroll_direction)
+            ),
+            format!("scrollOffset: {:.1}", self.scroll_offset),
+            format!("precedingScrollExtent: {:.1}", self.preceding_scroll_extent),
+            format!("remainingPaintExtent: {:.1}", self.remaining_paint_extent),
+        ];
+        if self.overlap != 0.0 {
+            properties.push(format!("overlap: {:.1}", self.overlap));
+        }
+        properties.extend([
+            format!("crossAxisExtent: {:.1}", self.cross_axis_extent),
+            format!(
+                "crossAxisDirection: AxisDirection.{}",
+                describe_enum(&self.cross_axis_direction)
+            ),
+            format!(
+                "viewportMainAxisExtent: {:.1}",
+                self.viewport_main_axis_extent
+            ),
+            format!("remainingCacheExtent: {:.1}", self.remaining_cache_extent),
+            format!("cacheOrigin: {:.1}", self.cache_origin),
+        ]);
+        write!(f, "SliverConstraints({})", properties.join(", "))
+    }
 }
 
 impl SliverConstraints {
@@ -1660,7 +1694,7 @@ impl AnyRenderSliver {
         AnyRenderObject::from_vtable(self.id, &self.vtable.object)
     }
 
-    fn sliver_data(self, app: &App) -> &RenderSliverData {
+    pub(crate) fn sliver_data(self, app: &App) -> &RenderSliverData {
         (self.vtable.sliver_data)(app, self.id)
     }
 
