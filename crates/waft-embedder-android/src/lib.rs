@@ -79,6 +79,10 @@ mod input_queues;
 #[cfg(target_os = "android")]
 mod intents;
 #[cfg(any(target_os = "android", test))]
+mod key_embedder_responder;
+#[cfg(any(target_os = "android", test))]
+mod keyboard_map;
+#[cfg(any(target_os = "android", test))]
 mod lifecycle;
 #[cfg(target_os = "android")]
 mod local_time;

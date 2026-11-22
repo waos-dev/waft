@@ -5,6 +5,7 @@ Host implementation. Flutter analogue: the engine's Android embedder under
 
 ## Identical
 
+- keyboard_map.rs → the Android embedding's `KeyboardMap.java`
 - local_time.rs → the Dart VM's `OS::GetTimeZoneOffsetInSeconds` and `OS::GetTimeZoneName` on Linux (`os_linux.cc`), which `DateTime`'s natives call
 
 ## native_activity.rs / app_thread.rs / host.rs → the Android embedder's `FlutterActivity` and `FlutterActivityAndFragmentDelegate`
@@ -193,3 +194,17 @@ Host implementation. Flutter analogue: the engine's Android embedder under
 - The predictive back gesture, with its peek animation, whose registration (`OnBackInvokedCallback`) `ViewHost::set_framework_handles_back` would drive; the host asks `pop_route(view)` on the spot, so it drops that notice. Trigger: a Java activity that registers with the system's back callback; the plain back button already pops.
 - Deep links, which Flutter carries beside the back button. Trigger: an app that opens on a route the system names.
 - A window moved and sized by the app, and whether one is occluded, as Android's desktop windowing would allow. Trigger: an app that manages its windows on Android in desktop windowing.
+
+## key_embedder_responder.rs → the Android embedding's `KeyEmbedderResponder.java`, with `KeyboardManager.CharacterCombiner`
+
+- Change: each key is sent to the framework through `EmbedderClient::key_data`, whose answer comes back at once, and the host answers its input queue with it, where Flutter's responder sends `KeyData` over a channel and answers the key later.
+  Reason: platform — the framework is on the host's thread and answers each key before `key_data` returns.
+  Affect: none a key's sender sees: a key the framework left goes on to the window's views, the text input's among them, as Flutter redispatches it.
+
+- Change: an event with no codes, or a key's up whose down the framework never heard, is not sent and is answered as not handled, where Flutter sends an empty synthesized event and answers it handled.
+  Reason: platform — `key_data` takes real events alone, and a key nobody handled is better left to the views than dropped.
+  Affect: such a key goes on to the window's views, where Flutter swallows it.
+
+- Change: the responder reads its event as plain values, with its character from `KeyCharacterMap.get` and a dead key's from `KeyCharacterMap.getDeadChar`, which the host asks Android through JNI.
+  Reason: platform — the host reads Android's key events from the NDK's input queue, which carries no character.
+  Affect: none.

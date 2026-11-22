@@ -258,8 +258,8 @@ final class WaftTextInput extends View {
      * What a key does to the field that takes text: an arrow moves the caret, or extends the
      * selection with shift; delete and forward delete take away the selection or the character
      * beside the caret; enter in a field of one line is its action; any other key with a character
-     * types it. The framework sees no key on Android yet, so delete is here, where Flutter's
-     * framework takes it first.
+     * types it. A key reaches here only once the framework left it, as Flutter's embedding
+     * redispatches a key its framework did not handle to its view.
      */
     private boolean type(KeyEvent event) {
         switch (event.getKeyCode()) {
