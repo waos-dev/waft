@@ -3,7 +3,7 @@
 //! Debug paint overlays wait; see `PORTING.md`.
 
 use waft_embedder::{Matrix4, Offset, TextDirection};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, EnumProperty};
 use waft_painting::{Axis, AxisDirection, EdgeInsets, EdgeInsetsGeometry};
 
 use crate::object::{
@@ -476,6 +476,18 @@ impl RenderObject for RenderSliverPadding {
         }
     }
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::new("padding", self.padding(app)));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction(app))
+                .default_value(None),
+        );
+    }
+
     fn apply_paint_transform(
         self: RenderHandle<Self>,
         app: &App,
@@ -673,6 +685,27 @@ mod tests {
         assert_eq!(geometry.scroll_extent, 30.0);
         assert_eq!(geometry.paint_extent, 30.0);
         assert_eq!(geometry.max_paint_extent, 30.0);
+    }
+
+    /// `sliver_padding.dart`'s `RenderSliverPadding.debugFillProperties`: the padding and the
+    /// text direction it resolves against.
+    #[test]
+    fn a_padding_sliver_dump_shows_its_padding_and_text_direction() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let padding = RenderSliverPadding::new(
+            &mut app,
+            EdgeInsetsGeometry::all(15.0),
+            Some(TextDirection::Ltr),
+            None,
+        );
+        lay_out(&mut app, padding.as_sliver(), Size::new(200.0, 400.0), 0.0);
+
+        let dump = padding
+            .as_object()
+            .to_string_deep_with(&app, waft_foundation::DiagnosticLevel::Info);
+        assert!(dump.contains("padding: EdgeInsets.all(15.0)"), "{dump}");
+        assert!(dump.contains("textDirection: ltr"), "{dump}");
     }
 
     /// A hit inside the child, past the leading padding, reaches it.

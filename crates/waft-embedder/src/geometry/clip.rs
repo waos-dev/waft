@@ -16,3 +16,16 @@ pub enum Clip {
     /// This is much slower.
     AntiAliasWithSaveLayer,
 }
+
+/// Dart's `Clip.toString`: the enum's name with its class (`Clip.hardEdge`).
+impl std::fmt::Display for Clip {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Clip::None => "none",
+            Clip::HardEdge => "hardEdge",
+            Clip::AntiAlias => "antiAlias",
+            Clip::AntiAliasWithSaveLayer => "antiAliasWithSaveLayer",
+        };
+        write!(f, "Clip.{name}")
+    }
+}

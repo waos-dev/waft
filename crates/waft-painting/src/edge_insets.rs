@@ -598,6 +598,13 @@ impl Debug for EdgeInsetsGeometry {
     }
 }
 
+/// Dart's `EdgeInsetsGeometry.toString`, the same text as [`Debug`].
+impl fmt::Display for EdgeInsetsGeometry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 /// An immutable set of offsets in each of the four cardinal directions.
 ///
 /// Typically used for an offset from each of the four sides of a box. For
@@ -1214,13 +1221,6 @@ impl Rem<f64> for EdgeInsetsDirectional {
 impl Debug for EdgeInsetsDirectional {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&EdgeInsetsGeometry::from(*self), f)
-    }
-}
-
-/// Dart's `EdgeInsetsGeometry.toString`, which [`Debug`] already renders.
-impl std::fmt::Display for EdgeInsetsGeometry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
     }
 }
 

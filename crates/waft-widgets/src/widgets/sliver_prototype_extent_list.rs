@@ -633,6 +633,21 @@ impl RenderObject for RenderSliverPrototypeExtentList {
         RenderSliverMultiBoxAdaptor::paints_child(self, app, child)
     }
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut waft_foundation::DiagnosticPropertiesBuilder,
+    ) {
+        RenderSliverMultiBoxAdaptor::debug_fill_properties(self, app, properties)
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn waft_foundation::DiagnosticsNode>> {
+        RenderSliverMultiBoxAdaptor::debug_describe_children(self, app)
+    }
+
     fn paint(
         self: RenderHandle<Self>,
         app: &mut App,

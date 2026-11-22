@@ -6,7 +6,10 @@ use std::hash::Hasher;
 use std::ops::{Deref, DerefMut};
 
 use waft_embedder::{Matrix4, Offset, Rect, Size, clamp_double};
-use waft_foundation::{App, Handle, HandleId, PRECISION_ERROR_TOLERANCE, describe_enum};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty, DoubleProperty,
+    FlagProperty, Handle, HandleId, PRECISION_ERROR_TOLERANCE, describe_enum,
+};
 use waft_gestures::{HitTestEntry, HitTestResult, HitTestTarget, PointerEvent};
 use waft_painting::{
     Axis, AxisDirection, axis_direction_is_reversed, axis_direction_to_axis, flip_axis_direction,
@@ -635,13 +638,61 @@ impl Default for SliverGeometry {
     }
 }
 
+impl Diagnosticable for SliverGeometry {
+    /// Dart's `toStringShort`: `objectRuntimeType(this, 'SliverGeometry')`, without an identity.
+    fn to_string_short(&self) -> String {
+        "SliverGeometry".to_owned()
+    }
+
+    /// Dart's `debugFillProperties`.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("scrollExtent", self.scroll_extent));
+        if self.paint_extent > 0.0 {
+            let property = DoubleProperty::new("paintExtent", self.paint_extent);
+            properties.add(if self.visible {
+                property
+            } else {
+                property.unit(" but not painting")
+            });
+        } else if self.paint_extent == 0.0 {
+            if self.visible {
+                // Dart writes `unit: visible ? null : ' but visible'` inside `if (visible)`, so
+                // the unit is always null.
+                properties.add(DoubleProperty::new("paintExtent", self.paint_extent));
+            }
+            properties.add(FlagProperty::new("visible", self.visible).if_false("hidden"));
+        } else {
+            // Negative paintExtent!
+            properties.add(DoubleProperty::new("paintExtent", self.paint_extent).tooltip("!"));
+        }
+        properties
+            .add(DoubleProperty::new("paintOrigin", self.paint_origin).default_value(Some(0.0)));
+        properties.add(
+            DoubleProperty::new("layoutExtent", self.layout_extent)
+                .default_value(Some(self.paint_extent)),
+        );
+        properties.add(DoubleProperty::new("maxPaintExtent", self.max_paint_extent));
+        properties.add(
+            DoubleProperty::new("hitTestExtent", self.hit_test_extent)
+                .default_value(Some(self.paint_extent)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("hasVisualOverflow", self.has_visual_overflow)
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DoubleProperty::new("scrollOffsetCorrection", self.scroll_offset_correction)
+                .default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("cacheExtent", self.cache_extent).default_value(Some(0.0)));
+    }
+}
+
+/// Dart's `SliverGeometry.toString`, the single-line form of its `debugFillProperties`.
 impl Display for SliverGeometry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "SliverGeometry({}x{})",
-            self.scroll_extent, self.paint_extent
-        )
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 
@@ -2251,6 +2302,45 @@ mod tests {
             remaining_paint,
             0.0,
         )
+    }
+
+    /// `slivers_test.dart`: a geometry's `toString` is its single-line properties, from
+    /// `scrollExtent` through `cacheExtent`, with a hidden sliver's `visible` flag reading
+    /// `hidden`.
+    #[test]
+    fn sliver_geometry_prints_its_properties_like_dart() {
+        let visible = SliverGeometry::builder()
+            .scroll_extent(400.0)
+            .paint_extent(400.0)
+            .max_paint_extent(400.0)
+            .build();
+        assert_eq!(
+            format!("{visible}"),
+            "SliverGeometry(scrollExtent: 400.0, paintExtent: 400.0, maxPaintExtent: 400.0, cacheExtent: 400.0)"
+        );
+
+        let partly_visible = SliverGeometry::builder()
+            .scroll_extent(400.0)
+            .paint_extent(200.0)
+            .max_paint_extent(400.0)
+            .has_visual_overflow(true)
+            .cache_extent(400.0)
+            .build();
+        assert_eq!(
+            format!("{partly_visible}"),
+            "SliverGeometry(scrollExtent: 400.0, paintExtent: 200.0, maxPaintExtent: 400.0, hasVisualOverflow: true, cacheExtent: 400.0)"
+        );
+
+        let hidden = SliverGeometry::builder()
+            .scroll_extent(400.0)
+            .paint_extent(0.0)
+            .max_paint_extent(400.0)
+            .has_visual_overflow(true)
+            .build();
+        assert_eq!(
+            format!("{hidden}"),
+            "SliverGeometry(scrollExtent: 400.0, hidden, maxPaintExtent: 400.0, hasVisualOverflow: true)"
+        );
     }
 
     #[test]

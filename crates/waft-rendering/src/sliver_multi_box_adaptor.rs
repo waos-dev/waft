@@ -8,7 +8,10 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 use waft_embedder::{Matrix4, Offset};
-use waft_foundation::{App, Handle};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
+    DiagnosticsTreeStyle, Handle, message,
+};
 use waft_painting::{Axis, AxisDirection};
 
 use crate::box_::{AnyRenderBox, BoxConstraints, BoxHitTestResult};
@@ -886,6 +889,75 @@ pub trait RenderSliverMultiBoxAdaptor:
             .parent_data_of::<SliverMultiBoxAdaptorParentData>(app)
             .index
             .expect("a reified child has an index")
+    }
+
+    /// Dart's `debugFillProperties`: the range of live child indices, or that there are none.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let text = match (self.first_child(app), self.last_child(app)) {
+            (Some(first), Some(last)) => format!(
+                "currently live children: {} to {}",
+                self.index_of(app, first),
+                self.index_of(app, last)
+            ),
+            _ => "no children current live".to_owned(),
+        };
+        properties.add(message(text));
+    }
+
+    /// Dart's `debugDescribeChildren`: the live children by index, then the kept-alive children
+    /// by index, offstage.
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let mut children: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        if let (Some(mut child), Some(last)) = (self.first_child(app), self.last_child(app)) {
+            loop {
+                let index = self.index_of(app, child);
+                children.push(Rc::new(
+                    child
+                        .as_object()
+                        .to_diagnostics_node(app, format!("child with index {index}")),
+                ));
+                if child == last {
+                    break;
+                }
+                child = self
+                    .child_after(app, child)
+                    .expect("the last child ends the walk");
+            }
+        }
+        let mut indices: Vec<i32> = self
+            .adaptor_data(app)
+            .keep_alive_bucket
+            .keys()
+            .copied()
+            .collect();
+        indices.sort_unstable();
+        for index in indices {
+            let child = self
+                .adaptor_data(app)
+                .keep_alive_bucket
+                .get(&index)
+                .copied()
+                .expect("the index came from the bucket");
+            let name = format!("child with index {index} (kept alive but not laid out)");
+            let node = child.as_object().to_diagnostics_node(app, name.clone());
+            let mut builder =
+                DiagnosticPropertiesBuilder::from_properties(node.properties().to_vec());
+            builder.default_diagnostics_tree_style = DiagnosticsTreeStyle::Offstage;
+            children.push(Rc::new(DiagnosticableTreeNode::from_parts(
+                name,
+                node.description(),
+                builder,
+                node.children().to_vec(),
+            )));
+        }
+        children
     }
 
     /// Returns the dimension of the given child in the main axis, as given by the child's size.

@@ -679,6 +679,13 @@ impl Debug for RRect {
     }
 }
 
+/// Dart's `RRect.toString`, the same text as [`Debug`].
+impl fmt::Display for RRect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 /// An immutable rounded superellipse.
 ///
 /// A rounded superellipse (not to be confused with a standard superellipse) is

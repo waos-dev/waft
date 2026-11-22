@@ -107,6 +107,26 @@ pub fn inverse_transform_rect(transform: Matrix4, rect: Rect) -> Rect {
     transform_rect(&inverted, rect)
 }
 
+/// Flutter `debugDescribeTransform`: the transform's rows, one string each, for
+/// diagnostics such as Flutter's `TransformProperty`.
+///
+/// The matrix is column-major as Dart's `storage` is, so `entry(row, column)`
+/// reads index `column * 4 + row`.
+pub fn debug_describe_transform(transform: Option<Matrix4>) -> Vec<String> {
+    let Some(transform) = transform else {
+        return vec!["null".to_string()];
+    };
+    let storage = transform.to_flutter_array();
+    (0..4)
+        .map(|row| {
+            let entries: Vec<String> = (0..4)
+                .map(|column| debug_format_double(Some(storage[column * 4 + row] as f64)))
+                .collect();
+            format!("[{row}] {}", entries.join(","))
+        })
+        .collect()
+}
+
 /// Returns a matrix that transforms every point to `offset`.
 pub fn force_to_point(offset: Offset) -> Matrix4 {
     let mut storage = [0.0; 16];
@@ -119,35 +139,35 @@ pub fn force_to_point(offset: Offset) -> Matrix4 {
     Matrix4::from_flutter_array(&storage)
 }
 
-/// Returns the matrix's rows, each prefixed with its index.
-///
-/// Flutter counterpart: `debugDescribeTransform`.
-pub fn debug_describe_transform(transform: Matrix4) -> Vec<String> {
-    let m = transform.to_flutter_array();
-    (0..4)
-        .map(|row| {
-            let entries: Vec<String> = (0..4)
-                .map(|column| debug_format_double(Some(f64::from(m[column * 4 + row]))))
-                .collect();
-            format!("[{row}] {}", entries.join(","))
-        })
-        .collect()
-}
-
 /// Property which handles [`Matrix4`] that represent transforms.
 pub struct TransformProperty {
     inner: DiagnosticsProperty<String>,
-    matrix: Matrix4,
+    matrix: Option<Matrix4>,
 }
 
 impl TransformProperty {
-    /// Create a diagnostics property for [`Matrix4`] objects.
-    pub fn new(name: impl IntoPropertyName, value: Matrix4) -> TransformProperty {
+    /// Create a diagnostics property for [`Matrix4`] objects; `None` is Dart's null.
+    pub fn new(
+        name: impl IntoPropertyName,
+        value: impl Into<Option<Matrix4>>,
+    ) -> TransformProperty {
         let name = name.into_property_name();
+        let matrix = value.into();
         TransformProperty {
-            inner: DiagnosticsProperty::new(name, Some(debug_describe_transform(value).join("\n"))),
-            matrix: value,
+            inner: DiagnosticsProperty::<String>::new(
+                name,
+                matrix.map(|matrix| debug_describe_transform(Some(matrix)).join("\n")),
+            ),
+            matrix,
         }
+    }
+
+    /// Dart `TransformProperty(defaultValue:)`: shown only when the transform differs from it.
+    pub fn default_value(mut self, default_value: Option<Matrix4>) -> Self {
+        self.inner = self.inner.default_value(
+            default_value.map(|matrix| debug_describe_transform(Some(matrix)).join("\n")),
+        );
+        self
     }
 
     /// Dart `TransformProperty(level:)`.
@@ -180,7 +200,7 @@ impl DiagnosticsNode for TransformProperty {
     }
 
     fn value(&self) -> Option<&dyn Any> {
-        Some(&self.matrix as &dyn Any)
+        self.matrix.as_ref().map(|matrix| matrix as &dyn Any)
     }
 
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
@@ -288,6 +308,22 @@ mod tests {
         assert_eq!(transform_rect(&Matrix4::IDENTITY, rect), rect);
         assert_eq!(get_as_translation(Matrix4::IDENTITY), Some(Offset::ZERO));
         assert_eq!(get_as_scale(Matrix4::IDENTITY), Some(1.0));
+    }
+
+    /// `matrix_utils.dart`'s `debugDescribeTransform`: one string per row, and `null` for none.
+    #[test]
+    fn debug_describe_transform_lists_the_rows_of_the_matrix() {
+        let rows = debug_describe_transform(Some(Matrix4::IDENTITY));
+        assert_eq!(
+            rows,
+            [
+                "[0] 1.0,0.0,0.0,0.0",
+                "[1] 0.0,1.0,0.0,0.0",
+                "[2] 0.0,0.0,1.0,0.0",
+                "[3] 0.0,0.0,0.0,1.0",
+            ]
+        );
+        assert_eq!(debug_describe_transform(None), ["null"]);
     }
 
     #[test]
