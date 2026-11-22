@@ -47,6 +47,7 @@ use crate::application::Application;
 use crate::composition::SurfaceControlCompositor;
 use crate::gpu::Gpu;
 use crate::input_queues::InputQueues;
+use crate::key_embedder_responder::{self, KeyEmbedderResponder};
 use crate::lifecycle::{ActivitiesLifecycle, ActivityState};
 use crate::log::warn_to_log;
 use crate::open_requests::OpenRequests;
@@ -108,6 +109,7 @@ impl AndroidEmbedder {
             compositor,
             views,
             input_queues: InputQueues::default(),
+            keys: KeyEmbedderResponder::new(),
             platform,
             client: None,
             start: Some(Box::new(start)),
@@ -163,6 +165,8 @@ struct Host<C> {
     views: Rc<Views>,
     /// The queue each view's input arrives in.
     input_queues: InputQueues,
+    /// The keys the framework holds pressed, and the modifiers it was told of.
+    keys: KeyEmbedderResponder,
     platform: Rc<AndroidPlatform>,
     client: Option<C>,
     start: Option<Box<dyn FnOnce(PlatformRef) -> C>>,
@@ -626,21 +630,30 @@ impl<C: EmbedderClient> Host<C> {
         }
     }
 
-    /// The back button and the back gesture both arrive as this key. The framework is asked
-    /// to go back, and where it has nowhere left to go the activity closes, which is what
-    /// Android does for an app that does not handle back itself.
+    /// The back button and the back gesture both arrive as Back. The framework is asked to go
+    /// back, and where it has nowhere left to go the activity closes, which is what Android does
+    /// for an app that does not handle back itself. It is read on release, as Android's own back
+    /// is: a press that is held and then cancelled must not go back.
     ///
-    /// It is read on release, as Android's own back is: a press that is held and then
-    /// cancelled must not go back. Every other key is left unhandled: the framework hears no key
-    /// on Android yet.
+    /// Every other key, a keyboard's or the keys an input method sends, goes to the framework
+    /// first, as Flutter's `KeyboardManager` hands it to its `KeyEmbedderResponder`; one the
+    /// framework leaves goes on through the window's views, to the text input's when a field
+    /// takes text (`text_input.rs`), as Flutter redispatches it to its view.
     fn on_key(&mut self, view: ViewId, key: &KeyEvent) -> bool {
-        if key.key_code() != Keycode::Back {
+        if key.key_code() == Keycode::Back {
+            if key.action() == KeyAction::Up {
+                self.go_back(view);
+            }
+            return true;
+        }
+        let Some(client) = &mut self.client else {
             return false;
-        }
-        if key.action() == KeyAction::Up {
-            self.go_back(view);
-        }
-        true
+        };
+        let application = &self.application;
+        let event = key_event_of(application, key);
+        let dead_char = |accent, character| dead_char(application, accent, character);
+        self.keys
+            .handle_event(&event, &dead_char, &mut |data| client.key_data(data))
     }
 
     fn go_back(&mut self, view: ViewId) {
@@ -834,4 +847,71 @@ impl<C: EmbedderClient> Host<C> {
             target: start + self.refresh_period(),
         }
     }
+}
+
+/// What the responder reads of `key`, its character as Android's key character map of its device
+/// types it with its modifiers, `KeyEvent.getUnicodeChar`.
+fn key_event_of(application: &Application, key: &KeyEvent) -> key_embedder_responder::KeyEvent {
+    let key_code = i32::from(key.key_code());
+    let meta_state = key.meta_state().0 as i32;
+    let unicode_char = application
+        .with(|env, _| {
+            let map = env
+                .call_static_method(
+                    jni::jni_str!("android/view/KeyCharacterMap"),
+                    jni::jni_str!("load"),
+                    jni::jni_sig!("(I)Landroid/view/KeyCharacterMap;"),
+                    &[jni::objects::JValue::Int(key.device_id())],
+                )?
+                .l()?;
+            env.call_method(
+                &map,
+                jni::jni_str!("get"),
+                jni::jni_sig!("(II)I"),
+                &[
+                    jni::objects::JValue::Int(key_code),
+                    jni::objects::JValue::Int(meta_state),
+                ],
+            )?
+            .i()
+        })
+        .unwrap_or_else(|error| {
+            warn_to_log!("the key's character was not read: {error}");
+            0
+        });
+    key_embedder_responder::KeyEvent {
+        action: i32::from(key.action()),
+        key_code,
+        scan_code: key.scan_code(),
+        meta_state,
+        repeat_count: key.repeat_count(),
+        device_id: key.device_id(),
+        source: i32::from(key.source()),
+        event_time: key.event_time(),
+        unicode_char: unicode_char as u32,
+    }
+}
+
+/// `KeyCharacterMap.getDeadChar(accent, character)`: what a dead key's accent and the character
+/// after it combine to, 0 for none.
+fn dead_char(application: &Application, accent: u32, character: u32) -> u32 {
+    let combined = application.with(|env, _| {
+        env.call_static_method(
+            jni::jni_str!("android/view/KeyCharacterMap"),
+            jni::jni_str!("getDeadChar"),
+            jni::jni_sig!("(II)I"),
+            &[
+                jni::objects::JValue::Int(accent as i32),
+                jni::objects::JValue::Int(character as i32),
+            ],
+        )?
+        .i()
+    });
+    combined.map_or_else(
+        |error| {
+            warn_to_log!("the dead key's character was not combined: {error}");
+            0
+        },
+        |combined| combined as u32,
+    )
 }
