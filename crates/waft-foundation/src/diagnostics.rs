@@ -3410,7 +3410,7 @@ pub trait Diagnosticable: Sized {
     /// Dart's `Object.runtimeType` as diagnostics print it: the last segment of
     /// the Rust type path, without generic arguments.
     fn type_name(&self) -> &'static str {
-        short_type_name(std::any::type_name::<Self>())
+        bare_type_name(std::any::type_name::<Self>())
     }
 
     /// Dart's `Object.hashCode` as diagnostics print it: the object's address.
@@ -3956,7 +3956,7 @@ pub fn describe_identity(runtime_type: &str, hash_code: u64) -> String {
 
 /// The last segment of a Rust type path, without generic arguments: what
 /// diagnostics print where Dart prints `runtimeType`.
-pub fn short_type_name(full_type_name: &'static str) -> &'static str {
+pub fn bare_type_name(full_type_name: &'static str) -> &'static str {
     let last = full_type_name.rsplit("::").next().unwrap_or(full_type_name);
     last.split('<').next().unwrap_or(last)
 }
@@ -3997,7 +3997,7 @@ impl<T: fmt::Debug> fmt::Display for DartEnum<T> {
         write!(
             f,
             "{}.{}",
-            short_type_name(std::any::type_name::<T>()),
+            bare_type_name(std::any::type_name::<T>()),
             describe_enum(&self.0)
         )
     }

@@ -276,7 +276,7 @@ impl Focus {
         app: &App,
     ) -> bool {
         explicit
-            .or_else(|| node.map(|node| node.can_request_focus_with(app)))
+            .or_else(|| node.map(|node| node.can_request_focus(app)))
             .unwrap_or(true)
     }
 

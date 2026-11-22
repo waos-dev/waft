@@ -34,8 +34,8 @@ use waft_embedder::Size;
 use waft_foundation::{
     App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
     DiagnosticsProperty, DiagnosticsTreeStyle, EntityId, FlagProperty, Handle, HandleId,
-    IntoPropertyName, ObjectFlagProperty, Subscription, TrackedSet, describe_identity,
-    short_type_name,
+    IntoPropertyName, ObjectFlagProperty, Subscription, TrackedSet, bare_type_name,
+    describe_identity,
 };
 use waft_rendering::{AnyRenderObject, RenderHandle, RenderObject};
 
@@ -859,7 +859,7 @@ impl AnyElement {
             None => format!(
                 "{}(DEFUNCT)",
                 describe_identity(
-                    short_type_name((self.vtable.type_name)()),
+                    bare_type_name((self.vtable.type_name)()),
                     self.id.identity_hash()
                 )
             ),

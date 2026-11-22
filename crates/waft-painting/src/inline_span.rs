@@ -10,7 +10,7 @@ use std::rc::Rc;
 use waft_embedder::{ParagraphBuilder, TextPosition};
 use waft_foundation::{
     DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticableTreeNode, DiagnosticsNode,
-    DiagnosticsTreeStyle, short_type_name,
+    DiagnosticsTreeStyle, bare_type_name,
 };
 use waft_gestures::HitTestTarget;
 
@@ -258,7 +258,7 @@ pub trait InlineSpan: Debug {
     /// Dart's `Diagnosticable.toStringShort` for this span: the type name, as Dart prints
     /// `runtimeType`.
     fn to_string_short(&self) -> String {
-        short_type_name(std::any::type_name::<Self>()).to_string()
+        bare_type_name(std::any::type_name::<Self>()).to_string()
     }
 }
 

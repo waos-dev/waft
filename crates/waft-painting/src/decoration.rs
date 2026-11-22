@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use waft_embedder::{Canvas, Offset, Path, Rect, Size};
 use waft_foundation::{
-    App, DiagnosticPropertiesBuilder, DiagnosticableNode, VoidCallback, short_type_name,
+    App, DiagnosticPropertiesBuilder, DiagnosticableNode, VoidCallback, bare_type_name,
 };
 
 use crate::basic_types::TextDirection;
@@ -40,7 +40,7 @@ pub trait Decoration: Any + Debug {
 
     /// Dart's `Decoration.toStringShort`: the runtime type.
     fn to_string_short(&self) -> String {
-        short_type_name(std::any::type_name::<Self>()).to_string()
+        bare_type_name(std::any::type_name::<Self>()).to_string()
     }
 
     /// In debug mode, panics if the object is not in a valid configuration.

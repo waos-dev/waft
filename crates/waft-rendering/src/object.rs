@@ -18,8 +18,8 @@ use waft_animation::Curve;
 use waft_embedder::{Matrix4, Offset, Rect, Size};
 use waft_foundation::{
     App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
-    DiagnosticsProperty, FlagProperty, Handle, HandleId, IntoPropertyName, describe_identity,
-    short_type_name,
+    DiagnosticsProperty, FlagProperty, Handle, HandleId, IntoPropertyName, bare_type_name,
+    describe_identity,
 };
 use waft_services::MouseTrackerAnnotation;
 
@@ -1437,7 +1437,7 @@ impl AnyRenderObject {
     /// relayout boundary is, and the layout, paint and compositing updates it awaits.
     pub fn to_string_short(self, app: &App) -> String {
         let mut header = describe_identity(
-            short_type_name((self.vtable.type_name)()),
+            bare_type_name((self.vtable.type_name)()),
             self.id.identity_hash(),
         );
         let mut count = 0;

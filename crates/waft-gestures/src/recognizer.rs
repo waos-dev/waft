@@ -15,7 +15,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use waft_embedder::{Matrix4, Offset, PointerDeviceKind};
-use waft_foundation::{App, Handle, HandleId, Listener, OptionRetained, Timer, short_type_name};
+use waft_foundation::{App, Handle, HandleId, Listener, OptionRetained, Timer, bare_type_name};
 
 use crate::arena::{GestureArenaEntry, GestureArenaMember, GestureDisposition};
 use crate::binding::GestureBinding;
@@ -662,7 +662,7 @@ impl AnyGestureRecognizer {
 
     /// Dart's `runtimeType.toString()`: the leaf type's name.
     pub fn type_name(self) -> &'static str {
-        short_type_name((self.vtable.type_name)())
+        bare_type_name((self.vtable.type_name)())
     }
 
     /// Dart's `recognizer as T`: the typed handle when this recognizer is a `T`, else `None`.

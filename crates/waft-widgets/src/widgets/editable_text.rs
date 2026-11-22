@@ -456,7 +456,7 @@ impl AnyTextEditingController {
         format!(
             "{}({})",
             describe_identity(
-                waft_foundation::short_type_name((self.vtable.type_name)()),
+                waft_foundation::bare_type_name((self.vtable.type_name)()),
                 self.id.identity_hash(),
             ),
             self.value(app)

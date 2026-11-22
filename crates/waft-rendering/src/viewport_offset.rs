@@ -8,7 +8,7 @@ use std::time::Duration;
 use waft_animation::{Curve, Curves};
 use waft_foundation::{
     App, ChangeNotifier, ChangeNotifierData, CompleterFuture, Handle, HandleId, ListenableHandle,
-    ListenableObject, Listener, Ref, Retained, describe_identity, short_type_name,
+    ListenableObject, Listener, Ref, Retained, bare_type_name, describe_identity,
 };
 
 /// The direction of a scroll, relative to the positive scroll offset.
@@ -314,7 +314,7 @@ impl AnyViewportOffset {
     /// identity (`FixedViewportOffset#00012`).
     pub fn to_string_short(self) -> String {
         describe_identity(
-            short_type_name((self.vtable.type_name)()),
+            bare_type_name((self.vtable.type_name)()),
             self.id.identity_hash(),
         )
     }

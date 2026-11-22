@@ -440,7 +440,7 @@ pub trait FocusNodeLeaf: ChangeNotifier + Sized + 'static {
     /// markers.
     fn to_string_short(self: Handle<Self>, app: &App) -> String {
         let label = self.debug_label(app).filter(|label| !label.is_empty());
-        let has_focus = self.as_node().has_focus_with(app);
+        let has_focus = self.as_node().has_focus(app);
         let has_primary_focus = self.has_primary_focus(app);
         let mut extra = String::new();
         if let Some(label) = &label {
@@ -456,7 +456,7 @@ pub trait FocusNodeLeaf: ChangeNotifier + Sized + 'static {
             extra.push_str("[PRIMARY FOCUS]");
         }
         let identity = describe_identity(
-            waft_foundation::short_type_name(std::any::type_name::<Self>()),
+            waft_foundation::bare_type_name(std::any::type_name::<Self>()),
             self.id().identity_hash(),
         );
         if extra.is_empty() {
@@ -826,12 +826,7 @@ impl AnyFocusNode {
     ///
     /// Setting [`can_request_focus`](Self::can_request_focus) to false implies that the node
     /// will also be skipped for traversal purposes.
-    pub fn can_request_focus(self, app: &mut App) -> bool {
-        self.can_request_focus_with(app)
-    }
-
-    /// [`can_request_focus`](Self::can_request_focus) through `&App`, for diagnostics.
-    pub(crate) fn can_request_focus_with(self, app: &App) -> bool {
+    pub fn can_request_focus(self, app: &App) -> bool {
         if !self.data(app).can_request_focus {
             return false;
         }
@@ -1038,8 +1033,8 @@ impl AnyFocusNode {
             .expect("just filled the cache")
     }
 
-    /// [`ancestors`](Self::ancestors) without filling the cache, for the diagnostics that read
-    /// a node through `&App`.
+    /// [`ancestors`](Self::ancestors) without filling the cache, for what reads a node through
+    /// `&App`.
     fn ancestors_without_caching(self, app: &App) -> Vec<AnyFocusNode> {
         let mut result = Vec::new();
         let mut parent = self.data(app).parent;
@@ -1060,12 +1055,7 @@ impl AnyFocusNode {
     /// [`has_focus`](Self::has_focus) is true if the node is anywhere in the focus chain, but
     /// for [`has_primary_focus`](Self::has_primary_focus) the node must be at the end of the
     /// chain to return true.
-    pub fn has_focus(self, app: &mut App) -> bool {
-        self.has_focus_with(app)
-    }
-
-    /// [`has_focus`](Self::has_focus) through `&App`, for diagnostics.
-    pub(crate) fn has_focus_with(self, app: &App) -> bool {
+    pub fn has_focus(self, app: &App) -> bool {
         if self.has_primary_focus(app) {
             return true;
         }
@@ -1717,8 +1707,8 @@ fn fill_focus_node_properties<L: FocusNodeLeaf>(
     let context = node.context(app);
     let descendants_are_focusable = node.descendants_are_focusable(app);
     let descendants_are_traversable = node.descendants_are_traversable(app);
-    let can_request_focus = node.as_node().can_request_focus_with(app);
-    let has_focus = node.as_node().has_focus_with(app);
+    let can_request_focus = node.as_node().can_request_focus(app);
+    let has_focus = node.as_node().has_focus(app);
     let has_primary_focus = node.has_primary_focus(app);
     properties.add(
         DiagnosticsProperty::<String>::new(

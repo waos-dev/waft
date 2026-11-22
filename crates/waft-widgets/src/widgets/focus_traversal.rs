@@ -889,7 +889,7 @@ impl AnyFocusTraversalPolicy {
     /// Dart's `toStringShort`: the type and the identity.
     pub fn to_string_short(self) -> String {
         describe_identity(
-            waft_foundation::short_type_name((self.vtable.type_name)()),
+            waft_foundation::bare_type_name((self.vtable.type_name)()),
             self.id.identity_hash(),
         )
     }
@@ -2243,7 +2243,7 @@ pub trait FocusOrder: Debug {
     /// Dart's `FocusOrder.toStringShort`: the type and the identity.
     fn to_string_short(&self) -> String {
         describe_identity(
-            waft_foundation::short_type_name(std::any::type_name::<Self>()),
+            waft_foundation::bare_type_name(std::any::type_name::<Self>()),
             self as *const Self as *const () as usize as u64,
         )
     }

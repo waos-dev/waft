@@ -27,7 +27,7 @@ use waft_embedder::{CompositionLayer, VideoFrameReader};
 use waft_foundation::{
     App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
     DiagnosticsProperty, EnumProperty, Handle, HandleId, IntProperty, IntoPropertyName, Ref,
-    describe_identity, short_type_name,
+    bare_type_name, describe_identity,
 };
 use waft_gestures::remove_perspective_transform;
 use waft_painting::TransformProperty;
@@ -575,7 +575,7 @@ impl AnyLayer {
     /// Dart's `toStringShort`: the layer's type and identity (`OffsetLayer#00012`).
     pub fn to_string_short(self, _app: &App) -> String {
         describe_identity(
-            short_type_name((self.vtable.type_name)()),
+            bare_type_name((self.vtable.type_name)()),
             self.id.identity_hash(),
         )
     }

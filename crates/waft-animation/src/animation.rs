@@ -279,7 +279,7 @@ pub trait Animation<T: 'static>: Sized + 'static {
         format!(
             "{}({})",
             describe_identity(
-                waft_foundation::short_type_name(std::any::type_name::<Self>()),
+                waft_foundation::bare_type_name(std::any::type_name::<Self>()),
                 self.id().identity_hash(),
             ),
             self.to_string_details(app)

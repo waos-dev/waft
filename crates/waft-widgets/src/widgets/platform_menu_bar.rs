@@ -598,7 +598,7 @@ pub trait PlatformMenuItem: Debug {
         format!(
             "{}({})",
             waft_foundation::describe_identity(
-                waft_foundation::short_type_name(std::any::type_name::<Self>()),
+                waft_foundation::bare_type_name(std::any::type_name::<Self>()),
                 self as *const Self as *const () as usize as u64,
             ),
             self.label()

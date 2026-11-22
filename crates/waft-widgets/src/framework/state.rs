@@ -9,8 +9,8 @@ use std::marker::PhantomData;
 
 use waft_foundation::{
     App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableNode, DiagnosticsNode,
-    DiagnosticsTreeStyle, EnumProperty, Handle, HandleId, ObjectFlagProperty, describe_identity,
-    short_type_name,
+    DiagnosticsTreeStyle, EnumProperty, Handle, HandleId, ObjectFlagProperty, bare_type_name,
+    describe_identity,
 };
 
 use super::element::{BuildContext, Element};
@@ -203,7 +203,7 @@ impl AnyState {
     /// Dart's `State.toStringShort`, from `Diagnosticable`: the state's type and identity.
     pub fn to_string_short(self) -> String {
         describe_identity(
-            short_type_name((self.vtable.type_name)()),
+            bare_type_name((self.vtable.type_name)()),
             self.id.identity_hash(),
         )
     }
