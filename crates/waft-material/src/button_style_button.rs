@@ -79,7 +79,10 @@ use waft_animation::{
     AnimationStatusListener,
 };
 use waft_embedder::{Clip, Color, Offset, Size, TextBaseline};
-use waft_foundation::{App, Handle, Listenable, Listener, OptionRetained, Ref, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle, Listenable,
+    Listener, OptionRetained, Ref, ValueChanged,
+};
 use waft_painting::{Alignment, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef, force_to_point};
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult, BoxParentData,
@@ -277,6 +280,21 @@ impl ButtonStyleButtonData {
     /// Whether the button is enabled or disabled; see [`ButtonStyleButton::enabled`].
     pub fn enabled(&self) -> bool {
         self.on_pressed.is_some() || self.on_long_press.is_some()
+    }
+
+    /// Dart's `ButtonStyleButton.debugFillProperties`, shared by every subclass. The `style`
+    /// line waits for `ButtonStyle`'s `Display`.
+    pub(crate) fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(FlagProperty::new("enabled", Some(self.enabled())).if_false("disabled"));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.as_ref().map(|node| {
+                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
+                }),
+            )
+            .default_value(None),
+        );
     }
 }
 

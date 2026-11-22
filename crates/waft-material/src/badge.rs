@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `badge.dart`.
 
 use waft_embedder::{Clip, Color, Offset, Size, TextBaseline};
-use waft_foundation::{App, DiagnosticPropertiesBuilder};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty};
 use waft_painting::{
     AlignmentGeometry, BorderSide, EdgeInsetsGeometry, ShapeDecoration, StadiumBorder,
     TextDirection, TextStyle,
@@ -416,6 +416,14 @@ struct BadgeLayout {
 
 impl RenderObjectWidget for BadgeLayout {
     type RenderObject = RenderBadge;
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<AlignmentGeometry>::new(
+            "alignment",
+            self.alignment,
+        ));
+        properties.add(DiagnosticsProperty::<Offset>::new("offset", self.offset));
+    }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = Directionality::maybe_of(app, context);

@@ -13,7 +13,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use waft_embedder::{Clip, Color, Size, clamp_double, lerp_double};
-use waft_foundation::{App, Listener};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Listener};
 use waft_painting::{
     AlignmentGeometry, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, TextStyle,
 };
@@ -406,6 +406,10 @@ impl StatefulWidget for FilledButton {
 
     fn key(&self) -> Option<&KeyRef> {
         self.button_style_button.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.button_style_button.debug_fill_properties(properties);
     }
 
     fn create_state(&self) -> ButtonStyleState<FilledButton> {

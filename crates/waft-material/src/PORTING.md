@@ -712,12 +712,11 @@ Ported against: 34b89b2086d4
 - slider_theme.rs: slider_theme_test's shape-painting cases (default track/overlay/tick/paddle drawing, size overrides, the 'skip all component painting' set, value indicator stroke colours, track gap / thumb size when year2023 is false). Trigger: the next edit of slider_theme.rs.
 - segmented_button.rs: segmented_button_test 'SegmentsButton when compositing does not crash' (a segment whose label composites ends the picture, so the `restore()` after `paint_child` lands on a fresh canvas, which dart:ui ignores and valo asserts on in debug). Trigger: seedeai/valo#9, which makes a restore at the base level a no-op, merged and published.
 - segmented_button.rs: segmented_button_test's semantics cases ('SegmentedButtons have correct semantics', 'Multi-select SegmentedButtons have correct semantics', 'SegmentedButton announce state on all platforms'), and its golden ('SegmentedButton vertical aligned golden image'). Trigger: the semantics tree; golden files.
-- segmented_button.rs, segmented_button_theme.rs: the `debugFillProperties` cases. Trigger: diagnostics.
+- segmented_button_theme.rs: the `debugFillProperties` cases. Trigger: diagnostics.
 - toggle_buttons.rs: toggle_buttons_test's semantics-tree expectation in 'Toggle buttons constraints size does not affect minimum input padding' and its empty 'have correct semantics' case; the two 'Radius.x or Radius.y equal 0.0' cases and the golden files of the lone-button cases. Trigger: the semantics tree; golden files.
-- toggle_buttons.rs, toggle_buttons_theme.rs: the `debugFillProperties` cases. Trigger: diagnostics.
+- toggle_buttons_theme.rs: the `debugFillProperties` cases. Trigger: diagnostics.
 - range_slider.rs: the semantics configuration of the two thumb nodes (`assembleSemanticsNode` and the increase and decrease semantic actions), the semantic formatter callback's use, and `markNeedsSemanticsUpdate`. The arrow-key actions run. Trigger: the semantics tree.
-- range_slider.rs: the debug properties of `RangeSlider`. Trigger: diagnostics.
-- range_slider.rs: range_slider_test's semantics cases ('RangeSlider.label info should not write to semantic node', 'Range Slider Semantics - ltr' and '- rtl', 'Keyboard focus also changes semantics focus', 'Semantic nodes do not throw an error after clearSemantics') and 'Range Slider implements debugFillProperties'. Trigger: the semantics tree, diagnostics.
+- range_slider.rs: range_slider_test's semantics cases ('RangeSlider.label info should not write to semantic node', 'Range Slider Semantics - ltr' and '- rtl', 'Keyboard focus also changes semantics focus', 'Semantic nodes do not throw an error after clearSemantics'). Trigger: the semantics tree.
 - progress_indicator.rs: progress_indicator_test 'LinearProgressIndicator causes a repaint when it changes' (compares `tester.layers`). Trigger: a layer-list comparison helper in test_support.
 - app.rs: `MaterialApp.router` and the router fields only it fills (`routeInformationProvider`, `routeInformationParser`, `routerDelegate`, `backButtonDispatcher`, `routerConfig`), with `_usesRouter`'s `WidgetsApp.router` branch. Trigger: `router.dart` (`WidgetsApp.router`).
 - app.rs: the three inspector-button builders and `_MaterialInspectorButton`. Trigger: `widget_inspector.dart`'s `InspectorButton`.
@@ -737,7 +736,7 @@ Ported against: 34b89b2086d4
 - popup_menu.rs: the route layout's avoid bounds and sub-screens (`DisplayFeatureSubScreen.subScreensInBounds`/`avoidBounds`). Trigger: `display_feature_sub_screen.dart`.
 - menu_anchor.rs: `_MenuLayout`'s avoid bounds and sub-screens (`DisplayFeatureSubScreen.subScreensInBounds`/`avoidBounds`). Trigger: `display_feature_sub_screen.dart`.
 - menu_anchor.rs: `FadeTransition(alwaysIncludeSemantics: true)` around the menu panel and the animated items. Trigger: the semantics tree.
-- menu_anchor.rs: `_debugMenuInfo` logging (off in Dart, `_kDebugMenus` is false) and the diagnostics of the menu widgets. Trigger: diagnostics.
+- menu_anchor.rs: `_debugMenuInfo` logging (off in Dart, `_kDebugMenus` is false).
 - menu_anchor.rs: menu_anchor_test cases whose numbers include a `MenuBar` of `createTestMenus`, whose last label 'Menu 5 & 6 ' ends in a space that Valo leaves out of a paragraph's max intrinsic width (14px narrower than Flutter): 'Menu responds to density changes', 'unconstrained menus show up in the right place in LTR'/'in RTL', 'constrained menus show up in the right place in LTR'/'in RTL', the four 'submenus account for … density' cases and the two 'submenus account for padding' cases, and the last assert of 'geometry' and 'geometry with RTL direction' (the unexpanded bar at 145..655). Trigger: Valo counting trailing whitespace in a paragraph's max intrinsic width.
 - menu_anchor.rs: menu_anchor_test's semantics cases ('Semantics' group, 'MenuAnchor applies semanticLabel to the expanded menu overlay'). Trigger: the semantics tree.
 - menu_style.rs: menu_style_test 'Material parameters are honored' (its menu shape is a `StarBorder`). Trigger: `star_border.dart`.
@@ -841,3 +840,7 @@ Ported against: 34b89b2086d4
 - stepper.rs tests: 'Stepper custom margin' and 'StepperProperties test', which only read constructor arguments back.
 - refresh_indicator.rs tests: 'RefreshIndicator responds to strokeWidth' and 'RefreshIndicator responds to edgeOffset', which only read constructor arguments back.
 - mergeable_material.rs tests: the `debugDisableShadows` toggles around the two shadow cases; Waft has no such flag (waft-painting PORTING.md), and the cases read the shadow itself.
+- menu_anchor.rs: `MenuAnchor`, `MenuBar` and `SubmenuButton` `debugDescribeChildren` (their `menuChildren`), because this port has no widget-level `debugDescribeChildren` hook; an element dump shows the built children. Trigger: a widget-level children hook in waft-widgets.
+- list_tile.rs, material_button.rs, menu_style.rs, input_decorator.rs: the `visualDensity` diagnostic line, and `StepStyle::index_style`'s default. Trigger: `VisualDensity`'s `Display` in theme_data.rs and a fallback `ThemeData` for `StepStyle`'s default.
+- list_tile.rs: the `onTap` and `onLongPress` diagnostic lines. Trigger: a `Display` for the port's callback types.
+- tooltip.rs, selectable_text.rs, text_field.rs: the `positionDelegate`, `selectionControls` and `textHeightBehavior` diagnostic lines. Trigger: a `Display` for those function and trait-object types.

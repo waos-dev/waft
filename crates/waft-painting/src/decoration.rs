@@ -194,6 +194,13 @@ impl Debug for DecorationRef {
     }
 }
 
+/// Dart's `Decoration.toString`, which the inner decoration's [`Debug`] already renders.
+impl std::fmt::Display for DecorationRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(&*self.0, f)
+    }
+}
+
 /// A stateful object that can paint a particular [`Decoration`].
 ///
 /// [`BoxPainter`] objects can cache resources so that they can be used

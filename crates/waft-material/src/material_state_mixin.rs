@@ -5,7 +5,9 @@
 
 use std::rc::Rc;
 
-use waft_foundation::{App, Handle, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, ValueChanged,
+};
 use waft_widgets::{State, WidgetState, WidgetStates};
 
 /// The fields of Dart's `MaterialStateMixin`, which a state holds under the field
@@ -27,6 +29,17 @@ impl MaterialStateMixinData {
     /// The bag of a state with no active [`WidgetState`].
     pub fn new() -> MaterialStateMixinData {
         MaterialStateMixinData::default()
+    }
+
+    /// Dart's `MaterialStateMixin.debugFillProperties`, shared by every state with the mixin.
+    pub(crate) fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "materialStates",
+                Some(crate::diagnostics::widget_states(&self.material_states)),
+            )
+            .default_value(Some("{}".to_string())),
+        );
     }
 }
 

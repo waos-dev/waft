@@ -13,7 +13,8 @@ use waft_embedder::{
     valo,
 };
 use waft_foundation::{
-    App, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle, Listener, Ref, UniqueKey,
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DoubleProperty, EnumProperty, Handle,
+    Listener, Ref, UniqueKey,
 };
 use waft_painting::{
     Axis, AxisDirection, Border, BorderRadius, BorderRadiusGeometry, BorderSide, BoxDecoration,
@@ -267,6 +268,11 @@ impl StatefulWidget for MergeableMaterial {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("mainAxis", self.main_axis));
+        properties.add(DoubleProperty::new("elevation", self.elevation));
     }
 
     fn create_state(&self) -> MergeableMaterialState {

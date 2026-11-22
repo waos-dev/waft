@@ -6,10 +6,13 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Clip, Color, Offset, Size, TextBaseline};
-use waft_foundation::{AnyEq, App, DiagnosticPropertiesBuilder, Listener};
+use waft_foundation::{
+    AnyEq, App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, FlagProperty,
+    Listener, ObjectFlagProperty, StringProperty,
+};
 use waft_painting::{
-    AlignmentGeometry, CircleBorder, EdgeInsetsDirectional, EdgeInsetsGeometry, ShapeBorderRef,
-    StadiumBorder, TextDirection, TextStyle,
+    AlignmentGeometry, CircleBorder, ColorProperty, EdgeInsetsDirectional, EdgeInsetsGeometry,
+    ShapeBorderRef, StadiumBorder, TextDirection, TextStyle,
 };
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult, PaintingContext, RenderBox,
@@ -698,6 +701,64 @@ impl FloatingActionButton {
 impl StatelessWidget for FloatingActionButton {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onPressed",
+                self.on_pressed.as_ref().map(|_| String::new()),
+            )
+            .if_null("disabled"),
+        );
+        properties.add(StringProperty::new("tooltip", self.tooltip.clone()).default_value(None));
+        properties
+            .add(ColorProperty::new("foregroundColor", self.foreground_color).default_value(None));
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
+        properties.add(ColorProperty::new("hoverColor", self.hover_color).default_value(None));
+        properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "heroTag",
+                self.hero_tag.as_ref().map(|_| String::new()),
+            )
+            .if_present("hero"),
+        );
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties
+            .add(DoubleProperty::new("focusElevation", self.focus_elevation).default_value(None));
+        properties
+            .add(DoubleProperty::new("hoverElevation", self.hover_elevation).default_value(None));
+        properties.add(
+            DoubleProperty::new("highlightElevation", self.highlight_elevation).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("disabledElevation", self.disabled_elevation).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.as_ref().map(|node| {
+                    crate::diagnostics::handle_identity("FocusNode", node.handle().id())
+                }),
+            )
+            .default_value(None),
+        );
+        properties.add(FlagProperty::new("isExtended", Some(self.is_extended)).if_true("extended"));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "materialTapTargetSize",
+                self.material_tap_target_size
+                    .map(|size| crate::diagnostics::typed_enum("MaterialTapTargetSize", &size)),
+            )
+            .default_value(None),
+        );
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
