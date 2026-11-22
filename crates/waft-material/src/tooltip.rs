@@ -4,8 +4,12 @@ use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
+use waft_embedder::SignedDuration;
 use waft_embedder::{Brightness, Radius, TargetPlatform, TextAlign};
-use waft_foundation::{App, Handle, Ref};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, FlagProperty, Handle,
+    Ref, StringProperty,
+};
 use waft_painting::{
     BorderRadius, BoxDecoration, DecorationRef, EdgeInsets, EdgeInsetsGeometry, InlineSpanRef,
     TextSpan, TextStyle, position_dependent_box,
@@ -535,6 +539,104 @@ impl StatefulWidget for Tooltip {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    #[allow(deprecated)]
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `positionDelegate` line waits for that function type's `Display`.
+        properties.add({
+            let property = StringProperty::new("message", self.message.clone())
+                .with_show_name(self.message.is_none());
+            if self.message.is_none() {
+                property.default_value(None)
+            } else {
+                property
+            }
+        });
+        let rich_message = self
+            .rich_message
+            .as_ref()
+            .map(|span| span.to_plain_text(true, true));
+        properties.add({
+            let property = StringProperty::new("richMessage", rich_message)
+                .with_show_name(self.rich_message.is_none());
+            if self.rich_message.is_none() {
+                property.default_value(None)
+            } else {
+                property
+            }
+        });
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("margin", self.margin)
+                .default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("vertical offset", self.vertical_offset).default_value(None));
+        properties.add(
+            FlagProperty::new("position", self.prefer_below)
+                .if_true("below")
+                .if_false("above")
+                .with_show_name(true)
+                .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("semantics", self.exclude_from_semantics)
+                .if_true("excluded")
+                .with_show_name(true)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<SignedDuration>::new(
+                "wait duration",
+                self.wait_duration.map(SignedDuration::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<SignedDuration>::new(
+                "show duration",
+                self.show_duration.map(SignedDuration::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<SignedDuration>::new(
+                "exit duration",
+                self.exit_duration.map(SignedDuration::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "triggerMode",
+                self.trigger_mode
+                    .map(|mode| crate::diagnostics::typed_enum("TooltipTriggerMode", &mode)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("enableFeedback", self.enable_feedback)
+                .if_true("true")
+                .with_show_name(true)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textAlign",
+                self.text_align
+                    .map(|text_align| crate::diagnostics::typed_enum("TextAlign", &text_align)),
+            )
+            .default_value(None),
+        );
     }
 
     fn create_state(&self) -> TooltipState {
@@ -2141,5 +2243,84 @@ pub(crate) mod tests {
             assert!(!found(tester, TOOLTIP_TEXT));
             tester.send(&gesture, PointerChange::Remove);
         });
+    }
+    /// `tooltip_test.dart`, "default Tooltip debugFillProperties".
+    #[test]
+    fn a_default_tooltip_describes_its_message() {
+        use waft_foundation::DiagnosticPropertiesBuilder;
+
+        let tooltip = Tooltip::new().message("message");
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                tooltip.debug_fill_properties(properties)
+            },
+        );
+        assert_eq!(description, ["\"message\""]);
+    }
+
+    /// `tooltip_test.dart`, "default Tooltip debugFillProperties with richMessage".
+    #[test]
+    fn a_tooltip_describes_its_rich_message() {
+        use std::rc::Rc;
+
+        use waft_foundation::DiagnosticPropertiesBuilder;
+
+        let rich_message: InlineSpanRef = Rc::new(TextSpan::new().text("This is a ").children(
+            vec![Rc::new(TextSpan::new().text("richMessage")) as InlineSpanRef],
+        ));
+        let tooltip = Tooltip::new().rich_message(rich_message);
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                tooltip.debug_fill_properties(properties)
+            },
+        );
+        assert_eq!(description, ["\"This is a richMessage\""]);
+    }
+
+    /// `tooltip_test.dart`, "Tooltip implements debugFillProperties". The `positionDelegate`
+    /// line is left out until that function type has a `Display`.
+    #[test]
+    #[allow(deprecated)]
+    fn a_tooltip_describes_its_properties() {
+        use std::time::Duration;
+
+        use waft_foundation::DiagnosticPropertiesBuilder;
+        use waft_painting::{BoxDecoration, EdgeInsets};
+        use waft_widgets::TooltipTriggerMode;
+
+        let tooltip = Tooltip::new()
+            .message("message")
+            .decoration(BoxDecoration::new())
+            .wait_duration(Duration::from_secs(1))
+            .show_duration(Duration::from_secs(2))
+            .padding(EdgeInsets::ZERO)
+            .margin(EdgeInsets::all(5.0))
+            .height(100.0)
+            .exclude_from_semantics(true)
+            .prefer_below(false)
+            .vertical_offset(50.0)
+            .trigger_mode(TooltipTriggerMode::Manual)
+            .enable_feedback(true);
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                tooltip.debug_fill_properties(properties)
+            },
+        );
+        assert_eq!(
+            description,
+            [
+                "\"message\"".to_string(),
+                "height: 100.0".to_string(),
+                "padding: EdgeInsets.zero".to_string(),
+                "margin: EdgeInsets.all(5.0)".to_string(),
+                "vertical offset: 50.0".to_string(),
+                "position: above".to_string(),
+                "semantics: excluded".to_string(),
+                "wait duration: 0:00:01.000000".to_string(),
+                "show duration: 0:00:02.000000".to_string(),
+                "triggerMode: TooltipTriggerMode.manual".to_string(),
+                "enableFeedback: true".to_string(),
+            ]
+        );
     }
 }

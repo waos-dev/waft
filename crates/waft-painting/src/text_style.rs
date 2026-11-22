@@ -887,6 +887,13 @@ impl Diagnosticable for TextStyle {
     }
 }
 
+/// Dart's `TextStyle.toString`, through its diagnostics.
+impl fmt::Display for TextStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
+    }
+}
+
 impl TextStyle {
     /// Dart `debugFillProperties(properties, {String prefix = ''})`.
     ///
@@ -1673,6 +1680,13 @@ impl Debug for AnyTextStyle {
             Some(extension) => extension.fmt(f),
             None => self.value.fmt(f),
         }
+    }
+}
+
+/// Dart's `TextStyle.toString` and a text-style subclass's, which the inner [`Debug`] writes.
+impl std::fmt::Display for AnyTextStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
     }
 }
 

@@ -10,10 +10,14 @@ use std::rc::Rc;
 use waft_embedder::{
     Color, FillRule, Offset, PathBuilder, RRect, Radius, Rect, Size, TextBaseline,
 };
-use waft_foundation::{App, Listener, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, FlagProperty, Listener,
+    ValueChanged,
+};
 use waft_painting::{
-    Alignment, AnyColor, Axis, BorderRadius, BorderSide, ClipContext, EdgeInsetsDirectional,
-    EdgeInsetsGeometry, OutlinedBorderRef, RoundedRectangleBorder, TextStyle, VerticalDirection,
+    Alignment, AnyColor, Axis, BorderRadius, BorderSide, ClipContext, ColorProperty,
+    EdgeInsetsDirectional, EdgeInsetsGeometry, OutlinedBorderRef, RoundedRectangleBorder,
+    TextStyle, VerticalDirection,
 };
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BaselineOffset, BoxConstraints, BoxHitTestResult, BoxParentData,
@@ -678,6 +682,62 @@ impl Debug for ToggleButtons {
 impl StatelessWidget for ToggleButtons {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("disabled", Some(self.on_pressed.is_none()))
+                .if_true("Buttons are disabled")
+                .if_false("Buttons are enabled"),
+        );
+        if let Some(text_style) = &self.text_style {
+            text_style.debug_fill_properties_with_prefix(properties, "textStyle.");
+        }
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties
+            .add(ColorProperty::new("selectedColor", self.selected_color).default_value(None));
+        properties
+            .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("fillColor", self.fill_color.clone())
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
+        properties
+            .add(ColorProperty::new("highlightColor", self.highlight_color).default_value(None));
+        properties.add(ColorProperty::new("hoverColor", self.hover_color).default_value(None));
+        properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
+        properties.add(ColorProperty::new("borderColor", self.border_color).default_value(None));
+        properties.add(
+            ColorProperty::new("selectedBorderColor", self.selected_border_color)
+                .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("disabledBorderColor", self.disabled_border_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderRadius>::new("borderRadius", self.border_radius)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("borderWidth", self.border_width).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "direction",
+                Some(crate::diagnostics::typed_enum("Axis", &self.direction)),
+            )
+            .default_value(Some("Axis.horizontal".to_string())),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "verticalDirection",
+                Some(crate::diagnostics::typed_enum(
+                    "VerticalDirection",
+                    &self.vertical_direction,
+                )),
+            )
+            .default_value(Some("VerticalDirection.down".to_string())),
+        );
     }
 
     fn debug_check_constructor(&self) {
@@ -3753,5 +3813,55 @@ pub(crate) mod tests {
 
             assert_eq!(toggle_buttons_size(tester), Size::ZERO);
         });
+    }
+    /// `toggle_buttons_test.dart`, "ToggleButtons implements debugFillProperties". The colors
+    /// print as the `Color` the port stores, not as Dart's `MaterialColor` swatch wrapper.
+    #[test]
+    fn a_toggle_buttons_describes_its_properties() {
+        use waft_embedder::Color;
+        use waft_foundation::DiagnosticPropertiesBuilder;
+        use waft_painting::{Axis, VerticalDirection};
+
+        let green = Color::new(0xff4caf50);
+        let pink = Color::new(0xffe91e63);
+        let blue = Color::new(0xff2196f3);
+        let yellow = Color::new(0xffffeb3b);
+        let toggle_buttons = ToggleButtons::new(
+            [
+                Text::new("First child").into_widget(),
+                Text::new("Second child").into_widget(),
+                Text::new("Third child").into_widget(),
+            ]
+            .to_vec(),
+            vec![false, true, false],
+        )
+        .on_pressed(|_app, _index| {})
+        .direction(Axis::Vertical)
+        .vertical_direction(VerticalDirection::Up)
+        .border_width(3.0)
+        .color(green)
+        .selected_border_color(pink)
+        .disabled_color(blue)
+        .disabled_border_color(yellow)
+        .border_radius(BorderRadius::circular(7.0));
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                toggle_buttons.debug_fill_properties(properties)
+            },
+        );
+        assert_eq!(
+            description,
+            [
+                "Buttons are enabled".to_string(),
+                format!("color: {green}"),
+                format!("disabledColor: {blue}"),
+                format!("selectedBorderColor: {pink}"),
+                format!("disabledBorderColor: {yellow}"),
+                "borderRadius: BorderRadius.circular(7.0)".to_string(),
+                "borderWidth: 3.0".to_string(),
+                "direction: Axis.vertical".to_string(),
+                "verticalDirection: VerticalDirection.up".to_string(),
+            ]
+        );
     }
 }

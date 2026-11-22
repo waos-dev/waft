@@ -23,7 +23,7 @@ use waft_embedder::{
     Canvas, Color, FillRule, Offset, Paint, PaintStyle, PathBuilder, Rect, SemanticsRole, Size,
     Stroke, TargetPlatform, TextDirection, clamp_double,
 };
-use waft_foundation::{App, Handle, Ref};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle, PercentProperty, Ref};
 use waft_painting::{BorderRadiusGeometry, EdgeInsets, EdgeInsetsGeometry, draw_arc, draw_rrect};
 use waft_rendering::{BoxConstraints, CustomPainter};
 use waft_scheduler::{Ticker, TickerCallback, TickerProviderObject};
@@ -133,6 +133,15 @@ pub struct ProgressIndicatorData {
 }
 
 impl ProgressIndicatorData {
+    /// Dart's `ProgressIndicator.debugFillProperties`, shared by every indicator.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            PercentProperty::new("value", self.value)
+                .with_show_name(false)
+                .if_null("<indeterminate>"),
+        );
+    }
+
     fn effective_value(&self) -> Option<f64> {
         self.value.map(|value| clamp_double(value, 0.0, 1.0))
     }
@@ -747,6 +756,11 @@ impl StatefulWidget for LinearProgressIndicator {
 
     fn key(&self) -> Option<&KeyRef> {
         self.progress_indicator.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.progress_indicator_data()
+            .debug_fill_properties(properties);
     }
 
     fn create_state(&self) -> LinearProgressIndicatorState {
@@ -1474,6 +1488,11 @@ impl StatefulWidget for CircularProgressIndicator {
         self.progress_indicator.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.progress_indicator_data()
+            .debug_fill_properties(properties);
+    }
+
     fn create_state(&self) -> CircularProgressIndicatorState {
         CircularProgressIndicatorState {
             state: StateData::new(),
@@ -2041,6 +2060,11 @@ impl StatefulWidget for RefreshProgressIndicator {
             .progress_indicator
             .key
             .as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.progress_indicator_data()
+            .debug_fill_properties(properties);
     }
 
     fn create_state(&self) -> RefreshProgressIndicatorState {

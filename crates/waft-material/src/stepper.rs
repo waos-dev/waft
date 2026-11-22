@@ -8,11 +8,14 @@ use waft_embedder::{
     Brightness, Canvas, Clip, Color, FillRule, Offset, Paint, PathBuilder, Size, TextDirection,
     valo,
 };
-use waft_foundation::{App, Handle, Listener, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty, DoubleProperty, Handle,
+    Listener, ValueChanged,
+};
 use waft_painting::{
     Alignment, BorderRadiusGeometry, BorderSide, BoxBorderRef, BoxDecoration, BoxShadow, BoxShape,
-    EdgeInsets, EdgeInsetsDirectional, EdgeInsetsGeometry, GradientRef, OutlinedBorderRef,
-    RoundedRectangleBorder, TextStyle,
+    ColorProperty, EdgeInsets, EdgeInsetsDirectional, EdgeInsetsGeometry, GradientRef,
+    OutlinedBorderRef, RoundedRectangleBorder, TextStyle,
 };
 use waft_rendering::CustomPainter;
 use waft_widgets::{
@@ -1508,6 +1511,42 @@ impl StepStyle {
                 .clone()
                 .or_else(|| self.index_style.clone()),
         }
+    }
+}
+
+impl Diagnosticable for StepStyle {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `indexStyle` default is `ThemeData.fallback().textTheme.bodyLarge`; without a
+        // fallback theme the line has no default and is shown whenever it is set.
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties.add(ColorProperty::new("errorColor", self.error_color).default_value(None));
+        properties
+            .add(ColorProperty::new("connectorColor", self.connector_color).default_value(None));
+        properties.add(
+            DoubleProperty::new("connectorThickness", self.connector_thickness).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxBorderRef>::new("border", self.border.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxShadow>::new("boxShadow", self.box_shadow).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<GradientRef>::new("gradient", self.gradient.clone())
+                .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<TextStyle>::new(
+            "indexStyle",
+            self.index_style.clone(),
+        ));
+    }
+}
+
+/// Dart's `StepStyle.toString`, through its diagnostics.
+impl fmt::Display for StepStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 

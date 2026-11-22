@@ -1415,6 +1415,13 @@ impl Debug for Radius {
     }
 }
 
+/// Dart's `Radius.toString`, which [`Debug`] already renders.
+impl fmt::Display for Radius {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

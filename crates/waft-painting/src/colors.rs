@@ -696,6 +696,13 @@ impl Debug for AnyColor {
     }
 }
 
+/// Dart's `Color.toString` and a color subclass's, which the inner [`Debug`] writes.
+impl std::fmt::Display for AnyColor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 /// A color that has a small table of related colors called a "swatch".
 ///
 /// The table is accessed by key values of type `T`.
