@@ -2554,22 +2554,11 @@ impl RenderObjectWidget for ChipRenderWidget {
 }
 
 /// Dart's `_ChipSlot`.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum ChipSlot {
     Label,
     Avatar,
     DeleteIcon,
-}
-
-/// Dart's `_ChipSlot.name`, which `debugNameForSlot` returns for an enum.
-impl fmt::Debug for ChipSlot {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            ChipSlot::Label => "label",
-            ChipSlot::Avatar => "avatar",
-            ChipSlot::DeleteIcon => "deleteIcon",
-        })
-    }
 }
 
 /// Dart's `_ChipRenderTheme`.
@@ -9137,14 +9126,6 @@ pub(crate) mod tests {
                 assert!(tester.get_size(text(tester, "X")).is_empty());
             });
         }
-    }
-
-    /// Dart's `_ChipSlot` names, which `debugNameForSlot` prints for the enum.
-    #[test]
-    fn chip_slots_are_named_as_dart_names_them() {
-        assert_eq!(format!("{:?}", ChipSlot::Label), "label");
-        assert_eq!(format!("{:?}", ChipSlot::Avatar), "avatar");
-        assert_eq!(format!("{:?}", ChipSlot::DeleteIcon), "deleteIcon");
     }
 
     /// Dart's `_RenderChip` names its children after their slots, in the order its `children`

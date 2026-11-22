@@ -1453,24 +1453,12 @@ impl WidgetStateProperty<Option<Color>> for IndividualOverrides {
 }
 
 // Identifies the children of a _ListTileElement.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum ListTileSlot {
     Leading,
     Title,
     Subtitle,
     Trailing,
-}
-
-/// Dart's `_ListTileSlot.name`, which `debugNameForSlot` returns for an enum.
-impl fmt::Debug for ListTileSlot {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            ListTileSlot::Leading => "leading",
-            ListTileSlot::Title => "title",
-            ListTileSlot::Subtitle => "subtitle",
-            ListTileSlot::Trailing => "trailing",
-        })
-    }
 }
 
 /// Dart's `_ListTile`.
@@ -5854,15 +5842,6 @@ pub(crate) mod tests {
                 Some(false)
             ));
         });
-    }
-
-    /// Dart's `_ListTileSlot` names, which `debugNameForSlot` prints for the enum.
-    #[test]
-    fn list_tile_slots_are_named_as_dart_names_them() {
-        assert_eq!(format!("{:?}", ListTileSlot::Leading), "leading");
-        assert_eq!(format!("{:?}", ListTileSlot::Title), "title");
-        assert_eq!(format!("{:?}", ListTileSlot::Subtitle), "subtitle");
-        assert_eq!(format!("{:?}", ListTileSlot::Trailing), "trailing");
     }
 
     /// Dart's `_RenderListTile` names its children after their slots, in the order its

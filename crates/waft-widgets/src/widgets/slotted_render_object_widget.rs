@@ -9,7 +9,7 @@ use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use waft_foundation::{App, DiagnosticsNode, Handle};
+use waft_foundation::{App, DiagnosticsNode, Handle, describe_enum};
 use waft_rendering::{
     AnyRenderObject, ErasedRenderObject, PipelineOwner, RenderHandle, RenderObject,
 };
@@ -189,7 +189,7 @@ pub trait SlottedContainerRenderObjectMixin<S: SlotValue>: RenderObject {
     /// This method is called by `debugDescribeChildren` for each slot that is currently
     /// occupied by a child to obtain a name for that slot for debug outputs.
     fn debug_name_for_slot(&self, slot: &S) -> String {
-        format!("{slot:?}")
+        describe_enum(slot)
     }
 
     /// Dart's `attach` after `super.attach(owner)`.

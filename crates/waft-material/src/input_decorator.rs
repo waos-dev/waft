@@ -924,7 +924,7 @@ impl Debug for FloatingLabelAlignment {
 }
 
 // Identifies the children of a _RenderDecorationElement.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum DecorationSlot {
     Icon,
     Input,
@@ -937,25 +937,6 @@ enum DecorationSlot {
     HelperError,
     Counter,
     Container,
-}
-
-/// Dart's `_DecorationSlot.name`, which `debugNameForSlot` returns for an enum.
-impl fmt::Debug for DecorationSlot {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            DecorationSlot::Icon => "icon",
-            DecorationSlot::Input => "input",
-            DecorationSlot::Label => "label",
-            DecorationSlot::Hint => "hint",
-            DecorationSlot::Prefix => "prefix",
-            DecorationSlot::Suffix => "suffix",
-            DecorationSlot::PrefixIcon => "prefixIcon",
-            DecorationSlot::SuffixIcon => "suffixIcon",
-            DecorationSlot::HelperError => "helperError",
-            DecorationSlot::Counter => "counter",
-            DecorationSlot::Container => "container",
-        })
-    }
 }
 
 impl DecorationSlot {
