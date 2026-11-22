@@ -16,7 +16,8 @@ use waft_animation::{
 };
 use waft_embedder::{Canvas, Color, ImageFilter, Offset, Paint, Rect, TextDirection};
 use waft_foundation::{
-    App, CompleterFuture, Handle, Listener, OptionRetained, Ref, ValueNotifier, VoidCallback,
+    App, CompleterFuture, DiagnosticPropertiesBuilder, Handle, IterableProperty, Listener,
+    OptionRetained, Ref, ValueNotifier, VoidCallback,
 };
 use waft_gestures::{
     DragEndDetails, DragGestureRecognizer, DragStartDetails, DragUpdateDetails,
@@ -2076,6 +2077,13 @@ impl CupertinoEdgeShadowDecoration {
 }
 
 impl Decoration for CupertinoEdgeShadowDecoration {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(IterableProperty::<waft_embedder::Color>::new(
+            "colors",
+            self.colors.clone(),
+        ));
+    }
+
     fn lerp_from(&self, a: Option<&dyn Decoration>, t: f64) -> Option<DecorationRef> {
         let a = a.and_then(|a| a.as_any().downcast_ref::<CupertinoEdgeShadowDecoration>());
         CupertinoEdgeShadowDecoration::lerp(a, Some(self), t).map(DecorationRef::new)

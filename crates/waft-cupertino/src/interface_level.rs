@@ -1,6 +1,6 @@
 //! Flutter counterpart: `cupertino/interface_level.dart`.
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, EnumProperty};
 use waft_widgets::{BuildContext, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 /// Indicates the visual level for a piece of content. Equivalent to `UIUserInterfaceLevel`
@@ -117,6 +117,13 @@ impl CupertinoUserInterfaceLevel {
 }
 
 impl InheritedWidget for CupertinoUserInterfaceLevel {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::<CupertinoUserInterfaceLevelData>::new(
+            "user interface level",
+            Some(self.data),
+        ));
+    }
+
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
     }

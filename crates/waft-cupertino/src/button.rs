@@ -10,7 +10,10 @@ use waft_animation::{
     AnimationBehavior, AnimationController, AnimationRef, CurveTween, Curves, Drive, Tween,
 };
 use waft_embedder::{Brightness, Size, TargetPlatform};
-use waft_foundation::{App, Handle, K_IS_WEB, Listener, OptionRetained, Ref, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, FlagProperty, Handle, K_IS_WEB, Listener, OptionRetained,
+    Ref, ValueChanged,
+};
 use waft_gestures::{
     LongPressGestureRecognizer, TapDownDetails, TapGestureRecognizer, TapMoveDetails, TapUpDetails,
 };
@@ -406,6 +409,10 @@ impl fmt::Debug for CupertinoButton {
 }
 
 impl StatefulWidget for CupertinoButton {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(FlagProperty::new("enabled", Some(self.enabled())).if_false("disabled"));
+    }
+
     type State = CupertinoButtonState;
 
     fn key(&self) -> Option<&KeyRef> {

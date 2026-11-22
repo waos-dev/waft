@@ -14,7 +14,9 @@ use waft_embedder::{
     TextSelection,
 };
 use waft_foundation::{
-    App, Handle, Listenable, Listener, OptionRetained, Ref, ValueNotifier, VoidCallback,
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    FlagProperty, Handle, IntProperty, Listenable, Listener, OptionRetained, Ref, StringProperty,
+    ValueNotifier, VoidCallback,
 };
 use waft_gestures::{
     DragStartBehavior, GestureTapCallback, HitTestResult, PointerDownEvent, PointerUpEvent,
@@ -45,7 +47,7 @@ use waft_widgets::{
 };
 
 use crate::adaptive_text_selection_toolbar::CupertinoAdaptiveTextSelectionToolbar;
-use crate::colors::{CupertinoColors, CupertinoDynamicColor};
+use crate::colors::{CupertinoColors, CupertinoDynamicColor, DiagnosticsText};
 use crate::desktop_text_selection::cupertino_desktop_text_selection_handle_controls;
 use crate::icons::CupertinoIcons;
 use crate::localizations::CupertinoLocalizations;
@@ -985,6 +987,283 @@ impl Debug for CupertinoTextField {
 }
 
 impl StatefulWidget for CupertinoTextField {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let controller = self.controller.as_ref().map(|controller| {
+            DiagnosticsText(format!(
+                "TextEditingController#{}",
+                waft_foundation::short_hash(
+                    controller as *const TextEditingControllerRef as *const () as usize as u64
+                )
+            ))
+        });
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new("controller", controller)
+                .default_value(None),
+        );
+        let focus_node = self.focus_node.as_ref().map(|focus_node| {
+            DiagnosticsText(format!(
+                "FocusNode#{}",
+                waft_foundation::short_hash(
+                    focus_node as *const FocusNodeRef as *const () as usize as u64
+                )
+            ))
+        });
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new("focusNode", focus_node)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "undoController",
+                self.undo_controller
+                    .as_ref()
+                    .map(|_| DiagnosticsText("Instance of 'UndoHistoryController'".to_string())),
+            )
+            .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<BoxDecoration>::new(
+            "decoration",
+            self.decoration.clone(),
+        ));
+        properties.add(DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+            "padding",
+            Some(self.padding),
+        ));
+        properties.add(StringProperty::new("placeholder", self.placeholder.clone()));
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "placeholderStyle",
+                self.placeholder_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::colors::DartEnum<OverlayVisibilityMode>>::new(
+                "prefix",
+                self.prefix
+                    .as_ref()
+                    .map(|_| crate::colors::DartEnum(self.prefix_mode)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::colors::DartEnum<OverlayVisibilityMode>>::new(
+                "suffix",
+                self.suffix
+                    .as_ref()
+                    .map(|_| crate::colors::DartEnum(self.suffix_mode)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::colors::DartEnum<OverlayVisibilityMode>>::new(
+                "clearButtonMode",
+                Some(crate::colors::DartEnum(self.clear_button_mode)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "clearButtonSemanticLabel",
+                self.clear_button_semantic_label.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextInputType>::new("keyboardType", self.keyboard_type)
+                .default_value(Some(TextInputType::TEXT)),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("style", self.style.clone()).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("autofocus", Some(self.autofocus))
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "obscuringCharacter",
+                Some(self.obscuring_character.clone()),
+            )
+            .default_value(Some("•".to_string())),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("obscureText", Some(self.obscure_text))
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("autocorrect", self.autocorrect).default_value(None),
+        );
+        properties.add(
+            EnumProperty::<SmartDashesType>::new("smartDashesType", self.smart_dashes_type)
+                .default_value(Some(if self.obscure_text {
+                    SmartDashesType::Disabled
+                } else {
+                    SmartDashesType::Enabled
+                })),
+        );
+        properties.add(
+            EnumProperty::<SmartQuotesType>::new("smartQuotesType", self.smart_quotes_type)
+                .default_value(Some(if self.obscure_text {
+                    SmartQuotesType::Disabled
+                } else {
+                    SmartQuotesType::Enabled
+                })),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableSuggestions", Some(self.enable_suggestions))
+                .default_value(Some(true)),
+        );
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).default_value(Some(1)));
+        properties.add(IntProperty::<i32>::new("minLines", self.min_lines).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("expands", Some(self.expands))
+                .default_value(Some(false)),
+        );
+        properties.add(IntProperty::<i32>::new("maxLength", self.max_length).default_value(None));
+        properties.add(
+            EnumProperty::<MaxLengthEnforcement>::new(
+                "maxLengthEnforcement",
+                self.max_length_enforcement,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("cursorWidth", Some(self.cursor_width)).default_value(Some(2.0)),
+        );
+        properties.add(DoubleProperty::new("cursorHeight", self.cursor_height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::colors::RadiusDiagnostics>::new(
+                "cursorRadius",
+                Some(crate::colors::RadiusDiagnostics(self.cursor_radius)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "cursorOpacityAnimates",
+                Some(self.cursor_opacity_animates),
+            )
+            .default_value(Some(true)),
+        );
+        properties.add(
+            crate::colors::create_cupertino_color_property(
+                "cursorColor",
+                self.cursor_color.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("selectionEnabled", Some(self.selection_enabled()))
+                .if_false("selection disabled")
+                .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "selectionControls",
+                self.selection_controls
+                    .as_ref()
+                    .map(|_| DiagnosticsText("Instance of 'TextSelectionControls'".to_string())),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "scrollController",
+                self.scroll_controller
+                    .as_ref()
+                    .map(|_| DiagnosticsText("Instance of 'ScrollController'".to_string())),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "scrollPhysics",
+                self.scroll_physics
+                    .as_ref()
+                    .map(|_| DiagnosticsText("Instance of 'ScrollPhysics'".to_string())),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<waft_embedder::TextAlign>::new("textAlign", Some(self.text_align))
+                .default_value(Some(waft_embedder::TextAlign::Start)),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "textAlignVertical",
+                self.text_align_vertical
+                    .map(|vertical| DiagnosticsText(format!("{vertical:?}"))),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<waft_embedder::TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::colors::DartEnum<waft_embedder::Clip>>::new(
+                "clipBehavior",
+                Some(crate::colors::DartEnum(self.clip_behavior)),
+            )
+            .default_value(Some(crate::colors::DartEnum(waft_embedder::Clip::HardEdge))),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("scribbleEnabled", Some(self.scribble_enabled))
+                .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "stylusHandwritingEnabled",
+                Some(self.stylus_handwriting_enabled),
+            )
+            .default_value(Some(EditableText::DEFAULT_STYLUS_HANDWRITING_ENABLED)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "enableIMEPersonalizedLearning",
+                Some(self.enable_ime_personalized_learning),
+            )
+            .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "enableInlinePrediction",
+                self.enable_inline_prediction,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::colors::InstanceOf<SpellCheckConfiguration>>::new(
+                "spellCheckConfiguration",
+                self.spell_check_configuration
+                    .clone()
+                    .map(crate::colors::InstanceOf),
+            )
+            .default_value(None),
+        );
+        let mime_types = self
+            .content_insertion_configuration
+            .as_ref()
+            .map(|configuration| configuration.allowed_mime_types.clone())
+            .unwrap_or_default();
+        let default_mime_types: Vec<String> = if self.content_insertion_configuration.is_none() {
+            Vec::new()
+        } else {
+            waft_widgets::K_DEFAULT_CONTENT_INSERTION_MIME_TYPES
+                .iter()
+                .map(|mime_type| mime_type.to_string())
+                .collect()
+        };
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "contentCommitMimeTypes",
+                Some(DiagnosticsText(list_to_string(&mime_types))),
+            )
+            .default_value(Some(DiagnosticsText(list_to_string(&default_mime_types)))),
+        );
+    }
+
     type State = CupertinoTextFieldState;
 
     fn key(&self) -> Option<&KeyRef> {
@@ -1942,6 +2221,11 @@ fn debug_assert_widget_invariants(state: Handle<CupertinoTextFieldState>, app: &
     debug_assert!(!widget.expands || (widget.max_lines.is_none() && widget.min_lines.is_none()));
     debug_assert!(!widget.obscure_text || widget.max_lines == Some(1));
     debug_assert!(widget.max_length.is_none_or(|length| length > 0));
+}
+
+/// Dart's `List.toString`: `[a, b]`.
+fn list_to_string(values: &[String]) -> String {
+    format!("[{}]", values.join(", "))
 }
 
 #[cfg(test)]

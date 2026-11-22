@@ -176,16 +176,17 @@ Ported against: 4765bd950d31784578608cfbb0c723453cc49216
 - text_field.rs: `CupertinoTextFieldState` as `AutofillClient`; `EditableText` is the autofill client until then. Trigger: autofill.
 - adaptive_text_selection_toolbar.rs: `CupertinoAdaptiveTextSelectionToolbar.selectable`. Trigger: `SelectableRegion`.
 - nav_bar.rs: the large-title sliver delegate's `DiagnosticableTreeMixin`. Trigger: diagnostics.
-- route.rs: the page routes' `debugLabel` and the edge shadow decoration's diagnostics and `hashCode`. Trigger: `TransitionRoute::debug_label` taking the `App`; diagnostics.
+- route.rs: the page routes' `debugLabel` and the edge shadow decoration's `hashCode`. Trigger: `TransitionRoute::debug_label` taking the `App`; `Hash`.
 - route.rs: `anchorPoint` on `CupertinoModalPopupRoute` and `CupertinoDialogRoute`, and the `DisplayFeatureSubScreen` it feeds. Trigger: `display_feature_sub_screen.dart`, which needs `MediaQuery.displayFeatures`.
 - sheet.rs: `showCupertinoSheet`'s deprecated `pageBuilder`, a duplicate of the deprecated `builder`. Trigger: never — port it only if Flutter un-deprecates it.
 - sheet.rs: the `filterQuality` on the three `ScaleTransition`s, and `hasPlatformViews` on `showCupertinoSheet`, `CupertinoSheetTransition`, `CupertinoSheetRoute` and `delegateTransition`, which turns that filter quality off and makes the route offer a second delegated-transition function (`_delegateTransitionWithPlatformViews`), so that a sheet with platform views and one without do not compare equal. Trigger: `MatrixTransition.filterQuality`.
 - dialog.rs: the `sendSemanticsEvent(TapSemanticEvent())` calls and the gesture detector's `excludeFromSemantics`. Trigger: the semantics tree.
 - dialog.rs: the `debugCheckHasMediaQuery` assert in `CupertinoActionSheet.build`. Trigger: the next edit of dialog.rs (widgets' `debug_check_has_media_query` exists).
-- colors.rs, interface_level.rs, theme.rs, text_theme.rs, icon_theme_data.rs, page_scaffold.rs: the diagnostics members and the theme types' `hashCode`. Trigger: diagnostics.
+- icon_theme_data.rs: `CupertinoIconThemeData`'s `debugFillProperties`; Waft has no class for it, its constructor hands an `IconThemeData` with a resolver. Trigger: an `IconThemeData` subclass in waft-widgets.
+- colors.rs, interface_level.rs, theme.rs, text_theme.rs, page_scaffold.rs: the theme types' `hashCode`. Trigger: `Hash`.
 - localizations.rs, debug.rs: `describeMissingAncestor`, which Dart appends to the missing-localizations error. Trigger: diagnostics.
 - interface_level.rs: the 'The context used was' lines print the widget's type where Dart describes the element. Trigger: diagnostics.
-- button.rs: the tap's `sendSemanticsEvent`, the diagnostics, and the deprecated `minSize`. Trigger: the semantics tree; diagnostics.
+- button.rs: the tap's `sendSemanticsEvent` and the deprecated `minSize`. Trigger: the semantics tree.
 - scrollbar.rs: the haptic feedback on a thumb press and on a slow release, with the press position and release comparison that decide it. Trigger: the next edit of scrollbar.rs (services' `HapticFeedback` exists).
 - page_scaffold.rs: the binding observer's status-bar tap callback. Trigger: the binding's status-bar tap event.
 - switch.rs: the gesture detector's `excludeFromSemantics`. Trigger: the semantics tree.
@@ -194,3 +195,13 @@ Ported against: 4765bd950d31784578608cfbb0c723453cc49216
 - search_field.rs: the three tests of the field resizing under a scroll (its icons and placeholder fading, its top padding moving up), which the field's scroll handling ports. Trigger: widgets' `SliverResizingHeader`.
 - app.rs: `CupertinoApp.router` and everything only it fills. Trigger: `WidgetsApp.router` / `router.dart`.
 - app.rs: the three inspector-button builders and the button they build; the three debug flags reach the `WidgetsApp` as Dart passes them. Trigger: `widget_inspector.dart`'s `InspectorButton`.
+
+## diagnostics
+
+- Change: `CupertinoTextField`'s dump names its controller and focus node as `TextEditingController#1a2b3` and `FocusNode#1a2b3`, with no value.
+  Reason: platform — `Diagnosticable::debug_fill_properties` takes no `App`, and reading a controller's `TextEditingValue` or a node's focus state needs the arena.
+  Affect: the value's text is shorter than Dart's; the class and identity hash are the same.
+
+- Change: `CupertinoDynamicColor`'s `last resolved` property is not added.
+  Reason: platform — a resolved color keeps no resolving element here (the resolve context is a `BuildContext` in Dart).
+  Affect: a color resolved in a build shows no resolving context.
