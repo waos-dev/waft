@@ -341,7 +341,7 @@ impl RenderObject for RenderExclusiveMouseRegion {
         app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
-        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+        RenderMouseRegionBase::debug_fill_properties(self, app, properties);
     }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {

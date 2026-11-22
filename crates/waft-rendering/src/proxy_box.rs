@@ -304,6 +304,19 @@ pub trait RenderConstrainedBoxBase: RenderProxyBoxMixin {
     /// Base class field access.
     fn constrained_box_data(self: RenderHandle<Self>, app: &App) -> &RenderConstrainedBoxData;
 
+    /// Dart's `RenderConstrainedBox.debugFillProperties`, which a subclass reaches through its
+    /// super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::new(
+            "additionalConstraints",
+            self.constrained_box_data(app).additional_constraints,
+        ));
+    }
+
     /// See [`constrained_box_data`](Self::constrained_box_data).
     fn constrained_box_data_mut(
         self: RenderHandle<Self>,
@@ -491,10 +504,7 @@ impl RenderObject for RenderConstrainedBox {
         app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
-        properties.add(DiagnosticsProperty::new(
-            "additionalConstraints",
-            self.get(app).constrained_box.additional_constraints,
-        ));
+        RenderConstrainedBoxBase::debug_fill_properties(self, app, properties);
     }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
@@ -2552,6 +2562,34 @@ pub trait RenderMouseRegionBase:
     /// Mixin field access.
     fn mouse_region_data(self: RenderHandle<Self>, app: &App) -> &RenderMouseRegionData;
 
+    /// Dart's `RenderMouseRegion.debugFillProperties`, which a subclass reaches through its super
+    /// call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+        let data = self.mouse_region_data(app);
+        let mut listeners = IndexMap::new();
+        listeners.insert("enter".to_string(), data.on_enter.is_some().then_some(()));
+        listeners.insert("hover".to_string(), data.on_hover.is_some().then_some(()));
+        listeners.insert("exit".to_string(), data.on_exit.is_some().then_some(()));
+        properties.add(FlagsSummary::<()>::new("listeners", listeners).if_empty("<none>"));
+        properties.add(
+            DiagnosticsProperty::<String>::new("cursor", Some(data.cursor.debug_description()))
+                .default_value(Some("defer".to_string())),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("opaque", Some(data.opaque)).default_value(Some(true)),
+        );
+        properties.add(
+            FlagProperty::new("validForMouseTracker", Some(data.valid_for_mouse_tracker))
+                .default_value(Some(true))
+                .if_false("invalid for MouseTracker"),
+        );
+    }
+
     /// See [`mouse_region_data`](Self::mouse_region_data).
     fn mouse_region_data_mut(self: RenderHandle<Self>, app: &mut App)
     -> &mut RenderMouseRegionData;
@@ -2833,25 +2871,7 @@ impl RenderObject for RenderMouseRegion {
         app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
-        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
-        let data = self.mouse_region_data(app);
-        let mut listeners = IndexMap::new();
-        listeners.insert("enter".to_string(), data.on_enter.is_some().then_some(()));
-        listeners.insert("hover".to_string(), data.on_hover.is_some().then_some(()));
-        listeners.insert("exit".to_string(), data.on_exit.is_some().then_some(()));
-        properties.add(FlagsSummary::<()>::new("listeners", listeners).if_empty("<none>"));
-        properties.add(
-            DiagnosticsProperty::<String>::new("cursor", Some(data.cursor.debug_description()))
-                .default_value(Some("defer".to_string())),
-        );
-        properties.add(
-            DiagnosticsProperty::<bool>::new("opaque", Some(data.opaque)).default_value(Some(true)),
-        );
-        properties.add(
-            FlagProperty::new("validForMouseTracker", Some(data.valid_for_mouse_tracker))
-                .default_value(Some(true))
-                .if_false("invalid for MouseTracker"),
-        );
+        RenderMouseRegionBase::debug_fill_properties(self, app, properties);
     }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {

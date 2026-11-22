@@ -14,7 +14,9 @@ use waft_embedder::{
     Brightness, Color, ColorFilter, ImageFilter, Offset, PointerDeviceKind, Radius, SemanticsRole,
     Size, TargetPlatform, TextAlign, TextBaseline, TextDirection, lerp_double,
 };
-use waft_foundation::{App, Handle, K_IS_WEB, Listener, OptionRetained, Ref, ValueSetter};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Handle, K_IS_WEB, Listener, OptionRetained, Ref, ValueSetter,
+};
 use waft_gestures::{
     DragData, DragDirection, DragDownDetails, DragEndDetails, DragGestureRecognizer, DragLeaf,
     DragLeafData, DragStartBehavior, GestureBinding, GestureRecognizer, GestureRecognizerData,
@@ -3694,6 +3696,15 @@ impl RenderFlexMixin for RenderAlertDialogActionsLayout {
 }
 
 impl RenderObject for RenderAlertDialogActionsLayout {
+    /// Dart's class adds none of its own: its superclass's, through the super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderFlexMixin::debug_fill_properties(self, app, properties);
+    }
+
     waft_rendering::render_object_accessors!();
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
@@ -4064,6 +4075,15 @@ impl RenderFlexMixin for RenderPriorityColumn {
 }
 
 impl RenderObject for RenderPriorityColumn {
+    /// Dart's class adds none of its own: its superclass's, through the super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderFlexMixin::debug_fill_properties(self, app, properties);
+    }
+
     waft_rendering::render_object_accessors!();
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {

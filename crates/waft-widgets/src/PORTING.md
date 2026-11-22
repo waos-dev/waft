@@ -801,7 +801,6 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - selectable_region.rs: selectable_region_test.dart's cases beyond the mouse, spy, keyboard-granular and handle-drag ones ported (double- and triple-click drags, shift-click, directional extension, the toolbar and magnifier cases, onSelectionChanged, SelectionListener). Trigger: the next edit of `SelectableRegion`'s gestures or actions; `SelectionListener`.
 - page_view.rs, sliver_fill.rs: `PageView`'s and `SliverFillRemaining`'s `debugFillProperties`. Trigger: diagnostics.
 - raw_tooltip.rs: the `SemanticsService.tooltip` announcement. Trigger: the semantics tree.
-- raw_tooltip.rs: `_RenderExclusiveMouseRegion`'s inherited `RenderMouseRegion` lines (`listeners`, `cursor`, `opaque`, `validForMouseTracker`); its `behavior` line shows. Trigger: `waft-rendering`'s `RenderMouseRegionBase` gaining the shared diagnostics body.
 - form.rs: `Form.onWillPop`, the `WillPopScope` it builds, and the deprecated `Form.onPopInvoked`. Trigger: `WillPopScope` (deferred; Flutter deprecates both).
 - form.rs: the error announcement `FormState._validate` sends through `SemanticsService`. Trigger: the semantics tree.
 - stretch_effect.rs: the shader stretch (`_StretchOverscrollEffect`, `_StretchEffectPainter`, `_StretchEffectShader` and the `ImageFilter.isShaderFilterSupported` branch), so the stretch is always the matrix scale Flutter uses where shader filters are unsupported. Trigger: the next edit of stretch_effect.rs (embedder's `FragmentProgram` and `ImageFilter::shader` exist).

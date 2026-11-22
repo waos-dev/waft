@@ -582,6 +582,42 @@ pub trait RenderFlexMixin:
     /// See [`flex_data`](Self::flex_data).
     fn flex_data_mut(self: RenderHandle<Self>, app: &mut App) -> &mut RenderFlexData;
 
+    /// Dart's `RenderFlex.debugFillProperties`, which a subclass of `RenderFlex` reaches through
+    /// its super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.flex_data(app);
+        properties.add(EnumProperty::<Axis>::new("direction", this.direction));
+        properties.add(EnumProperty::<MainAxisAlignment>::new(
+            "mainAxisAlignment",
+            this.main_axis_alignment,
+        ));
+        properties.add(EnumProperty::<MainAxisSize>::new(
+            "mainAxisSize",
+            this.main_axis_size,
+        ));
+        properties.add(EnumProperty::<CrossAxisAlignment>::new(
+            "crossAxisAlignment",
+            this.cross_axis_alignment,
+        ));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
+                .default_value(None),
+        );
+        properties.add(EnumProperty::<VerticalDirection>::new(
+            "verticalDirection",
+            Some(this.vertical_direction),
+        ));
+        properties.add(
+            EnumProperty::<TextBaseline>::new("textBaseline", this.text_baseline)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("spacing", this.spacing).default_value(None));
+    }
+
     /// The direction to use as the main axis.
     fn direction(self: RenderHandle<Self>, app: &App) -> Axis {
         self.flex_data(app).direction
@@ -1834,33 +1870,7 @@ impl RenderObject for RenderFlex {
         app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
-        let this = &self.get(app).flex;
-        properties.add(EnumProperty::<Axis>::new("direction", this.direction));
-        properties.add(EnumProperty::<MainAxisAlignment>::new(
-            "mainAxisAlignment",
-            this.main_axis_alignment,
-        ));
-        properties.add(EnumProperty::<MainAxisSize>::new(
-            "mainAxisSize",
-            this.main_axis_size,
-        ));
-        properties.add(EnumProperty::<CrossAxisAlignment>::new(
-            "crossAxisAlignment",
-            this.cross_axis_alignment,
-        ));
-        properties.add(
-            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
-                .default_value(None),
-        );
-        properties.add(EnumProperty::<VerticalDirection>::new(
-            "verticalDirection",
-            Some(this.vertical_direction),
-        ));
-        properties.add(
-            EnumProperty::<TextBaseline>::new("textBaseline", this.text_baseline)
-                .default_value(None),
-        );
-        properties.add(DoubleProperty::new("spacing", this.spacing).default_value(None));
+        RenderFlexMixin::debug_fill_properties(self, app, properties);
     }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
