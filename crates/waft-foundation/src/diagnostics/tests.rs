@@ -1,0 +1,2129 @@
+use std::panic::panic_any;
+
+use super::*;
+
+fn n(name: &str) -> Option<String> {
+    Some(name.to_string())
+}
+
+fn node(node: impl DiagnosticsNode + 'static) -> Rc<dyn DiagnosticsNode> {
+    Rc::new(node)
+}
+
+/// Flutter's `equalsIgnoringHashCodes`: every five hex digits after `#`
+/// become `0`.
+fn normalize_hash_codes(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut result = String::with_capacity(text.len());
+    let mut index = 0;
+    while index < chars.len() {
+        if chars[index] == '#'
+            && index + 5 < chars.len()
+            && chars[index + 1..index + 6]
+                .iter()
+                .all(|c| c.is_ascii_hexdigit())
+        {
+            result.push_str("#00000");
+            index += 6;
+        } else {
+            result.push(chars[index]);
+            index += 1;
+        }
+    }
+    result
+}
+
+fn assert_deep(actual: &str, expected: &str) {
+    assert_eq!(
+        normalize_hash_codes(actual),
+        normalize_hash_codes(expected),
+        "\n--- actual ---\n{actual}\n--- expected ---\n{expected}\n"
+    );
+}
+
+struct TestTree {
+    name: String,
+    style: Option<DiagnosticsTreeStyle>,
+    children: Vec<TestTree>,
+    properties: Vec<Rc<dyn DiagnosticsNode>>,
+}
+
+impl TestTree {
+    fn new() -> Self {
+        TestTree {
+            name: String::new(),
+            style: None,
+            children: Vec::new(),
+            properties: Vec::new(),
+        }
+    }
+
+    fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    fn style(mut self, style: DiagnosticsTreeStyle) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    fn maybe_style(mut self, style: Option<DiagnosticsTreeStyle>) -> Self {
+        self.style = style;
+        self
+    }
+
+    fn child(mut self, child: TestTree) -> Self {
+        self.children.push(child);
+        self
+    }
+
+    fn property(mut self, property: impl DiagnosticsNode + 'static) -> Self {
+        self.properties.push(Rc::new(property));
+        self
+    }
+
+    fn property_rc(mut self, property: Rc<dyn DiagnosticsNode>) -> Self {
+        self.properties.push(property);
+        self
+    }
+
+    fn debug_node(
+        &self,
+        name: Option<String>,
+        style: Option<DiagnosticsTreeStyle>,
+    ) -> DiagnosticableTreeNode {
+        self.to_diagnostics_tree_node(name, style)
+    }
+}
+
+impl Diagnosticable for TestTree {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        if let Some(style) = self.style {
+            properties.default_diagnostics_tree_style = style;
+        }
+        for property in &self.properties {
+            properties.add_rc(property.clone());
+        }
+    }
+}
+
+impl DiagnosticableTree for TestTree {
+    fn debug_describe_children(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
+        self.children
+            .iter()
+            .map(|child| {
+                Rc::new(
+                    child.to_diagnostics_tree_node(
+                        Some(format!("child {}", child.name)),
+                        child.style,
+                    ),
+                ) as Rc<dyn DiagnosticsNode>
+            })
+            .collect()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TestRect;
+
+impl fmt::Display for TestRect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)")
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TestColor;
+
+impl fmt::Display for TestColor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Color(0xffffffff)")
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TestObject {
+    Rect,
+    Color,
+}
+
+impl fmt::Display for TestObject {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TestObject::Rect => TestRect.fmt(f),
+            TestObject::Color => TestColor.fmt(f),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TestClosure;
+
+impl fmt::Display for TestClosure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Closure: () => void")
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExampleEnum {
+    Hello,
+    World,
+    DeferToChild,
+}
+
+fn golden_style_test(
+    style: Option<DiagnosticsTreeStyle>,
+    last_child_style: Option<DiagnosticsTreeStyle>,
+    golden: &str,
+) {
+    let tree = TestTree::new()
+        .maybe_style(last_child_style)
+        .child(TestTree::new().name("node A").maybe_style(style))
+        .child(
+            TestTree::new()
+                .name("node B")
+                .maybe_style(style)
+                .child(TestTree::new().name("node B1").maybe_style(style))
+                .child(TestTree::new().name("node B2").maybe_style(style))
+                .child(
+                    TestTree::new()
+                        .name("node B3")
+                        .maybe_style(last_child_style.or(style)),
+                ),
+        )
+        .child(
+            TestTree::new()
+                .name("node C")
+                .maybe_style(last_child_style.or(style)),
+        );
+    let actual = tree.debug_node(None, style).to_string_deep();
+    assert_deep(&actual, golden);
+}
+
+#[test]
+fn tree_diagnostics_mixin_control_test() {
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Dense),
+        None,
+        concat!(
+            "TestTree#00000\n",
+            "├child node A: TestTree#00000\n",
+            "├child node B: TestTree#00000\n",
+            "│├child node B1: TestTree#00000\n",
+            "│├child node B2: TestTree#00000\n",
+            "│└child node B3: TestTree#00000\n",
+            "└child node C: TestTree#00000\n",
+        ),
+    );
+
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Sparse),
+        None,
+        concat!(
+            "TestTree#00000\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ └─child node B3: TestTree#00000\n",
+            " └─child node C: TestTree#00000\n",
+        ),
+    );
+
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Offstage),
+        None,
+        concat!(
+            "TestTree#00000\n",
+            " ╎╌child node A: TestTree#00000\n",
+            " ╎╌child node B: TestTree#00000\n",
+            " ╎ ╎╌child node B1: TestTree#00000\n",
+            " ╎ ╎╌child node B2: TestTree#00000\n",
+            " ╎ └╌child node B3: TestTree#00000\n",
+            " └╌child node C: TestTree#00000\n",
+        ),
+    );
+
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Sparse),
+        Some(DiagnosticsTreeStyle::Transition),
+        concat!(
+            "TestTree#00000\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ ╘═╦══ child node B3 ═══\n",
+            " │   ║ TestTree#00000\n",
+            " │   ╚═══════════\n",
+            " ╘═╦══ child node C ═══\n",
+            "   ║ TestTree#00000\n",
+            "   ╚═══════════\n",
+        ),
+    );
+
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Sparse),
+        Some(DiagnosticsTreeStyle::Error),
+        concat!(
+            "TestTree#00000\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ ╘═╦══╡ CHILD NODE B3: TESTTREE#00000 ╞═══════════════════════════════\n",
+            " │   ╚══════════════════════════════════════════════════════════════════\n",
+            " ╘═╦══╡ CHILD NODE C: TESTTREE#00000 ╞════════════════════════════════\n",
+            "   ╚══════════════════════════════════════════════════════════════════\n",
+        ),
+    );
+
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Transition),
+        None,
+        concat!(
+            "TestTree#00000:\n",
+            "  ╞═╦══ child node A ═══\n",
+            "  │ ║ TestTree#00000\n",
+            "  │ ╚═══════════\n",
+            "  ╞═╦══ child node B ═══\n",
+            "  │ ║ TestTree#00000:\n",
+            "  │ ║   ╞═╦══ child node B1 ═══\n",
+            "  │ ║   │ ║ TestTree#00000\n",
+            "  │ ║   │ ╚═══════════\n",
+            "  │ ║   ╞═╦══ child node B2 ═══\n",
+            "  │ ║   │ ║ TestTree#00000\n",
+            "  │ ║   │ ╚═══════════\n",
+            "  │ ║   ╘═╦══ child node B3 ═══\n",
+            "  │ ║     ║ TestTree#00000\n",
+            "  │ ║     ╚═══════════\n",
+            "  │ ╚═══════════\n",
+            "  ╘═╦══ child node C ═══\n",
+            "    ║ TestTree#00000\n",
+            "    ╚═══════════\n",
+        ),
+    );
+
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Error),
+        None,
+        concat!(
+            "══╡ TESTTREE#00000 ╞═════════════════════════════════════════════\n",
+            "╞═╦══╡ CHILD NODE A: TESTTREE#00000 ╞════════════════════════════════\n",
+            "│ ╚══════════════════════════════════════════════════════════════════\n",
+            "╞═╦══╡ CHILD NODE B: TESTTREE#00000 ╞════════════════════════════════\n",
+            "│ ║ ╞═╦══╡ CHILD NODE B1: TESTTREE#00000 ╞═══════════════════════════════\n",
+            "│ ║ │ ╚══════════════════════════════════════════════════════════════════\n",
+            "│ ║ ╞═╦══╡ CHILD NODE B2: TESTTREE#00000 ╞═══════════════════════════════\n",
+            "│ ║ │ ╚══════════════════════════════════════════════════════════════════\n",
+            "│ ║ ╘═╦══╡ CHILD NODE B3: TESTTREE#00000 ╞═══════════════════════════════\n",
+            "│ ║   ╚══════════════════════════════════════════════════════════════════\n",
+            "│ ╚══════════════════════════════════════════════════════════════════\n",
+            "╘═╦══╡ CHILD NODE C: TESTTREE#00000 ╞════════════════════════════════\n",
+            "  ╚══════════════════════════════════════════════════════════════════\n",
+            "═════════════════════════════════════════════════════════════════\n",
+        ),
+    );
+
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::Whitespace),
+        None,
+        concat!(
+            "TestTree#00000:\n",
+            "  child node A: TestTree#00000\n",
+            "  child node B: TestTree#00000:\n",
+            "    child node B1: TestTree#00000\n",
+            "    child node B2: TestTree#00000\n",
+            "    child node B3: TestTree#00000\n",
+            "  child node C: TestTree#00000\n",
+        ),
+    );
+
+    // Single line mode does not display children.
+    golden_style_test(
+        Some(DiagnosticsTreeStyle::SingleLine),
+        None,
+        "TestTree#00000",
+    );
+}
+
+fn golden_property_style_test(
+    name: Option<String>,
+    style: Option<DiagnosticsTreeStyle>,
+    last_child_style: Option<DiagnosticsTreeStyle>,
+    property_style: DiagnosticsTreeStyle,
+    golden: &str,
+) {
+    let tree = TestTree::new()
+        .maybe_style(last_child_style)
+        .property(
+            StringProperty::new(n("stringProperty1"), Some("value1".into()))
+                .quoted(false)
+                .with_style(property_style),
+        )
+        .property(DoubleProperty::new(n("doubleProperty1"), Some(42.5)).with_style(property_style))
+        .property(
+            DoubleProperty::new(n("roundedProperty"), Some(1.0 / 3.0)).with_style(property_style),
+        )
+        .property(
+            StringProperty::new(n("DO_NOT_SHOW"), Some("DO_NOT_SHOW".into()))
+                .with_level(DiagnosticLevel::Hidden)
+                .quoted(false)
+                .with_style(property_style),
+        )
+        .property(
+            DiagnosticsProperty::<TestObject>::new(n("DO_NOT_SHOW_NULL"), None)
+                .default_value(None)
+                .with_style(property_style),
+        )
+        .property(
+            DiagnosticsProperty::<TestObject>::new(n("nullProperty"), None)
+                .with_style(property_style),
+        )
+        .property(
+            StringProperty::new(n("node_type"), Some("<root node>".into()))
+                .with_show_name(false)
+                .quoted(false)
+                .with_style(property_style),
+        )
+        .child(TestTree::new().name("node A").maybe_style(style))
+        .child(
+            TestTree::new()
+                .name("node B")
+                .maybe_style(style)
+                .property(
+                    StringProperty::new(n("p1"), Some("v1".into()))
+                        .quoted(false)
+                        .with_style(property_style),
+                )
+                .property(
+                    StringProperty::new(n("p2"), Some("v2".into()))
+                        .quoted(false)
+                        .with_style(property_style),
+                )
+                .child(TestTree::new().name("node B1").maybe_style(style))
+                .child(
+                    TestTree::new().name("node B2").maybe_style(style).property(
+                        StringProperty::new(n("property1"), Some("value1".into()))
+                            .quoted(false)
+                            .with_style(property_style),
+                    ),
+                )
+                .child(
+                    TestTree::new()
+                        .name("node B3")
+                        .maybe_style(last_child_style.or(style))
+                        .property(
+                            StringProperty::new(n("node_type"), Some("<leaf node>".into()))
+                                .with_show_name(false)
+                                .quoted(false)
+                                .with_style(property_style),
+                        )
+                        .property(IntProperty::new(n("foo"), Some(42)).with_style(property_style)),
+                ),
+        )
+        .child(
+            TestTree::new()
+                .name("node C")
+                .maybe_style(last_child_style.or(style))
+                .property(
+                    StringProperty::new(n("foo"), Some("multi\nline\nvalue!".into()))
+                        .quoted(false)
+                        .with_style(property_style),
+                ),
+        );
+    let actual = tree.debug_node(name, style).to_string_deep();
+    assert_deep(&actual, golden);
+}
+
+#[test]
+fn tree_diagnostics_mixin_tree_with_properties_test() {
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Sparse),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1: value1\n",
+            " │ doubleProperty1: 42.5\n",
+            " │ roundedProperty: 0.3\n",
+            " │ nullProperty: null\n",
+            " │ <root node>\n",
+            " │\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ │ p1: v1\n",
+            " │ │ p2: v2\n",
+            " │ │\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ │   property1: value1\n",
+            " │ │\n",
+            " │ └─child node B3: TestTree#00000\n",
+            " │     <leaf node>\n",
+            " │     foo: 42\n",
+            " │\n",
+            " └─child node C: TestTree#00000\n",
+            "     foo:\n",
+            "       multi\n",
+            "       line\n",
+            "       value!\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Sparse),
+        None,
+        DiagnosticsTreeStyle::ErrorProperty,
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1:\n",
+            " │   value1\n",
+            " │ doubleProperty1:\n",
+            " │   42.5\n",
+            " │ roundedProperty:\n",
+            " │   0.3\n",
+            " │ nullProperty:\n",
+            " │   null\n",
+            " │ <root node>\n",
+            " │\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ │ p1:\n",
+            " │ │   v1\n",
+            " │ │ p2:\n",
+            " │ │   v2\n",
+            " │ │\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ │   property1:\n",
+            " │ │     value1\n",
+            " │ │\n",
+            " │ └─child node B3: TestTree#00000\n",
+            " │     <leaf node>\n",
+            " │     foo:\n",
+            " │       42\n",
+            " │\n",
+            " └─child node C: TestTree#00000\n",
+            "     foo:\n",
+            "       multi\n",
+            "       line\n",
+            "       value!\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Dense),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000(stringProperty1: value1, doubleProperty1: 42.5, roundedProperty: 0.3, nullProperty: null, <root node>)\n",
+            "├child node A: TestTree#00000\n",
+            "├child node B: TestTree#00000(p1: v1, p2: v2)\n",
+            "│├child node B1: TestTree#00000\n",
+            "│├child node B2: TestTree#00000(property1: value1)\n",
+            "│└child node B3: TestTree#00000(<leaf node>, foo: 42)\n",
+            "└child node C: TestTree#00000(foo: multi\\nline\\nvalue!)\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Offstage),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1: value1\n",
+            " │ doubleProperty1: 42.5\n",
+            " │ roundedProperty: 0.3\n",
+            " │ nullProperty: null\n",
+            " │ <root node>\n",
+            " │\n",
+            " ╎╌child node A: TestTree#00000\n",
+            " ╎╌child node B: TestTree#00000\n",
+            " ╎ │ p1: v1\n",
+            " ╎ │ p2: v2\n",
+            " ╎ │\n",
+            " ╎ ╎╌child node B1: TestTree#00000\n",
+            " ╎ ╎╌child node B2: TestTree#00000\n",
+            " ╎ ╎   property1: value1\n",
+            " ╎ ╎\n",
+            " ╎ └╌child node B3: TestTree#00000\n",
+            " ╎     <leaf node>\n",
+            " ╎     foo: 42\n",
+            " ╎\n",
+            " └╌child node C: TestTree#00000\n",
+            "     foo:\n",
+            "       multi\n",
+            "       line\n",
+            "       value!\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Sparse),
+        Some(DiagnosticsTreeStyle::Transition),
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1: value1\n",
+            " │ doubleProperty1: 42.5\n",
+            " │ roundedProperty: 0.3\n",
+            " │ nullProperty: null\n",
+            " │ <root node>\n",
+            " │\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ │ p1: v1\n",
+            " │ │ p2: v2\n",
+            " │ │\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ │   property1: value1\n",
+            " │ │\n",
+            " │ ╘═╦══ child node B3 ═══\n",
+            " │   ║ TestTree#00000:\n",
+            " │   ║   <leaf node>\n",
+            " │   ║   foo: 42\n",
+            " │   ╚═══════════\n",
+            " ╘═╦══ child node C ═══\n",
+            "   ║ TestTree#00000:\n",
+            "   ║   foo:\n",
+            "   ║     multi\n",
+            "   ║     line\n",
+            "   ║     value!\n",
+            "   ╚═══════════\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Sparse),
+        Some(DiagnosticsTreeStyle::Error),
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1: value1\n",
+            " │ doubleProperty1: 42.5\n",
+            " │ roundedProperty: 0.3\n",
+            " │ nullProperty: null\n",
+            " │ <root node>\n",
+            " │\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ │ p1: v1\n",
+            " │ │ p2: v2\n",
+            " │ │\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ │   property1: value1\n",
+            " │ │\n",
+            " │ ╘═╦══╡ CHILD NODE B3: TESTTREE#00000 ╞═══════════════════════════════\n",
+            " │   ║ <leaf node>\n",
+            " │   ║ foo: 42\n",
+            " │   ╚══════════════════════════════════════════════════════════════════\n",
+            " ╘═╦══╡ CHILD NODE C: TESTTREE#00000 ╞════════════════════════════════\n",
+            "   ║ foo:\n",
+            "   ║   multi\n",
+            "   ║   line\n",
+            "   ║   value!\n",
+            "   ╚══════════════════════════════════════════════════════════════════\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Transition),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000:\n",
+            "  stringProperty1: value1\n",
+            "  doubleProperty1: 42.5\n",
+            "  roundedProperty: 0.3\n",
+            "  nullProperty: null\n",
+            "  <root node>\n",
+            "  ╞═╦══ child node A ═══\n",
+            "  │ ║ TestTree#00000\n",
+            "  │ ╚═══════════\n",
+            "  ╞═╦══ child node B ═══\n",
+            "  │ ║ TestTree#00000:\n",
+            "  │ ║   p1: v1\n",
+            "  │ ║   p2: v2\n",
+            "  │ ║   ╞═╦══ child node B1 ═══\n",
+            "  │ ║   │ ║ TestTree#00000\n",
+            "  │ ║   │ ╚═══════════\n",
+            "  │ ║   ╞═╦══ child node B2 ═══\n",
+            "  │ ║   │ ║ TestTree#00000:\n",
+            "  │ ║   │ ║   property1: value1\n",
+            "  │ ║   │ ╚═══════════\n",
+            "  │ ║   ╘═╦══ child node B3 ═══\n",
+            "  │ ║     ║ TestTree#00000:\n",
+            "  │ ║     ║   <leaf node>\n",
+            "  │ ║     ║   foo: 42\n",
+            "  │ ║     ╚═══════════\n",
+            "  │ ╚═══════════\n",
+            "  ╘═╦══ child node C ═══\n",
+            "    ║ TestTree#00000:\n",
+            "    ║   foo:\n",
+            "    ║     multi\n",
+            "    ║     line\n",
+            "    ║     value!\n",
+            "    ╚═══════════\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Whitespace),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000:\n",
+            "  stringProperty1: value1\n",
+            "  doubleProperty1: 42.5\n",
+            "  roundedProperty: 0.3\n",
+            "  nullProperty: null\n",
+            "  <root node>\n",
+            "  child node A: TestTree#00000\n",
+            "  child node B: TestTree#00000:\n",
+            "    p1: v1\n",
+            "    p2: v2\n",
+            "    child node B1: TestTree#00000\n",
+            "    child node B2: TestTree#00000:\n",
+            "      property1: value1\n",
+            "    child node B3: TestTree#00000:\n",
+            "      <leaf node>\n",
+            "      foo: 42\n",
+            "  child node C: TestTree#00000:\n",
+            "    foo:\n",
+            "      multi\n",
+            "      line\n",
+            "      value!\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Flat),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000:\n",
+            "stringProperty1: value1\n",
+            "doubleProperty1: 42.5\n",
+            "roundedProperty: 0.3\n",
+            "nullProperty: null\n",
+            "<root node>\n",
+            "child node A: TestTree#00000\n",
+            "child node B: TestTree#00000:\n",
+            "p1: v1\n",
+            "p2: v2\n",
+            "child node B1: TestTree#00000\n",
+            "child node B2: TestTree#00000:\n",
+            "property1: value1\n",
+            "child node B3: TestTree#00000:\n",
+            "<leaf node>\n",
+            "foo: 42\n",
+            "child node C: TestTree#00000:\n",
+            "foo:\n",
+            "  multi\n",
+            "  line\n",
+            "  value!\n",
+        ),
+    );
+
+    // Single line mode does not display children.
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::SingleLine),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        "TestTree#00000(stringProperty1: value1, doubleProperty1: 42.5, roundedProperty: 0.3, nullProperty: null, <root node>)",
+    );
+
+    golden_property_style_test(
+        n("some name"),
+        Some(DiagnosticsTreeStyle::SingleLine),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        "some name: TestTree#00000(stringProperty1: value1, doubleProperty1: 42.5, roundedProperty: 0.3, nullProperty: null, <root node>)",
+    );
+
+    // No name so we don't indent.
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::ErrorProperty),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        "TestTree#00000(stringProperty1: value1, doubleProperty1: 42.5, roundedProperty: 0.3, nullProperty: null, <root node>)\n",
+    );
+
+    golden_property_style_test(
+        n("some name"),
+        Some(DiagnosticsTreeStyle::ErrorProperty),
+        None,
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "some name:\n",
+            "  TestTree#00000(stringProperty1: value1, doubleProperty1: 42.5, roundedProperty: 0.3, nullProperty: null, <root node>)\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Sparse),
+        Some(DiagnosticsTreeStyle::SingleLine),
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1: value1\n",
+            " │ doubleProperty1: 42.5\n",
+            " │ roundedProperty: 0.3\n",
+            " │ nullProperty: null\n",
+            " │ <root node>\n",
+            " │\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ │ p1: v1\n",
+            " │ │ p2: v2\n",
+            " │ │\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ │   property1: value1\n",
+            " │ │\n",
+            " │ └─child node B3: TestTree#00000(<leaf node>, foo: 42)\n",
+            " └─child node C: TestTree#00000(foo: multi\\nline\\nvalue!)\n",
+        ),
+    );
+
+    golden_property_style_test(
+        None,
+        Some(DiagnosticsTreeStyle::Sparse),
+        Some(DiagnosticsTreeStyle::ErrorProperty),
+        DiagnosticsTreeStyle::SingleLine,
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1: value1\n",
+            " │ doubleProperty1: 42.5\n",
+            " │ roundedProperty: 0.3\n",
+            " │ nullProperty: null\n",
+            " │ <root node>\n",
+            " │\n",
+            " ├─child node A: TestTree#00000\n",
+            " ├─child node B: TestTree#00000\n",
+            " │ │ p1: v1\n",
+            " │ │ p2: v2\n",
+            " │ │\n",
+            " │ ├─child node B1: TestTree#00000\n",
+            " │ ├─child node B2: TestTree#00000\n",
+            " │ │   property1: value1\n",
+            " │ │\n",
+            " │ └─child node B3:\n",
+            " │     TestTree#00000(<leaf node>, foo: 42)\n",
+            " └─child node C:\n",
+            "     TestTree#00000(foo: multi\\nline\\nvalue!)\n",
+        ),
+    );
+}
+
+#[test]
+fn to_string_test() {
+    let tree = TestTree::new()
+        .property(StringProperty::new(n("stringProperty1"), Some("value1".into())).quoted(false))
+        .property(DoubleProperty::new(n("doubleProperty1"), Some(42.5)))
+        .property(DoubleProperty::new(n("roundedProperty"), Some(1.0 / 3.0)))
+        .property(
+            StringProperty::new(n("DO_NOT_SHOW"), Some("DO_NOT_SHOW".into()))
+                .with_level(DiagnosticLevel::Hidden)
+                .quoted(false),
+        )
+        .property(
+            StringProperty::new(n("DEBUG_ONLY"), Some("DEBUG_ONLY".into()))
+                .with_level(DiagnosticLevel::Debug)
+                .quoted(false),
+        )
+        // child to verify that children are not included in the toString.
+        .child(TestTree::new().name("node A"));
+
+    assert_deep(
+        &tree.to_string(),
+        "TestTree#00000(stringProperty1: value1, doubleProperty1: 42.5, roundedProperty: 0.3)",
+    );
+    assert_deep(
+        &tree.to_string_at(DiagnosticLevel::Debug),
+        "TestTree#00000(stringProperty1: value1, doubleProperty1: 42.5, roundedProperty: 0.3, DEBUG_ONLY: DEBUG_ONLY)",
+    );
+}
+
+#[test]
+fn transition_test() {
+    let tree = TestTree::new()
+        .style(DiagnosticsTreeStyle::Sparse)
+        .property(StringProperty::new(
+            n("stringProperty1"),
+            Some("value1".into()),
+        ))
+        .child(
+            TestTree::new()
+                .style(DiagnosticsTreeStyle::Transition)
+                .name("node transition")
+                .property(StringProperty::new(n("p1"), Some("v1".into())))
+                .property_rc(node(
+                    TestTree::new()
+                        .property(DiagnosticsProperty::<bool>::new(n("survived"), Some(true)))
+                        .debug_node(n("tree property"), Some(DiagnosticsTreeStyle::Whitespace)),
+                ))
+                .child(
+                    TestTree::new()
+                        .name("dense child")
+                        .style(DiagnosticsTreeStyle::Dense),
+                )
+                .child(
+                    TestTree::new()
+                        .name("dense")
+                        .style(DiagnosticsTreeStyle::Dense)
+                        .property(StringProperty::new(n("property1"), Some("value1".into()))),
+                )
+                .child(
+                    TestTree::new()
+                        .name("node B3")
+                        .style(DiagnosticsTreeStyle::Dense)
+                        .property(
+                            StringProperty::new(n("node_type"), Some("<leaf node>".into()))
+                                .with_show_name(false)
+                                .quoted(false),
+                        )
+                        .property(IntProperty::new(n("foo"), Some(42))),
+                ),
+        )
+        .child(
+            TestTree::new()
+                .name("node C")
+                .style(DiagnosticsTreeStyle::Sparse)
+                .property(
+                    StringProperty::new(n("foo"), Some("multi\nline\nvalue!".into())).quoted(false),
+                ),
+        );
+
+    assert_deep(
+        &tree.to_string_deep(),
+        concat!(
+            "TestTree#00000\n",
+            " │ stringProperty1: \"value1\"\n",
+            " ╞═╦══ child node transition ═══\n",
+            " │ ║ TestTree#00000:\n",
+            " │ ║   p1: \"v1\"\n",
+            " │ ║   tree property: TestTree#00000:\n",
+            " │ ║     survived: true\n",
+            " │ ║   ├child dense child: TestTree#00000\n",
+            " │ ║   ├child dense: TestTree#00000(property1: \"value1\")\n",
+            " │ ║   └child node B3: TestTree#00000(<leaf node>, foo: 42)\n",
+            " │ ╚═══════════\n",
+            " └─child node C: TestTree#00000\n",
+            "     foo:\n",
+            "       multi\n",
+            "       line\n",
+            "       value!\n",
+        ),
+    );
+}
+
+#[test]
+fn describe_enum_test() {
+    assert_eq!(describe_enum(&ExampleEnum::Hello), "hello");
+    assert_eq!(describe_enum(&ExampleEnum::World), "world");
+    assert_eq!(describe_enum(&ExampleEnum::DeferToChild), "deferToChild");
+
+    struct NotEnum;
+
+    impl fmt::Debug for NotEnum {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("Hello World")
+        }
+    }
+
+    assert_eq!(describe_enum(&NotEnum), "hello World");
+}
+
+#[test]
+fn string_property_test() {
+    assert_eq!(
+        StringProperty::new(n("name"), Some("value".into()))
+            .quoted(false)
+            .to_string(),
+        "name: value"
+    );
+
+    let string_property = StringProperty::new(n("name"), Some("value".into()))
+        .description("VALUE")
+        .if_empty("<hidden>")
+        .quoted(false);
+    assert_eq!(string_property.to_string(), "name: VALUE");
+
+    assert_eq!(
+        StringProperty::new(n("name"), Some("value".into()))
+            .with_show_name(false)
+            .if_empty("<hidden>")
+            .quoted(false)
+            .to_string(),
+        "value"
+    );
+
+    assert_eq!(
+        StringProperty::new(n("name"), Some(String::new()))
+            .if_empty("<hidden>")
+            .to_string(),
+        "name: <hidden>"
+    );
+
+    assert_eq!(
+        StringProperty::new(n("name"), Some(String::new()))
+            .if_empty("<hidden>")
+            .with_show_name(false)
+            .to_string(),
+        "<hidden>"
+    );
+
+    assert!(!StringProperty::new(n("name"), None).is_filtered(DiagnosticLevel::Info));
+    assert!(
+        StringProperty::new(n("name"), Some("value".into()))
+            .with_level(DiagnosticLevel::Hidden)
+            .is_filtered(DiagnosticLevel::Info)
+    );
+    assert!(
+        StringProperty::new(n("name"), None)
+            .default_value(None)
+            .is_filtered(DiagnosticLevel::Info)
+    );
+    let quoted = StringProperty::new(n("name"), Some("value".into()));
+    assert_eq!(quoted.to_string(), "name: \"value\"");
+    assert_eq!(
+        StringProperty::new(n("name"), Some("value".into()))
+            .with_show_name(false)
+            .to_string(),
+        "\"value\""
+    );
+    assert_eq!(
+        StringProperty::new(n("name"), None)
+            .with_show_name(false)
+            .to_string(),
+        "null"
+    );
+}
+
+#[test]
+fn bool_property_test() {
+    let true_property = DiagnosticsProperty::<bool>::new(n("name"), Some(true));
+    let false_property = DiagnosticsProperty::<bool>::new(n("name"), Some(false));
+    assert_eq!(true_property.to_string(), "name: true");
+    assert!(!true_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(true_property.value(), Some(&true));
+    assert_eq!(false_property.to_string(), "name: false");
+    assert_eq!(false_property.value(), Some(&false));
+    assert!(!false_property.is_filtered(DiagnosticLevel::Info));
+    let truthy_property =
+        DiagnosticsProperty::<bool>::new(n("name"), Some(true)).description("truthy");
+    assert_eq!(truthy_property.to_string(), "name: truthy");
+    assert_eq!(
+        DiagnosticsProperty::<bool>::new(n("name"), Some(true))
+            .with_show_name(false)
+            .to_string(),
+        "true"
+    );
+
+    assert!(!DiagnosticsProperty::<bool>::new(n("name"), None).is_filtered(DiagnosticLevel::Info));
+    assert!(
+        DiagnosticsProperty::<bool>::new(n("name"), Some(true))
+            .with_level(DiagnosticLevel::Hidden)
+            .is_filtered(DiagnosticLevel::Info)
+    );
+    assert!(
+        DiagnosticsProperty::<bool>::new(n("name"), None)
+            .default_value(None)
+            .is_filtered(DiagnosticLevel::Info)
+    );
+    let missing_bool = DiagnosticsProperty::<bool>::new(n("name"), None).if_null("missing");
+    assert_eq!(missing_bool.to_string(), "name: missing");
+}
+
+#[test]
+fn flag_property_test() {
+    let true_flag = FlagProperty::new(n("myFlag"), Some(true)).if_true("myFlag");
+    let false_flag = FlagProperty::new(n("myFlag"), Some(false)).if_true("myFlag");
+    assert_eq!(true_flag.to_string(), "myFlag");
+    assert_eq!(true_flag.value(), Some(&true));
+    assert_eq!(false_flag.value(), Some(&false));
+    assert!(!true_flag.is_filtered(DiagnosticLevel::Fine));
+    assert!(false_flag.is_filtered(DiagnosticLevel::Fine));
+}
+
+#[test]
+fn property_with_tooltip_test() {
+    let with_tooltip =
+        DiagnosticsProperty::<String>::new(n("name"), Some("value".into())).tooltip("tooltip");
+    assert_eq!(with_tooltip.to_string(), "name: value (tooltip)");
+    assert_eq!(with_tooltip.value(), Some(&"value".to_string()));
+    assert!(!with_tooltip.is_filtered(DiagnosticLevel::Fine));
+}
+
+#[test]
+fn double_property_test() {
+    let double_property = DoubleProperty::new(n("name"), Some(42.0));
+    assert_eq!(double_property.to_string(), "name: 42.0");
+    assert!(!double_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(double_property.value(), Some(&42.0));
+
+    assert_eq!(
+        DoubleProperty::new(n("name"), Some(1.3333)).to_string(),
+        "name: 1.3"
+    );
+    assert_eq!(
+        DoubleProperty::new(n("name"), None).to_string(),
+        "name: null"
+    );
+    assert!(!DoubleProperty::new(n("name"), None).is_filtered(DiagnosticLevel::Info));
+    assert_eq!(
+        DoubleProperty::new(n("name"), None)
+            .if_null("missing")
+            .to_string(),
+        "name: missing"
+    );
+
+    let double_with_unit = DoubleProperty::new(n("name"), Some(42.0)).unit("px");
+    assert_eq!(double_with_unit.to_string(), "name: 42.0px");
+}
+
+#[test]
+fn double_infinity_serialization_test() {
+    let inf_property_1 = DoubleProperty::new(n("double1"), Some(f64::INFINITY));
+    assert_eq!(inf_property_1.to_string(), "double1: Infinity");
+
+    let inf_property_2 = DoubleProperty::new(n("double2"), Some(f64::NEG_INFINITY));
+    assert_eq!(inf_property_2.to_string(), "double2: -Infinity");
+}
+
+#[test]
+fn unsafe_double_property_test() {
+    let safe = DoubleProperty::lazy(n("name"), Rc::new(|| Some(42.0)));
+    assert_eq!(safe.to_string(), "name: 42.0");
+    assert!(!safe.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(safe.value(), Some(&42.0));
+    assert_eq!(
+        DoubleProperty::lazy(n("name"), Rc::new(|| Some(1.3333))).to_string(),
+        "name: 1.3"
+    );
+
+    assert_eq!(
+        DoubleProperty::lazy(n("name"), Rc::new(|| None)).to_string(),
+        "name: null"
+    );
+    assert!(!DoubleProperty::lazy(n("name"), Rc::new(|| None)).is_filtered(DiagnosticLevel::Info));
+
+    let throwing_property = DoubleProperty::lazy(
+        n("name"),
+        Rc::new(|| {
+            panic_any(DiagnosticsException::new(
+                "FlutterError",
+                "Invalid constraints",
+            ))
+        }),
+    );
+    assert_eq!(throwing_property.value(), None);
+    assert!(!throwing_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(
+        throwing_property.to_string(),
+        "name: EXCEPTION (FlutterError)"
+    );
+    assert_eq!(throwing_property.level(), DiagnosticLevel::Error);
+}
+
+#[test]
+fn percent_property_test() {
+    assert_eq!(
+        PercentProperty::new(n("name"), Some(0.4)).to_string(),
+        "name: 40.0%"
+    );
+
+    let complex_percent_property = PercentProperty::new(n("name"), Some(0.99))
+        .unit("invisible")
+        .tooltip("almost transparent");
+    assert_eq!(
+        complex_percent_property.to_string(),
+        "name: 99.0% invisible (almost transparent)"
+    );
+
+    assert_eq!(
+        PercentProperty::new(n("name"), None)
+            .unit("invisible")
+            .tooltip("!")
+            .to_string(),
+        "name: null (!)"
+    );
+
+    assert_eq!(
+        PercentProperty::new(n("name"), Some(0.4)).value(),
+        Some(&0.4)
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), Some(0.0)).to_string(),
+        "name: 0.0%"
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), Some(-10.0)).to_string(),
+        "name: 0.0%"
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), Some(1.0)).to_string(),
+        "name: 100.0%"
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), Some(3.0)).to_string(),
+        "name: 100.0%"
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), None).to_string(),
+        "name: null"
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), None)
+            .if_null("missing")
+            .to_string(),
+        "name: missing"
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), None)
+            .if_null("missing")
+            .with_show_name(false)
+            .to_string(),
+        "missing"
+    );
+    assert_eq!(
+        PercentProperty::new(n("name"), Some(0.5))
+            .with_show_name(false)
+            .to_string(),
+        "50.0%"
+    );
+}
+
+#[test]
+fn callback_property_test() {
+    let present = ObjectFlagProperty::<TestClosure>::new(n("onClick"), Some(TestClosure))
+        .if_present("clickable");
+    let missing =
+        ObjectFlagProperty::<TestClosure>::new(n("onClick"), None).if_present("clickable");
+
+    assert_eq!(present.to_string(), "clickable");
+    assert!(!present.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(present.value(), Some(&TestClosure));
+    assert_eq!(missing.to_string(), "onClick: null");
+    assert!(missing.is_filtered(DiagnosticLevel::Fine));
+}
+
+#[test]
+fn missing_callback_property_test() {
+    let present =
+        ObjectFlagProperty::<TestClosure>::new(n("onClick"), Some(TestClosure)).if_null("disabled");
+    let missing = ObjectFlagProperty::<TestClosure>::new(n("onClick"), None).if_null("disabled");
+
+    assert_eq!(present.to_string(), "onClick: Closure: () => void");
+    assert!(present.is_filtered(DiagnosticLevel::Fine));
+    assert_eq!(present.value(), Some(&TestClosure));
+    assert_eq!(missing.to_string(), "disabled");
+    assert!(!missing.is_filtered(DiagnosticLevel::Info));
+}
+
+#[test]
+fn describe_bool_property() {
+    let yes = FlagProperty::new(n("name"), Some(true))
+        .if_true("YES")
+        .if_false("NO")
+        .with_show_name(true);
+    let no = FlagProperty::new(n("name"), Some(false))
+        .if_true("YES")
+        .if_false("NO")
+        .with_show_name(true);
+    assert_eq!(yes.to_string(), "name: YES");
+    assert_eq!(yes.level(), DiagnosticLevel::Info);
+    assert_eq!(yes.value(), Some(&true));
+    assert_eq!(no.to_string(), "name: NO");
+    assert_eq!(no.level(), DiagnosticLevel::Info);
+    assert_eq!(no.value(), Some(&false));
+
+    assert_eq!(
+        FlagProperty::new(n("name"), Some(true))
+            .if_true("YES")
+            .if_false("NO")
+            .to_string(),
+        "YES"
+    );
+    assert_eq!(
+        FlagProperty::new(n("name"), Some(false))
+            .if_true("YES")
+            .if_false("NO")
+            .to_string(),
+        "NO"
+    );
+    assert_eq!(
+        FlagProperty::new(n("name"), Some(true))
+            .if_true("YES")
+            .if_false("NO")
+            .with_level(DiagnosticLevel::Hidden)
+            .with_show_name(true)
+            .level(),
+        DiagnosticLevel::Hidden
+    );
+}
+
+#[test]
+fn enum_property_test() {
+    let hello = EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::Hello));
+    let world = EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::World));
+    let defer_to_child =
+        EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::DeferToChild));
+    let null_enum = EnumProperty::<ExampleEnum>::new(n("name"), None);
+    assert_eq!(hello.level(), DiagnosticLevel::Info);
+    assert_eq!(hello.value(), Some(&ExampleEnum::Hello));
+    assert_eq!(hello.to_string(), "name: hello");
+
+    assert_eq!(world.level(), DiagnosticLevel::Info);
+    assert_eq!(world.value(), Some(&ExampleEnum::World));
+    assert_eq!(world.to_string(), "name: world");
+
+    assert_eq!(defer_to_child.level(), DiagnosticLevel::Info);
+    assert_eq!(defer_to_child.value(), Some(&ExampleEnum::DeferToChild));
+    assert_eq!(defer_to_child.to_string(), "name: deferToChild");
+
+    assert_eq!(null_enum.level(), DiagnosticLevel::Info);
+    assert_eq!(null_enum.value(), None);
+    assert_eq!(null_enum.to_string(), "name: null");
+
+    let matches_default = EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::Hello))
+        .default_value(Some(ExampleEnum::Hello));
+    assert_eq!(matches_default.to_string(), "name: hello");
+    assert_eq!(matches_default.value(), Some(&ExampleEnum::Hello));
+    assert!(matches_default.is_filtered(DiagnosticLevel::Info));
+
+    assert_eq!(
+        EnumProperty::<ExampleEnum>::new(n("name"), Some(ExampleEnum::Hello))
+            .with_level(DiagnosticLevel::Hidden)
+            .level(),
+        DiagnosticLevel::Hidden
+    );
+}
+
+#[test]
+fn int_property_test() {
+    let regular = IntProperty::new(n("name"), Some(42));
+    assert_eq!(regular.to_string(), "name: 42");
+    assert_eq!(regular.value(), Some(&42));
+    assert_eq!(regular.level(), DiagnosticLevel::Info);
+
+    let null_value = IntProperty::<i32>::new(n("name"), None);
+    assert_eq!(null_value.to_string(), "name: null");
+    assert_eq!(null_value.value(), None);
+    assert_eq!(null_value.level(), DiagnosticLevel::Info);
+
+    let hide_null = IntProperty::<i32>::new(n("name"), None).default_value(None);
+    assert_eq!(hide_null.to_string(), "name: null");
+    assert_eq!(hide_null.value(), None);
+    assert!(hide_null.is_filtered(DiagnosticLevel::Info));
+
+    let null_description = IntProperty::<i32>::new(n("name"), None).if_null("missing");
+    assert_eq!(null_description.to_string(), "name: missing");
+    assert_eq!(null_description.value(), None);
+    assert_eq!(null_description.level(), DiagnosticLevel::Info);
+
+    let hide_name = IntProperty::new(n("name"), Some(42)).with_show_name(false);
+    assert_eq!(hide_name.to_string(), "42");
+    assert_eq!(hide_name.value(), Some(&42));
+    assert_eq!(hide_name.level(), DiagnosticLevel::Info);
+
+    let with_unit = IntProperty::new(n("name"), Some(42)).unit("pt");
+    assert_eq!(with_unit.to_string(), "name: 42pt");
+    assert_eq!(with_unit.value(), Some(&42));
+    assert_eq!(with_unit.level(), DiagnosticLevel::Info);
+
+    let default_value = IntProperty::new(n("name"), Some(42)).default_value(Some(42));
+    assert_eq!(default_value.to_string(), "name: 42");
+    assert_eq!(default_value.value(), Some(&42));
+    assert!(default_value.is_filtered(DiagnosticLevel::Info));
+
+    let not_default_value = IntProperty::new(n("name"), Some(43)).default_value(Some(42));
+    assert_eq!(not_default_value.to_string(), "name: 43");
+    assert_eq!(not_default_value.value(), Some(&43));
+    assert_eq!(not_default_value.level(), DiagnosticLevel::Info);
+
+    let hidden = IntProperty::new(n("name"), Some(42)).with_level(DiagnosticLevel::Hidden);
+    assert_eq!(hidden.to_string(), "name: 42");
+    assert_eq!(hidden.value(), Some(&42));
+    assert_eq!(hidden.level(), DiagnosticLevel::Hidden);
+}
+
+#[test]
+fn object_property_test() {
+    let rect = TestRect;
+    let simple = DiagnosticsProperty::<TestRect>::new(n("name"), Some(rect));
+    assert_eq!(simple.value(), Some(&rect));
+    assert_eq!(simple.level(), DiagnosticLevel::Info);
+    assert_eq!(
+        simple.to_string(),
+        "name: Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)"
+    );
+
+    let with_description =
+        DiagnosticsProperty::<TestRect>::new(n("name"), Some(rect)).description("small rect");
+    assert_eq!(with_description.value(), Some(&rect));
+    assert_eq!(with_description.level(), DiagnosticLevel::Info);
+    assert_eq!(with_description.to_string(), "name: small rect");
+
+    let null_property = DiagnosticsProperty::<TestObject>::new(n("name"), None);
+    assert_eq!(null_property.value(), None);
+    assert_eq!(null_property.level(), DiagnosticLevel::Info);
+    assert_eq!(null_property.to_string(), "name: null");
+
+    let hide_null_property =
+        DiagnosticsProperty::<TestObject>::new(n("name"), None).default_value(None);
+    assert_eq!(hide_null_property.value(), None);
+    assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(hide_null_property.to_string(), "name: null");
+
+    let null_description =
+        DiagnosticsProperty::<TestObject>::new(n("name"), None).if_null("missing");
+    assert_eq!(null_description.value(), None);
+    assert_eq!(null_description.level(), DiagnosticLevel::Info);
+    assert_eq!(null_description.to_string(), "name: missing");
+
+    let hide_name = DiagnosticsProperty::<TestRect>::new(n("name"), Some(rect))
+        .with_show_name(false)
+        .with_level(DiagnosticLevel::Warning);
+    assert_eq!(hide_name.value(), Some(&rect));
+    assert_eq!(hide_name.level(), DiagnosticLevel::Warning);
+    assert_eq!(hide_name.to_string(), "Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)");
+
+    let hide_separator =
+        DiagnosticsProperty::<TestRect>::new(n("Creator"), Some(rect)).with_show_separator(false);
+    assert_eq!(hide_separator.value(), Some(&rect));
+    assert_eq!(hide_separator.level(), DiagnosticLevel::Info);
+    assert_eq!(
+        hide_separator.to_string(),
+        "Creator Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)"
+    );
+}
+
+#[test]
+fn lazy_object_property_test() {
+    let rect = TestRect;
+    let simple = DiagnosticsProperty::<TestRect>::lazy(n("name"), Rc::new(move || Some(rect)))
+        .description("small rect");
+    assert_eq!(simple.value(), Some(&rect));
+    assert_eq!(simple.level(), DiagnosticLevel::Info);
+    assert_eq!(simple.to_string(), "name: small rect");
+
+    let null_property =
+        DiagnosticsProperty::<TestObject>::lazy(n("name"), Rc::new(|| None::<TestObject>))
+            .description("missing");
+    assert_eq!(null_property.value(), None);
+    assert!(!null_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(null_property.to_string(), "name: missing");
+
+    let hide_null_property =
+        DiagnosticsProperty::<TestObject>::lazy(n("name"), Rc::new(|| None::<TestObject>))
+            .description("missing")
+            .default_value(None);
+    assert_eq!(hide_null_property.value(), None);
+    assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(hide_null_property.to_string(), "name: missing");
+
+    let hide_name = DiagnosticsProperty::<TestRect>::lazy(n("name"), Rc::new(move || Some(rect)))
+        .description("small rect")
+        .with_show_name(false);
+    assert_eq!(hide_name.value(), Some(&rect));
+    assert!(!hide_name.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(hide_name.to_string(), "small rect");
+
+    let throwing_with_description = DiagnosticsProperty::<TestObject>::lazy(
+        n("name"),
+        Rc::new(|| {
+            panic_any(DiagnosticsException::new(
+                "FlutterError",
+                "Property not available",
+            ))
+        }),
+    )
+    .description("missing")
+    .default_value(None);
+    assert_eq!(throwing_with_description.value(), None);
+    assert_eq!(
+        throwing_with_description
+            .exception()
+            .map(DiagnosticsException::type_name),
+        Some("FlutterError")
+    );
+    assert!(!throwing_with_description.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(throwing_with_description.to_string(), "name: missing");
+
+    let throwing_property = DiagnosticsProperty::<TestObject>::lazy(
+        n("name"),
+        Rc::new(|| {
+            panic_any(DiagnosticsException::new(
+                "FlutterError",
+                "Property not available",
+            ))
+        }),
+    )
+    .default_value(None);
+    assert_eq!(throwing_property.value(), None);
+    assert_eq!(
+        throwing_property
+            .exception()
+            .map(DiagnosticsException::type_name),
+        Some("FlutterError")
+    );
+    assert!(!throwing_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(
+        throwing_property.to_string(),
+        "name: EXCEPTION (FlutterError)"
+    );
+}
+
+#[test]
+fn color_property_test() {
+    let color = TestColor;
+    let simple = DiagnosticsProperty::<TestColor>::new(n("name"), Some(color));
+    assert!(!simple.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(simple.value(), Some(&color));
+    assert_eq!(simple.to_string(), "name: Color(0xffffffff)");
+}
+
+#[test]
+fn flag_property_was_layout_test() {
+    let show = FlagProperty::new(n("wasLayout"), Some(true)).if_true("layout computed");
+    assert_eq!(show.name(), Some("wasLayout"));
+    assert_eq!(show.value(), Some(&true));
+    assert!(!show.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(show.to_string(), "layout computed");
+
+    let hide = FlagProperty::new(n("wasLayout"), Some(false)).if_true("layout computed");
+    assert_eq!(hide.name(), Some("wasLayout"));
+    assert_eq!(hide.value(), Some(&false));
+    assert_eq!(hide.level(), DiagnosticLevel::Hidden);
+    assert_eq!(hide.to_string(), "wasLayout: false");
+
+    let hide_true = FlagProperty::new(n("wasLayout"), Some(true)).if_false("no layout computed");
+    assert_eq!(hide_true.name(), Some("wasLayout"));
+    assert_eq!(hide_true.value(), Some(&true));
+    assert_eq!(hide_true.level(), DiagnosticLevel::Hidden);
+    assert_eq!(hide_true.to_string(), "wasLayout: true");
+}
+
+#[test]
+fn has_property_test() {
+    let has = ObjectFlagProperty::<TestClosure>::has("onClick", Some(TestClosure));
+    assert_eq!(has.name(), Some("onClick"));
+    assert_eq!(has.value(), Some(&TestClosure));
+    assert!(!has.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(has.to_string(), "has onClick");
+
+    let missing = ObjectFlagProperty::<TestClosure>::has("onClick", None);
+    assert_eq!(missing.name(), Some("onClick"));
+    assert_eq!(missing.value(), None);
+    assert!(missing.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(missing.to_string(), "onClick: null");
+}
+
+#[test]
+fn iterable_flags_property_test() {
+    let mut value = IndexMap::new();
+    value.insert("click".to_string(), Some(TestClosure));
+    value.insert("move".to_string(), Some(TestClosure));
+    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    assert_eq!(flags.name(), Some("listeners"));
+    assert_eq!(flags.value().len(), 2);
+    assert!(!flags.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(flags.to_string(), "listeners: click, move");
+
+    let mut value = IndexMap::new();
+    value.insert("move".to_string(), Some(TestClosure));
+    value.insert("click".to_string(), Some(TestClosure));
+    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    assert_eq!(flags.to_string(), "listeners: move, click");
+    assert!(!flags.is_filtered(DiagnosticLevel::Info));
+
+    let mut value = IndexMap::new();
+    value.insert("move".to_string(), None);
+    value.insert("click".to_string(), Some(TestClosure));
+    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    assert_eq!(flags.to_string(), "listeners: click");
+    assert!(!flags.is_filtered(DiagnosticLevel::Info));
+
+    let mut value = IndexMap::new();
+    value.insert("enter".to_string(), None::<TestClosure>);
+    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value);
+    assert!(flags.is_filtered(DiagnosticLevel::Info));
+
+    let mut value = IndexMap::new();
+    value.insert("enter".to_string(), None::<TestClosure>);
+    let flags = FlagsSummary::<TestClosure>::new(n("listeners"), value).if_empty("<none>");
+    assert_eq!(flags.to_string(), "listeners: <none>");
+    assert!(!flags.is_filtered(DiagnosticLevel::Info));
+}
+
+#[test]
+fn iterable_property_test() {
+    let ints = vec![1, 2, 3];
+    let ints_property = IterableProperty::<i32>::new(n("ints"), Some(ints.clone()));
+    assert_eq!(ints_property.value(), Some(&ints));
+    assert!(!ints_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(ints_property.to_string(), "ints: 1, 2, 3");
+
+    let doubles = vec![1.0, 2.0, 3.0];
+    let doubles_property = IterableProperty::<f64>::new(n("doubles"), Some(doubles.clone()));
+    assert_eq!(doubles_property.value(), Some(&doubles));
+    assert!(!doubles_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(doubles_property.to_string(), "doubles: 1.0, 2.0, 3.0");
+
+    let empty_property = IterableProperty::<TestObject>::new(n("name"), Some(Vec::new()));
+    assert_eq!(empty_property.value().map(Vec::len), Some(0));
+    assert!(!empty_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(empty_property.to_string(), "name: []");
+
+    let null_property = IterableProperty::<TestObject>::new(n("list"), None);
+    assert_eq!(null_property.value(), None);
+    assert!(!null_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(null_property.to_string(), "list: null");
+
+    let hide_null_property =
+        IterableProperty::<TestObject>::new(n("list"), None).default_value(None);
+    assert_eq!(hide_null_property.value(), None);
+    assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(hide_null_property.level(), DiagnosticLevel::Fine);
+    assert_eq!(hide_null_property.to_string(), "list: null");
+
+    let objects = vec![TestObject::Rect, TestObject::Color];
+    let objects_property = IterableProperty::<TestObject>::new(n("objects"), Some(objects.clone()));
+    assert_eq!(objects_property.value(), Some(&objects));
+    assert!(!objects_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(
+        objects_property.to_string(),
+        "objects: Rect.fromLTRB(0.0, 0.0, 20.0, 20.0), Color(0xffffffff)"
+    );
+
+    let multi_line_property =
+        IterableProperty::<TestObject>::new(n("objects"), Some(objects.clone()))
+            .with_style(DiagnosticsTreeStyle::Whitespace);
+    assert_eq!(multi_line_property.value(), Some(&objects));
+    assert!(!multi_line_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(
+        multi_line_property.to_string(),
+        concat!(
+            "objects:\n",
+            "Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)\n",
+            "Color(0xffffffff)",
+        )
+    );
+    assert_eq!(
+        multi_line_property.to_string_deep_with("", None, None, DiagnosticLevel::Debug, 100),
+        concat!(
+            "objects:\n",
+            "  Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)\n",
+            "  Color(0xffffffff)\n",
+        )
+    );
+
+    assert_deep(
+        &TestTree::new()
+            .property(
+                IterableProperty::<TestObject>::new(n("objects"), Some(objects.clone()))
+                    .with_style(DiagnosticsTreeStyle::Whitespace),
+            )
+            .to_string_deep_with("", None, DiagnosticLevel::Debug, 100),
+        concat!(
+            "TestTree#00000\n",
+            "   objects:\n",
+            "     Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)\n",
+            "     Color(0xffffffff)\n",
+        ),
+    );
+
+    assert_deep(
+        &TestTree::new()
+            .property_rc(node(objects_property))
+            .property(IntProperty::new(n("foo"), Some(42)))
+            .style(DiagnosticsTreeStyle::SingleLine)
+            .to_string_deep(),
+        "TestTree#00000(objects: [Rect.fromLTRB(0.0, 0.0, 20.0, 20.0), Color(0xffffffff)], foo: 42)",
+    );
+
+    // Iterable with a single entry. Verify that rendering is sensible and
+    // that multiline rendering isn't used even though it is not helpful.
+    let single_element_list = vec![TestObject::Color];
+
+    let object_property =
+        IterableProperty::<TestObject>::new(n("object"), Some(single_element_list.clone()))
+            .with_style(DiagnosticsTreeStyle::Whitespace);
+    assert_eq!(object_property.value(), Some(&single_element_list));
+    assert!(!object_property.is_filtered(DiagnosticLevel::Info));
+    assert_eq!(object_property.to_string(), "object: Color(0xffffffff)");
+    assert_eq!(
+        object_property.to_string_deep_with("", None, None, DiagnosticLevel::Debug, 100),
+        "object: Color(0xffffffff)\n"
+    );
+    assert_deep(
+        &TestTree::new()
+            .name("root")
+            .property_rc(node(object_property))
+            .to_string_deep_with("", None, DiagnosticLevel::Debug, 120),
+        concat!("TestTree#00000\n", "   object: Color(0xffffffff)\n",),
+    );
+}
+
+#[test]
+fn message_test() {
+    let message = message("hello world");
+    assert_eq!(message.to_string(), "hello world");
+    assert_eq!(message.name(), Some(""));
+    assert_eq!(message.value(), None);
+    assert!(!message.show_name());
+
+    let message_property = MessageProperty::new("diagnostics", "hello world");
+    assert_eq!(message_property.to_string(), "diagnostics: hello world");
+    assert_eq!(message_property.name(), Some("diagnostics"));
+    assert_eq!(message_property.value(), None);
+    assert!(message_property.show_name());
+}
+
+fn create_tree_with_wrapping_nodes(
+    root_style: Option<DiagnosticsTreeStyle>,
+    property_style: DiagnosticsTreeStyle,
+) -> DiagnosticableTreeNode {
+    let long_message = "This is a very long message that must wrap as it cannot fit on one line. \
+         This is a very long message that must wrap as it cannot fit on one line. \
+         This is a very long message that must wrap as it cannot fit on one line.";
+    let long_name = "This property has a very long property name that will be allowed to wrap \
+         unlike most property names. This property has a very long property name that will be \
+         allowed to wrap unlike most property names";
+    let matrix = "[1.0, 0.0, 0.0, 0.0]\n\
+         [1.0, 1.0, 0.0, 0.0]\n\
+         [1.0, 0.0, 1.0, 0.0]\n\
+         [1.0, 0.0, 0.0, 1.0]\n";
+    TestTree::new()
+        .name("Test tree")
+        .property(message("--- example property at max length --").with_style(property_style))
+        .property(message(long_message).with_style(property_style))
+        .property(message("--- example property at max length --").with_style(property_style))
+        .property(
+            DiagnosticsProperty::<String>::new(
+                None,
+                Some(
+                    "Message that is not allowed to wrap even though it is very long. \
+                     Message that is not allowed to wrap even though it is very long. \
+                     Message that is not allowed to wrap even though it is very long. \
+                     Message that is not allowed to wrap."
+                        .to_string(),
+                ),
+            )
+            .with_allow_wrap(false),
+        )
+        .property(message("--- example property at max length --").with_style(property_style))
+        .property(
+            message(concat!(
+                "This property has a very long property name that will be allowed to wrap unlike most property names. This property has a very long property name that will be allowed to wrap unlike most property names:\n",
+                "  http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html",
+            ))
+            .with_style(property_style),
+        )
+        .property(
+            message(concat!(
+                "This property has a very long property name that will be allowed to wrap unlike most property names. This property has a very long property name that will be allowed to wrap unlike most property names:\n",
+                "  https://goo.gl/",
+            ))
+            .with_style(property_style),
+        )
+        .property(
+            message(concat!(
+                "Click on the following url:\n",
+                "  http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html",
+            ))
+            .with_style(property_style),
+        )
+        .property(
+            message(concat!(
+                "Click on the following url\n",
+                "  https://goo.gl/",
+            ))
+            .with_style(property_style),
+        )
+        .property(message("--- example property at max length --").with_style(property_style))
+        .property(
+            DiagnosticsProperty::<String>::new(n("multi-line value"), Some(matrix.to_string()))
+                .with_style(property_style),
+        )
+        .property(message("--- example property at max length --").with_style(property_style))
+        .property(
+            DiagnosticsProperty::<String>::new(
+                Some(long_name.to_string()),
+                Some(long_message.to_string()),
+            )
+            .with_style(property_style),
+        )
+        .property(message("--- example property at max length --").with_style(property_style))
+        .property(
+            DiagnosticsProperty::<String>::new(
+                Some(long_name.to_string()),
+                Some(matrix.to_string()),
+            )
+            .with_style(property_style),
+        )
+        .property(message("--- example property at max length --").with_style(property_style))
+        .property(
+            MessageProperty::new(
+                "diagnosis",
+                "insufficient data to draw conclusion (less than five repaints)",
+            )
+            .with_style(property_style),
+        )
+        .debug_node(None, root_style)
+}
+
+#[test]
+fn error_message_style_wrap_test() {
+    let renderer = TextTreeRenderer::new()
+        .wrap_width(40)
+        .wrap_width_properties(40);
+    assert_deep(
+        &renderer.render(&create_tree_with_wrapping_nodes(
+            Some(DiagnosticsTreeStyle::Error),
+            DiagnosticsTreeStyle::SingleLine,
+        )),
+        concat!(
+            "══╡ TESTTREE#00000 ╞════════════════════\n",
+            "--- example property at max length --\n",
+            "This is a very long message that must\n",
+            "wrap as it cannot fit on one line. This\n",
+            "is a very long message that must wrap as\n",
+            "it cannot fit on one line. This is a\n",
+            "very long message that must wrap as it\n",
+            "cannot fit on one line.\n",
+            "--- example property at max length --\n",
+            "Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap.\n",
+            "--- example property at max length --\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  https://goo.gl/\n",
+            "Click on the following url:\n",
+            "  http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html\n",
+            "Click on the following url\n",
+            "  https://goo.gl/\n",
+            "--- example property at max length --\n",
+            "multi-line value:\n",
+            "  [1.0, 0.0, 0.0, 0.0]\n",
+            "  [1.0, 1.0, 0.0, 0.0]\n",
+            "  [1.0, 0.0, 1.0, 0.0]\n",
+            "  [1.0, 0.0, 0.0, 1.0]\n",
+            "--- example property at max length --\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  This is a very long message that must\n",
+            "  wrap as it cannot fit on one line.\n",
+            "  This is a very long message that must\n",
+            "  wrap as it cannot fit on one line.\n",
+            "  This is a very long message that must\n",
+            "  wrap as it cannot fit on one line.\n",
+            "--- example property at max length --\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  [1.0, 0.0, 0.0, 0.0]\n",
+            "  [1.0, 1.0, 0.0, 0.0]\n",
+            "  [1.0, 0.0, 1.0, 0.0]\n",
+            "  [1.0, 0.0, 0.0, 1.0]\n",
+            "--- example property at max length --\n",
+            "diagnosis: insufficient data to draw\n",
+            "  conclusion (less than five repaints)\n",
+            "════════════════════════════════════════\n",
+        ),
+    );
+
+    // This output looks ugly but verifies that no indentation on word wrap
+    // leaks in if the style is flat.
+    assert_deep(
+        &renderer.render(&create_tree_with_wrapping_nodes(
+            Some(DiagnosticsTreeStyle::Sparse),
+            DiagnosticsTreeStyle::Flat,
+        )),
+        concat!(
+            "TestTree#00000\n",
+            "   --- example property at max length --\n",
+            "   This is a very long message that must\n",
+            "   wrap as it cannot fit on one line. This\n",
+            "   is a very long message that must wrap as\n",
+            "   it cannot fit on one line. This is a\n",
+            "   very long message that must wrap as it\n",
+            "   cannot fit on one line.\n",
+            "   --- example property at max length --\n",
+            "   Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap.\n",
+            "   --- example property at max length --\n",
+            "   This property has a very long property\n",
+            "   name that will be allowed to wrap unlike\n",
+            "   most property names. This property has a\n",
+            "   very long property name that will be\n",
+            "   allowed to wrap unlike most property\n",
+            "   names:\n",
+            "     http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html\n",
+            "   This property has a very long property\n",
+            "   name that will be allowed to wrap unlike\n",
+            "   most property names. This property has a\n",
+            "   very long property name that will be\n",
+            "   allowed to wrap unlike most property\n",
+            "   names:\n",
+            "     https://goo.gl/\n",
+            "   Click on the following url:\n",
+            "     http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html\n",
+            "   Click on the following url\n",
+            "     https://goo.gl/\n",
+            "   --- example property at max length --\n",
+            "   multi-line value:\n",
+            "   [1.0, 0.0, 0.0, 0.0]\n",
+            "   [1.0, 1.0, 0.0, 0.0]\n",
+            "   [1.0, 0.0, 1.0, 0.0]\n",
+            "   [1.0, 0.0, 0.0, 1.0]\n",
+            "   --- example property at max length --\n",
+            "   This property has a very long property\n",
+            "   name that will be allowed to wrap unlike\n",
+            "   most property names. This property has a\n",
+            "   very long property name that will be\n",
+            "   allowed to wrap unlike most property\n",
+            "   names:\n",
+            "   This is a very long message that must\n",
+            "   wrap as it cannot fit on one line. This\n",
+            "   is a very long message that must wrap as\n",
+            "   it cannot fit on one line. This is a\n",
+            "   very long message that must wrap as it\n",
+            "   cannot fit on one line.\n",
+            "   --- example property at max length --\n",
+            "   This property has a very long property\n",
+            "   name that will be allowed to wrap unlike\n",
+            "   most property names. This property has a\n",
+            "   very long property name that will be\n",
+            "   allowed to wrap unlike most property\n",
+            "   names:\n",
+            "   [1.0, 0.0, 0.0, 0.0]\n",
+            "   [1.0, 1.0, 0.0, 0.0]\n",
+            "   [1.0, 0.0, 1.0, 0.0]\n",
+            "   [1.0, 0.0, 0.0, 1.0]\n",
+            "   --- example property at max length --\n",
+            "   diagnosis: insufficient data to draw\n",
+            "   conclusion (less than five repaints)\n",
+        ),
+    );
+
+    // This case matches the styles that should generally be used for error
+    // messages.
+    assert_deep(
+        &renderer.render(&create_tree_with_wrapping_nodes(
+            Some(DiagnosticsTreeStyle::Error),
+            DiagnosticsTreeStyle::ErrorProperty,
+        )),
+        concat!(
+            "══╡ TESTTREE#00000 ╞════════════════════\n",
+            "--- example property at max length --\n",
+            "This is a very long message that must\n",
+            "wrap as it cannot fit on one line. This\n",
+            "is a very long message that must wrap as\n",
+            "it cannot fit on one line. This is a\n",
+            "very long message that must wrap as it\n",
+            "cannot fit on one line.\n",
+            "--- example property at max length --\n",
+            "Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap even though it is very long. Message that is not allowed to wrap.\n",
+            "--- example property at max length --\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  https://goo.gl/\n",
+            "Click on the following url:\n",
+            "  http://someverylongurl.com/that-might-be-tempting-to-wrap-even-though-it-is-a-url-so-should-not-wrap.html\n",
+            "Click on the following url\n",
+            "  https://goo.gl/\n",
+            "--- example property at max length --\n",
+            "multi-line value:\n",
+            "  [1.0, 0.0, 0.0, 0.0]\n",
+            "  [1.0, 1.0, 0.0, 0.0]\n",
+            "  [1.0, 0.0, 1.0, 0.0]\n",
+            "  [1.0, 0.0, 0.0, 1.0]\n",
+            "--- example property at max length --\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  This is a very long message that must\n",
+            "  wrap as it cannot fit on one line.\n",
+            "  This is a very long message that must\n",
+            "  wrap as it cannot fit on one line.\n",
+            "  This is a very long message that must\n",
+            "  wrap as it cannot fit on one line.\n",
+            "--- example property at max length --\n",
+            "This property has a very long property\n",
+            "name that will be allowed to wrap unlike\n",
+            "most property names. This property has a\n",
+            "very long property name that will be\n",
+            "allowed to wrap unlike most property\n",
+            "names:\n",
+            "  [1.0, 0.0, 0.0, 0.0]\n",
+            "  [1.0, 1.0, 0.0, 0.0]\n",
+            "  [1.0, 0.0, 1.0, 0.0]\n",
+            "  [1.0, 0.0, 0.0, 1.0]\n",
+            "--- example property at max length --\n",
+            "diagnosis:\n",
+            "  insufficient data to draw conclusion\n",
+            "  (less than five repaints)\n",
+            "════════════════════════════════════════\n",
+        ),
+    );
+}
+
+#[test]
+fn int_property_arguments_passed_to_super() {
+    let property = IntProperty::new(n("Example"), Some(0))
+        .if_null("is null")
+        .with_show_name(false)
+        .default_value(Some(1))
+        .with_style(DiagnosticsTreeStyle::None)
+        .with_level(DiagnosticLevel::Off);
+    assert_eq!(property.value(), Some(&0));
+    assert_eq!(property.effective_if_null(), Some("is null"));
+    assert!(!property.show_name());
+    assert_eq!(property.default_value, Some(Some(1)));
+    assert_eq!(property.style(), Some(DiagnosticsTreeStyle::None));
+    assert_eq!(property.level(), DiagnosticLevel::Off);
+}
+
+#[test]
+fn arena_object_snapshot_renders_as_a_diagnosticable_tree_node() {
+    let mut builder = DiagnosticPropertiesBuilder::new();
+    builder.add(IntProperty::new(n("depth"), Some(3)));
+    let child = |name: &str| {
+        node(DiagnosticableTreeNode::from_parts(
+            n(name),
+            "RenderPadding#a1f2c",
+            DiagnosticPropertiesBuilder::new(),
+            Vec::new(),
+        ))
+    };
+    let node = DiagnosticableTreeNode::from_parts(
+        None,
+        "RenderPadding#a1f2c",
+        builder,
+        vec![child("child"), child("child 1")],
+    );
+    assert_deep(
+        &node.to_string_deep(),
+        concat!(
+            "RenderPadding#00000\n",
+            " │ depth: 3\n",
+            " │\n",
+            " ├─child: RenderPadding#00000\n",
+            " └─child 1: RenderPadding#00000\n",
+        ),
+    );
+}
+
+#[test]
+fn diagnosticable_tree_string_short_and_shallow_test() {
+    let tree = TestTree::new()
+        .property(StringProperty::new(n("name"), Some("value".into())).quoted(false))
+        .child(TestTree::new().name("child"));
+    assert_deep(&tree.to_string_short(), "TestTree#00000");
+    assert_deep(
+        &tree.to_string_shallow(", ", DiagnosticLevel::Info),
+        "TestTree#00000, name: value",
+    );
+}
+
+#[test]
+fn missing_if_null_derives_the_description() {
+    let missing = DiagnosticsProperty::<i32>::new(n("name"), None).missing_if_null(true);
+    assert_eq!(missing.if_null.as_deref(), Some("MISSING"));
+    assert_eq!(missing.to_string(), "name: MISSING");
+    assert_eq!(missing.level(), DiagnosticLevel::Warning);
+
+    let explicit_wins = DiagnosticsProperty::<i32>::new(n("name"), None)
+        .missing_if_null(true)
+        .if_null("nothing");
+    assert_eq!(explicit_wins.if_null.as_deref(), Some("nothing"));
+
+    let explicit_before = DiagnosticsProperty::<i32>::new(n("name"), None)
+        .if_null("nothing")
+        .missing_if_null(true);
+    assert_eq!(explicit_before.if_null.as_deref(), Some("nothing"));
+
+    let cleared = DiagnosticsProperty::<i32>::new(n("name"), None)
+        .missing_if_null(true)
+        .missing_if_null(false);
+    assert_eq!(cleared.if_null, None);
+}
+
+#[test]
+fn snapshot_node_matches_a_live_tree_node() {
+    let tree = TestTree::new()
+        .style(DiagnosticsTreeStyle::Sparse)
+        .property(IntProperty::new(n("depth"), Some(3)))
+        .child(
+            TestTree::new()
+                .name("child")
+                .style(DiagnosticsTreeStyle::Sparse),
+        );
+
+    let live = tree
+        .to_diagnostics_tree_node(None, Some(DiagnosticsTreeStyle::Sparse))
+        .to_string_deep();
+
+    let mut builder = DiagnosticPropertiesBuilder::new();
+    tree.debug_fill_properties(&mut builder);
+    let snapshot = DiagnosticableTreeNode::from_parts(
+        None,
+        tree.to_string_short(),
+        builder,
+        tree.debug_describe_children(),
+    )
+    .to_string_deep();
+
+    assert_deep(&snapshot, &live);
+}
