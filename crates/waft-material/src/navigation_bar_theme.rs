@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `navigation_bar_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
 use waft_widgets::{
     BuildContext, IconThemeData, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
     WidgetStateProperty, WidgetStatePropertyRef,
@@ -379,11 +379,77 @@ impl InheritedWidget for NavigationBarTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for NavigationBarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties
+            .add(ColorProperty::new("indicatorColor", self.indicator_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new(
+                "indicatorShape",
+                self.indicator_shape.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "labelTextStyle",
+                self.label_text_style
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "iconTheme",
+                self.icon_theme
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<crate::theme_data::DartEnum<NavigationDestinationLabelBehavior>>::new("labelBehavior", self.label_behavior.map(crate::theme_data::DartEnum)).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("labelPadding", self.label_padding)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for NavigationBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use waft_painting::ShapeBorder;
-    use waft_painting::{BorderSide, CircleBorder, EdgeInsets};
-    use waft_widgets::{Icon, IconData, Opacity, WidgetState};
+    use waft_painting::{
+        BorderSide, CircleBorder, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef, TextStyle,
+    };
+    use waft_widgets::{
+        Icon, IconData, IconThemeData, Opacity, WidgetState, WidgetStatePropertyAll,
+    };
 
     use waft_widgets::testing::{WidgetTester, find, test_widgets};
 
@@ -728,5 +794,76 @@ mod tests {
 
         assert!(!theme(NavigationBarThemeData::new().height(1.0)).update_should_notify(&old));
         assert!(theme(NavigationBarThemeData::new().height(2.0)).update_should_notify(&old));
+    }
+    // Flutter's "Default NavigationBarThemeData debugFillProperties".
+    #[test]
+    fn a_navigation_bar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &NavigationBarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // navigation_bar_theme_test.dart 'NavigationBarThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_navigation_bar_theme_describes_every_property() {
+        let theme = NavigationBarThemeData::new()
+            .height(200.0)
+            .background_color(Color::new(0x00000099))
+            .elevation(20.0)
+            .shadow_color(Color::new(0x00000098))
+            .surface_tint_color(Color::new(0x00000097))
+            .indicator_color(Color::new(0x00000096))
+            .indicator_shape(CircleBorder::default())
+            .label_text_style(Rc::new(WidgetStatePropertyAll::new(Some(
+                TextStyle::new().font_size(7.0),
+            ))))
+            .icon_theme(Rc::new(WidgetStatePropertyAll::new(Some(
+                IconThemeData::new().color(Color::new(0x00000097)),
+            ))))
+            .label_behavior(NavigationDestinationLabelBehavior::AlwaysHide)
+            .overlay_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0x00000095,
+            )))))
+            .label_padding(EdgeInsetsGeometry::all(8.0));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                "height: 200.0".to_string(),
+                format!("backgroundColor: {}", Color::new(0x00000099)),
+                "elevation: 20.0".to_string(),
+                format!("shadowColor: {}", Color::new(0x00000098)),
+                format!("surfaceTintColor: {}", Color::new(0x00000097)),
+                format!("indicatorColor: {}", Color::new(0x00000096)),
+                format!(
+                    "indicatorShape: {}",
+                    ShapeBorderRef::from(CircleBorder::default())
+                ),
+                "labelTextStyle: WidgetStatePropertyAll(TextStyle(inherit: true, size: 7.0))"
+                    .to_string(),
+                format!(
+                    "iconTheme: WidgetStatePropertyAll(IconThemeData#00000(color: {}))",
+                    Color::new(0x00000097)
+                ),
+                "labelBehavior: NavigationDestinationLabelBehavior.alwaysHide".to_string(),
+                format!(
+                    "overlayColor: WidgetStatePropertyAll({})",
+                    Color::new(0x00000095)
+                ),
+                "labelPadding: EdgeInsets.all(8.0)".to_string(),
+            ]
+        );
     }
 }

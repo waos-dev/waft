@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `checkbox_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
 use waft_painting::{AnyBorderSide, BorderSide, EdgeInsets, OutlinedBorderRef};
 use waft_services::MouseCursorRef;
 use waft_widgets::{
@@ -445,6 +445,80 @@ impl InheritedWidget for CheckboxTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for CheckboxThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "fillColor",
+                self.fill_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "checkColor",
+                self.check_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("splashRadius", self.splash_radius).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<MaterialTapTargetSize>>::new(
+                "materialTapTargetSize",
+                self.material_tap_target_size
+                    .map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<VisualDensity>::new("visualDensity", self.visual_density)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<OutlinedBorderRef>>::new(
+                "shape",
+                self.shape.clone().map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyBorderSide>>::new(
+                "side",
+                self.side.clone().map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for CheckboxThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
@@ -453,7 +527,7 @@ mod tests {
     use waft_embedder::{Offset, PointerChange, Radius, Size};
     use waft_painting::{BorderRadiusGeometry, RoundedRectangleBorder};
     use waft_services::SystemMouseCursors;
-    use waft_widgets::{FocusHighlightStrategy, SizedBox, WidgetState};
+    use waft_widgets::{FocusHighlightStrategy, SizedBox, WidgetState, WidgetStatePropertyAll};
 
     use waft_rendering::testing::PaintCall;
     use waft_widgets::testing::{TestPointer, WidgetTester, test_widgets};
@@ -1124,5 +1198,67 @@ mod tests {
             )
         };
         tester.pump_widget(root);
+    }
+    // Flutter's "Default CheckboxThemeData debugFillProperties".
+    #[test]
+    fn a_checkbox_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &CheckboxThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // checkbox_theme_test.dart 'CheckboxThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_checkbox_theme_describes_every_property() {
+        let theme = CheckboxThemeData::new()
+            .mouse_cursor(Rc::new(WidgetStatePropertyAll::new(Some(
+                SystemMouseCursors::CLICK.into(),
+            ))))
+            .fill_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff0,
+            )))))
+            .check_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff1,
+            )))))
+            .overlay_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff2,
+            )))))
+            .splash_radius(1.0)
+            .material_tap_target_size(MaterialTapTargetSize::ShrinkWrap)
+            .visual_density(VisualDensity::STANDARD);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                "mouseCursor: WidgetStatePropertyAll(SystemMouseCursor(click))".to_string(),
+                format!(
+                    "fillColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff0)
+                ),
+                format!(
+                    "checkColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff1)
+                ),
+                format!(
+                    "overlayColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff2)
+                ),
+                "splashRadius: 1.0".to_string(),
+                "materialTapTargetSize: MaterialTapTargetSize.shrinkWrap".to_string(),
+                "visualDensity: VisualDensity#00000(h: 0.0, v: 0.0)".to_string(),
+            ]
+        );
     }
 }

@@ -8,20 +8,22 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 use std::time::Duration;
 
-use waft_embedder::{Color, Size, lerp_double};
-use waft_foundation::App;
+use waft_embedder::{Color, SignedDuration, Size, lerp_double};
+use waft_foundation::{App, DiagnosticsProperty, EnumProperty};
 use waft_painting::{
-    AlignmentGeometry, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, TextStyle,
+    AlignmentGeometry, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, ShapeBorderRef, TextStyle,
 };
 use waft_services::MouseCursorRef;
 use waft_widgets::{
-    BuildContext, WidgetRef, WidgetStateBorderSide, WidgetStateProperty, WidgetStatePropertyRef,
-    WidgetStates,
+    BuildContext, IconThemeData, WidgetRef, WidgetStateBorderSide, WidgetStateProperty,
+    WidgetStatePropertyAll, WidgetStatePropertyRef, WidgetStates,
 };
 
 use crate::button_style_button::IconAlignment;
 use crate::ink_well::InteractiveInkFeatureFactoryRef;
-use crate::theme_data::{MaterialTapTargetSize, VisualDensity};
+use crate::theme_data::{
+    DiagnosticsText, IconThemeDiagnostics, MaterialTapTargetSize, VisualDensity,
+};
 
 /// Defines size variants for Material 3 Expressive button components.
 ///
@@ -932,6 +934,343 @@ impl Debug for ButtonStyle {
     }
 }
 
+/// A [`WidgetStateProperty`] value as Dart's `toString` prints it.
+///
+/// `WidgetStatePropertyAll` prints its value; any other property prints its own `Debug`, which
+/// each ported property type writes as Dart's `toString`.
+pub(crate) fn widget_state_property_text<T>(
+    property: &dyn WidgetStateProperty<T>,
+) -> DiagnosticsText
+where
+    T: StatePropertyValue + Debug + 'static,
+{
+    if let Some(all) = property
+        .as_any()
+        .downcast_ref::<WidgetStatePropertyAll<T>>()
+    {
+        return DiagnosticsText(format!(
+            "WidgetStatePropertyAll({})",
+            all.value.state_property_value()
+        ));
+    }
+    let debug = format!("{property:?}");
+    // Dart's private `_WidgetStatePropertyWith<T>` prints as an unnamed instance; Waft's
+    // `WidgetStatePropertyWith` prints its constructor. The port belongs in `waft-widgets`.
+    if debug == "WidgetStateProperty.resolveWith" {
+        return DiagnosticsText(format!(
+            "Instance of '_WidgetStatePropertyWith<{}>'",
+            T::DART_TYPE
+        ));
+    }
+    DiagnosticsText(debug)
+}
+
+/// A [`WidgetStateProperty`]'s value printed as Dart's `toString` prints it. Dart's value type
+/// is `T?`; Waft's is `Option<T>`.
+pub(crate) trait StatePropertyValue {
+    /// The value's Dart `toString`.
+    fn state_property_value(&self) -> String;
+
+    /// The Dart type a `WidgetStateProperty` resolves to, as `_WidgetStatePropertyWith<T>`
+    /// prints it.
+    const DART_TYPE: &'static str;
+}
+
+macro_rules! display_state_value {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl StatePropertyValue for Option<$t> {
+                const DART_TYPE: &'static str = concat!(stringify!($t), "?");
+
+                fn state_property_value(&self) -> String {
+                    match self {
+                        Some(value) => value.to_string(),
+                        None => "null".to_string(),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+display_state_value!(
+    Color,
+    Size,
+    EdgeInsetsGeometry,
+    BorderSide,
+    ShapeBorderRef,
+    TextStyle
+);
+
+impl StatePropertyValue for Option<bool> {
+    const DART_TYPE: &'static str = "bool?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => value.to_string(),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl StatePropertyValue for Option<f64> {
+    const DART_TYPE: &'static str = "double?";
+
+    fn state_property_value(&self) -> String {
+        waft_foundation::debug_format_double(*self)
+    }
+}
+
+impl StatePropertyValue for f64 {
+    const DART_TYPE: &'static str = "double";
+
+    fn state_property_value(&self) -> String {
+        waft_foundation::debug_format_double(Some(*self))
+    }
+}
+
+impl StatePropertyValue for Option<OutlinedBorderRef> {
+    const DART_TYPE: &'static str = "OutlinedBorder?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => format!("{value:?}"),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl StatePropertyValue for Option<MouseCursorRef> {
+    const DART_TYPE: &'static str = "MouseCursor?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => value.debug_description(),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl StatePropertyValue for Option<WidgetRef> {
+    const DART_TYPE: &'static str = "Widget?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(widget) => widget.to_string_short(),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl StatePropertyValue for Option<Rc<waft_widgets::Icon>> {
+    const DART_TYPE: &'static str = "Icon?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(icon) => match &icon.icon {
+                Some(icon_data) => {
+                    format!("Icon(IconData(U+{:05X}))", icon_data.code_point)
+                }
+                None => "Icon".to_string(),
+            },
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl StatePropertyValue for Option<IconThemeData> {
+    const DART_TYPE: &'static str = "IconThemeData?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => IconThemeDiagnostics(value.clone()).to_string(),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl waft_foundation::Diagnosticable for ButtonStyle {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "textStyle",
+                self.text_style.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "backgroundColor",
+                self.background_color
+                    .as_deref()
+                    .map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "foregroundColor",
+                self.foreground_color
+                    .as_deref()
+                    .map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "shadowColor",
+                self.shadow_color.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "surfaceTintColor",
+                self.surface_tint_color
+                    .as_deref()
+                    .map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "elevation",
+                self.elevation.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "padding",
+                self.padding.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "minimumSize",
+                self.minimum_size.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "fixedSize",
+                self.fixed_size.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "maximumSize",
+                self.maximum_size.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "iconColor",
+                self.icon_color.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "iconSize",
+                self.icon_size.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<IconAlignment>::new("iconAlignment", self.icon_alignment)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "side",
+                self.side.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "shape",
+                self.shape.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "mouseCursor",
+                self.mouse_cursor.as_deref().map(widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<VisualDensity>::new("visualDensity", self.visual_density)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<MaterialTapTargetSize>::new("tapTargetSize", self.tap_target_size)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<SignedDuration>::new(
+                "animationDuration",
+                self.animation_duration.map(SignedDuration::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableFeedback", self.enable_feedback)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", self.alignment)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "backgroundBuilder",
+                self.background_builder
+                    .as_ref()
+                    .map(|builder| DiagnosticsText(builder.to_string())),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DiagnosticsText>::new(
+                "foregroundBuilder",
+                self.foreground_builder
+                    .as_ref()
+                    .map(|builder| DiagnosticsText(builder.to_string())),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl fmt::Display for ButtonStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
+impl fmt::Display for ButtonLayerBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Closure: (BuildContext, Set<WidgetState>, Widget?) => Widget")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_painting::{BorderStyle, StadiumBorder};
@@ -1285,6 +1624,136 @@ mod tests {
         assert_eq!(
             description,
             format!("ButtonStyle {{ {} }}", expected.join(", "))
+        );
+    }
+    // button_style_test.dart 'Default ButtonStyle debugFillProperties'.
+    #[test]
+    fn a_new_style_has_no_described_property() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ButtonStyle::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // button_style_test.dart 'ButtonStyle debugFillProperties'.
+    #[test]
+    fn an_assigned_style_lists_every_property_in_dart_order() {
+        let style = ButtonStyle::new()
+            .text_style(Rc::new(WidgetStatePropertyAll::new(Some(
+                TextStyle::new().font_size(10.0),
+            ))))
+            .background_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff1,
+            )))))
+            .foreground_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff2,
+            )))))
+            .overlay_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff3,
+            )))))
+            .shadow_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff4,
+            )))))
+            .surface_tint_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff5,
+            )))))
+            .elevation(Rc::new(WidgetStatePropertyAll::new(Some(1.5))))
+            .padding(Rc::new(WidgetStatePropertyAll::new(Some(
+                EdgeInsetsGeometry::all(1.0),
+            ))))
+            .minimum_size(Rc::new(WidgetStatePropertyAll::new(Some(Size::new(
+                1.0, 2.0,
+            )))))
+            .maximum_size(Rc::new(WidgetStatePropertyAll::new(Some(Size::new(
+                100.0, 200.0,
+            )))))
+            .icon_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff6,
+            )))))
+            .icon_size(Rc::new(WidgetStatePropertyAll::new(Some(48.1))))
+            .side(Rc::new(WidgetStatePropertyAll::new(Some(BorderSide::new(
+                Color::new(0xfffffff6),
+                4.0,
+                BorderStyle::Solid,
+                1.0,
+            )))))
+            .shape(Rc::new(WidgetStatePropertyAll::new(Some(
+                OutlinedBorderRef::new(StadiumBorder::new(BorderSide::NONE)),
+            ))))
+            .mouse_cursor(Rc::new(WidgetStatePropertyAll::new(Some(
+                SystemMouseCursors::FORBIDDEN.into(),
+            ))))
+            .tap_target_size(MaterialTapTargetSize::ShrinkWrap)
+            .animation_duration(Duration::from_secs(1))
+            .enable_feedback(true);
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(&style, properties)
+            }),
+            [
+                format!(
+                    "textStyle: WidgetStatePropertyAll({})",
+                    TextStyle::new().font_size(10.0)
+                ),
+                format!(
+                    "backgroundColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff1)
+                ),
+                format!(
+                    "foregroundColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff2)
+                ),
+                format!(
+                    "overlayColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff3)
+                ),
+                format!(
+                    "shadowColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff4)
+                ),
+                format!(
+                    "surfaceTintColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff5)
+                ),
+                "elevation: WidgetStatePropertyAll(1.5)".to_string(),
+                "padding: WidgetStatePropertyAll(EdgeInsets.all(1.0))".to_string(),
+                "minimumSize: WidgetStatePropertyAll(Size(1.0, 2.0))".to_string(),
+                "maximumSize: WidgetStatePropertyAll(Size(100.0, 200.0))".to_string(),
+                format!(
+                    "iconColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff6)
+                ),
+                "iconSize: WidgetStatePropertyAll(48.1)".to_string(),
+                format!(
+                    "side: WidgetStatePropertyAll(BorderSide(color: {}, width: 4.0, strokeAlign: 1.0))",
+                    Color::new(0xfffffff6)
+                ),
+                "shape: WidgetStatePropertyAll(StadiumBorder(BorderSide(width: 0.0, style: none)))"
+                    .to_string(),
+                "mouseCursor: WidgetStatePropertyAll(SystemMouseCursor(forbidden))".to_string(),
+                "tapTargetSize: shrinkWrap".to_string(),
+                "animationDuration: 0:00:01.000000".to_string(),
+                "enableFeedback: true".to_string(),
+            ]
+        );
+    }
+
+    // Flutter's "Default ButtonStyle debugFillProperties".
+    #[test]
+    fn a_button_style_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ButtonStyle::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
         );
     }
 }

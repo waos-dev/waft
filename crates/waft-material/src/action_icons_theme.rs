@@ -3,7 +3,7 @@
 use std::fmt::{self, Debug};
 use std::rc::Rc;
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetBuilder, WidgetRef,
 };
@@ -248,6 +248,58 @@ impl InheritedWidget for ActionIconTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for ActionIconThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        let closure = || {
+            Some(crate::theme_data::DiagnosticsText(
+                "Closure: (BuildContext) => Widget".to_string(),
+            ))
+        };
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "backButtonIconBuilder",
+                self.back_button_icon_builder
+                    .as_ref()
+                    .and_then(|_| closure()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "closeButtonIconBuilder",
+                self.close_button_icon_builder
+                    .as_ref()
+                    .and_then(|_| closure()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "drawerButtonIconBuilder",
+                self.drawer_button_icon_builder
+                    .as_ref()
+                    .and_then(|_| closure()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "endDrawerButtonIconBuilder",
+                self.end_drawer_button_icon_builder
+                    .as_ref()
+                    .and_then(|_| closure()),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl fmt::Display for ActionIconThemeData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_embedder::Color;
@@ -441,5 +493,18 @@ mod tests {
             tester.pump_widget(root);
             expect_sample_icons(tester);
         });
+    }
+    // Flutter's "Default ActionIconThemeData debugFillProperties".
+    #[test]
+    fn a_action_icon_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ActionIconThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

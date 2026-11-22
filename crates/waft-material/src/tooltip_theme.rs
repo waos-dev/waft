@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use waft_embedder::{TextAlign, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, FlagProperty};
 use waft_painting::{DecorationRef, EdgeInsetsGeometry, TextStyle};
 use waft_rendering::BoxConstraints;
 use waft_widgets::{
@@ -436,12 +436,105 @@ impl InheritedWidget for TooltipTheme {
     }
 }
 
+#[allow(deprecated)]
+impl waft_foundation::Diagnosticable for TooltipThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("margin", self.margin)
+                .default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("vertical offset", self.vertical_offset).default_value(None));
+        properties.add(
+            FlagProperty::new("position", self.prefer_below)
+                .if_true("below")
+                .if_false("above")
+                .with_show_name(true)
+                .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("semantics", self.exclude_from_semantics)
+                .if_true("excluded")
+                .with_show_name(true)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<DecorationRef>>::new(
+                "decoration",
+                self.decoration.clone().map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("textStyle", self.text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<TextAlign>>::new(
+                "textAlign",
+                self.text_align.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_embedder::SignedDuration>::new(
+                "wait duration",
+                self.wait_duration.map(waft_embedder::SignedDuration::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_embedder::SignedDuration>::new(
+                "show duration",
+                self.show_duration.map(waft_embedder::SignedDuration::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_embedder::SignedDuration>::new(
+                "exit duration",
+                self.exit_duration.map(waft_embedder::SignedDuration::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<TooltipTriggerMode>>::new(
+                "triggerMode",
+                self.trigger_mode.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("enableFeedback", self.enable_feedback)
+                .if_true("true")
+                .with_show_name(true)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for TooltipThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
     use waft_embedder::{Color, Offset, Rect, TextDecoration};
     use waft_gestures::K_LONG_PRESS_TIMEOUT;
     use waft_painting::AnyColor;
+    use waft_painting::BoxDecoration;
     use waft_rendering::AnyRenderBox;
     use waft_rendering::testing::{PaintCall, assert_paints};
     use waft_widgets::{Center, GlobalKey, Padding, RawTooltip, SizedBox, Text};
@@ -1125,5 +1218,64 @@ mod tests {
             });
             assert!(!ignore_pointer);
         });
+    }
+    // Flutter's "Default TooltipThemeData debugFillProperties".
+    #[test]
+    fn a_tooltip_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &TooltipThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // tooltip_theme_test.dart 'TooltipThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_tooltip_theme_describes_every_property() {
+        let theme = TooltipThemeData::new()
+            .height(15.0)
+            .padding(EdgeInsetsGeometry::all(20.0))
+            .vertical_offset(10.0)
+            .prefer_below(false)
+            .exclude_from_semantics(true)
+            .decoration(BoxDecoration::new().color(Color::new(0xffffffff)))
+            .text_style(TextStyle::new().decoration(TextDecoration::UNDERLINE))
+            .text_align(TextAlign::Center)
+            .wait_duration(Duration::from_millis(100))
+            .show_duration(Duration::from_millis(200))
+            .exit_duration(Duration::from_millis(100))
+            .trigger_mode(TooltipTriggerMode::LongPress)
+            .enable_feedback(true);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        assert_eq!(
+            description,
+            [
+                "height: 15.0".to_string(),
+                "padding: EdgeInsets.all(20.0)".to_string(),
+                "vertical offset: 10.0".to_string(),
+                "position: above".to_string(),
+                "semantics: excluded".to_string(),
+                format!(
+                    "decoration: {}",
+                    BoxDecoration::new().color(Color::new(0xffffffff))
+                ),
+                format!(
+                    "textStyle: {}",
+                    TextStyle::new().decoration(TextDecoration::UNDERLINE)
+                ),
+                "textAlign: TextAlign.center".to_string(),
+                "wait duration: 0:00:00.100000".to_string(),
+                "show duration: 0:00:00.200000".to_string(),
+                "exit duration: 0:00:00.100000".to_string(),
+                "triggerMode: TooltipTriggerMode.longPress".to_string(),
+                "enableFeedback: true".to_string(),
+            ]
+        );
     }
 }

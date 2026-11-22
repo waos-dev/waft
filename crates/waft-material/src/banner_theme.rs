@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `banner_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{EdgeInsetsGeometry, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, EdgeInsetsGeometry, TextStyle};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::theme::Theme;
@@ -268,6 +268,40 @@ impl InheritedWidget for MaterialBannerTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for MaterialBannerThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(ColorProperty::new("dividerColor", self.divider_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "contentTextStyle",
+                self.content_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("leadingPadding", self.leading_padding)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for MaterialBannerThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_widgets::SizedBox;
@@ -509,5 +543,18 @@ mod tests {
                 Some(4.0)
             );
         });
+    }
+    // Flutter's "Default MaterialBannerThemeData debugFillProperties".
+    #[test]
+    fn a_material_banner_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &MaterialBannerThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

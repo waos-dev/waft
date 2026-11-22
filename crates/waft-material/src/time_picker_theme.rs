@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `time_picker_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
 use waft_painting::{
     AnyColor, AnyTextStyle, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, ShapeBorderRef,
     TextStyle,
@@ -634,6 +634,207 @@ impl InheritedWidget for TimePickerTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for TimePickerThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "backgroundColor",
+                self.background_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ButtonStyle>::new(
+                "cancelButtonStyle",
+                self.cancel_button_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ButtonStyle>::new(
+                "confirmButtonStyle",
+                self.confirm_button_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderSide>::new(
+                "dayPeriodBorderSide",
+                self.day_period_border_side,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "dayPeriodColor",
+                self.day_period_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<OutlinedBorderRef>>::new(
+                "dayPeriodShape",
+                self.day_period_shape
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "dayPeriodTextColor",
+                self.day_period_text_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
+                "dayPeriodTextStyle",
+                self.day_period_text_style
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "dialBackgroundColor",
+                self.dial_background_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "dialHandColor",
+                self.dial_hand_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "dialTextColor",
+                self.dial_text_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
+                "dialTextStyle",
+                self.dial_text_style
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "entryModeIconColor",
+                self.entry_mode_icon_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
+                "helpTextStyle",
+                self.help_text_style
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "hourMinuteColor",
+                self.hour_minute_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new(
+                "hourMinuteShape",
+                self.hour_minute_shape.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "hourMinuteTextColor",
+                self.hour_minute_text_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyTextStyle>>::new(
+                "hourMinuteTextStyle",
+                self.hour_minute_text_style
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<InputDecorationThemeData>>::new(
+                "inputDecorationTheme",
+                self.input_decoration_theme
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "timeSelectorSeparatorColor",
+                self.time_selector_separator_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "timeSelectorSeparatorTextStyle",
+                self.time_selector_separator_text_style
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for TimePickerThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -1664,5 +1865,18 @@ mod tests {
 
             assert_eq!(border_painter_size(tester), Size::new(96.0, 70.0));
         });
+    }
+    // Flutter's "Default TimePickerThemeData debugFillProperties".
+    #[test]
+    fn a_time_picker_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &TimePickerThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

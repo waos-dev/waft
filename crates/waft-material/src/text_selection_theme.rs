@@ -217,6 +217,28 @@ impl InheritedWidget for TextSelectionTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for TextSelectionThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            waft_painting::ColorProperty::new("cursorColor", self.cursor_color).default_value(None),
+        );
+        properties.add(
+            waft_painting::ColorProperty::new("selectionColor", self.selection_color)
+                .default_value(None),
+        );
+        properties.add(
+            waft_painting::ColorProperty::new("selectionHandleColor", self.selection_handle_color)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for TextSelectionThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
@@ -396,5 +418,18 @@ mod tests {
 
             assert_eq!(seen, expected);
         });
+    }
+    // Flutter's "Default TextSelectionThemeData debugFillProperties".
+    #[test]
+    fn a_text_selection_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &TextSelectionThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

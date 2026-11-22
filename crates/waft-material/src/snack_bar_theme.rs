@@ -1,8 +1,10 @@
 //! Flutter counterpart: material_ui's `snack_bar_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{AnyColor, EdgeInsets, ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{
+    AnyColor, ColorProperty, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef, TextStyle,
+};
 use waft_widgets::{
     BuildContext, DismissDirection, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
     WidgetStateColor,
@@ -512,6 +514,99 @@ impl InheritedWidget for SnackBarTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for SnackBarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "actionTextColor",
+                self.action_text_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("disabledActionTextColor", self.disabled_action_text_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "contentTextStyle",
+                self.content_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<SnackBarBehavior>>::new(
+                "behavior",
+                self.behavior.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("width", self.width).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+                "insetPadding",
+                self.inset_padding.map(EdgeInsetsGeometry::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("showCloseIcon", self.show_close_icon)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "closeIconColor",
+                self.close_icon_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("actionOverflowThreshold", self.action_overflow_threshold)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "actionBackgroundColor",
+                self.action_background_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new(
+                "disabledActionBackgroundColor",
+                self.disabled_action_background_color,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<DismissDirection>>::new(
+                "dismissDirection",
+                self.dismiss_direction.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for SnackBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_painting::ShapeBorder;
@@ -876,5 +971,74 @@ mod tests {
                 Some(4.0)
             );
         });
+    }
+    // Flutter's "Default SnackBarThemeData debugFillProperties".
+    #[test]
+    fn a_snack_bar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &SnackBarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // snack_bar_theme_test.dart 'SnackBarThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_snack_bar_theme_describes_every_property() {
+        let theme = SnackBarThemeData::new()
+            .background_color(Color::new(0xffffffff))
+            .action_text_color(Color::new(0xff0000aa))
+            .disabled_action_text_color(Color::new(0xff00aa00))
+            .content_text_style(TextStyle::new().color(Color::new(0xff123456)))
+            .elevation(2.0)
+            .shape(RoundedRectangleBorder::new(
+                BorderSide::NONE,
+                BorderRadiusGeometry::circular(2.0),
+            ))
+            .behavior(SnackBarBehavior::Floating)
+            .width(400.0)
+            .inset_padding(EdgeInsets::all(10.0))
+            .show_close_icon(false)
+            .close_icon_color(Color::new(0xff0000aa))
+            .action_overflow_threshold(0.5)
+            .dismiss_direction(DismissDirection::Down);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xffffffff)),
+                format!("actionTextColor: {}", Color::new(0xff0000aa)),
+                format!("disabledActionTextColor: {}", Color::new(0xff00aa00)),
+                format!(
+                    "contentTextStyle: {}",
+                    TextStyle::new().color(Color::new(0xff123456))
+                ),
+                "elevation: 2.0".to_string(),
+                format!(
+                    "shape: {}",
+                    ShapeBorderRef::from(RoundedRectangleBorder::new(
+                        BorderSide::NONE,
+                        BorderRadiusGeometry::circular(2.0)
+                    ))
+                ),
+                "behavior: SnackBarBehavior.floating".to_string(),
+                "width: 400.0".to_string(),
+                "insetPadding: EdgeInsets.all(10.0)".to_string(),
+                "showCloseIcon: false".to_string(),
+                format!("closeIconColor: {}", Color::new(0xff0000aa)),
+                "actionOverflowThreshold: 0.5".to_string(),
+                "dismissDirection: DismissDirection.down".to_string(),
+            ]
+        );
     }
 }

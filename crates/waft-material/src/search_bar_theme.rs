@@ -3,7 +3,7 @@
 use std::fmt::{self, Debug};
 
 use waft_embedder::{Color, TextCapitalization, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_painting::{BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, TextStyle};
 use waft_rendering::BoxConstraints;
 use waft_widgets::{
@@ -404,6 +404,118 @@ impl InheritedWidget for SearchBarTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for SearchBarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "elevation",
+                self.elevation
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "backgroundColor",
+                self.background_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "shadowColor",
+                self.shadow_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "surfaceTintColor",
+                self.surface_tint_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "side",
+                self.side
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "shape",
+                self.shape
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "padding",
+                self.padding
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "textStyle",
+                self.text_style
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "hintStyle",
+                self.hint_style
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<TextCapitalization>>::new(
+                "textCapitalization",
+                self.text_capitalization.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for SearchBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_embedder::Size;
@@ -749,5 +861,18 @@ mod tests {
     #[test]
     fn overall_theme_search_bar_theme_overrides_defaults_and_null_theme() {
         pump_and_check(false, ThemeArgument::Null, ThemeArgument::Full);
+    }
+    // Flutter's "Default SearchBarThemeData debugFillProperties".
+    #[test]
+    fn a_search_bar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &SearchBarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

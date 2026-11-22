@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `text_theme.dart`.
 
 use waft_embedder::{Color, FontFeature, FontVariation, TextDecoration, TextDecorationStyle};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_painting::TextStyle;
 use waft_widgets::BuildContext;
 
@@ -662,6 +662,80 @@ impl<'a> TextThemeApply<'a> {
 impl From<TextThemeApply<'_>> for TextTheme {
     fn from(apply: TextThemeApply<'_>) -> TextTheme {
         apply.into_text_theme()
+    }
+}
+
+impl waft_foundation::Diagnosticable for TextTheme {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        // Dart's `defaultTargetPlatform`; [`Typography::material2018`]'s default platform is
+        // Android. Diagnostics on another platform compare against Android's defaults.
+        let default_theme = crate::typography::Typography::material2018().build().black;
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("displayLarge", self.display_large.clone())
+                .default_value(default_theme.display_large.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("displayMedium", self.display_medium.clone())
+                .default_value(default_theme.display_medium.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("displaySmall", self.display_small.clone())
+                .default_value(default_theme.display_small.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("headlineLarge", self.headline_large.clone())
+                .default_value(default_theme.headline_large.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("headlineMedium", self.headline_medium.clone())
+                .default_value(default_theme.headline_medium.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("headlineSmall", self.headline_small.clone())
+                .default_value(default_theme.headline_small.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("titleLarge", self.title_large.clone())
+                .default_value(default_theme.title_large.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("titleMedium", self.title_medium.clone())
+                .default_value(default_theme.title_medium.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("titleSmall", self.title_small.clone())
+                .default_value(default_theme.title_small.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("bodyLarge", self.body_large.clone())
+                .default_value(default_theme.body_large.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("bodyMedium", self.body_medium.clone())
+                .default_value(default_theme.body_medium.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("bodySmall", self.body_small.clone())
+                .default_value(default_theme.body_small.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("labelLarge", self.label_large.clone())
+                .default_value(default_theme.label_large.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("labelMedium", self.label_medium.clone())
+                .default_value(default_theme.label_medium.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("labelSmall", self.label_small.clone())
+                .default_value(default_theme.label_small.clone()),
+        );
+    }
+}
+
+impl std::fmt::Display for TextTheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 

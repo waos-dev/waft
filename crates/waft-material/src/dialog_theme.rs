@@ -1,8 +1,10 @@
 //! Flutter counterpart: material_ui's `dialog_theme.dart`.
 
 use waft_embedder::{Clip, Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{AlignmentGeometry, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{
+    AlignmentGeometry, ColorProperty, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef, TextStyle,
+};
 use waft_rendering::BoxConstraints;
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, SizedBox, WidgetRef,
@@ -517,6 +519,11 @@ impl InheritedWidget for DialogTheme {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        self.data()
+            .debug_fill_properties_without_constraints(properties);
+    }
+
     fn child(&self) -> &WidgetRef {
         &self.child
     }
@@ -805,6 +812,78 @@ impl DialogThemeData {
                 t,
             ),
         }
+    }
+}
+
+impl DialogThemeData {
+    /// Dart's `DialogTheme.debugFillProperties`: the properties `DialogThemeData` adds, without
+    /// the `constraints` only the data class has.
+    fn debug_fill_properties_without_constraints(
+        &self,
+        properties: &mut waft_foundation::DiagnosticPropertiesBuilder,
+    ) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", self.alignment)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("iconColor", self.icon_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("titleTextStyle", self.title_text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "contentTextStyle",
+                self.content_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("actionsPadding", self.actions_padding)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("barrierColor", self.barrier_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+                "insetPadding",
+                self.inset_padding.map(EdgeInsetsGeometry::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<Clip>>::new(
+                "clipBehavior",
+                self.clip_behavior.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl waft_foundation::Diagnosticable for DialogThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        self.debug_fill_properties_without_constraints(properties);
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for DialogThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -1729,5 +1808,77 @@ mod tests {
                 Some(4.0)
             );
         });
+    }
+    // Flutter's "Default DialogThemeData debugFillProperties".
+    #[test]
+    fn a_dialog_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &DialogThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // dialog_theme_test.dart 'DialogThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_dialog_theme_describes_every_property() {
+        let theme = DialogThemeData::new()
+            .background_color(Color::new(0xff123456))
+            .elevation(8.0)
+            .shadow_color(Color::new(0xff000001))
+            .surface_tint_color(Color::new(0xff000002))
+            .shape(BeveledRectangleBorder::new(
+                BorderSide::NONE,
+                BorderRadiusGeometry::circular(20.5),
+            ))
+            .alignment(AlignmentGeometry::BOTTOM_LEFT)
+            .icon_color(Color::new(0xff654321))
+            .title_text_style(TextStyle::new().color(Color::new(0xffffffff)))
+            .content_text_style(TextStyle::new().color(Color::new(0xff000000)))
+            .actions_padding(EdgeInsetsGeometry::all(8.0))
+            .barrier_color(Color::new(0xff000005))
+            .inset_padding(EdgeInsets::all(20.0))
+            .clip_behavior(Clip::AntiAlias);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xff123456)),
+                "elevation: 8.0".to_string(),
+                format!("shadowColor: {}", Color::new(0xff000001)),
+                format!("surfaceTintColor: {}", Color::new(0xff000002)),
+                format!(
+                    "shape: {}",
+                    ShapeBorderRef::from(BeveledRectangleBorder::new(
+                        BorderSide::NONE,
+                        BorderRadiusGeometry::circular(20.5)
+                    ))
+                ),
+                "alignment: Alignment.bottomLeft".to_string(),
+                format!("iconColor: {}", Color::new(0xff654321)),
+                format!(
+                    "titleTextStyle: {}",
+                    TextStyle::new().color(Color::new(0xffffffff))
+                ),
+                format!(
+                    "contentTextStyle: {}",
+                    TextStyle::new().color(Color::new(0xff000000))
+                ),
+                "actionsPadding: EdgeInsets.all(8.0)".to_string(),
+                format!("barrierColor: {}", Color::new(0xff000005)),
+                "insetPadding: EdgeInsets.all(20.0)".to_string(),
+                "clipBehavior: Clip.antiAlias".to_string(),
+            ]
+        );
     }
 }

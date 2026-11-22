@@ -712,9 +712,9 @@ Ported against: 34b89b2086d4
 - slider_theme.rs: slider_theme_test's shape-painting cases (default track/overlay/tick/paddle drawing, size overrides, the 'skip all component painting' set, value indicator stroke colours, track gap / thumb size when year2023 is false). Trigger: the next edit of slider_theme.rs.
 - segmented_button.rs: segmented_button_test 'SegmentsButton when compositing does not crash' (a segment whose label composites ends the picture, so the `restore()` after `paint_child` lands on a fresh canvas, which dart:ui ignores and valo asserts on in debug). Trigger: seedeai/valo#9, which makes a restore at the base level a no-op, merged and published.
 - segmented_button.rs: segmented_button_test's semantics cases ('SegmentedButtons have correct semantics', 'Multi-select SegmentedButtons have correct semantics', 'SegmentedButton announce state on all platforms'), and its golden ('SegmentedButton vertical aligned golden image'). Trigger: the semantics tree; golden files.
-- segmented_button.rs, segmented_button_theme.rs: the `debugFillProperties` cases. Trigger: diagnostics.
+- segmented_button.rs: the `debugFillProperties` cases. Trigger: diagnostics.
 - toggle_buttons.rs: toggle_buttons_test's semantics-tree expectation in 'Toggle buttons constraints size does not affect minimum input padding' and its empty 'have correct semantics' case; the two 'Radius.x or Radius.y equal 0.0' cases and the golden files of the lone-button cases. Trigger: the semantics tree; golden files.
-- toggle_buttons.rs, toggle_buttons_theme.rs: the `debugFillProperties` cases. Trigger: diagnostics.
+- toggle_buttons.rs: the `debugFillProperties` cases. Trigger: diagnostics.
 - range_slider.rs: the semantics configuration of the two thumb nodes (`assembleSemanticsNode` and the increase and decrease semantic actions), the semantic formatter callback's use, and `markNeedsSemanticsUpdate`. The arrow-key actions run. Trigger: the semantics tree.
 - range_slider.rs: the debug properties of `RangeSlider`. Trigger: diagnostics.
 - range_slider.rs: range_slider_test's semantics cases ('RangeSlider.label info should not write to semantic node', 'Range Slider Semantics - ltr' and '- rtl', 'Keyboard focus also changes semantics focus', 'Semantic nodes do not throw an error after clearSemantics') and 'Range Slider implements debugFillProperties'. Trigger: the semantics tree, diagnostics.
@@ -729,6 +729,7 @@ Ported against: 34b89b2086d4
 - drawer.rs: the LocalHistoryEntry leak cases show their scaffold as the home page where Dart pushes it with `MaterialPageRoute`, and skip the iOS swipe back. Trigger: the next edit of drawer.rs (page.rs exists).
 - page_transitions_theme.rs: `_ZoomPageTransitionNoCache` with `_ZoomEnterTransitionNoCache` and `_ZoomExitTransitionNoCache`, built only under the `flutter.benchmarks.force_disable_snapshot` define. Trigger: build-time defines in Waft.
 - page_transitions_theme.rs: `PageTransitionsTheme`'s `hashCode` (`Hash`). Trigger: the first map or set keyed by one.
+- bottom_app_bar_theme.rs: `BottomAppBarThemeData` and `ThemeData.bottomAppBarTheme`, so `ThemeData`'s diagnostics has no `bottomAppBarTheme` property. Trigger: `bottom_app_bar_theme.rs`.
 - page.rs: `debugLabel` of both routes. Trigger: App-aware `Debug` (`TransitionRoute::debug_label` takes no App).
 - app_bar.rs: app_bar_test 'Material3 - Passing no AppBarTheme returns defaults' and the cases on `MaterialPageRoute` and `PopupMenuButton`. Trigger: `PopupMenuButton`; the `MaterialPageRoute` cases on the next edit of app_bar.rs (page.rs exists).
 - scaffold.rs: the status-bar tap reaching `handle_status_bar_tap`. Trigger: a status-bar-tap callback on the binding observer.
@@ -741,14 +742,12 @@ Ported against: 34b89b2086d4
 - menu_anchor.rs: menu_anchor_test cases whose numbers include a `MenuBar` of `createTestMenus`, whose last label 'Menu 5 & 6 ' ends in a space that Valo leaves out of a paragraph's max intrinsic width (14px narrower than Flutter): 'Menu responds to density changes', 'unconstrained menus show up in the right place in LTR'/'in RTL', 'constrained menus show up in the right place in LTR'/'in RTL', the four 'submenus account for … density' cases and the two 'submenus account for padding' cases, and the last assert of 'geometry' and 'geometry with RTL direction' (the unexpanded bar at 145..655). Trigger: Valo counting trailing whitespace in a paragraph's max intrinsic width.
 - menu_anchor.rs: menu_anchor_test's semantics cases ('Semantics' group, 'MenuAnchor applies semanticLabel to the expanded menu overlay'). Trigger: the semantics tree.
 - menu_style.rs: menu_style_test 'Material parameters are honored' (its menu shape is a `StarBorder`). Trigger: `star_border.dart`.
-- menu_theme.rs: menu_theme_test's two `debugFillProperties` cases. Trigger: diagnostics.
 - dropdown.rs: dropdown_test's semantics cases ('Semantics Tree contains only selected element', 'Dropdown button includes semantics', 'Dropdown button Semantics expanded state should update when menu opens and closes', 'Dropdown menu includes semantics'). Trigger: the semantics tree.
 - dropdown.rs: dropdown_test's 'feedback' group (three cases). Trigger: `SystemSound`.
 - dropdown.rs: dropdown_test 'DropdownButtonFormField should properly dispose its internal FocusNode when replaced by an external FocusNode'. Trigger: a use-after-dispose check on `FocusNode`.
 - dropdown_menu.rs: `_RenderDropdownMenuBody.visitChildrenForSemantics`. Trigger: the semantics tree.
 - dropdown_menu.rs: dropdown_menu_test's semantics cases ('Semantics does not include hint when input is not empty', 'Semantics does not include initial menu buttons', 'Setting DropdownMenu.requestFocusOnTap to false makes TextField a button', 'ensure exclude semantics for trailing button'). Trigger: the semantics tree.
 - dropdown_menu.rs: dropdown_menu_test 'DropdownMenuEntries do not overflow when width is specified': Valo lays a word wider than the paragraph on one line where Flutter breaks it, so the items are 260 px high, not 300. Trigger: Valo breaking a word wider than the line.
-- dropdown_menu_theme.rs: dropdown_menu_theme_test 'Default DropdownMenuThemeData debugFillProperties'. Trigger: diagnostics.
 - icon_button.rs: `icon_button_test.dart` 'IconButton AppBar size' and `icon_button_theme_test.dart` 'IconButton in an AppBar with a custom foregroundColor uses the inherited variant'. Trigger: the next edit of icon_button.rs (`app_bar.rs` exists).
 - icon_button_theme.rs: `icon_button_theme_test.dart` 'IconButton in an InputDecorator suffix icon uses the inherited variant'. Trigger: the next edit of icon_button_theme.rs (`TextField` exists).
 - theme_data.rs: `ThemeData.appBarTheme` is `Object?` in Dart with a TODO to retype it to `AppBarThemeData`; here its setters take `impl Into<AppBarThemeData>`. Trigger: Flutter retyping it.
@@ -790,12 +789,12 @@ Ported against: 34b89b2086d4
 - tabs.rs: tabs_test 'indicatorPadding update test', which pumps to `EnginePhase.build` and reads `debugNeedsPaint`. Trigger: a build-only pump in the test harness.
 - tabs.rs: tabs_test 'correct semantics', 'correct scrolling semantics', 'can override semantics of tabs' and 'Test semantics of TabPageSelector'. Trigger: the semantics tree.
 - tab_controller.rs: tab_controller_test '$TabController dispatches creation in constructor.' Trigger: leak tracking.
-- tab_bar_theme.rs: tab_bar_theme_test's `debugFillProperties` cases and the `hashCode` assert. Trigger: diagnostics; `Hash`.
+- tab_bar_theme.rs: tab_bar_theme_test's `hashCode` assert. Trigger: `Hash`.
 - chip.rs: `_RenderEnsureMinSemanticsSize`'s semantics overrides (`describeSemanticsConfiguration`, `assembleSemanticsNode`, `visitChildrenForSemantics`), the `Semantics` information of the delete icon and the checkmark, and every semantics case of chip_test, action/choice/filter/input chip tests. Trigger: the semantics tree.
-- chip.rs, chip_theme.rs: `debugFillProperties` of `RawChip`, `Chip` and `ChipThemeData` (and their tests), `ChipThemeData.hashCode` (`Hash`). Trigger: diagnostics; the first map or set keyed by one.
+- chip.rs, chip_theme.rs: `debugFillProperties` of `RawChip` and `Chip` (and their tests), and `ChipThemeData.hashCode` (`Hash`). Trigger: diagnostics; the first map or set keyed by one.
 - chip.rs tests (chip_test): 'Chip label only does layout once' (needs `WidgetToRenderBoxAdapter`); the `feedback.clickSoundCount` assertions of 'Chip control test' and 'FilterChip delete button control test'; the three 'Delete button semantic tap target ...' cases. Trigger: `WidgetToRenderBoxAdapter` in waft-widgets (its render object); `SystemSound`; the semantics tree.
 - chip.rs tests: the `matchesGoldenFile` expectations ('Delete button is visible on disabled RawChip', FilterChip and InputChip versions, the golden lines of the M3 sparkle cases). Trigger: golden comparison in waft-test.
-- date_picker_theme.rs, time_picker_theme.rs: `hashCode` of `DatePickerThemeData` and `TimePickerThemeData`, and their `debugFillProperties` cases. Trigger: the first map or set keyed by one; diagnostics.
+- date_picker_theme.rs, time_picker_theme.rs: `hashCode` of `DatePickerThemeData` and `TimePickerThemeData`. Trigger: the first map or set keyed by one.
 - date_picker.rs, time_picker.rs, calendar_date_picker.rs: the semantics cases of their tests and the `Semantics` information of the dial, the grids and the headers beyond the widgets ported, and calendar_date_picker.rs's `SemanticsService.sendAnnouncement` of the selected date and the month. Trigger: the semantics tree.
 - date_picker.rs, time_picker.rs: the `anchorPoint` of `showDatePicker`, `showDateRangePicker` and `showTimePicker`, and the cases on `anchorPoint` and display features (six in date_picker_test, the `anchorPoint` ones of time_picker_test). Trigger: `display_feature_sub_screen.dart`, with dialog.rs's `anchorPoint`.
 - date_picker.rs tests: one assertion of the M3 and M2 'Default layout (calendar mode)' cases of date_range_picker_test, the gap between the first and last date headers (66 in M3, 72 in M2), the width of the `Text(' – ')` between them, whose trailing space Valo leaves out of a paragraph's max intrinsic width. Trigger: Valo counting trailing whitespace in a paragraph's max intrinsic width.
@@ -837,7 +836,25 @@ Ported against: 34b89b2086d4
 - text_field.rs, selectable_text.rs tests: the remaining 227 of text_field_test's 413 cases and 48 of selectable_text_test's 138. They need the semantics tree, goldens, the magnifier, platform text processing, force press and the FlutterTest glyph metrics (the audit's 658 and 665); the layout, decoration, keyboard, connection, mouse, selection and strut cases are ported. Trigger: a batch for each feature.
 - paginated_data_table.rs tests: the RenderFlex overflow exception Dart expects in 'PaginatedDataTable control test' (the test forces a 600-pixel column); Waft reports none, having no `tester.takeException`. Trigger: `FlutterError.reportError`.
 - button_bar.rs tests: '_RenderButtonBarRow.constraints does not work before layout', which checks that a private getter fails before layout, something no user sees.
-- button_bar_theme.rs tests: 'Default ButtonBarThemeData debugFillProperties' and 'ButtonBarThemeData implements debugFillProperties' (diagnostics only), and the `hashCode` half of the copyWith and `==` case (the theme data has no hash).
+- button_bar_theme.rs tests: the `hashCode` half of the copyWith and `==` case (the theme data has no hash).
 - stepper.rs tests: 'Stepper custom margin' and 'StepperProperties test', which only read constructor arguments back.
 - refresh_indicator.rs tests: 'RefreshIndicator responds to strokeWidth' and 'RefreshIndicator responds to edgeOffset', which only read constructor arguments back.
 - mergeable_material.rs tests: the `debugDisableShadows` toggles around the two shadow cases; Waft has no such flag (waft-painting PORTING.md), and the cases read the shadow itself.
+
+## theme data diagnostics
+
+- Change: a theme data's diagnostics builds the defaults it compares against for this theme's own `platform`, and `TextTheme` and `Typography` compare against Android's.
+  Reason: platform — `Diagnosticable::debug_fill_properties` takes no `App`, so there is no `defaultTargetPlatform` to read, and Dart's global is an `App` field here.
+  Affect: a theme built for another platform compares against that platform's defaults, where Dart always compares against the running one.
+
+- Change: values the widgets crate owns print through a local adapter: `IconThemeData` and `AnimationStyle` with their Dart hash and properties, `MenuStyle` and `InputDecorationThemeData` with their `Debug`.
+  Reason: language — `Display` cannot be implemented for another crate's type.
+  Affect: an `IconThemeData` or `AnimationStyle` prints as Dart does; a `MenuStyle` or `InputDecorationThemeData` prints its `Debug` text, which lacks Dart's hash (the values are at the debug level, so a theme dump does not show them).
+
+- Change: `WidgetStateProperty.resolveWith` prints `Instance of '_WidgetStatePropertyWith<bool?>'`, with the resolved Dart type named by the property's field.
+  Reason: language — the widgets crate's `Debug` prints its constructor name, and `Display` cannot be added there.
+  Affect: the text is Dart's.
+
+- Change: a slider shape or range thumb selector prints `Instance of 'RoundSliderThumbShape'`.
+  Reason: language — the shape refs are trait objects with no `Display`.
+  Affect: the text is Dart's.

@@ -2,7 +2,7 @@
 
 use std::rc::Rc;
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::button_style::ButtonStyle;
@@ -235,6 +235,24 @@ impl InheritedWidget for SegmentedButtonTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for SegmentedButtonThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::button_style::ButtonStyle>::new(
+                "style",
+                self.style.clone(),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for SegmentedButtonThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -693,5 +711,18 @@ mod tests {
             tester.pump_and_settle();
             assert!(ink_rect_colors(tester).contains(&press));
         });
+    }
+    // Flutter's "Default SegmentedButtonThemeData debugFillProperties".
+    #[test]
+    fn a_segmented_button_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &SegmentedButtonThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

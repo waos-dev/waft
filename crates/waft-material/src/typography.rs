@@ -5,6 +5,7 @@
 use std::rc::Rc;
 
 use waft_embedder::{Brightness, FontWeight, TargetPlatform, TextBaseline, TextDecoration};
+use waft_foundation::DiagnosticsProperty;
 use waft_painting::TextStyle;
 
 use crate::color_scheme::ColorScheme;
@@ -2557,6 +2558,41 @@ impl TypographyMaterial2021Builder {
     }
 }
 
+impl waft_foundation::Diagnosticable for Typography {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        // Dart's `Typography.material2014()` defaults its platform to `defaultTargetPlatform`;
+        // the builder's default platform is Android. Diagnostics on another platform compare
+        // against Android's defaults.
+        let default_typography = Typography::material2014().build();
+        properties.add(
+            DiagnosticsProperty::<Rc<TextTheme>>::new("black", Rc::clone(&self.black))
+                .default_value(Some(Rc::clone(&default_typography.black))),
+        );
+        properties.add(
+            DiagnosticsProperty::<Rc<TextTheme>>::new("white", Rc::clone(&self.white))
+                .default_value(Some(Rc::clone(&default_typography.white))),
+        );
+        properties.add(
+            DiagnosticsProperty::<Rc<TextTheme>>::new("englishLike", Rc::clone(&self.english_like))
+                .default_value(Some(Rc::clone(&default_typography.english_like))),
+        );
+        properties.add(
+            DiagnosticsProperty::<Rc<TextTheme>>::new("dense", Rc::clone(&self.dense))
+                .default_value(Some(Rc::clone(&default_typography.dense))),
+        );
+        properties.add(
+            DiagnosticsProperty::<Rc<TextTheme>>::new("tall", Rc::clone(&self.tall))
+                .default_value(Some(Rc::clone(&default_typography.tall))),
+        );
+    }
+}
+
+impl std::fmt::Display for Typography {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_embedder::{Color, TextLeadingDistribution};
@@ -2935,5 +2971,48 @@ mod tests {
         assert_eq!(*defaults.english_like, Typography::english_like2021());
         assert_eq!(*defaults.dense, Typography::dense2021());
         assert_eq!(*defaults.tall, Typography::tall2021());
+    }
+    // Flutter's "Default Typography debugFillProperties".
+    #[test]
+    fn a_typography_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &Typography::material2014().build(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // typography_test.dart 'Typography implements debugFillProperties'.
+    #[test]
+    fn a_typography_describes_the_text_themes_that_differ_from_the_defaults() {
+        let typography = Typography::material2014()
+            .black(Typography::black_cupertino())
+            .white(Typography::white_cupertino())
+            .english_like(Typography::english_like2018())
+            .dense(Typography::dense2018())
+            .tall(Typography::tall2018())
+            .build();
+        let mut properties = waft_foundation::DiagnosticPropertiesBuilder::new();
+        waft_foundation::Diagnosticable::debug_fill_properties(&typography, &mut properties);
+        let names: Vec<String> = properties
+            .properties
+            .iter()
+            .filter(|node| !node.is_filtered(waft_foundation::DiagnosticLevel::Info))
+            .filter_map(|node| node.name().map(str::to_string))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "black".to_string(),
+                "white".to_string(),
+                "englishLike".to_string(),
+                "dense".to_string(),
+                "tall".to_string(),
+            ]
+        );
     }
 }

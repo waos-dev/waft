@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `divider_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::BorderRadiusGeometry;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{BorderRadiusGeometry, ColorProperty};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::theme::Theme;
@@ -216,6 +216,26 @@ impl InheritedWidget for DividerTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for DividerThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties.add(DoubleProperty::new("space", self.space).default_value(None));
+        properties.add(DoubleProperty::new("thickness", self.thickness).default_value(None));
+        properties.add(DoubleProperty::new("indent", self.indent).default_value(None));
+        properties.add(DoubleProperty::new("endIndent", self.end_indent).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<BorderRadiusGeometry>::new("radius", self.radius)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for DividerThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -549,5 +569,48 @@ mod tests {
             assert_eq!(line_rect.top, divider_rect.top);
             assert_eq!(line_rect.bottom, divider_rect.bottom);
         });
+    }
+    // Flutter's "Default DividerThemeData debugFillProperties".
+    #[test]
+    fn a_divider_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &DividerThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // divider_theme_test.dart 'DividerThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_divider_theme_describes_every_property() {
+        let theme = DividerThemeData::new()
+            .color(Color::new(0xffffffff))
+            .space(5.0)
+            .thickness(4.0)
+            .indent(3.0)
+            .end_indent(2.0)
+            .radius(BorderRadiusGeometry::circular(20.0));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("color: {}", Color::new(0xffffffff)),
+                "space: 5.0".to_string(),
+                "thickness: 4.0".to_string(),
+                "indent: 3.0".to_string(),
+                "endIndent: 2.0".to_string(),
+                "radius: BorderRadius.circular(20.0)".to_string(),
+            ]
+        );
     }
 }

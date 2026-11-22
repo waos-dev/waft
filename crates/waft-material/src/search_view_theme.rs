@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `search_view_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_painting::{AnyBorderSide, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef, TextStyle};
 use waft_rendering::BoxConstraints;
 use waft_widgets::{
@@ -367,6 +367,77 @@ impl InheritedWidget for SearchViewTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for SearchViewThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<Color>::new("backgroundColor", self.background_color)
+                .default_value(None),
+        );
+        properties
+            .add(DiagnosticsProperty::<f64>::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Color>::new("surfaceTintColor", self.surface_tint_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyBorderSide>>::new(
+                "side",
+                self.side.clone().map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<OutlinedBorderRef>>::new(
+                "shape",
+                self.shape.clone().map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<f64>::new("headerHeight", self.header_height).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "headerTextStyle",
+                self.header_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "headerHintStyle",
+                self.header_hint_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("barPadding", self.bar_padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("shrinkWrap", self.shrink_wrap).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Color>::new("dividerColor", self.divider_color)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for SearchViewThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_foundation::Task;
@@ -664,5 +735,18 @@ mod tests {
     #[test]
     fn overall_theme_search_view_theme_overrides_defaults_and_null_theme() {
         pump_and_check(false, ThemeArgument::Null, ThemeArgument::Full);
+    }
+    // Flutter's "Default SearchViewThemeData debugFillProperties".
+    #[test]
+    fn a_search_view_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &SearchViewThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }
