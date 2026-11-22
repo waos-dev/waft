@@ -9,6 +9,7 @@ use waft_foundation::{App, Handle, Listener};
 use waft_gestures::{GestureBinding, GestureBindingOverridesObject, HitTestResult, PointerEvent};
 use waft_scheduler::{FrameCallback, FrameTarget, PersistentFrameCallback, SchedulerBinding};
 
+use crate::layer::ErasedLayer;
 use crate::mouse_tracker::MouseTracker;
 use crate::object::RenderHandle;
 use crate::pipeline_owner::{PipelineManifold, PipelineOwner};
@@ -482,6 +483,42 @@ impl GestureBindingOverridesObject for RendererBinding {
         self.mouse_tracker(app)
             .update_with_event(app, event, result);
     }
+}
+
+/// Dart's `debugDumpRenderTree`, answering its text where Dart prints it: every view's render
+/// tree as `toStringDeep` shows it, separated by a blank line.
+pub fn debug_dump_render_tree(app: &mut App) -> String {
+    let binding = RendererBinding::instance(app);
+    let views = binding.render_views(app);
+    if views.is_empty() {
+        return "No render tree root was added to the binding.".to_owned();
+    }
+    views
+        .into_iter()
+        .map(|view| view.as_object().to_string_deep(app))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Dart's `debugDumpLayerTree`, answering its text where Dart prints it: every view's layer tree
+/// as `toStringDeep` shows it, separated by a blank line.
+pub fn debug_dump_layer_tree(app: &mut App) -> String {
+    let binding = RendererBinding::instance(app);
+    let views = binding.render_views(app);
+    if views.is_empty() {
+        return "No render tree root was added to the binding.".to_owned();
+    }
+    views
+        .into_iter()
+        .map(|view| {
+            let view = view.as_object();
+            match view.debug_layer(app) {
+                Some(layer) => layer.as_layer().to_string_deep(app),
+                None => format!("Layer tree unavailable for {}.", view.to_string_short(app)),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 #[cfg(test)]

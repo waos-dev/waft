@@ -337,6 +337,13 @@ impl Debug for BorderRadiusGeometry {
     }
 }
 
+/// Dart's `BorderRadiusGeometry.toString`, which [`Debug`] already renders.
+impl std::fmt::Display for BorderRadiusGeometry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 fn visual_debug(geometry: &BorderRadiusGeometry) -> Option<String> {
     let top_left = geometry.top_left();
     let top_right = geometry.top_right();
@@ -871,6 +878,13 @@ impl Rem<f64> for BorderRadiusDirectional {
 impl Debug for BorderRadiusDirectional {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&BorderRadiusGeometry::from(*self), f)
+    }
+}
+
+/// Dart's `BorderRadius.toString`, which [`Debug`] already renders.
+impl std::fmt::Display for BorderRadius {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
     }
 }
 

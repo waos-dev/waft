@@ -4,7 +4,7 @@ use std::any::{Any, TypeId};
 use std::fmt;
 
 use waft_embedder::{Offset, Size, TextBaseline};
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, EnumProperty, Handle};
 use waft_painting::{Axis, AxisDirection, axis_direction_to_axis};
 
 use crate::box_::{
@@ -137,6 +137,19 @@ pub trait RenderListBodyMixin:
         if !child.parent_data_is::<ListBodyParentData>(app) {
             child.set_parent_data(app, ListBodyParentData::new());
         }
+    }
+
+    /// Dart's `RenderListBody.debugFillProperties`, which a subclass of `RenderListBody`
+    /// reaches through its super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(EnumProperty::<AxisDirection>::new(
+            "axisDirection",
+            self.list_body_data(app).axis_direction,
+        ));
     }
 
     /// The direction in which the children are laid out.
@@ -559,6 +572,14 @@ impl RenderListBodyMixin for RenderListBody {
 
 impl RenderObject for RenderListBody {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderListBodyMixin::debug_fill_properties(self, app, properties);
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderListBodyMixin::perform_layout(self, app)

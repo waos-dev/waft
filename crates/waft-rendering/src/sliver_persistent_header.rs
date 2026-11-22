@@ -9,7 +9,10 @@ use waft_animation::{
     Animatable, AnimationController, AnimationStatus, Curve, CurveTween, Curves, Tween,
 };
 use waft_embedder::{Matrix4, Offset, Rect, clamp_double};
-use waft_foundation::{App, AsyncCallback, Handle, HandleId, ListenableObject, Listener};
+use waft_foundation::{
+    App, AsyncCallback, DiagnosticPropertiesBuilder, DoubleProperty, Handle, HandleId,
+    ListenableObject, Listener,
+};
 use waft_painting::{Axis, AxisDirection, transform_rect};
 use waft_scheduler::{Ticker, TickerCallback, TickerProvider, TickerProviderObject};
 
@@ -320,6 +323,25 @@ pub trait RenderSliverPersistentHeader:
             Axis::Vertical => child.size(app).height(),
             Axis::Horizontal => child.size(app).width(),
         }
+    }
+
+    /// Dart's `debugFillProperties`: the maximum extent and the child's position.
+    ///
+    /// Dart computes both lazily; this reads them when the property is added, which a dump does
+    /// before it prints, as Dart's lazy properties do when their level is read.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DoubleProperty::new("maxExtent", self.max_extent(app)));
+        let child = self
+            .child(app)
+            .expect("a persistent header positioned its child");
+        properties.add(DoubleProperty::new(
+            "child position",
+            self.child_main_axis_position(app, child.as_object()),
+        ));
     }
 
     /// The most recent `shrink_offset` passed to [`update_child`](Self::update_child).
@@ -815,6 +837,20 @@ pub trait RenderSliverFloatingPersistentHeader: RenderSliverPersistentHeader {
         self: RenderHandle<Self>,
         app: &mut App,
     ) -> &mut RenderSliverFloatingPersistentHeaderData;
+
+    /// Dart's `debugFillProperties`: the persistent header's lines, then the effective scroll
+    /// offset.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderSliverPersistentHeader::debug_fill_properties(self, app, properties);
+        properties.add(DoubleProperty::new(
+            "effective scroll offset",
+            self.effective_scroll_offset(app),
+        ));
+    }
 
     /// The body of Flutter's `detach` override: disposes the snap animation controller, which is
     /// lazily recreated if we are reattached.
@@ -1431,6 +1467,14 @@ mod tests {
                 ) {
                     RenderSliverPersistentHeader::paint(self, app, context, offset)
                 }
+
+                fn debug_fill_properties(
+                    self: RenderHandle<Self>,
+                    app: &App,
+                    properties: &mut DiagnosticPropertiesBuilder,
+                ) {
+                    RenderSliverPersistentHeader::debug_fill_properties(self, app, properties)
+                }
             }
 
             impl RenderSliver for $leaf {
@@ -1585,6 +1629,22 @@ mod tests {
             RenderSliver::child_main_axis_position(header, &app, child.as_object()),
             0.0
         );
+    }
+
+    /// `sliver_persistent_header.dart`'s `RenderSliverPersistentHeader.debugFillProperties`: the
+    /// maximum extent and the child's position.
+    #[test]
+    fn a_scrolling_header_dump_shows_its_max_extent_and_child_position() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let header = scrolling_header(&mut app, 40.0, 120.0);
+        lay_out(&mut app, header.as_sliver(), 50.0);
+
+        let dump = header
+            .as_object()
+            .to_string_deep_with(&app, waft_foundation::DiagnosticLevel::Info);
+        assert!(dump.contains("maxExtent: 120.0"), "{dump}");
+        assert!(dump.contains("child position: 0.0"), "{dump}");
     }
 
     /// A pinned header stays at the leading edge and reports its minimum extent as the scroll

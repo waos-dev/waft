@@ -9,7 +9,10 @@ use std::time::Duration;
 
 use waft_animation::Curve;
 use waft_embedder::{Clip, Matrix4, Offset, Rect, Size, clamp_double};
-use waft_foundation::{App, Handle, HandleId, Listener};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, DoubleProperty,
+    EnumProperty, Handle, HandleId, Listener,
+};
 use waft_painting::{Axis, AxisDirection, axis_direction_to_axis, transform_rect};
 
 use crate::box_::{BoxConstraints, BoxHitTestResult, RenderBox, RenderBoxData};
@@ -1255,6 +1258,51 @@ pub trait RenderViewportBase:
     /// A short string to identify the child with the given index.
     fn label_for_child(self: RenderHandle<Self>, index: i32) -> String;
 
+    /// Dart's `debugFillProperties`: the axis directions and the offset.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(EnumProperty::new("axisDirection", self.axis_direction(app)));
+        properties.add(EnumProperty::new(
+            "crossAxisDirection",
+            self.cross_axis_direction(app),
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "offset",
+            Some(self.offset(app).to_string_with_app(app)),
+        ));
+    }
+
+    /// Dart's `debugDescribeChildren`: every child in paint order, named by
+    /// [`label_for_child`](Self::label_for_child).
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let mut children = Vec::new();
+        let (Some(mut child), Some(last)) = (self.first_child(app), self.last_child(app)) else {
+            return children;
+        };
+        let mut count = self.index_of_first_child(app);
+        loop {
+            children.push(Rc::new(
+                child
+                    .as_object()
+                    .to_diagnostics_node(app, self.label_for_child(count)),
+            ));
+            if child == last {
+                break;
+            }
+            count += 1;
+            child = self
+                .child_after(app, child)
+                .expect("the last child ends the walk");
+        }
+        children
+    }
+
     /// Walks the children of the viewport, in the order that they should be painted.
     ///
     /// This is the reverse order of
@@ -1810,6 +1858,22 @@ impl RenderObject for RenderViewport {
         true
     }
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderViewportBase::debug_fill_properties(self, app, properties);
+        properties.add(DoubleProperty::new("anchor", self.anchor(app)));
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        RenderViewportBase::debug_describe_children(self, app)
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         // Ignore the return value of apply_viewport_dimension because we are doing a layout
         // regardless.
@@ -2289,6 +2353,21 @@ impl RenderObject for RenderShrinkWrappingViewport {
             .then(|| Box::new(self.as_abstract_viewport()) as Box<dyn Any>)
     }
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderViewportBase::debug_fill_properties(self, app, properties);
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        RenderViewportBase::debug_describe_children(self, app)
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         let offset = self.offset(app);
@@ -2440,6 +2519,27 @@ mod tests {
     use crate::sliver::{RenderSliver, RenderSliverToBoxAdapter};
     use crate::testing::{EnginePhase, layout_with, pump_frame};
     use crate::viewport_offset::FixedViewportOffset;
+    use waft_foundation::DiagnosticLevel;
+
+    /// Dart's `equalsIgnoringHashCodes`: every `#` and five hex digits read as `#00000`.
+    fn ignoring_hash_codes(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(at) = rest.find('#') {
+            out.push_str(&rest[..at]);
+            let hash = &rest[at + 1..];
+            let digits = hash.chars().take_while(char::is_ascii_hexdigit).count();
+            if digits == 5 {
+                out.push_str("#00000");
+                rest = &hash[5..];
+            } else {
+                out.push('#');
+                rest = hash;
+            }
+        }
+        out.push_str(rest);
+        out
+    }
 
     /// A sliver of a fixed scroll extent that records the offsets it was painted at.
     struct TestSliver {
@@ -2522,6 +2622,110 @@ mod tests {
             Some(children),
             None,
         )
+    }
+
+    /// `slivers_test.dart`'s 'RenderViewport basic test - no children': before layout the
+    /// viewport prints its axis directions, its offset and its anchor. Waft's fixed offset is
+    /// `FixedViewportOffset`, where Dart's private class prints `_FixedViewportOffset`.
+    #[test]
+    fn a_viewport_dump_shows_its_axis_directions_offset_and_anchor() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let offset = FixedViewportOffset::zero(&mut app);
+        let viewport =
+            RenderViewport::new(&mut app, AxisDirection::Right, offset.erase(), None, None);
+
+        assert_eq!(
+            ignoring_hash_codes(
+                &viewport
+                    .as_object()
+                    .to_string_deep_with(&app, DiagnosticLevel::Info)
+            ),
+            ignoring_hash_codes(concat!(
+                "RenderViewport#00002 NEEDS-LAYOUT NEEDS-PAINT DETACHED\n",
+                "   needs compositing\n",
+                "   parentData: MISSING\n",
+                "   constraints: MISSING\n",
+                "   size: MISSING\n",
+                "   axisDirection: down\n",
+                "   crossAxisDirection: right\n",
+                "   offset: FixedViewportOffset#00001(offset: 0.0)\n",
+                "   anchor: 0.0\n"
+            )),
+        );
+
+        layout_with(
+            &mut app,
+            viewport.as_box(),
+            Some(BoxConstraints::tight(Size::new(800.0, 600.0))),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Paint,
+        );
+        let new_offset = FixedViewportOffset::new(&mut app, 900.0);
+        viewport.set_offset(&mut app, new_offset.erase());
+
+        // `slivers_test.dart` expects `NEEDS-LAYOUT NEEDS-PAINT` and no `layer` line; Waft's
+        // viewport paints a layer in the layout helper and setting the offset marks layout only.
+        assert_eq!(
+            ignoring_hash_codes(
+                &viewport
+                    .as_object()
+                    .to_string_deep_with(&app, DiagnosticLevel::Info)
+            ),
+            ignoring_hash_codes(concat!(
+                "RenderViewport#00002 NEEDS-LAYOUT\n",
+                "   needs compositing\n",
+                "   parentData: <none> (can use size)\n",
+                "   constraints: BoxConstraints(w=800.0, h=600.0)\n",
+                "   layer: OffsetLayer#0000c\n",
+                "   size: Size(800.0, 600.0)\n",
+                "   axisDirection: down\n",
+                "   crossAxisDirection: right\n",
+                "   offset: FixedViewportOffset#0000d(offset: 900.0)\n",
+                "   anchor: 0.0\n"
+            )),
+        );
+    }
+
+    /// `slivers_test.dart`'s 'RenderViewport basic test - down': the viewport names its center
+    /// child and numbers the others from it, and each sliver prints its geometry in full.
+    #[test]
+    fn a_viewport_dump_names_its_center_child_and_numbers_the_others() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let (first, _) = test_sliver(&mut app, 400.0);
+        let (second, _) = test_sliver(&mut app, 400.0);
+        let offset = FixedViewportOffset::zero(&mut app);
+        let viewport = vertical_viewport(&mut app, &offset, vec![first, second]);
+        layout_with(
+            &mut app,
+            viewport.as_box(),
+            Some(BoxConstraints::tight(Size::new(800.0, 600.0))),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Paint,
+        );
+
+        let dump = viewport
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("center child: TestSliver#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("child 1: TestSliver#")),
+            "{dump}"
+        );
+        assert!(
+            dump.contains("geometry: SliverGeometry(scrollExtent: 400.0, paintExtent: 400.0,"),
+            "{dump}"
+        );
+        assert!(
+            dump.contains("geometry: SliverGeometry(scrollExtent: 400.0, paintExtent: 200.0,"),
+            "{dump}"
+        );
     }
 
     /// `viewport_test.dart`: a viewport does not support intrinsics, because answering would

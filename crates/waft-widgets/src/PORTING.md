@@ -80,9 +80,9 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 ## widgets/slotted_render_object_widget.rs → slotted_render_object_widget.dart
 
-- Change: `debug_name_for_slot` names a slot by its `Debug` form, where Dart names an enum value by its `.name` and anything else by `toString()`.
+- Change: `debug_name_for_slot` names a slot by `describe_enum`, its `Debug` form with the first letter lowered, where Dart names an enum value by its `.name` and anything else by `toString()`.
   Reason: language — Rust cannot ask whether a value is an enum, and a derived `Debug` is the one name every slot type has.
-  Affect: a debug dump names an enum slot `BottomRight` where Flutter's says `bottomRight`; a slot type that wants another name implements `Debug` by hand.
+  Affect: an enum slot reads as Dart's (`bottomRight`, `deleteIcon`); a slot that is not an enum reads as its `Debug` with the first letter lowered.
 
 ## framework/ → framework.dart
 
@@ -686,6 +686,10 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
   Reason: language — `layout` and `dispose` are not virtuals a leaf can wrap.
   Affect: a region stops being registered as soon as it detaches, not only when it is disposed, and the next layout registers it again.
 
+- Change: `TapRegionGroupId` prints a type group as its `TypeId`'s debug form and a handle group as `#` and its identity hash, where Dart prints the group object's `toString`.
+  Reason: language — a `TypeId` is opaque and carries no name, and a `HandleId` has no `toString`.
+  Affect: a dump's `groupId:` line reads `TypeId(…)` or `#00001` where Flutter's reads `EditableText` or `Instance of '…'`.
+
 ## widgets/drag_target.rs → drag_target.dart
 
 - Change: a drag payload is an `Rc<T>` and a target accepts a draggable by matching that concrete Rust type.
@@ -697,6 +701,10 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - Change: `WidgetSpan::extract_from_inline_span` wraps each inline widget in its parent-data and scaling widgets only, without Dart's `Semantics` tagged with the placeholder's index.
   Reason: language — the tag needs `SemanticsTag` equality by index, and `SemanticsTag` compares by identity until the semantics tree needs it.
   Affect: an inline widget contributes no semantics node of its own.
+
+- Change: a `WidgetSpan`'s `widget` diagnostic line is a `DiagnosticsProperty<String>` reading `Instance of 'Widget'`.
+  Reason: language — a `WidgetRef` is an erased arena handle with no runtime class name.
+  Affect: a span dump names the kind where Dart names the widget's class.
 
 ## widgets/table.rs → table.dart
 
@@ -865,7 +873,7 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - Scroll semantics: `ScrollContext.setSemanticsActions`, scrollable.rs's semantics widget and its render object with `excludeFromSemantics` and `semanticChildCount`, and scroll_position.rs's semantic action bookkeeping. Trigger: the semantics tree.
 - scrollable.rs, scroll_configuration.rs, primary_scroll_controller.rs: diagnostics, and `ScrollableDetails.hashCode` (no `Hash` over an erased physics). Trigger: diagnostics; a map keyed by scrollable details.
 - scroll_view.rs: the scroll view diagnostics. Trigger: diagnostics.
-- single_child_scroll_view.rs: the semantics clip and the approximate paint clip (deferred crate-wide in rendering's PORTING.md), and its diagnostics. Trigger: the semantics tree; the inspector; diagnostics.
+- single_child_scroll_view.rs: the semantics clip and the approximate paint clip (deferred crate-wide in rendering's PORTING.md). Trigger: the semantics tree; the inspector.
 - scrollbar.rs: the painter's semantics and the structured error reports, which are plain assert messages here. Trigger: the semantics tree; diagnostics.
 - toggleable.rs: the tap's `TapSemanticEvent`. Trigger: the semantics tree.
 - radio_group.rs: the post-frame check that at most one radio carries the group value. Trigger: diagnostics, and a post-frame callback usable from a state that may run without a binding.
@@ -880,7 +888,7 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - modal_barrier.rs: the barrier's `_SemanticsClipper`. Trigger: the semantics tree.
 - modal_barrier.rs: the alert sound when a non-dismissible barrier is tapped. Trigger: services' `SystemSound`.
 - overlay.rs: the theater's intrinsics, dry layout and baselines, and the deferred layout box's dry baseline. Trigger: intrinsics and baselines through a theater child.
-- overlay.rs: the overlay diagnostics, including the stack trace an invalidated entry location records (a flag stands in). Trigger: diagnostics.
+- overlay.rs: the overlay widgets' diagnostics (the entries, the theater's `skipCount`, the entry state's children and location), and the stack trace an invalidated entry location records (a flag stands in). Trigger: diagnostics.
 - overlay.rs: the overlay's semantics wrappers with their `traversalParentIdentifier` child identifiers, and its semantics updates. Trigger: the next edit of overlay.rs (the semantics widgets exist); the semantics tree.
 - overlay.rs: the theater's clip layer handle and the entry location's compositing-bits update. Trigger: layer handles and compositing bits in `waft-rendering`.
 - overlay.rs: the deferred-child gates on the theater's `markNeedsLayout` and the layout box's dirty flag. Trigger: a public `RenderBox` super-hook for `markNeedsLayout` and a readable dirty flag in `waft-rendering`.

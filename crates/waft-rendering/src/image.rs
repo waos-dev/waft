@@ -8,7 +8,10 @@
 //! choice Dart carries are not here; see `PORTING.md`.
 
 use waft_embedder::{Offset, Size, TextDirection};
-use waft_foundation::App;
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    FlagProperty,
+};
 use waft_painting::{Alignment, BoxFit, ImageInfo, ImagePaintStyle, ImageRepeat, paint_image};
 
 use crate::box_::{BoxConstraints, RenderBox, RenderBoxData};
@@ -227,6 +230,38 @@ impl RenderImage {
 impl RenderObject for RenderImage {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        let image = this.image.as_ref().map(|info| {
+            let [width, height] = info.image.size();
+            format!("[{width}\u{00D7}{height}]")
+        });
+        properties.add(DiagnosticsProperty::<String>::new("image", image));
+        properties.add(DoubleProperty::new("width", this.width).default_value(None));
+        properties.add(DoubleProperty::new("height", this.height).default_value(None));
+        properties.add(EnumProperty::<BoxFit>::new("fit", this.fit).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Alignment>::new("alignment", Some(this.alignment))
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<ImageRepeat>::new("repeat", Some(this.repeat))
+                .default_value(Some(ImageRepeat::NoRepeat)),
+        );
+        properties.add(
+            FlagProperty::new("matchTextDirection", Some(this.match_text_direction))
+                .if_true("match text direction"),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
+                .default_value(None),
+        );
+    }
+
     fn visit_children(
         self: RenderHandle<Self>,
         _app: &App,
@@ -303,10 +338,44 @@ impl RenderBox for RenderImage {
 
 #[cfg(test)]
 mod tests {
+    use crate::testing::{EnginePhase, ignoring_hash_codes, layout_with};
     use waft_embedder::test_support::solid_image;
     use waft_foundation::AppCell;
+    use waft_painting::AlignmentGeometry;
 
     use super::*;
+
+    /// `image_test.dart`: "Image sizing", its dump. `invertColors` and `filterQuality` wait for
+    /// the colour inversion and sampling choices; see `PORTING.md`.
+    #[test]
+    fn an_image_dump_shows_its_size_and_alignment() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let image = solid_image([10, 10], [255, 0, 0, 255]);
+        let render = RenderImage::new(&mut app);
+        render.set_image(&mut app, Some(ImageInfo::new(image)));
+        let constraints = BoxConstraints::new()
+            .min_width(25.0)
+            .min_height(25.0)
+            .max_width(100.0)
+            .max_height(100.0);
+        layout_with(
+            &mut app,
+            render.as_box(),
+            Some(constraints),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Layout,
+        );
+        assert_eq!(
+            ignoring_hash_codes(&render.as_object().to_string_deep(&app)),
+            "RenderImage#00000 relayoutBoundary=up2 NEEDS-PAINT\n\
+             \u{20}  parentData: <none> (can use size)\n\
+             \u{20}  constraints: BoxConstraints(25.0<=w<=100.0, 25.0<=h<=100.0)\n\
+             \u{20}  size: Size(25.0, 25.0)\n\
+             \u{20}  image: [10\u{00D7}10]\n\
+             \u{20}  alignment: Alignment.center\n"
+        );
+    }
 
     /// A forty-by-twenty image, so a change of proportion is unmistakable.
     fn wide_image(scale: f64) -> ImageInfo {

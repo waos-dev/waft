@@ -13,7 +13,8 @@ use waft_embedder::{
     PathBuilder, Rect, Size, Stroke, TextBaseline, TextDirection, clamp_double,
 };
 use waft_foundation::{
-    App, Handle, K_IS_WEB, Listenable, Listener, MergingListenable, Ref, ValueChanged,
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle, K_IS_WEB, Listenable, Listener,
+    MergingListenable, Ref, ValueChanged,
 };
 use waft_painting::{
     AnyBorderSide, AnyColor, BorderRadius, BorderSide, CircleBorder, ClipContext, EdgeInsets,
@@ -2339,6 +2340,16 @@ impl RenderProxyBoxMixin for RenderChipRedirectingHitDetection {}
 impl RenderObject for RenderChipRedirectingHitDetection {
     waft_rendering::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_RenderChipRedirectingHitDetection` inherits
+        // `RenderConstrainedBox.debugFillProperties`.
+        RenderConstrainedBoxBase::debug_fill_properties(self, app, properties);
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderConstrainedBoxBase::perform_layout(self, app);
     }
@@ -3190,6 +3201,13 @@ impl SlottedContainerRenderObjectMixin<ChipSlot> for RenderChip {
 
 impl RenderObject for RenderChip {
     waft_rendering::render_object_accessors!();
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        SlottedContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         SlottedContainerRenderObjectMixin::did_attach(self, app, owner);
@@ -9108,5 +9126,55 @@ pub(crate) mod tests {
                 assert!(tester.get_size(text(tester, "X")).is_empty());
             });
         }
+    }
+
+    /// Dart's `_RenderChip` names its children after their slots, in the order its `children`
+    /// getter answers.
+    #[test]
+    fn a_chip_describes_its_children_by_slot() {
+        use waft_foundation::DiagnosticsNode;
+        use waft_widgets::Icon;
+
+        test_widgets(|tester| {
+            let chip = Chip {
+                avatar: Some(Icon::new(Some(Icons::add())).into_widget()),
+                delete_icon: Some(Icon::new(Some(Icons::clear())).into_widget()),
+                ..Chip::new(Text::new("label"))
+            };
+            tester.pump_widget(wrap_ltr(tester, chip));
+
+            let render = tester.first::<RenderChip>();
+            let app = tester.cell.borrow();
+            let names: Vec<String> = render
+                .as_object()
+                .to_diagnostics_node(&app, None)
+                .children()
+                .iter()
+                .filter_map(|node| node.name().map(str::to_owned))
+                .collect();
+            assert_eq!(names, ["avatar", "label", "deleteIcon"]);
+        });
+    }
+
+    /// Dart's `_RenderChipRedirectingHitDetection` fills no properties of its own; it inherits
+    /// `RenderConstrainedBox.debugFillProperties`.
+    #[test]
+    fn a_redirecting_hit_detection_fills_the_properties_it_inherits() {
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let render = RenderChipRedirectingHitDetection::new(
+            &mut app,
+            BoxConstraints::tight_for(Some(10.0), Some(10.0)),
+        );
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(render, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(names, ["additionalConstraints"]);
     }
 }

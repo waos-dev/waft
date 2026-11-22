@@ -13,11 +13,14 @@ use waft_embedder::{
     Paint, Radius, Rect, Size, TargetPlatform, TextAffinity, TextAlign, TextBaseline, TextBox,
     TextDirection, TextHeightBehavior, TextPosition, TextRange, TextSelection, clamp_double,
 };
-use waft_foundation::{App, Handle, Listener, ValueNotifier};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle,
+    Handle, IntProperty, Listener, ValueNotifier,
+};
 use waft_gestures::TapDownDetails;
 use waft_painting::{
-    ClipContext, InlineSpanRef, PaintingBinding, PlaceholderDimensions, StrutStyle, TextPainter,
-    TextScaler, TextWidthBasis,
+    ClipContext, ColorProperty, InlineSpanRef, PaintingBinding, PlaceholderDimensions, StrutStyle,
+    TextPainter, TextScaler, TextWidthBasis,
 };
 use waft_services::{
     AnyTextSelectionDelegate, SelectionChangedCause, TextLayoutMetrics, is_whitespace,
@@ -1911,6 +1914,53 @@ impl RenderInlineChildrenContainerDefaults for RenderEditable {}
 impl RenderObject for RenderEditable {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(ColorProperty::new("cursorColor", this.cursor_color));
+        // A Dart `ValueNotifier`'s `toString` is its class, which a Rust handle cannot name.
+        properties.add(DiagnosticsProperty::<String>::new(
+            "showCursor",
+            Some("Instance of 'ValueNotifier<bool>'".to_string()),
+        ));
+        properties.add(IntProperty::<i32>::new("maxLines", this.max_lines));
+        properties.add(IntProperty::<i32>::new("minLines", this.min_lines));
+        properties.add(
+            DiagnosticsProperty::new("expands", Some(this.expands)).default_value(Some(false)),
+        );
+        properties.add(ColorProperty::new("selectionColor", this.selection_color));
+        properties.add(
+            DiagnosticsProperty::new("textScaler", self.text_scaler(app))
+                .default_value(Some(TextScaler::NO_SCALING)),
+        );
+        properties.add(DiagnosticsProperty::<TextSelection>::new(
+            "selection",
+            this.selection,
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "offset",
+            Some("Instance of 'ViewportOffset'".to_string()),
+        ));
+    }
+
+    /// Dart's `debugDescribeChildren` shows the text, not the inline widget children.
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<std::rc::Rc<dyn DiagnosticsNode>> {
+        let this = self.get(app);
+        match this.text_painter.text() {
+            Some(text) => vec![std::rc::Rc::new(text.diagnostics_node(
+                Some("text".to_string()),
+                Some(DiagnosticsTreeStyle::Transition),
+            )) as std::rc::Rc<dyn DiagnosticsNode>],
+            None => Vec::new(),
+        }
+    }
+
     fn visit_children(
         self: RenderHandle<Self>,
         app: &App,
@@ -2375,6 +2425,47 @@ mod tests {
             EnginePhase::Layout,
         );
         editable
+    }
+
+    /// `editable_intrinsics_test.dart` "editable intrinsics": the text child of a dump.
+    #[test]
+    fn an_editable_dump_shows_its_text() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let delegate = app.create(TestDelegate::default());
+        let start = LayerLink::new(&mut app);
+        let end = LayerLink::new(&mut app);
+        let offset = FixedViewportOffset::zero(&mut app).erase();
+        let editable = RenderEditable::new(
+            &mut app,
+            TextDirection::Ltr,
+            start,
+            end,
+            offset,
+            delegate.as_text_selection_delegate(),
+        );
+        editable.set_text(
+            &mut app,
+            Some(
+                TextSpan::new()
+                    .text("12345")
+                    .style(TextStyle::new().height(1.0).font_size(10.0))
+                    .into_span(),
+            ),
+        );
+        let dump = editable.as_object().to_string_deep(&app);
+        assert!(
+            dump.ends_with(
+                " ╘═╦══ text ═══\n\
+                 \u{20}\u{20} ║ TextSpan:\n\
+                 \u{20}\u{20} ║   inherit: true\n\
+                 \u{20}\u{20} ║   size: 10.0\n\
+                 \u{20}\u{20} ║   height: 1.0x\n\
+                 \u{20}\u{20} ║   \"12345\"\n\
+                 \u{20}\u{20} ╚═══════════\n"
+            ),
+            "{dump}"
+        );
     }
 
     #[test]

@@ -12,7 +12,9 @@ use waft_embedder::{
     Canvas, Color, Offset, Path, PathBuilder, Radius, Size, TextBaseline, rrect_radii_elliptical,
     valo,
 };
-use waft_foundation::{App, Handle, Listener, Ref, UniqueKey};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle, Listener, Ref, UniqueKey,
+};
 use waft_painting::{
     Axis, AxisDirection, Border, BorderRadius, BorderRadiusGeometry, BorderSide, BoxDecoration,
     ClipContext,
@@ -992,6 +994,22 @@ impl RenderListBodyMixin for RenderMergeableMaterialListBody {
 
 impl RenderObject for RenderMergeableMaterialListBody {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_RenderMergeableMaterialListBody` inherits `RenderListBody.debugFillProperties`.
+        RenderListBodyMixin::debug_fill_properties(self, app, properties);
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        ContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderListBodyMixin::perform_layout(self, app)
@@ -2220,5 +2238,47 @@ mod tests {
                 Size::ZERO
             );
         });
+    }
+
+    /// Dart's `_RenderMergeableMaterialListBody` fills no properties of its own; it inherits
+    /// `RenderListBody.debugFillProperties` and names its children `child 1`, `child 2`, ….
+    #[test]
+    fn a_mergeable_material_list_body_fills_the_properties_it_inherits() {
+        use super::RenderMergeableMaterialListBody;
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+        use waft_painting::AxisDirection;
+        use waft_rendering::{
+            BoxConstraints, ContainerRenderObjectMixin, RenderBox, RenderConstrainedBox,
+            RenderObject,
+        };
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let body = RenderMergeableMaterialListBody::new(&mut app, AxisDirection::Down);
+        let first =
+            RenderConstrainedBox::new(&mut app, BoxConstraints::tight(Size::new(10.0, 10.0)), None)
+                .as_box();
+        let second =
+            RenderConstrainedBox::new(&mut app, BoxConstraints::tight(Size::new(10.0, 10.0)), None)
+                .as_box();
+        body.insert(&mut app, first, None);
+        body.insert(&mut app, second, None);
+
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(body, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(names, ["axisDirection"]);
+
+        let node = body.as_object().to_diagnostics_node(&app, None);
+        let children: Vec<&str> = node
+            .children()
+            .iter()
+            .filter_map(|child| child.name())
+            .collect();
+        assert_eq!(children, ["child 1", "child 2"]);
     }
 }

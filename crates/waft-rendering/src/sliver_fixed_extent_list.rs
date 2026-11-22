@@ -624,6 +624,21 @@ macro_rules! fixed_extent_box_adaptor_leaf {
                 $crate::RenderSliverMultiBoxAdaptor::paints_child(self, app, child)
             }
 
+            fn debug_fill_properties(
+                self: $crate::RenderHandle<Self>,
+                app: &::waft_foundation::App,
+                properties: &mut ::waft_foundation::DiagnosticPropertiesBuilder,
+            ) {
+                $crate::RenderSliverMultiBoxAdaptor::debug_fill_properties(self, app, properties)
+            }
+
+            fn debug_describe_children(
+                self: $crate::RenderHandle<Self>,
+                app: &::waft_foundation::App,
+            ) -> ::std::vec::Vec<::std::rc::Rc<dyn ::waft_foundation::DiagnosticsNode>> {
+                $crate::RenderSliverMultiBoxAdaptor::debug_describe_children(self, app)
+            }
+
             fn paint(
                 self: $crate::RenderHandle<Self>,
                 app: &mut ::waft_foundation::App,

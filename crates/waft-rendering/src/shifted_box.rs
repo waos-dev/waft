@@ -9,7 +9,10 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use waft_embedder::{Clip, Offset, Rect, Size, TextBaseline};
-use waft_foundation::{App, Handle, Listenable, Listener};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty, Handle,
+    Listenable, Listener,
+};
 use waft_painting::{Alignment, AlignmentGeometry, EdgeInsets, EdgeInsetsGeometry, TextDirection};
 
 use crate::box_::{
@@ -241,6 +244,19 @@ impl RenderShiftedBox for RenderPadding {}
 
 impl RenderObject for RenderPadding {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(DiagnosticsProperty::new("padding", this.padding));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
+                .default_value(None),
+        );
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -482,6 +498,21 @@ pub trait RenderAligningShiftedBox: RenderShiftedBox {
             .parent_data_of_mut::<BoxParentData>(app)
             .offset = offset;
     }
+
+    /// Dart's `RenderAligningShiftedBox.debugFillProperties`: what a subclass's own override
+    /// adds before its properties.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let data = self.aligning_data(app);
+        properties.add(DiagnosticsProperty::new("alignment", data.alignment));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", data.text_direction)
+                .default_value(None),
+        );
+    }
 }
 
 /// Positions its child using an [`AlignmentGeometry`].
@@ -629,6 +660,17 @@ impl RenderPositionedBox {
 
 impl RenderObject for RenderPositionedBox {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+        let this = self.get(app);
+        properties.add(DoubleProperty::new("widthFactor", this.width_factor).if_null("expand"));
+        properties.add(DoubleProperty::new("heightFactor", this.height_factor).if_null("expand"));
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -938,6 +980,32 @@ impl RenderAligningShiftedBox for RenderConstrainedOverflowBox {
 impl RenderObject for RenderConstrainedOverflowBox {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+        let this = self.get(app);
+        properties.add(
+            DoubleProperty::new("minWidth", this.min_width)
+                .if_null("use parent minWidth constraint"),
+        );
+        properties.add(
+            DoubleProperty::new("maxWidth", this.max_width)
+                .if_null("use parent maxWidth constraint"),
+        );
+        properties.add(
+            DoubleProperty::new("minHeight", this.min_height)
+                .if_null("use parent minHeight constraint"),
+        );
+        properties.add(
+            DoubleProperty::new("maxHeight", this.max_height)
+                .if_null("use parent maxHeight constraint"),
+        );
+        properties.add(EnumProperty::<OverflowBoxFit>::new("fit", this.fit));
+    }
+
     fn sized_by_parent(self: RenderHandle<Self>, app: &App) -> bool {
         match self.fit(app) {
             OverflowBoxFit::Max => true,
@@ -1192,6 +1260,14 @@ impl RenderAligningShiftedBox for RenderConstraintsTransformBox {
 impl RenderObject for RenderConstraintsTransformBox {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         match self.child(app) {
@@ -1435,6 +1511,14 @@ impl RenderAligningShiftedBox for RenderSizedOverflowBox {
 impl RenderObject for RenderSizedOverflowBox {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         let size = constraints.constrain(self.requested_size(app));
@@ -1673,6 +1757,19 @@ impl RenderAligningShiftedBox for RenderFractionallySizedOverflowBox {
 
 impl RenderObject for RenderFractionallySizedOverflowBox {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+        let this = self.get(app);
+        properties
+            .add(DoubleProperty::new("widthFactor", this.width_factor).if_null("pass-through"));
+        properties
+            .add(DoubleProperty::new("heightFactor", this.height_factor).if_null("pass-through"));
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -1948,6 +2045,19 @@ impl RenderShiftedBox for RenderBaseline {}
 
 impl RenderObject for RenderBaseline {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(DoubleProperty::new("baseline", this.baseline));
+        properties.add(EnumProperty::<TextBaseline>::new(
+            "baselineType",
+            this.baseline_type,
+        ));
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);

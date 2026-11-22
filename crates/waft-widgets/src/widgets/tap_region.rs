@@ -6,7 +6,9 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Matrix4, Offset, Size, TextBaseline};
-use waft_foundation::{App, Handle, HandleId};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle, HandleId,
+};
 use waft_gestures::{
     GestureArenaMember, GestureBinding, GestureDisposition, HitTestEntry, HitTestTarget,
     PointerDownEvent, PointerEvent, PointerUpEvent,
@@ -77,6 +79,15 @@ impl From<TypeId> for TapRegionGroupId {
 impl From<HandleId> for TapRegionGroupId {
     fn from(id: HandleId) -> TapRegionGroupId {
         TapRegionGroupId::Handle(id)
+    }
+}
+
+impl fmt::Display for TapRegionGroupId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TapRegionGroupId::Type(id) => write!(f, "{id:?}"),
+            TapRegionGroupId::Handle(id) => write!(f, "#{:05x}", id.identity_hash()),
+        }
     }
 }
 
@@ -533,6 +544,14 @@ impl RenderProxyBoxWithHitTestBehavior for RenderTapRegionSurface {
 
 impl RenderObject for RenderTapRegionSurface {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
@@ -1177,6 +1196,27 @@ impl RenderProxyBoxWithHitTestBehavior for RenderTapRegion {
 impl RenderObject for RenderTapRegion {
     waft_rendering::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+        properties.add(
+            DiagnosticsProperty::<String>::new("debugLabel", self.debug_label(app))
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TapRegionGroupId>::new("groupId", self.group_id(app))
+                .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("enabled", Some(self.enabled(app)))
+                .if_false("DISABLED")
+                .default_value(Some(true)),
+        );
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
         self.sync_registration(app);
@@ -1475,7 +1515,7 @@ mod tests {
     use std::rc::Rc;
 
     use waft_embedder::Offset;
-    use waft_foundation::AppCell;
+    use waft_foundation::{AppCell, DiagnosticLevel};
     use waft_gestures::{HitTestResult, PointerDownEvent, PointerEvent};
     use waft_rendering::{
         BoxHitTestResult, HitTestBehavior, RenderBox, RenderObjectWithChildMixin,
@@ -1614,5 +1654,47 @@ mod tests {
             region.group_id,
             Some(TapRegionGroupId::Type(TypeId::of::<EditableText>()))
         );
+    }
+
+    /// `tap_region.dart`'s `RenderTapRegion.debugFillProperties`: the behavior it inherits from
+    /// its proxy box, its label, its group, and `DISABLED` when it cannot register.
+    #[test]
+    fn a_tap_region_dump_shows_its_label_group_and_disabled_state() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let harness = Harness::mount(
+            &mut app,
+            tree(
+                TapRegion::new(SizedBox::expand())
+                    .behavior(HitTestBehavior::Opaque)
+                    .enabled(false)
+                    .debug_label("region")
+                    .group_id(TypeId::of::<EditableText>())
+                    .into_widget(),
+            ),
+        );
+        harness.pump(&mut app);
+
+        let surface = harness
+            .render_root(&app)
+            .child(&app)
+            .expect("the surface")
+            .as_object()
+            .downcast::<RenderTapRegionSurface>(&app)
+            .expect("RenderTapRegionSurface");
+        let region = surface
+            .child(&app)
+            .expect("the region")
+            .as_object()
+            .downcast::<RenderTapRegion>(&app)
+            .expect("RenderTapRegion");
+
+        let dump = region
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(dump.contains("behavior: opaque"), "{dump}");
+        assert!(dump.contains("debugLabel: region"), "{dump}");
+        assert!(dump.contains("groupId: "), "{dump}");
+        assert!(dump.contains("DISABLED"), "{dump}");
     }
 }

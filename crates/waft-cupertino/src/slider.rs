@@ -13,7 +13,9 @@ use waft_embedder::{
     Color, Matrix4, Offset, Paint, RRect, Rect, Size, TargetPlatform, TextBaseline, TextDirection,
     clamp_double, lerp_double,
 };
-use waft_foundation::{App, Handle, K_IS_WEB, Listener, Ref, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Handle, K_IS_WEB, Listener, Ref, ValueChanged,
+};
 use waft_gestures::{
     DragEndDetails, DragGestureRecognizer, DragStartDetails, DragUpdateDetails,
     HorizontalDragGestureRecognizer, PointerEnterEventListener, PointerEvent,
@@ -832,6 +834,15 @@ impl RenderObjectWithChildMixin for RenderCupertinoSlider {
 impl RenderProxyBoxMixin for RenderCupertinoSlider {}
 
 impl RenderObject for RenderCupertinoSlider {
+    /// Dart's class adds none of its own: its superclass's, through the super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderConstrainedBoxBase::debug_fill_properties(self, app, properties);
+    }
+
     waft_rendering::render_object_accessors!();
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {

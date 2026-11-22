@@ -4,7 +4,7 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 ## Identical
 
-- colors.rs → colors.dart (`HSVColor`, `HSLColor`)
+- colors.rs → colors.dart (`HSVColor`, `HSLColor`, `ColorProperty`)
 - box_fit.rs → box_fit.dart
 - geometry.rs → geometry.dart (`positionDependentBox`)
 - beveled_rectangle_border.rs → beveled_rectangle_border.dart
@@ -12,7 +12,7 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - paint_utilities.rs → paint_utilities.dart (`paintZigZag`)
 - basic_types.rs → basic_types.dart (the dart:ui re-exports)
 - text_painter.rs → text_painter.dart (`kDefaultFontSize`, `TextOverflow`)
-- matrix_utils.rs → matrix_utils.dart
+- matrix_utils.rs → matrix_utils.dart (`TransformProperty`, `debugDescribeTransform`)
 - alignment.rs → alignment.dart
 - border_radius.rs → border_radius.dart
 - edge_insets.rs → edge_insets.dart
@@ -26,6 +26,7 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - inline_span.rs → inline_span.dart
 - text_span.rs → text_span.dart
 - placeholder_span.rs → placeholder_span.dart
+- strut_style.rs → strut_style.dart
 - image_stream.rs → image_stream.dart (ImageInfo, ImageStreamListener, completer listener/keep-alive lifetime)
 - image_cache.rs → image_cache.dart (pending/live/LRU tracking, limits, status, and post-frame retention release)
 
@@ -41,11 +42,21 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — a Rust trait object has no identity of its own, a trait method on `&self` cannot hand out the shared value it is called on, and one trait object cannot be cast to another (Dart's `as OutlinedBorder`).
   Affect: an `OutlinedBorder` implemented outside Waft that does not override `into_outlined_border` is not seen as outlined where a shared border is read as one (nor a `BoxBorder` that does not override `into_box_border` as a box border): `OutlinedBorderRef::lerp` and `BoxBorderRef::lerp` panic on it, as Dart's `as OutlinedBorder` and `as BoxBorder?` do on a result of another kind, and `RawMaterialButton` does not resolve it by state; an implementation method Dart writes as `return this` (a `lerpFrom` or `copyWith` that changes nothing) returns a new value, unequal to the old one under identity equality.
 
+## text_style.rs → text_style.dart (`foreground` / `background`)
+
+- Change: `TextStyle`'s `foreground` and `background` diagnostic lines are `DiagnosticsProperty<String>` values reading `Instance of 'Paint'`.
+  Reason: language — `Paint` is valo's type with no `Display`, and dart:ui's `Paint.toString` is not ported.
+  Affect: a dump of a style with a paint names the class where Dart prints the paint's colour and settings.
+
 ## colors.rs → colors.dart (+ the `Color` subclass mechanism)
 
 - Change: Flutter's `Color` subclasses (`CupertinoDynamicColor`, `WidgetStateColor`, `ColorSwatch`) are `ColorExtension` payloads that `AnyColor` carries beside the plain `Color`; `AnyColor` derefs to `Color` and `extension::<T>()` is Dart's `is T`.
   Reason: language — dart:ui `Color` is a `Copy` value here and cannot be subclassed.
   Affect: only the fields the framework resolves or type-checks hold `AnyColor` — text and decoration colours, icon theme, theme data; a colour that reaches a paint-only field (border sides, shadows, gradient stops, `Paint`) has dropped its payload and no longer resolves or compares as its subclass.
+
+- Change: a diagnostics `ColorProperty` prints the plain `Color` inside an `AnyColor`, not the subclass's own `toString`.
+  Reason: language — `ColorProperty` holds a `Color`, and the subclass rides beside it as the `AnyColor` payload.
+  Affect: a dump of a style or decoration whose colour is a subclass prints the plain colour, where Dart prints the subclass's description.
 
 ## draw.rs
 
@@ -127,25 +138,29 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: platform — the renderer tints an image by alpha and ignores the paint's colour channels.
   Affect: fading an image works; tinting one does nothing.
 
+## matrix_utils.rs → matrix_utils.dart (`TransformProperty`)
+
+- Change: a `TransformProperty` keeps the matrix's formatted text in a `DiagnosticsProperty<String>` beside the matrix.
+  Reason: language — `DiagnosticsProperty` prints its value through `Display`, which the host's `Matrix4` does not implement.
+  Affect: a dump reads as Dart's; the property's value is the text, not the matrix.
+
 ## Deferred
 
-- `DecorationImage`, and the `image` field on `BoxDecoration` and `ShapeDecoration`. Trigger: a decoration that paints an image.
+- `DecorationImage`, the `image` field on `BoxDecoration` and `ShapeDecoration`, and the `image` line of their diagnostics. Trigger: a decoration that paints an image.
 - `paintImage`'s nine-patch centre slice, which stretches the middle of a picture and leaves its edges alone, along with its colour filter, `invertColors`, and the choice of how it is sampled. Trigger: an image drawn as a resizable frame; painting's colour filters; a caller that needs to choose how an image is sampled.
 - Deciding what an image is called only after reading something: Dart's `ImageProvider.obtainKey` answers with a future so a provider can go and look first, where ours answers straight away. Trigger: a provider that has to read a bundle's list of files before it can name one.
 - `ResizeImage`. Trigger: decoding to a chosen size.
 - `ImageProvider.evict` and `obtainCacheStatus`. Trigger: a caller that drops or inspects one image in the cache.
 - `debug.dart`'s other flags (`debugPaintPictureSizesEnabled`, `debugInvertOversizedImages`, …). Trigger: image loading, or tests that need it.
-- `ColorProperty`. Trigger: diagnostics.
 - Custom `TextScaler` / `SystemTextScaler`. Trigger: `MediaQuery`.
 - `EdgeInsets.fromViewPadding` / `fromWindowPadding`. Trigger: embedder / `MediaQuery`.
 - `_MixedBorderRadius` and cross-kind `add` / `subtract` / `lerp`. Trigger: first consumer that adds a `BorderRadius` to a `BorderRadiusDirectional`.
 - `hashCode` / `Hash`. Trigger: the first map or set keyed by insets, alignment, border radius, `TextScaler` or `TextStyle`.
-- Diagnostics / `debugCheckCanResolveTextDirection`. Trigger: porting diagnostics; a missing `TextDirection` on resolve panics until then.
-- `ui.Locale`, `ImageConfiguration.locale`, `TextStyle.locale`. Trigger: locale-specific assets or region-specific glyphs.
+- `debugCheckCanResolveTextDirection`. Trigger: a missing `TextDirection` on resolve panics until then.
+- `TextStyle.locale`, and the `locale` line of its diagnostics. Trigger: locale-specific glyphs.
 - `AssetBundle.loadString` / `loadStructuredData` / `loadBuffer` / caching, `NetworkAssetBundle`, `rootBundle`. Trigger: string or structured assets, or a default bundle on `App`.
 - `StarBorder`. Trigger: a star or polygon `ShapeBorder`.
 - The rest of `PaintingBinding`. Trigger: image cache / shader warm-up.
 - `TextPainter.locale` / `TextSpan.locale` / `TextSpan.spellOut`. Trigger: `Locale`.
-- `TextSpan` semantics and `computeSemanticsInformation`. Trigger: accessibility; do not stub.
+- `TextSpan` semantics and `computeSemanticsInformation`, and the `semanticsLabel` / `semanticsIdentifier` lines of a span dump. Trigger: accessibility; do not stub.
 - `TextPainter.wordBoundaries`: `WordBoundary` reads a laid-out paragraph, which lives in the render object here, so it sits with `RenderEditable` in rendering. Trigger: a word boundary wanted without a render object.
-- `strut_style_test.dart`'s `toString` assertions, which are diagnostics-only; its equality and field assertions are ported. Trigger: a Dart-shaped `toString` on strut styles.

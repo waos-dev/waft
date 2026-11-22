@@ -11,7 +11,7 @@ use waft_animation::{
     AnimationStatusListener, AnimationStyle, Curve, CurvedAnimation, Curves,
 };
 use waft_embedder::{Matrix4, Offset, PointerDeviceKind, Size, TextBaseline};
-use waft_foundation::{App, Handle, Listener, OptionRetained, Timer};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle, Listener, OptionRetained, Timer};
 use waft_gestures::{
     GestureBinding, LongPressGestureRecognizer, PointerDownEvent, PointerEnterEvent,
     PointerEnterEventListener, PointerEvent, PointerExitEvent, PointerExitEventListener,
@@ -335,6 +335,14 @@ impl RenderProxyBoxWithHitTestBehavior for RenderExclusiveMouseRegion {
 
 impl RenderObject for RenderExclusiveMouseRegion {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderMouseRegionBase::debug_fill_properties(self, app, properties);
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         RenderMouseRegionBase::did_attach(self, app, owner);

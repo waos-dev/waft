@@ -6,6 +6,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::{Platform, SystemMouseCursorKind, ViewId};
+use waft_foundation::describe_enum;
 use waft_gestures::PointerEvent;
 
 /// A shared reference to an immutable [`MouseCursor`] (a Dart object reference).
@@ -403,7 +404,7 @@ impl MouseCursor for SystemMouseCursor {
     }
 
     fn debug_description(&self) -> String {
-        format!("SystemMouseCursor({:?})", self.kind)
+        format!("SystemMouseCursor({})", describe_enum(&self.kind))
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -703,7 +704,7 @@ mod tests {
         assert!(*<dyn MouseCursor>::uncontrolled() == *<dyn MouseCursor>::uncontrolled());
         assert!(*<dyn MouseCursor>::defer() != *<dyn MouseCursor>::uncontrolled());
         assert!(*<dyn MouseCursor>::defer() != *click);
-        assert_eq!(click.debug_description(), "SystemMouseCursor(Click)");
+        assert_eq!(click.debug_description(), "SystemMouseCursor(click)");
         assert_eq!(<dyn MouseCursor>::defer().debug_description(), "defer");
     }
 

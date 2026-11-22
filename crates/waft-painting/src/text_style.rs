@@ -12,9 +12,14 @@ use waft_embedder::{
     TextLeadingDistribution,
 };
 use waft_embedder::{ParagraphStyle, TextHeightBehavior, TextStyle as UiTextStyle};
+use waft_foundation::{
+    DiagnosticLevel, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsNode,
+    DiagnosticsProperty, DoubleProperty, EnumProperty, FlagProperty, IterableProperty,
+    MessageProperty, StringProperty, describe_enum,
+};
 
 use crate::basic_types::RenderComparison;
-use crate::colors::AnyColor;
+use crate::colors::{AnyColor, ColorProperty};
 use crate::strut_style::StrutStyle;
 use crate::text_painter::{K_DEFAULT_FONT_SIZE, TextOverflow};
 use crate::text_scaler::TextScaler;
@@ -872,32 +877,208 @@ impl PartialEq for TextStyle {
     }
 }
 
+impl Diagnosticable for TextStyle {
+    fn to_string_short(&self) -> String {
+        "TextStyle".to_string()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.debug_fill_properties_with_prefix(properties, "");
+    }
+}
+
+impl TextStyle {
+    /// Dart `debugFillProperties(properties, {String prefix = ''})`.
+    ///
+    /// `TextSpan` calls this to add the style's properties to its own node, where Dart's
+    /// `InlineSpan.debugFillProperties` does.
+    pub fn debug_fill_properties_with_prefix(
+        &self,
+        properties: &mut DiagnosticPropertiesBuilder,
+        prefix: &str,
+    ) {
+        if let Some(debug_label) = &self.debug_label {
+            properties.add(MessageProperty::new(
+                format!("{prefix}debugLabel"),
+                debug_label.clone(),
+            ));
+        }
+        let mut styles: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        styles.push(Rc::new(
+            ColorProperty::new(
+                format!("{prefix}color"),
+                self.color.as_ref().map(|color| **color),
+            )
+            .default_value(None),
+        ));
+        styles.push(Rc::new(
+            ColorProperty::new(
+                format!("{prefix}backgroundColor"),
+                self.background_color.as_ref().map(|color| **color),
+            )
+            .default_value(None),
+        ));
+        styles.push(Rc::new(
+            StringProperty::new(format!("{prefix}family"), self.font_family.clone())
+                .default_value(None)
+                .quoted(false),
+        ));
+        styles.push(Rc::new(
+            IterableProperty::<String>::new(
+                format!("{prefix}familyFallback"),
+                self.font_family_fallback_list(),
+            )
+            .default_value(None),
+        ));
+        styles.push(Rc::new(
+            DoubleProperty::new(format!("{prefix}size"), self.font_size).default_value(None),
+        ));
+        let weight_description = self
+            .font_weight
+            .map(|font_weight| format!("{}00", font_weight.index() + 1));
+        let mut weight =
+            DiagnosticsProperty::<FontWeight>::new(format!("{prefix}weight"), self.font_weight)
+                .default_value(None);
+        if let Some(weight_description) = weight_description {
+            weight = weight.description(weight_description);
+        }
+        styles.push(Rc::new(weight));
+        styles.push(Rc::new(
+            EnumProperty::<FontStyle>::new(format!("{prefix}style"), self.font_style)
+                .default_value(None),
+        ));
+        styles.push(Rc::new(
+            DoubleProperty::new(format!("{prefix}letterSpacing"), self.letter_spacing)
+                .default_value(None),
+        ));
+        styles.push(Rc::new(
+            DoubleProperty::new(format!("{prefix}wordSpacing"), self.word_spacing)
+                .default_value(None),
+        ));
+        styles.push(Rc::new(
+            EnumProperty::<TextBaseline>::new(format!("{prefix}baseline"), self.text_baseline)
+                .default_value(None),
+        ));
+        styles.push(Rc::new(
+            DoubleProperty::new(format!("{prefix}height"), self.height)
+                .unit("x")
+                .default_value(None),
+        ));
+        styles.push(Rc::new(
+            EnumProperty::<TextLeadingDistribution>::new(
+                format!("{prefix}leadingDistribution"),
+                self.leading_distribution,
+            )
+            .default_value(None),
+        ));
+        // Dart's `DiagnosticsProperty<Locale>('${prefix}locale', locale, defaultValue: null)`
+        // waits with `TextStyle.locale`; see `PORTING.md`.
+        styles.push(Rc::new(
+            DiagnosticsProperty::<String>::new(
+                format!("{prefix}foreground"),
+                self.foreground
+                    .as_ref()
+                    .map(|_| "Instance of 'Paint'".to_string()),
+            )
+            .default_value(None),
+        ));
+        styles.push(Rc::new(
+            DiagnosticsProperty::<String>::new(
+                format!("{prefix}background"),
+                self.background
+                    .as_ref()
+                    .map(|_| "Instance of 'Paint'".to_string()),
+            )
+            .default_value(None),
+        ));
+        if self.decoration.is_some()
+            || self.decoration_color.is_some()
+            || self.decoration_style.is_some()
+            || self.decoration_thickness.is_some()
+        {
+            let mut decoration_description = Vec::new();
+            if let Some(decoration_style) = self.decoration_style {
+                decoration_description.push(describe_enum(&decoration_style));
+            }
+
+            // Hide decorationColor from the default text view as it is shown in the terse
+            // decoration summary as well.
+            styles.push(Rc::new(
+                ColorProperty::new(
+                    format!("{prefix}decorationColor"),
+                    self.decoration_color.as_ref().map(|color| **color),
+                )
+                .default_value(None)
+                .with_level(DiagnosticLevel::Fine),
+            ));
+
+            if let Some(decoration_color) = &self.decoration_color {
+                decoration_description.push(decoration_color.to_string());
+            }
+
+            // Intentionally collides with the property `decoration` added below. Tools that
+            // show hidden properties could choose the first property matching the name to
+            // disambiguate.
+            styles.push(Rc::new(
+                DiagnosticsProperty::<TextDecoration>::new(
+                    format!("{prefix}decoration"),
+                    self.decoration,
+                )
+                .default_value(None)
+                .with_level(DiagnosticLevel::Hidden),
+            ));
+            if let Some(decoration) = self.decoration {
+                decoration_description.push(decoration.to_string());
+            }
+            debug_assert!(
+                !decoration_description.is_empty(),
+                "decorationDescription must not be empty"
+            );
+            styles.push(Rc::new(MessageProperty::new(
+                format!("{prefix}decoration"),
+                decoration_description.join(" "),
+            )));
+            styles.push(Rc::new(
+                DoubleProperty::new(
+                    format!("{prefix}decorationThickness"),
+                    self.decoration_thickness,
+                )
+                .unit("x")
+                .default_value(None),
+            ));
+        }
+
+        let style_specified = styles
+            .iter()
+            .any(|node| !node.is_filtered(DiagnosticLevel::Info));
+        properties.add(
+            DiagnosticsProperty::<bool>::new(format!("{prefix}inherit"), Some(self.inherit))
+                .with_level(if !style_specified && self.inherit {
+                    DiagnosticLevel::Fine
+                } else {
+                    DiagnosticLevel::Info
+                }),
+        );
+        for style in styles {
+            properties.add_rc(style);
+        }
+
+        if !style_specified {
+            properties.add(
+                FlagProperty::new(format!("{prefix}inherit"), Some(self.inherit))
+                    .if_true(format!("{prefix}<all styles inherited>"))
+                    .if_false(format!("{prefix}<no style specified>")),
+            );
+        }
+
+        // Dart adds `EnumProperty<TextOverflow>('${prefix}overflow', overflow, ...)` to
+        // `styles` after `styles.forEach(properties.add)`, so the property is never shown.
+    }
+}
+
 impl Debug for TextStyle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut s = f.debug_struct("TextStyle");
-        s.field("inherit", &self.inherit)
-            .field("color", &self.color)
-            .field("background_color", &self.background_color)
-            .field("family", &self.font_family)
-            .field("size", &self.font_size)
-            .field("weight", &self.font_weight)
-            .field("style", &self.font_style)
-            .field("letter_spacing", &self.letter_spacing)
-            .field("word_spacing", &self.word_spacing)
-            .field("baseline", &self.text_baseline)
-            .field("height", &self.height)
-            .field("leading_distribution", &self.leading_distribution)
-            .field("foreground", &self.foreground)
-            .field("background", &self.background)
-            .field("decoration", &self.decoration)
-            .field("decoration_color", &self.decoration_color)
-            .field("decoration_style", &self.decoration_style)
-            .field("decoration_thickness", &self.decoration_thickness)
-            .field("overflow", &self.overflow);
-        if cfg!(debug_assertions) {
-            s.field("debug_label", &self.debug_label);
-        }
-        s.finish()
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 
@@ -1498,6 +1679,153 @@ impl Debug for AnyTextStyle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // text_style_test.dart 'TextStyle control test'.
+    #[test]
+    fn text_style_control_test_to_string() {
+        assert_eq!(
+            format!("{:?}", TextStyle::new().inherit(false)),
+            "TextStyle(inherit: false, <no style specified>)"
+        );
+        assert_eq!(
+            format!("{:?}", TextStyle::new()),
+            "TextStyle(<all styles inherited>)"
+        );
+
+        let s1 = TextStyle::new()
+            .font_size(10.0)
+            .font_weight(FontWeight::W800)
+            .height(123.0);
+        assert_eq!(s1.font_family, None);
+        assert_eq!(s1.font_size, Some(10.0));
+        assert_eq!(s1.font_weight, Some(FontWeight::W800));
+        assert_eq!(s1.height, Some(123.0));
+        assert_eq!(s1, s1.clone());
+        assert_eq!(
+            format!("{s1:?}"),
+            "TextStyle(inherit: true, size: 10.0, weight: 800, height: 123.0x)"
+        );
+        assert_eq!(
+            format!("{:?}", s1.copy_with().inherit(false)),
+            "TextStyle(inherit: false, size: 10.0, weight: 800, height: 123.0x)"
+        );
+
+        let s2 = s1
+            .copy_with()
+            .color(Color::from_argb(0xFF, 0x00, 0xFF, 0x00))
+            .height(100.0)
+            .leading_distribution(TextLeadingDistribution::Even);
+        assert_eq!(s2.font_family, None);
+        assert_eq!(s2.font_size, Some(10.0));
+        assert_eq!(s2.font_weight, Some(FontWeight::W800));
+        assert_eq!(s2.height, Some(100.0));
+        assert_eq!(
+            s2.color,
+            Some(Color::from_argb(0xFF, 0x00, 0xFF, 0x00).into())
+        );
+        assert_eq!(s2.leading_distribution, Some(TextLeadingDistribution::Even));
+        assert_ne!(s2, s1);
+        assert_eq!(
+            format!("{s2:?}"),
+            format!(
+                "TextStyle(inherit: true, color: {}, size: 10.0, weight: 800, height: 100.0x, leadingDistribution: even)",
+                Color::from_argb(0xFF, 0x00, 0xFF, 0x00)
+            )
+        );
+    }
+
+    // text_style_test.dart 'TextStyle.debugLabel'.
+    #[test]
+    fn text_style_debug_label_to_string() {
+        let unknown = TextStyle::new();
+        let foo = TextStyle::new().debug_label("foo").font_size(1.0);
+        let bar = TextStyle::new().debug_label("bar").font_size(2.0);
+
+        assert_eq!(unknown.debug_label, None);
+        assert_eq!(format!("{unknown:?}"), "TextStyle(<all styles inherited>)");
+        assert_eq!(unknown.copy_with().debug_label, None);
+        assert_eq!(
+            TextStyle::new()
+                .copy_with()
+                .debug_label("123")
+                .debug_label
+                .as_deref(),
+            Some("123")
+        );
+        assert_eq!(unknown.apply().into_style().debug_label, None);
+
+        assert_eq!(foo.debug_label.as_deref(), Some("foo"));
+        assert_eq!(
+            format!("{foo:?}"),
+            "TextStyle(debugLabel: foo, inherit: true, size: 1.0)"
+        );
+        assert_eq!(
+            foo.merge(Some(&bar)).debug_label.as_deref(),
+            Some("(foo).merge(bar)")
+        );
+        assert_eq!(
+            foo.copy_with().debug_label.as_deref(),
+            Some("(foo).copyWith")
+        );
+        assert_eq!(
+            foo.apply().into_style().debug_label.as_deref(),
+            Some("(foo).apply")
+        );
+    }
+
+    // text_style_test.dart 'backgroundColor'.
+    #[test]
+    fn background_color_to_string() {
+        let s1 = TextStyle::new();
+        assert_eq!(s1.background_color, None);
+        assert_eq!(format!("{s1:?}"), "TextStyle(<all styles inherited>)");
+
+        let s2 = TextStyle::new().background_color(Color::from_argb(0xFF, 0x00, 0xFF, 0x00));
+        assert_eq!(
+            s2.background_color,
+            Some(Color::from_argb(0xFF, 0x00, 0xFF, 0x00).into())
+        );
+        assert_eq!(
+            format!("{s2:?}"),
+            format!(
+                "TextStyle(inherit: true, backgroundColor: {})",
+                Color::from_argb(0xFF, 0x00, 0xFF, 0x00)
+            )
+        );
+    }
+
+    /// A decoration's terse summary is the style, the colour and the decoration itself.
+    #[test]
+    fn a_decoration_is_summarised() {
+        let style = TextStyle::new()
+            .decoration(TextDecoration::UNDERLINE)
+            .decoration_color(Color::from_argb(0xFF, 0xFF, 0x00, 0x00))
+            .decoration_style(TextDecorationStyle::Dashed)
+            .decoration_thickness(2.0);
+        assert_eq!(
+            format!("{style:?}"),
+            format!(
+                "TextStyle(inherit: true, decoration: dashed {} TextDecoration.underline, decorationThickness: 2.0x)",
+                Color::from_argb(0xFF, 0xFF, 0x00, 0x00)
+            )
+        );
+    }
+
+    #[test]
+    fn a_font_family_fallback_prints_as_a_list() {
+        assert_eq!(
+            format!(
+                "{:?}",
+                TextStyle::new()
+                    .font_family_fallback(vec!["Roboto".to_string(), "test".to_string()])
+            ),
+            "TextStyle(inherit: true, familyFallback: [Roboto, test])"
+        );
+        assert_eq!(
+            format!("{:?}", TextStyle::new().font_family_fallback(vec![])),
+            "TextStyle(inherit: true, familyFallback: [])"
+        );
+    }
 
     #[test]
     fn copy_with_replaces_color() {

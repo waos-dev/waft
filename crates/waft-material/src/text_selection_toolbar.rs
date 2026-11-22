@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use waft_cupertino::CupertinoTextSelectionToolbar;
 use waft_embedder::{Brightness, Clip, Color, Matrix4, Offset, Radius, Size, TextBaseline};
-use waft_foundation::{App, Handle, Listener, UniqueKey};
+use waft_foundation::{App, DiagnosticsNode, Handle, Listener, UniqueKey};
 use waft_painting::{BorderRadius, EdgeInsetsGeometry, TextDirection};
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult, ContainerBoxParentData,
@@ -1000,6 +1000,13 @@ impl ContainerRenderObjectMixin for RenderTextSelectionToolbarItemsLayout {
 impl RenderObject for RenderTextSelectionToolbarItemsLayout {
     waft_rendering::render_object_accessors!();
 
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        ContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         self.get_mut(app).last_index_that_fits = -1;
         if self.first_child(app).is_none() {
@@ -1637,5 +1644,34 @@ mod tests {
                     .is_some()
             );
         });
+    }
+
+    /// Dart's `_RenderTextSelectionToolbarItemsLayout` fills no properties of its own; its
+    /// `ContainerRenderObjectMixin` names the children `child 1`, `child 2`, ….
+    #[test]
+    fn a_toolbar_items_layout_describes_its_children_in_order() {
+        use waft_foundation::{AppCell, DiagnosticsNode};
+        use waft_rendering::{BoxConstraints, RenderConstrainedBox};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let items =
+            RenderTextSelectionToolbarItemsLayout::new(&mut app, true, false, TextDirection::Ltr);
+        let child = |app: &mut App| {
+            RenderConstrainedBox::new(app, BoxConstraints::tight(Size::new(10.0, 10.0)), None)
+                .as_box()
+        };
+        let first = child(&mut app);
+        let second = child(&mut app);
+        items.insert(&mut app, first, None);
+        items.insert(&mut app, second, None);
+
+        let node = items.as_object().to_diagnostics_node(&app, None);
+        let names: Vec<&str> = node
+            .children()
+            .iter()
+            .filter_map(|child| child.name())
+            .collect();
+        assert_eq!(names, ["child 1", "child 2"]);
     }
 }

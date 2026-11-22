@@ -7,7 +7,10 @@ use std::any::Any;
 use std::rc::Rc;
 
 use waft_embedder::{Canvas, Matrix4, Offset, Size, TextBaseline};
-use waft_foundation::{App, Handle, Listenable, Listener};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, Listenable,
+    Listener, MessageProperty,
+};
 use waft_painting::ClipContext;
 
 use crate::box_::{AnyRenderBox, BoxConstraints, BoxHitTestResult, RenderBox, RenderBoxData};
@@ -419,8 +422,52 @@ impl RenderProxyBoxMixin for RenderCustomPaint {
     }
 }
 
+/// Dart's `'$painter'`: `null`, or the painter's `toString`.
+///
+/// A Dart object's default `toString` names its runtime class; a Rust trait object has no runtime
+/// class name, so every painter reads as `CustomPainter`.
+fn painter_description(painter: &Option<Rc<dyn CustomPainter>>) -> String {
+    if painter.is_some() {
+        "Instance of 'CustomPainter'".to_string()
+    } else {
+        "null".to_string()
+    }
+}
+
 impl RenderObject for RenderCustomPaint {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(MessageProperty::new(
+            "painter",
+            painter_description(&this.painter),
+        ));
+        properties.add(
+            MessageProperty::new(
+                "foregroundPainter",
+                painter_description(&this.foreground_painter),
+            )
+            .with_level(if this.foreground_painter.is_some() {
+                DiagnosticLevel::Info
+            } else {
+                DiagnosticLevel::Fine
+            }),
+        );
+        properties.add(
+            DiagnosticsProperty::new("preferredSize", this.preferred_size)
+                .default_value(Some(Size::ZERO)),
+        );
+        properties
+            .add(DiagnosticsProperty::new("isComplex", this.is_complex).default_value(Some(false)));
+        properties.add(
+            DiagnosticsProperty::new("willChange", this.will_change).default_value(Some(false)),
+        );
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         if let Some(child) = self.child(app) {

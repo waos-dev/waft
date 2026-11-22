@@ -11,6 +11,7 @@ mod collections;
 mod completer;
 mod constants;
 mod date_time;
+mod diagnostics;
 mod entity;
 mod erased;
 mod executor;
@@ -28,6 +29,7 @@ pub use collections::*;
 pub use completer::*;
 pub use constants::*;
 pub use date_time::DateTime;
+pub use diagnostics::*;
 pub use entity::*;
 pub use executor::Task;
 #[cfg(debug_assertions)]

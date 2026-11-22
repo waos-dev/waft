@@ -268,8 +268,28 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — a Rust struct cannot be subclassed, and keeping `BoxConstraints` `Copy` means the subclass rides beside it, as `AnyColor` carries a `Color`'s (D17).
   Affect: a subclass instance survives one hop (parent's `layout` or `layout_child` → the child's stored constraints → a `LayoutBuilder`'s builder); a render object that hands its own `constraints()` on to its child passes the plain value, where Dart passes the subclass object along. Nothing in Flutter's scaffold relies on more than one hop.
 
+## proxy_box.rs, table.rs, image.rs, editable.rs, custom_paint.rs → their Dart files (diagnostics)
+
+- Change: a value whose Dart `toString` names its runtime class prints `Instance of '…'` with the kind Waft knows: `RenderCustomPaint`'s painters read `Instance of 'CustomPainter'`, `RenderPhysicalShape`'s clipper `Instance of 'CustomClipper<Path>'`, `RenderMetaData`'s meta data `Instance of 'Object'`, and `RenderEditable`'s `showCursor` and `offset` `Instance of 'ValueNotifier<bool>'` and `Instance of 'ViewportOffset'`.
+  Reason: language — a Rust trait object or erased handle carries no runtime class name.
+  Affect: a dump names the kind where Dart names the app's class.
+
+- Change: `RenderTable`'s `specified column widths` is a `DiagnosticsProperty<String>` holding the map's text with its columns in ascending order.
+  Reason: language — a `DiagnosticsProperty` prints its value through `Display`, which std's `HashMap` does not implement, and the port stores the widths in a `HashMap` rather than Dart's insertion-ordered map.
+  Affect: a dump reads as Dart's, with columns in index order whatever order they were set in.
+
+- Change: `RenderImage`'s `image` is a `DiagnosticsProperty<String>` holding `[width×height]`.
+  Reason: language — `ui.Image` is a host type with no `Display`.
+  Affect: none; the line reads as Dart's.
+
 ## Deferred
 - `paragraph_test.dart`'s "paints selection highlights outside fade layer and handles after text": the checks of the fade's `saveLayer` and shader rect. Trigger: the fade overflow shader.
+- `RenderParagraph` and `RenderEditable`'s `locale` line, which needs painting's text-painter locale. Trigger: a localized text painter.
+- `_SelectableFragment`'s diagnostics. Trigger: a dump that includes selection fragments.
+- `RenderAnimatedOpacity`'s `opacity` line and the `alwaysIncludeSemantics` flags of the opacity boxes. Trigger: animation diagnostics and the semantics tree.
+- `RenderRepaintBoundary`'s repaint-usefulness metrics. Trigger: the repaint-boundary paint counters.
+- The semantics render objects' diagnostics (`RenderSemanticsGestureHandler` gestures, `RenderBlockSemantics` blocking, `RenderExcludeSemantics` excluding, `RenderIndexedSemantics` index). Trigger: the semantics tree.
+- `RenderImage`'s `scale` and its `opacity` as an `Animation<double>`. Trigger: an animated image opacity and the image's scale as an own field.
 
 - box.rs: `AnyBoxConstraints`'s `Hash` (Dart's subclasses override `hashCode`). Trigger: the first map or set keyed by one.
 - `RenderImage`'s `color` / `colorBlendMode` and `invertColors`. Trigger: painting's colour filters.
@@ -293,5 +313,34 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - `SliverConstraints.debugAssertIsValid` extra numeric checks. Trigger: a caller that relies on those messages.
 - `RenderIgnoreBaseline`, which reports no baseline for a child that has one, so that a baseline-aligned row puts that child at the top. Trigger: a child a baseline-aligned `Row` should not align by its baseline.
 - `PaintingContext.pushColorFilter`. Trigger: its first caller.
-- proxy_box.rs: the physical models' diagnostics. Trigger: diagnostics.
 - proxy_box.rs: `CustomClipper.getApproximateClipRect` and the clips' `describeApproximatePaintClip`, with `_DismissibleClipper`'s override of it. Trigger: the semantics tree.
+
+## object.rs, layer.rs, binding.rs → object.dart, layer.dart, binding.dart (diagnostics)
+
+- Change: `RenderObject` and `Layer` declare `debug_fill_properties`, which a class overrides with its own properties only; the framework adds the base classes' first (`RenderObject`'s, then `RenderBox`'s or `RenderSliver`'s; `Layer`'s).
+  Reason: language — a trait default cannot call `super`, so the base bodies run before the override instead of from it.
+  Affect: a dump lists the base properties, then the class's, in Dart's order.
+
+- Change: `debug_describe_children` defaults to the children `visit_children` visits, named `child` when there is one and `child 1`, `child 2`, … when there are more; Dart's default shows none, and its child mixins name theirs.
+  Reason: language — a trait default cannot know which child mixin a class uses; a class that names its children as Dart does overrides it.
+  Affect: a dump never drops a child; a container with one child shows `child` where Dart shows `child 1` until its class describes its own.
+
+- Change: the base properties leave out `creator`, `semantics node`, `isBlockingSemanticsOfPreviouslyPaintedNodes` and `isSemanticBoundary` on render objects, and `owner` and `creator` on layers.
+  Reason: platform — there is no `debugCreator` yet (Trigger: widget diagnostics), accessibility is deferred, and a layer's owner is kept as an untyped id.
+  Affect: a dump lacks those lines; the rest are Dart's.
+
+- Change: `debug_dump_render_tree(app)` and `debug_dump_layer_tree(app)` answer the text Dart's `debugDumpRenderTree` and `debugDumpLayerTree` print.
+  Reason: platform — there is no `debugPrint` to throttle; a test, a debugger or a dev protocol takes the text.
+  Affect: the caller prints or compares it.
+
+- Change: a layer's `engine layer` line names the retained layer by its effect (`ClipRectEngineLayer#…`), and an offset as a transform (`TransformEngineLayer`).
+  Reason: platform — Waft keeps one engine layer type whose effect says what it does, where dart:ui has one type per effect, and an offset is a transform.
+  Affect: an offset layer's engine layer reads `TransformEngineLayer` where Dart's reads `OffsetEngineLayer`.
+
+- Change: `AnnotatedRegionLayer` leaves its `value` out of a dump.
+  Reason: language — the layer holds the annotation as `Rc<dyn Any>`, which has no `Display` to stand for the value's `toString()`.
+  Affect: a dump lacks the `value:` line; its `size`, `offset` and `opaque` lines are Dart's.
+
+- Change: `RenderSliverPersistentHeader` reads its `maxExtent`, `child position` and `effective scroll offset` when a dump node is built, where Dart's `DoubleProperty.lazy` reads them when the property prints.
+  Reason: language — a lazy property's callback is `'static` and cannot capture the `&App` the getters need.
+  Affect: building a dump of a header that has not positioned its child panics at build time; the printed lines are Dart's.

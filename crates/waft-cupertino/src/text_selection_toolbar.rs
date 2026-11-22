@@ -16,7 +16,7 @@ use waft_embedder::{
     BlurStyle, Brightness, Canvas, Clip, Color, FillRule, Offset, Paint, PaintStyle, Path,
     PathBuilder, RRect, Radius, Rect, Size, Stroke, clamp_double, rrect_radii_elliptical,
 };
-use waft_foundation::{App, Handle, Listener, OptionRetained, Ref};
+use waft_foundation::{App, DiagnosticsNode, Handle, Listener, OptionRetained, Ref};
 use waft_gestures::DragEndDetails;
 use waft_painting::{BoxShadow, ClipContext, EdgeInsetsGeometry, draw_rrect};
 use waft_rendering::{
@@ -1697,6 +1697,28 @@ impl RenderObject for RenderCupertinoTextSelectionToolbarItems {
         ContainerRenderObjectMixin::visit_children(self, app, visitor);
     }
 
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let back_button = self.get(app).back_button;
+        let next_button = self.get(app).next_button;
+        let mut value = Vec::new();
+        RenderObject::visit_children(self, app, &mut |render_object_child| {
+            let name = if back_button.is_some_and(|child| child.as_object() == render_object_child)
+            {
+                "back button"
+            } else if next_button.is_some_and(|child| child.as_object() == render_object_child) {
+                "next button"
+            } else {
+                "menu item"
+            };
+            value.push(Rc::new(render_object_child.to_diagnostics_node(app, name))
+                as Rc<dyn DiagnosticsNode>);
+        });
+        value
+    }
+
     fn did_attach(
         self: RenderHandle<Self>,
         app: &mut App,
@@ -1765,5 +1787,55 @@ impl RenderBox for RenderCupertinoTextSelectionToolbarItems {
             return true;
         }
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use waft_foundation::{AppCell, DiagnosticLevel};
+    use waft_rendering::RenderConstrainedBox;
+
+    use super::*;
+
+    fn child(app: &mut App, width: f64) -> AnyRenderBox {
+        RenderConstrainedBox::new(app, BoxConstraints::tight(Size::new(width, 20.0)), None).as_box()
+    }
+
+    /// `cupertino/text_selection_toolbar.dart`'s
+    /// `_RenderCupertinoTextSelectionToolbarItems.debugDescribeChildren`: the buttons and the
+    /// menu items are named by their roles.
+    #[test]
+    fn a_toolbar_items_dump_names_its_buttons_and_menu_items() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let items =
+            RenderCupertinoTextSelectionToolbarItems::new(&mut app, Color::new(0xFF000000), 1.0, 0);
+        let back = child(&mut app, 10.0);
+        let next = child(&mut app, 10.0);
+        let first = child(&mut app, 30.0);
+        let second = child(&mut app, 40.0);
+        items.set_back_button(&mut app, Some(back));
+        items.set_next_button(&mut app, Some(next));
+        items.insert(&mut app, first, None);
+        items.insert(&mut app, second, None);
+
+        let dump = items
+            .as_object()
+            .to_string_deep_with(&app, DiagnosticLevel::Info);
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("back button: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("next button: RenderConstrainedBox#")),
+            "{dump}"
+        );
+        assert_eq!(
+            dump.matches("menu item: RenderConstrainedBox#").count(),
+            2,
+            "{dump}"
+        );
     }
 }

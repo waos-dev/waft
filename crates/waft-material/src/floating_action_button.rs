@@ -6,7 +6,7 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Clip, Color, Offset, Size, TextBaseline};
-use waft_foundation::{AnyEq, App, Listener};
+use waft_foundation::{AnyEq, App, DiagnosticPropertiesBuilder, Listener};
 use waft_painting::{
     AlignmentGeometry, CircleBorder, EdgeInsetsDirectional, EdgeInsetsGeometry, ShapeBorderRef,
     StadiumBorder, TextDirection, TextStyle,
@@ -1059,6 +1059,15 @@ impl RenderAligningShiftedBox for RenderChildOverflowBox {
 
 impl RenderObject for RenderChildOverflowBox {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_RenderChildOverflowBox` inherits `RenderAligningShiftedBox.debugFillProperties`.
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -2830,5 +2839,24 @@ mod tests {
             tester.pump_and_settle();
             assert!(*tester.active_cursor(1) == *text);
         });
+    }
+
+    /// Dart's `_RenderChildOverflowBox` fills no properties of its own; it inherits
+    /// `RenderAligningShiftedBox.debugFillProperties`.
+    #[test]
+    fn a_child_overflow_box_fills_the_properties_it_inherits() {
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let overflow = RenderChildOverflowBox::new(&mut app, Some(TextDirection::Ltr));
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(overflow, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(names, ["alignment", "textDirection"]);
     }
 }

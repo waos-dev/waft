@@ -17,8 +17,9 @@ use waft_embedder::{
     TextBaseline, TextDirection, clamp_double, lerp_double,
 };
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, K_IS_WEB, Listenable, ListenableObject,
-    Listener, MergingListenable, OptionRetained, Ref, Task, ValueChanged,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle,
+    K_IS_WEB, Listenable, ListenableObject, Listener, MergingListenable, OptionRetained, Ref, Task,
+    ValueChanged,
 };
 use waft_gestures::DragStartBehavior;
 use waft_painting::{
@@ -605,6 +606,22 @@ impl RenderFlexMixin for TabLabelBarRenderer {
 
 impl RenderObject for TabLabelBarRenderer {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_TabLabelBarRenderer` inherits `RenderFlex.debugFillProperties`.
+        RenderFlexMixin::debug_fill_properties(self, app, properties);
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        ContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderFlexMixin::perform_layout(self, app);
@@ -14708,5 +14725,70 @@ pub(crate) mod tests {
                 );
             });
         }
+    }
+
+    /// Dart's `_TabLabelBarRenderer` fills no properties of its own; it inherits
+    /// `RenderFlex.debugFillProperties` and names its children `child 1`, `child 2`, ….
+    #[test]
+    fn a_tab_label_bar_fills_the_properties_it_inherits() {
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+        use waft_rendering::RenderConstrainedBox;
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let callback: LayoutCallback = Rc::new(|_app, _offsets, _text_direction, _width| {});
+        let bar = TabLabelBarRenderer::new(
+            &mut app,
+            Axis::Horizontal,
+            MainAxisSize::Max,
+            MainAxisAlignment::Start,
+            CrossAxisAlignment::End,
+            TextDirection::Ltr,
+            VerticalDirection::Down,
+            callback,
+        );
+        let first = RenderConstrainedBox::new(
+            &mut app,
+            waft_rendering::BoxConstraints::tight(waft_embedder::Size::new(10.0, 10.0)),
+            None,
+        )
+        .as_box();
+        let second = RenderConstrainedBox::new(
+            &mut app,
+            waft_rendering::BoxConstraints::tight(waft_embedder::Size::new(10.0, 10.0)),
+            None,
+        )
+        .as_box();
+        bar.insert(&mut app, first, None);
+        bar.insert(&mut app, second, None);
+
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(bar, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "direction",
+                "mainAxisAlignment",
+                "mainAxisSize",
+                "crossAxisAlignment",
+                "textDirection",
+                "verticalDirection",
+                "textBaseline",
+                "spacing",
+            ]
+        );
+
+        let node = bar.as_object().to_diagnostics_node(&app, None);
+        let children: Vec<&str> = node
+            .children()
+            .iter()
+            .filter_map(|child| child.name())
+            .collect();
+        assert_eq!(children, ["child 1", "child 2"]);
     }
 }

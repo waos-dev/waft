@@ -7,7 +7,10 @@ use std::rc::Rc;
 use waft_embedder::{
     Matrix4, Offset, Rect, SceneBuilder, Size, SystemUiOverlayStyle, TargetPlatform, View, ViewRef,
 };
-use waft_foundation::{App, Handle};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, Handle,
+    debug_format_double, message,
+};
 use waft_gestures::{HitTestEntry, HitTestResult, HitTestTarget, PointerEvent};
 use waft_services::SystemChrome;
 
@@ -78,6 +81,18 @@ impl ViewConfiguration {
     pub fn to_physical_size(&self, logical_size: Size) -> Size {
         self.physical_constraints
             .constrain(logical_size * self.device_pixel_ratio)
+    }
+}
+
+/// Dart's `ViewConfiguration.toString`: the logical constraints at the device pixel ratio.
+impl std::fmt::Display for ViewConfiguration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} at {}x",
+            self.logical_constraints,
+            debug_format_double(Some(self.device_pixel_ratio))
+        )
     }
 }
 
@@ -462,6 +477,47 @@ fn merged_overlay_style(
 impl RenderObject for RenderView {
     fn render_object_data(self: RenderHandle<Self>, app: &App) -> &RenderObjectData {
         &self.get(app).render_object
+    }
+
+    /// Dart's override leaves out `super.debugFillProperties`: "the root superclasses don't
+    /// include any interesting information for this class".
+    fn debug_fill_base_properties(
+        self: RenderHandle<Self>,
+        _app: &App,
+        _properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let _ = self;
+    }
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        if cfg!(debug_assertions) {
+            let system = match std::env::consts::OS {
+                "" => "Web",
+                system => system,
+            };
+            properties.add(message(format!("debug mode enabled - {system}")));
+        }
+        let metrics = self.get(app).view.metrics();
+        let [width, height] = metrics.physical_size;
+        properties.add(
+            DiagnosticsProperty::new("view size", Size::new(width, height))
+                .tooltip("in physical pixels"),
+        );
+        properties.add(
+            DoubleProperty::new("device pixel ratio", metrics.device_pixel_ratio)
+                .tooltip("physical pixels per logical pixel"),
+        );
+        properties.add(
+            DiagnosticsProperty::<ViewConfiguration>::new(
+                "configuration",
+                self.get(app).configuration,
+            )
+            .tooltip("in logical pixels"),
+        );
     }
 
     fn render_object_data_mut(self: RenderHandle<Self>, app: &mut App) -> &mut RenderObjectData {

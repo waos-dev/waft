@@ -13,7 +13,11 @@ use waft_embedder::{
     PlaceholderAlignment, Rect, Size, TextAffinity, TextAlign, TextBaseline, TextBox,
     TextDirection, TextHeightBehavior, TextPosition, TextRange, TextSelection,
 };
-use waft_foundation::{App, ChangeNotifier, ChangeNotifierData, Handle, Ref};
+use waft_foundation::{
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsNode,
+    DiagnosticsProperty, DiagnosticsTreeStyle, DoubleProperty, EnumProperty, FlagProperty, Handle,
+    IntProperty, Ref,
+};
 use waft_painting::{
     ClipContext, InlineSpanRef, PaintingBinding, PlaceholderDimensions, PlaceholderSpan,
     RenderComparison, StrutStyle, TextOverflow, TextPainter, TextScaler, TextWidthBasis,
@@ -1083,6 +1087,56 @@ impl RenderInlineChildrenContainerDefaults for RenderParagraph {}
 
 impl RenderObject for RenderParagraph {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(EnumProperty::<TextAlign>::new(
+            "textAlign",
+            self.text_align(app),
+        ));
+        properties.add(EnumProperty::<TextDirection>::new(
+            "textDirection",
+            self.text_direction(app),
+        ));
+        properties.add(
+            FlagProperty::new("softWrap", Some(self.soft_wrap(app)))
+                .if_true("wrapping at box width")
+                .if_false("no wrapping except at line break characters")
+                .with_show_name(true),
+        );
+        properties.add(EnumProperty::<TextOverflow>::new(
+            "overflow",
+            self.overflow(app),
+        ));
+        properties.add(
+            DiagnosticsProperty::new("textScaler", self.text_scaler(app))
+                .default_value(Some(TextScaler::NO_SCALING)),
+        );
+        properties
+            .add(IntProperty::<i32>::new("maxLines", self.max_lines(app)).if_null("unlimited"));
+        properties.add(
+            DoubleProperty::new("devicePixelRatio", self.device_pixel_ratio(app))
+                .default_value(Some(1.0)),
+        );
+    }
+
+    /// Dart's `debugDescribeChildren` shows the text, not the inline widget children.
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<std::rc::Rc<dyn DiagnosticsNode>> {
+        let this = self.get(app);
+        match this.text_painter.text() {
+            Some(text) => vec![std::rc::Rc::new(text.diagnostics_node(
+                Some("text".to_string()),
+                Some(DiagnosticsTreeStyle::Transition),
+            )) as std::rc::Rc<dyn DiagnosticsNode>],
+            None => Vec::new(),
+        }
+    }
 
     fn visit_children(
         self: RenderHandle<Self>,
@@ -3751,7 +3805,43 @@ mod tests {
 
     use super::*;
     use crate::proxy_box::RenderRepaintBoundary;
-    use crate::testing::{EnginePhase, layout_with, pump_frame, test_render_root};
+    use crate::testing::{
+        EnginePhase, ignoring_hash_codes, layout_with, pump_frame, test_render_root,
+    };
+
+    /// `paragraph_test.dart`: "toStringDeep".
+    #[test]
+    fn a_paragraph_dump_shows_its_text_layout() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let paragraph = RenderParagraph::new(
+            &mut app,
+            TextSpan::new()
+                .text(
+                    "I polished up that handle so carefullee\nThat now I am the Ruler of the Queen's Navee!",
+                )
+                .into_span(),
+            TextDirection::Ltr,
+            None,
+        );
+        assert_eq!(
+            ignoring_hash_codes(&paragraph.as_object().to_string_deep(&app)),
+            "RenderParagraph#00000 NEEDS-LAYOUT NEEDS-PAINT DETACHED\n\
+             \u{20}│ parentData: MISSING\n\
+             \u{20}│ constraints: MISSING\n\
+             \u{20}│ size: MISSING\n\
+             \u{20}│ textAlign: start\n\
+             \u{20}│ textDirection: ltr\n\
+             \u{20}│ softWrap: wrapping at box width\n\
+             \u{20}│ overflow: clip\n\
+             \u{20}│ maxLines: unlimited\n\
+             \u{20}╘═╦══ text ═══\n\
+             \u{20}\u{20} ║ TextSpan:\n\
+             \u{20}\u{20} ║   \"I polished up that handle so carefullee\n\
+             \u{20}\u{20} ║   That now I am the Ruler of the Queen's Navee!\"\n\
+             \u{20}\u{20} ╚═══════════\n"
+        );
+    }
 
     fn span(text: &str) -> InlineSpanRef {
         TextSpan::new()

@@ -6,7 +6,10 @@ use std::hash::Hasher;
 use std::ops::{Deref, DerefMut};
 
 use waft_embedder::{Matrix4, Offset, Rect, Size, clamp_double};
-use waft_foundation::{App, Handle, HandleId, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty, DoubleProperty,
+    FlagProperty, Handle, HandleId, PRECISION_ERROR_TOLERANCE, describe_enum,
+};
 use waft_gestures::{HitTestEntry, HitTestResult, HitTestTarget, PointerEvent};
 use waft_painting::{
     Axis, AxisDirection, axis_direction_is_reversed, axis_direction_to_axis, flip_axis_direction,
@@ -148,6 +151,40 @@ pub struct SliverConstraints {
     /// Where the cache area starts relative to the
     /// [`scroll_offset`](Self::scroll_offset). Always negative or zero.
     pub cache_origin: f64,
+}
+
+impl fmt::Display for SliverConstraints {
+    /// Dart's `SliverConstraints.toString`, its enums as Dart prints them (`AxisDirection.down`).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut properties = vec![
+            format!("AxisDirection.{}", describe_enum(&self.axis_direction)),
+            format!("GrowthDirection.{}", describe_enum(&self.growth_direction)),
+            format!(
+                "ScrollDirection.{}",
+                describe_enum(&self.user_scroll_direction)
+            ),
+            format!("scrollOffset: {:.1}", self.scroll_offset),
+            format!("precedingScrollExtent: {:.1}", self.preceding_scroll_extent),
+            format!("remainingPaintExtent: {:.1}", self.remaining_paint_extent),
+        ];
+        if self.overlap != 0.0 {
+            properties.push(format!("overlap: {:.1}", self.overlap));
+        }
+        properties.extend([
+            format!("crossAxisExtent: {:.1}", self.cross_axis_extent),
+            format!(
+                "crossAxisDirection: AxisDirection.{}",
+                describe_enum(&self.cross_axis_direction)
+            ),
+            format!(
+                "viewportMainAxisExtent: {:.1}",
+                self.viewport_main_axis_extent
+            ),
+            format!("remainingCacheExtent: {:.1}", self.remaining_cache_extent),
+            format!("cacheOrigin: {:.1}", self.cache_origin),
+        ]);
+        write!(f, "SliverConstraints({})", properties.join(", "))
+    }
 }
 
 impl SliverConstraints {
@@ -601,13 +638,61 @@ impl Default for SliverGeometry {
     }
 }
 
+impl Diagnosticable for SliverGeometry {
+    /// Dart's `toStringShort`: `objectRuntimeType(this, 'SliverGeometry')`, without an identity.
+    fn to_string_short(&self) -> String {
+        "SliverGeometry".to_owned()
+    }
+
+    /// Dart's `debugFillProperties`.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("scrollExtent", self.scroll_extent));
+        if self.paint_extent > 0.0 {
+            let property = DoubleProperty::new("paintExtent", self.paint_extent);
+            properties.add(if self.visible {
+                property
+            } else {
+                property.unit(" but not painting")
+            });
+        } else if self.paint_extent == 0.0 {
+            if self.visible {
+                // Dart writes `unit: visible ? null : ' but visible'` inside `if (visible)`, so
+                // the unit is always null.
+                properties.add(DoubleProperty::new("paintExtent", self.paint_extent));
+            }
+            properties.add(FlagProperty::new("visible", self.visible).if_false("hidden"));
+        } else {
+            // Negative paintExtent!
+            properties.add(DoubleProperty::new("paintExtent", self.paint_extent).tooltip("!"));
+        }
+        properties
+            .add(DoubleProperty::new("paintOrigin", self.paint_origin).default_value(Some(0.0)));
+        properties.add(
+            DoubleProperty::new("layoutExtent", self.layout_extent)
+                .default_value(Some(self.paint_extent)),
+        );
+        properties.add(DoubleProperty::new("maxPaintExtent", self.max_paint_extent));
+        properties.add(
+            DoubleProperty::new("hitTestExtent", self.hit_test_extent)
+                .default_value(Some(self.paint_extent)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("hasVisualOverflow", self.has_visual_overflow)
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DoubleProperty::new("scrollOffsetCorrection", self.scroll_offset_correction)
+                .default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("cacheExtent", self.cache_extent).default_value(Some(0.0)));
+    }
+}
+
+/// Dart's `SliverGeometry.toString`, the single-line form of its `debugFillProperties`.
 impl Display for SliverGeometry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "SliverGeometry({}x{})",
-            self.scroll_extent, self.paint_extent
-        )
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 
@@ -956,7 +1041,7 @@ impl ParentData for SliverPhysicalParentData {
 
 impl Display for SliverPhysicalParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "paintOffset={:?}", self.paint_offset)
+        write!(f, "paintOffset={}", self.paint_offset)
     }
 }
 
@@ -1660,7 +1745,7 @@ impl AnyRenderSliver {
         AnyRenderObject::from_vtable(self.id, &self.vtable.object)
     }
 
-    fn sliver_data(self, app: &App) -> &RenderSliverData {
+    pub(crate) fn sliver_data(self, app: &App) -> &RenderSliverData {
         (self.vtable.sliver_data)(app, self.id)
     }
 
@@ -2217,6 +2302,45 @@ mod tests {
             remaining_paint,
             0.0,
         )
+    }
+
+    /// `slivers_test.dart`: a geometry's `toString` is its single-line properties, from
+    /// `scrollExtent` through `cacheExtent`, with a hidden sliver's `visible` flag reading
+    /// `hidden`.
+    #[test]
+    fn sliver_geometry_prints_its_properties_like_dart() {
+        let visible = SliverGeometry::builder()
+            .scroll_extent(400.0)
+            .paint_extent(400.0)
+            .max_paint_extent(400.0)
+            .build();
+        assert_eq!(
+            format!("{visible}"),
+            "SliverGeometry(scrollExtent: 400.0, paintExtent: 400.0, maxPaintExtent: 400.0, cacheExtent: 400.0)"
+        );
+
+        let partly_visible = SliverGeometry::builder()
+            .scroll_extent(400.0)
+            .paint_extent(200.0)
+            .max_paint_extent(400.0)
+            .has_visual_overflow(true)
+            .cache_extent(400.0)
+            .build();
+        assert_eq!(
+            format!("{partly_visible}"),
+            "SliverGeometry(scrollExtent: 400.0, paintExtent: 200.0, maxPaintExtent: 400.0, hasVisualOverflow: true, cacheExtent: 400.0)"
+        );
+
+        let hidden = SliverGeometry::builder()
+            .scroll_extent(400.0)
+            .paint_extent(0.0)
+            .max_paint_extent(400.0)
+            .has_visual_overflow(true)
+            .build();
+        assert_eq!(
+            format!("{hidden}"),
+            "SliverGeometry(scrollExtent: 400.0, hidden, maxPaintExtent: 400.0, hasVisualOverflow: true)"
+        );
     }
 
     #[test]

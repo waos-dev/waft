@@ -7,6 +7,36 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - collections.rs → collections.dart
 - observer_list.rs → observer_list.dart
 
+## diagnostics.rs → diagnostics.dart
+
+- Change: `DiagnosticableNode` and `DiagnosticableTreeNode` hold a short description, a filled `DiagnosticPropertiesBuilder`, and already-built children, instead of the live `Diagnosticable`.
+  Reason: language — render objects and layers live in the arena and are read with `&App`, so a node cannot keep the value and ask it for properties when it renders.
+  Affect: the rendering crate builds the node once with `DiagnosticableTreeNode::from_parts`; `to_string_deep` prints the same tree Dart prints for a `DiagnosticableTreeNode`, while `value()` on a snapshot node answers none where Dart returns the value.
+
+- Change: a lazily computed property's callback is not guarded: where Dart catches what `computeValue` throws and shows `EXCEPTION (…)` at the error level, a panic in it ends the program.
+  Reason: language — there is no catchable exception; a panic ends the program anywhere else in Waft too.
+  Affect: a property whose value cannot be computed must answer `None` (shown as `null` or its `ifNull`) rather than panic.
+
+- Change: `DiagnosticsProperty<T>` formats a value with `Display`; Dart prints `toStringShort` for values that are `DiagnosticableTree`.
+  Reason: language — Rust cannot test a generic `T` for a trait implementation.
+  Affect: a tree value shows whatever its `Display` says; pass a node or a description when the short `Type#hash` form is wanted.
+
+- Change: `DiagnosticsProperty(expandableValue:)` expands only a value that is a `Rc<dyn DiagnosticsNode>`.
+  Reason: language — Rust cannot test a generic `T` for a trait implementation.
+  Affect: a `Diagnosticable` value's properties are not expanded unless the caller passes its node.
+
+- Change: `DiagnosticableTree` is one trait carrying the mixin's bodies, and its `toDiagnosticsNode` override is `to_diagnostics_tree_node`.
+  Reason: language — Rust has no mixin class, and two same-named trait methods would make a call ambiguous.
+  Affect: `to_string_shallow` prints `Type#hash, property: value`, as `DiagnosticableTreeMixin` does; the tree-node builder is called by its own name.
+
+- Change: `toTimelineArguments` always returns `Some`, and diagnostics are never removed by a release-mode branch.
+  Reason: language — Waft has one build of diagnostics; Dart's `kReleaseMode` is a compile-time flag with no counterpart.
+  Affect: release builds print the same diagnostics as debug builds, and a timeline call always receives its arguments.
+
+- Change: Dart's `identityHashCode`, which diagnostics name an object by (`RenderPadding#00007`), is the object's slot in the `App`'s arena (`HandleId::identity_hash`).
+  Reason: language — Rust has no identity hash; the arena slot is what tells two live objects apart.
+  Affect: the numbers are small and a freed object's slot is reused, so a hash names an object only while it lives, as Dart's may collide too.
+
 ## app.rs
 
 - Change: `App` and `Handle<T>` live here; Flutter has no counterpart.
@@ -127,6 +157,8 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 - date_time.rs: `parse` / `tryParse`, `difference`. Trigger: a caller that parses a date or measures between two (`difference` would return a `SignedDuration`).
 - `ChangeNotifier.maybeDispatchObjectCreation` / `memory_allocations`. Trigger: leak tracker / devtools.
-- Diagnostics / `FlutterError` structured trees; messages are `debug_assert!` strings meanwhile. Trigger: porting diagnostics.
+- `FlutterError` structured trees; messages are `debug_assert!` strings meanwhile. Trigger: porting assertions.
+- diagnostics.rs: JSON serialization (`toJsonMap`, `toJsonList`, `toJsonMapIterative`, `DiagnosticsSerializationDelegate`, `_DefaultDiagnosticsSerializationDelegate`). Trigger: an inspector over the dev protocol.
+- diagnostics.rs: `DiagnosticableNode.builder`, Dart's cached builder getter; the snapshot keeps the collected properties instead. Trigger: an inspector that reads the builder itself.
 - `IterableFilter`. Trigger: the first iterable-filter call site.
 - Waking a task from another thread; it would need a `Send` poke into the host's event loop. Trigger: the first background executor or platform callback off the main thread.

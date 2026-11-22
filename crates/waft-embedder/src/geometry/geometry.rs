@@ -378,6 +378,13 @@ impl Debug for Offset {
     }
 }
 
+/// Dart's `Offset.toString`, the same text as [`Debug`].
+impl fmt::Display for Offset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 /// Holds a 2D floating-point size.
 ///
 /// You can think of this as an [`Offset`] from the origin.
@@ -832,6 +839,13 @@ impl Debug for Size {
     }
 }
 
+/// Dart's `Size.toString`, the same text as [`Debug`].
+impl fmt::Display for Size {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 /// An immutable, 2D, axis-aligned, floating-point rectangle whose coordinates
 /// are relative to a given origin.
 ///
@@ -1192,6 +1206,13 @@ impl Debug for Rect {
             "Rect.fromLTRB({:.1}, {:.1}, {:.1}, {:.1})",
             self.left, self.top, self.right, self.bottom
         )
+    }
+}
+
+/// Dart's `Rect.toString`, the same text as [`Debug`].
+impl fmt::Display for Rect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
     }
 }
 

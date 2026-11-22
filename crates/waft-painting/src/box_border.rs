@@ -1,7 +1,7 @@
 //! Flutter counterpart: `painting/box_border.dart`.
 
 use std::any::Any;
-use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::fmt::{self, Debug, Formatter, Result as FmtResult};
 use std::rc::Rc;
 
 use waft_embedder::{Canvas, Paint, PaintStyle, Path, PathBuilder, Stroke};
@@ -187,6 +187,13 @@ impl PartialEq for BoxBorderRef {
 impl Debug for BoxBorderRef {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         Debug::fmt(&*self.0, f)
+    }
+}
+
+/// Dart's `BoxBorder.toString`, which the inner border's [`Debug`] already renders.
+impl fmt::Display for BoxBorderRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(self, f)
     }
 }
 
@@ -1197,6 +1204,16 @@ impl Debug for BorderDirectional {
             arguments.push(format!("bottom: {:?}", self.bottom));
         }
         write!(f, "BorderDirectional({})", arguments.join(", "))
+    }
+}
+
+/// Dart's `BoxShape.toString`: the enum's type and name.
+impl std::fmt::Display for BoxShape {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BoxShape::Rectangle => f.write_str("BoxShape.rectangle"),
+            BoxShape::Circle => f.write_str("BoxShape.circle"),
+        }
     }
 }
 

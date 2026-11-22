@@ -10,10 +10,11 @@ use std::rc::Rc;
 use waft_embedder::{
     Matrix4, Offset, ParagraphBuilder, PlaceholderAlignment, Size, TextBaseline, TextPosition,
 };
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty};
 use waft_painting::{
     Accumulator, InlineSpan, InlineSpanRef, K_DEFAULT_FONT_SIZE, PLACEHOLDER_CODE_UNIT,
-    PlaceholderDimensions, PlaceholderSpan, RenderComparison, TextScaler, TextStyle, same_span,
+    PlaceholderDimensions, PlaceholderSpan, RenderComparison, TextScaler, TextStyle,
+    inline_span_debug_fill_properties, placeholder_span_debug_fill_properties, same_span,
 };
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult, ContainerLayer,
@@ -231,6 +232,19 @@ impl PlaceholderSpan for WidgetSpan {
 }
 
 impl InlineSpan for WidgetSpan {
+    fn to_string_short(&self) -> String {
+        waft_foundation::describe_identity("WidgetSpan", self as *const WidgetSpan as usize as u64)
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        inline_span_debug_fill_properties(self.style(), properties);
+        placeholder_span_debug_fill_properties(self, properties);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "widget",
+            Some("Instance of 'Widget'".to_string()),
+        ));
+    }
+
     fn style(&self) -> Option<&TextStyle> {
         self.style.as_ref()
     }

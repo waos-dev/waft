@@ -10,7 +10,7 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Offset, Size};
-use waft_foundation::{App, Handle, Key, Listenable, Listener};
+use waft_foundation::{App, Handle, Key, Listenable, Listener, display_or_null};
 
 use crate::box_::{
     AnyBoxConstraints, AnyRenderBox, BoxConstraints, BoxHitTestResult, BoxParentData,
@@ -100,7 +100,9 @@ impl ContainerBoxParentData for MultiChildLayoutParentData {
 
 impl fmt::Display for MultiChildLayoutParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}; id={:?}", self.box_parent_data, self.id)
+        // A key's Dart `toString` is not ported; its `Debug` stands in for it.
+        let id = self.id.as_ref().map(|id| format!("{id:?}"));
+        write!(f, "{}; id={}", self.box_parent_data, display_or_null(&id))
     }
 }
 

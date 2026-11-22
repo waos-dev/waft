@@ -6,8 +6,12 @@ use std::any::Any;
 use std::fmt;
 use std::rc::Rc;
 
+use indexmap::IndexMap;
 use waft_embedder::{ParagraphBuilder, TextAffinity, TextPosition};
-use waft_foundation::App;
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticableTree, DiagnosticsNode,
+    DiagnosticsTreeStyle, FlagsSummary, StringProperty, message,
+};
 use waft_gestures::{
     HitTestEntry, HitTestTarget, PointerEnterEventListener, PointerEvent, PointerExitEventListener,
 };
@@ -168,7 +172,81 @@ impl HitTestTarget for TextSpan {
     }
 }
 
+impl Diagnosticable for TextSpan {
+    fn to_string_short(&self) -> String {
+        "TextSpan".to_string()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        crate::inline_span::inline_span_debug_fill_properties(self.style.as_ref(), properties);
+
+        properties.add(
+            StringProperty::new("text", self.text.clone())
+                .with_show_name(false)
+                .default_value(None),
+        );
+        if self.style.is_none() && self.text.is_none() && self.children.is_none() {
+            properties.add(message("(empty)"));
+        }
+
+        // A recognizer's Dart `runtimeType`; the erased handle in Rust names the leaf type.
+        properties.add(
+            waft_foundation::DiagnosticsProperty::<String>::new(
+                "recognizer",
+                self.recognizer
+                    .clone()
+                    .map(|recognizer| recognizer.type_name().to_string()),
+            )
+            .default_value(None),
+        );
+
+        let mut callbacks = IndexMap::new();
+        callbacks.insert("enter".to_string(), self.on_enter.as_ref().map(|_| ()));
+        callbacks.insert("exit".to_string(), self.on_exit.as_ref().map(|_| ()));
+        properties.add(FlagsSummary::<()>::new("callbacks", callbacks));
+        properties.add(
+            waft_foundation::DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                Some(self.effective_mouse_cursor().debug_description()),
+            )
+            .default_value(Some("defer".to_string())),
+        );
+    }
+}
+
+impl DiagnosticableTree for TextSpan {
+    fn debug_describe_children(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
+        self.children
+            .as_ref()
+            .map(|children| {
+                children
+                    .iter()
+                    .map(|child| {
+                        Rc::new(child.diagnostics_node(None, None)) as Rc<dyn DiagnosticsNode>
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
 impl InlineSpan for TextSpan {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        Diagnosticable::debug_fill_properties(self, properties);
+    }
+
+    fn debug_describe_children(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
+        DiagnosticableTree::debug_describe_children(self)
+    }
+
+    fn diagnostics_node(
+        &self,
+        name: Option<String>,
+        style: Option<DiagnosticsTreeStyle>,
+    ) -> waft_foundation::DiagnosticableTreeNode {
+        DiagnosticableTree::to_diagnostics_tree_node(self, name, style)
+    }
+
     fn style(&self) -> Option<&TextStyle> {
         self.style.as_ref()
     }
@@ -387,37 +465,7 @@ fn same_listener<T: ?Sized>(a: &Option<Rc<T>>, b: &Option<Rc<T>>) -> bool {
 
 impl fmt::Debug for TextSpan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut s = f.debug_struct("TextSpan");
-        if let Some(text) = &self.text {
-            s.field("text", text);
-        }
-        if let Some(style) = &self.style {
-            s.field("style", style);
-        }
-        if self.style.is_none() && self.text.is_none() && self.children.is_none() {
-            s.field("(empty)", &true);
-        }
-        if let Some(recognizer) = &self.recognizer {
-            s.field("recognizer", recognizer);
-        }
-        let mut callbacks = Vec::new();
-        if self.on_enter.is_some() {
-            callbacks.push("enter");
-        }
-        if self.on_exit.is_some() {
-            callbacks.push("exit");
-        }
-        if !callbacks.is_empty() {
-            s.field("callbacks", &callbacks);
-        }
-        let cursor = self.effective_mouse_cursor();
-        if !cursor.is_defer() {
-            s.field("mouse_cursor", &cursor.debug_description());
-        }
-        if let Some(children) = &self.children {
-            s.field("children", children);
-        }
-        s.finish()
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 
@@ -434,6 +482,90 @@ mod tests {
                 .children(vec![TextSpan::new().text("e😀").into_span()])
                 .into_span(),
         ])
+    }
+
+    /// `text_span_test.dart`, "TextSpan toStringDeep".
+    #[test]
+    fn text_span_to_string_deep() {
+        let span = TextSpan::new()
+            .text("a")
+            .style(TextStyle::new().font_size(10.0))
+            .children(vec![
+                TextSpan::new()
+                    .text("b")
+                    .children(vec![TextSpan::new().into_span()])
+                    .into_span(),
+                TextSpan::new().text("c").into_span(),
+            ]);
+        assert_eq!(
+            DiagnosticableTree::to_string_deep(&span),
+            "TextSpan:\n\
+             \u{20} inherit: true\n\
+             \u{20} size: 10.0\n\
+             \u{20} \"a\"\n\
+             \u{20} TextSpan:\n\
+             \u{20}   \"b\"\n\
+             \u{20}   TextSpan:\n\
+             \u{20}     (empty)\n\
+             \u{20} TextSpan:\n\
+             \u{20}   \"c\"\n"
+        );
+    }
+
+    /// `text_span_test.dart`, "TextSpan toStringDeep for mouse".
+    #[test]
+    fn text_span_to_string_deep_for_mouse() {
+        let plain = TextSpan::new().text("a");
+        assert_eq!(
+            DiagnosticableTree::to_string_deep(&plain),
+            "TextSpan:\n  \"a\"\n"
+        );
+
+        let with_mouse = TextSpan::new()
+            .text("a")
+            .on_enter(Rc::new(|_app, _event| {}))
+            .on_exit(Rc::new(|_app, _event| {}))
+            .mouse_cursor(SystemMouseCursors::FORBIDDEN);
+        assert_eq!(
+            DiagnosticableTree::to_string_deep(&with_mouse),
+            "TextSpan:\n\
+             \u{20} \"a\"\n\
+             \u{20} callbacks: enter, exit\n\
+             \u{20} mouseCursor: SystemMouseCursor(forbidden)\n"
+        );
+    }
+
+    /// A `TextSpan` with a recognizer shows its runtime type, and no cursor unless one is set.
+    #[test]
+    fn a_text_span_dump_names_its_recognizer() {
+        use waft_foundation::AppCell;
+        use waft_gestures::TapGestureRecognizer;
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let recognizer: RecognizerRef = TapGestureRecognizer::new(&mut app).erase();
+        let span = TextSpan::new().text("a").recognizer(recognizer.clone());
+        let dump = DiagnosticableTree::to_string_deep(&span);
+        assert!(
+            dump.contains("recognizer: TapGestureRecognizer\n"),
+            "{dump}"
+        );
+        assert!(
+            dump.contains("mouseCursor: SystemMouseCursor(click)\n"),
+            "{dump}"
+        );
+        recognizer.dispose(&mut app);
+    }
+
+    /// `text_span_test.dart`, "TextSpan toPlainText" needs no diagnostics; the empty span's
+    /// message is part of the tree dump above.
+    #[test]
+    fn an_empty_span_says_so() {
+        let empty = TextSpan::new();
+        assert_eq!(
+            DiagnosticableTree::to_string_deep(&empty),
+            "TextSpan:\n  (empty)\n"
+        );
     }
 
     #[test]

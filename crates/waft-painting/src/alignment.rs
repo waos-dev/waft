@@ -782,6 +782,20 @@ impl Debug for TextAlignVertical {
     }
 }
 
+/// Dart's `AlignmentGeometry.toString`, which [`Debug`] already renders.
+impl std::fmt::Display for AlignmentGeometry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+/// Dart's `Alignment.toString`, which [`Debug`] already renders.
+impl std::fmt::Display for Alignment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

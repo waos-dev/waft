@@ -7,7 +7,10 @@ use std::fmt::{self, Debug};
 use std::ops::Add;
 
 use waft_embedder::{Clip, Offset, Size, TextBaseline, TextDirection};
-use waft_foundation::{App, Handle, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DoubleProperty, EnumProperty, Handle,
+    PRECISION_ERROR_TOLERANCE, describe_enum, display_or_null,
+};
 use waft_painting::{Axis, VerticalDirection};
 
 use crate::box_::{
@@ -154,6 +157,13 @@ pub enum FlexFit {
     Loose,
 }
 
+/// Dart's enum `toString`: `FlexFit.tight`.
+impl fmt::Display for FlexFit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "FlexFit.{}", describe_enum(self))
+    }
+}
+
 /// Parent data for use with [`RenderFlex`].
 #[derive(Debug)]
 pub struct FlexParentData {
@@ -241,8 +251,10 @@ impl fmt::Display for FlexParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}; flex={:?}; fit={:?}",
-            self.box_parent_data, self.flex, self.fit
+            "{}; flex={}; fit={}",
+            self.box_parent_data,
+            display_or_null(&self.flex),
+            display_or_null(&self.fit)
         )
     }
 }
@@ -578,6 +590,42 @@ pub trait RenderFlexMixin:
 
     /// See [`flex_data`](Self::flex_data).
     fn flex_data_mut(self: RenderHandle<Self>, app: &mut App) -> &mut RenderFlexData;
+
+    /// Dart's `RenderFlex.debugFillProperties`, which a subclass of `RenderFlex` reaches through
+    /// its super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.flex_data(app);
+        properties.add(EnumProperty::<Axis>::new("direction", this.direction));
+        properties.add(EnumProperty::<MainAxisAlignment>::new(
+            "mainAxisAlignment",
+            this.main_axis_alignment,
+        ));
+        properties.add(EnumProperty::<MainAxisSize>::new(
+            "mainAxisSize",
+            this.main_axis_size,
+        ));
+        properties.add(EnumProperty::<CrossAxisAlignment>::new(
+            "crossAxisAlignment",
+            this.cross_axis_alignment,
+        ));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
+                .default_value(None),
+        );
+        properties.add(EnumProperty::<VerticalDirection>::new(
+            "verticalDirection",
+            Some(this.vertical_direction),
+        ));
+        properties.add(
+            EnumProperty::<TextBaseline>::new("textBaseline", this.text_baseline)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("spacing", this.spacing).default_value(None));
+    }
 
     /// The direction to use as the main axis.
     fn direction(self: RenderHandle<Self>, app: &App) -> Axis {
@@ -1826,6 +1874,14 @@ impl RenderFlexMixin for RenderFlex {
 impl RenderObject for RenderFlex {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderFlexMixin::debug_fill_properties(self, app, properties);
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderFlexMixin::perform_layout(self, app)
     }
@@ -1932,8 +1988,48 @@ mod tests {
 
     use super::*;
     use crate::box_::BoxHitTestEntry;
-    use crate::testing::{EnginePhase, layout, layout_with, painted_ops, pump_frame};
+    use crate::testing::{
+        EnginePhase, ignoring_hash_codes, layout, layout_with, painted_ops, pump_frame,
+    };
     use waft_embedder::valo::Op;
+
+    /// A flex child's parent data reads as Dart's `toString`: `null` for what is unset, and an
+    /// enum by its type and case.
+    #[test]
+    fn flex_parent_data_reads_as_darts() {
+        let mut parent_data = FlexParentData::default();
+        assert_eq!(
+            parent_data.to_string(),
+            "offset=Offset(0.0, 0.0); flex=null; fit=null"
+        );
+        parent_data.flex = Some(2);
+        parent_data.fit = Some(FlexFit::Tight);
+        assert_eq!(
+            parent_data.to_string(),
+            "offset=Offset(0.0, 0.0); flex=2; fit=FlexFit.tight"
+        );
+    }
+
+    /// `flex_test.dart`: "Defaults".
+    #[test]
+    fn a_flex_dump_shows_its_defaults() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let flex = RenderFlex::new(&mut app);
+        assert_eq!(
+            ignoring_hash_codes(&flex.as_object().to_string_deep(&app)),
+            "RenderFlex#00000 NEEDS-LAYOUT NEEDS-PAINT DETACHED\n\
+             \u{20}  parentData: MISSING\n\
+             \u{20}  constraints: MISSING\n\
+             \u{20}  size: MISSING\n\
+             \u{20}  direction: horizontal\n\
+             \u{20}  mainAxisAlignment: start\n\
+             \u{20}  mainAxisSize: max\n\
+             \u{20}  crossAxisAlignment: center\n\
+             \u{20}  verticalDirection: down\n\
+             \u{20}  spacing: 0.0\n"
+        );
+    }
 
     /// A leaf that takes its preferred size where the constraints allow, and answers hit tests
     /// within its bounds.
