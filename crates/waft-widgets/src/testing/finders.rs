@@ -23,6 +23,28 @@ impl WidgetTester {
         target.find_one(self, "element")
     }
 
+    /// Dart's `tester.viewOf(finder)`: the id of the closest ancestor [`View`](crate::View) (or
+    /// [`RawView`](crate::RawView)) of the one widget `target` finds.
+    ///
+    /// # Panics
+    ///
+    /// If `target` does not find exactly one widget, or that widget has no `View` ancestor.
+    pub fn view_of(&self, target: impl FindsOne) -> waft_embedder::ViewId {
+        let element = target.find_one(self, "viewOf");
+        let app = self.cell.borrow();
+        std::iter::successors(element.parent(&app), |parent| parent.parent(&app))
+            .find_map(|ancestor| {
+                let widget = ancestor.widget(&app);
+                crate::downcast_widget::<crate::View>(&**widget)
+                    .map(|view| view.view.id())
+                    .or_else(|| {
+                        crate::downcast_widget::<crate::RawView>(&**widget)
+                            .map(|raw| raw.view.id())
+                    })
+            })
+            .expect("No View ancestor found for finder in a call to \"viewOf()\"")
+    }
+
     /// Dart's `tester.renderObject(finder)`: the render object of the one element `target`
     /// finds.
     pub fn render_object(&self, target: impl FindsOne) -> waft_rendering::AnyRenderObject {
@@ -54,6 +76,21 @@ impl WidgetTester {
         self.global_point(target, callee, |size| {
             size.center(waft_embedder::Offset::ZERO)
         })
+    }
+
+    /// The centre and enclosing view of the one render box `target` finds, a failure naming
+    /// `callee`.
+    pub(super) fn center_and_view_for(
+        &self,
+        target: impl RenderTarget,
+        callee: &str,
+    ) -> (waft_embedder::Offset, waft_embedder::ViewId) {
+        let render = target.render_box(self, callee);
+        let app = self.cell.borrow();
+        let point = render.size(&app).center(waft_embedder::Offset::ZERO);
+        let center = render.local_to_global(&app, point, None);
+        let view = view_of_render_box(&app, render).unwrap_or_else(|| self.default_view_id());
+        (center, view)
     }
 
     /// Dart's `tester.getTopLeft(finder)`.
@@ -342,6 +379,16 @@ fn walk_layers(
         }
         child = current.next_sibling(app);
     }
+}
+
+fn view_of_render_box(
+    app: &App,
+    render: waft_rendering::AnyRenderBox,
+) -> Option<waft_embedder::ViewId> {
+    std::iter::successors(Some(render.as_object()), |node| node.parent(app)).find_map(|node| {
+        node.downcast::<waft_rendering::RenderView>(app)
+            .map(|view| view.flutter_view(app).id())
+    })
 }
 
 fn collect<T: waft_rendering::RenderObject>(

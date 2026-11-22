@@ -145,12 +145,11 @@ mod tests {
     use std::cell::RefCell;
     use std::time::Duration;
 
-    use waft_embedder::{ViewId, WindowConfig};
-    use waft_foundation::AppCell;
-    use waft_test::{TestView, TestWindow, TestWindows};
+    use waft_embedder::{EmbedderClient, ViewId, WindowConfig};
+    use waft_test::{TestPlatform, TestView, TestWindow};
 
     use super::*;
-    use crate::test_harness::{Quits, binding_pump, report_window_changed, views_cell};
+    use crate::testing::WidgetTester;
     use crate::widgets::basic::Builder;
     use crate::{MultiViewApp, SizedBox};
 
@@ -158,12 +157,12 @@ mod tests {
     type Read = Rc<RefCell<Vec<Option<bool>>>>;
 
     /// An app showing, in each of `views`, content that reads whether its window is minimized.
-    fn reading(views: &[Rc<TestView>]) -> (Rc<AppCell>, Read) {
-        let cell = views_cell(
-            views,
-            &Rc::new(TestWindows::new()),
-            &Rc::new(Quits::default()),
-        );
+    fn reading(views: &[Rc<TestView>]) -> (WidgetTester, Read) {
+        let mut platform = TestPlatform::new();
+        for view in views {
+            platform = platform.with_view(Rc::clone(view) as ViewRef);
+        }
+        let mut tester = WidgetTester::without_views(platform);
         let read: Read = Rc::default();
         let kept = Rc::clone(&read);
         let content = Builder::new(move |app, context| {
@@ -173,13 +172,14 @@ mod tests {
             SizedBox::new().into_widget()
         })
         .into_widget();
-        crate::binding::run_widget(
-            &mut cell.borrow_mut(),
-            MultiViewApp::new(move |_app, _view| Some(content.clone())).into_widget(),
-        );
-        cell.elapse(Duration::ZERO);
-        binding_pump(&mut cell.borrow_mut(), Duration::ZERO);
-        (cell, read)
+        tester.update(|app| {
+            crate::binding::run_widget(
+                app,
+                MultiViewApp::new(move |_app, _view| Some(content.clone())).into_widget(),
+            );
+        });
+        tester.pump_by(Duration::ZERO);
+        (tester, read)
     }
 
     #[test]
@@ -188,12 +188,12 @@ mod tests {
             TestView::new(300.0, 200.0).with_id(ViewId(1)),
             WindowConfig::default(),
         );
-        let (cell, read) = reading(&[Rc::clone(window.test_view())]);
+        let (mut tester, read) = reading(&[Rc::clone(window.test_view())]);
         assert_eq!(*read.borrow(), [Some(false)]);
 
         window.set_minimized(true);
-        report_window_changed(&cell, ViewId(1));
-        binding_pump(&mut cell.borrow_mut(), Duration::from_millis(16));
+        tester.shell().window_changed(ViewId(1));
+        tester.pump_by(Duration::from_millis(16));
         assert_eq!(
             *read.borrow(),
             [Some(false), Some(true)],
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn a_view_in_no_window_has_none() {
-        let (_cell, read) = reading(&[Rc::new(TestView::new(300.0, 200.0).with_id(ViewId(1)))]);
+        let (_tester, read) = reading(&[Rc::new(TestView::new(300.0, 200.0).with_id(ViewId(1)))]);
         assert_eq!(*read.borrow(), [None]);
     }
 }

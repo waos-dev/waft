@@ -5580,6 +5580,7 @@ dependencies = [
  "waft-rendering",
  "waft-scheduler",
  "waft-services",
+ "waft-shell",
  "waft-test",
 ]
 

@@ -448,3 +448,557 @@ mod capturing {
         assert!(tester.update(|app| capture_image(app, element)).is_none());
     }
 }
+
+mod multi_window {
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+    use std::time::Duration;
+
+    use waft_embedder::{
+        AppLifecycleState, EmbedderClient, Offset, Platform, Size, TextDirection,
+        ViewFocusDirection, ViewFocusEvent, ViewFocusState, ViewId, WindowConfig,
+    };
+    use waft_foundation::{App, Handle, Listener, Timer};
+    use waft_rendering::HitTestBehavior;
+    use waft_test::{TestPlatform, TestView, TestWindows};
+
+    use super::super::{TestPointer, WidgetTester, expect, find, finds_nothing, finds_one_widget};
+    use crate::framework::{BuildContext, IntoWidget, State, StateData, StatefulWidget, WidgetRef};
+    use crate::widgets::basic::{Center, Column, Directionality, SizedBox};
+    use crate::widgets::gesture_detector::GestureDetector;
+    use crate::widgets::text::Text;
+    use crate::{
+        MultiViewApp, WindowScope, run_app, run_widget, state_accessors,
+    };
+
+    /// A widget that calls `on_dispose` when its state is disposed, to verify teardown across
+    /// every window.
+    #[derive(Debug)]
+    struct DisposeSpy {
+        label: &'static str,
+        disposed: Rc<RefCell<Vec<&'static str>>>,
+    }
+
+    struct DisposeSpyState {
+        state: StateData<DisposeSpy>,
+    }
+
+    impl StatefulWidget for DisposeSpy {
+        type State = DisposeSpyState;
+
+        fn create_state(&self) -> DisposeSpyState {
+            DisposeSpyState {
+                state: StateData::new(),
+            }
+        }
+    }
+
+    impl State for DisposeSpyState {
+        type Widget = DisposeSpy;
+        state_accessors!();
+
+        fn dispose(self: Handle<Self>, app: &mut App) {
+            let widget = self.widget(app);
+            widget.disposed.borrow_mut().push(widget.label);
+        }
+
+        fn build(self: Handle<Self>, app: &mut App, _context: BuildContext) -> WidgetRef {
+            Text::new(self.widget(app).label).into_widget()
+        }
+    }
+
+    /// A `GestureDetector` button showing `label` inside a fixed-size box.
+    fn button(label: &str, on_tap: impl Fn(&mut App) + 'static) -> WidgetRef {
+        GestureDetector::new()
+            .behavior(HitTestBehavior::Opaque)
+            .on_tap(Listener::new(on_tap))
+            .child(
+                SizedBox::new()
+                    .width(200.0)
+                    .height(60.0)
+                    .child(Center::new().child(Text::new(label))),
+            )
+            .into_widget()
+    }
+
+    // Modelled on flutter_test's multi_view_controller_test.dart and flutter's windowing_test.dart:
+    // an app starts with no view via `without_views`, asks for its first window, opens a second
+    // window on tap, receives taps in the second window, and closes it cleanly.
+    #[test]
+    fn desktop_app_opens_second_window_routes_taps_by_view_and_closes_it() {
+        let windows = Rc::new(TestWindows::new());
+        let platform = TestPlatform::new().with_windows(Rc::clone(&windows));
+        let mut tester = WidgetTester::without_views(platform);
+        assert!(tester.views().is_empty());
+
+        let first_taps = Rc::new(Cell::new(0));
+        let second_taps = Rc::new(Cell::new(0));
+        let second_long_presses = Rc::new(Cell::new(0));
+        let first_count = Rc::clone(&first_taps);
+        let second_count = Rc::clone(&second_taps);
+        let second_lp = Rc::clone(&second_long_presses);
+
+        tester.update(|app| {
+            app.platform()
+                .request_view(
+                    WindowConfig {
+                        size: [400.0, 300.0],
+                        title: "Main".to_owned(),
+                        ..WindowConfig::default()
+                    },
+                    Some("main".to_owned()),
+                )
+                .expect("a desktop makes windows");
+            run_widget(
+                app,
+                MultiViewApp::new(move |_app, view| {
+                    let first_count = Rc::clone(&first_count);
+                    let second_count = Rc::clone(&second_count);
+                    let second_lp = Rc::clone(&second_lp);
+                    match view.initial_data().as_deref() {
+                        Some("main") => Some(
+                            Directionality::new(
+                                TextDirection::Ltr,
+                                Center::new().child(Column::new().children([
+                                    button("Open Second", move |app| {
+                                        first_count.set(first_count.get() + 1);
+                                        app.platform()
+                                            .request_view(
+                                                WindowConfig {
+                                                    size: [300.0, 200.0],
+                                                    title: "Inspector".to_owned(),
+                                                    ..WindowConfig::default()
+                                                },
+                                                Some("inspector".to_owned()),
+                                            )
+                                            .expect("second window");
+                                    }),
+                                ])),
+                            )
+                            .into_widget(),
+                        ),
+                        Some("inspector") => {
+                            let window = view.window();
+                            Some(
+                                Directionality::new(
+                                    TextDirection::Ltr,
+                                    Center::new().child(Column::new().children([
+                                        GestureDetector::new()
+                                            .behavior(HitTestBehavior::Opaque)
+                                            .on_tap(Listener::new(move |_| {
+                                                second_count.set(second_count.get() + 1);
+                                            }))
+                                            .on_long_press(Listener::new(move |_| {
+                                                second_lp.set(second_lp.get() + 1);
+                                            }))
+                                            .child(
+                                                SizedBox::new()
+                                                    .width(120.0)
+                                                    .height(40.0)
+                                                    .child(Center::new().child(Text::new("Inspect"))),
+                                            )
+                                            .into_widget(),
+                                        button("Close", move |_| {
+                                            if let Some(window) = &window {
+                                                window.close();
+                                            }
+                                        }),
+                                    ])),
+                                )
+                                .into_widget(),
+                            )
+                        }
+                        _ => None,
+                    }
+                })
+                .into_widget(),
+            );
+        });
+        tester.pump_by(Duration::ZERO);
+
+        assert_eq!(tester.views().len(), 1);
+        let first_view = tester.views()[0];
+        assert_eq!(tester.view_of(find::text("Open Second")), first_view);
+        expect(&tester, &find::text("Inspect"), finds_nothing());
+
+        // Tap in window 1 to request window 2; it arrives on the next pump.
+        tester.tap(find::text("Open Second"));
+        assert_eq!(first_taps.get(), 1);
+        tester.pump();
+
+        assert_eq!(tester.views().len(), 2);
+        let second_view = tester.views()[1];
+        assert_ne!(first_view, second_view);
+        assert_eq!(tester.view_of(find::text("Open Second")), first_view);
+        assert_eq!(tester.view_of(find::text("Inspect")), second_view);
+
+        // `tap(finder)` and `long_press(finder)` route to the second window automatically.
+        tester.tap(find::text("Inspect"));
+        assert_eq!(second_taps.get(), 1);
+        assert_eq!(first_taps.get(), 1, "first window did not hear the tap");
+
+        tester.long_press(find::text("Inspect"));
+        assert_eq!(second_long_presses.get(), 1);
+
+        // `tap_at` with `TestPointer::in_view` sends explicitly to the second window.
+        let center = tester.get_center(find::text("Inspect"));
+        let pointer = TestPointer::touch(tester.next_pointer()).in_view(second_view);
+        tester.tap_at(center, pointer);
+        assert_eq!(second_taps.get(), 2);
+
+        // Closing the second window removes it at the next pump.
+        tester.tap(find::text("Close"));
+        tester.pump();
+        assert_eq!(tester.views(), [first_view]);
+        expect(&tester, &find::text("Inspect"), finds_nothing());
+        expect(&tester, &find::text("Open Second"), finds_one_widget());
+    }
+
+    #[test]
+    fn without_views_runs_an_apps_own_run_app() {
+        let windows = Rc::new(TestWindows::new());
+        let platform = TestPlatform::new().with_windows(Rc::clone(&windows));
+        let mut tester = WidgetTester::without_views(platform);
+
+        tester.update(|app| {
+            run_app(
+                app,
+                Directionality::new(
+                    TextDirection::Ltr,
+                    Center::new().child(Text::new("Hello desktop")),
+                )
+                .into_widget(),
+            );
+        });
+        tester.pump_by(Duration::ZERO);
+
+        assert_eq!(tester.views().len(), 1);
+        let view = tester.views()[0];
+        assert_eq!(tester.view_of(find::text("Hello desktop")), view);
+        assert!(windows.made()[0].test_view().presented() > 0);
+    }
+
+    #[test]
+    fn give_view_adds_a_view_unasked_and_reports_metric_changes() {
+        let mut tester = WidgetTester::without_views(TestPlatform::new());
+        let seen_sizes: Rc<RefCell<Vec<Size>>> = Rc::default();
+        let sizes = Rc::clone(&seen_sizes);
+        tester.update(|app| {
+            run_widget(
+                app,
+                MultiViewApp::new(move |_app, _view| {
+                    let sizes = Rc::clone(&sizes);
+                    Some(
+                        crate::widgets::basic::Builder::new(move |app, context| {
+                            let size = crate::MediaQuery::of(app, context).size;
+                            sizes.borrow_mut().push(size);
+                            Directionality::new(
+                                TextDirection::Ltr,
+                                Text::new("Phone screen"),
+                            )
+                            .into_widget()
+                        })
+                        .into_widget(),
+                    )
+                })
+                .into_widget(),
+            );
+        });
+        tester.pump_by(Duration::ZERO);
+        assert!(tester.views().is_empty());
+
+        let given = tester.give_view(
+            TestView::with_pixel_ratio(800.0, 1200.0, 2.0).with_id(ViewId(7)),
+        );
+        tester.pump();
+        assert_eq!(tester.views(), [ViewId(7)]);
+        assert_eq!(tester.view_of(find::text("Phone screen")), ViewId(7));
+        assert_eq!(*seen_sizes.borrow(), [Size::new(400.0, 600.0)]);
+
+        given.set_physical_size(Size::new(600.0, 1000.0));
+        tester.pump();
+        assert_eq!(
+            *seen_sizes.borrow(),
+            [Size::new(400.0, 600.0), Size::new(300.0, 500.0)]
+        );
+    }
+
+    #[test]
+    fn shell_delivers_back_focus_close_and_lifecycle_events() {
+        let windows = Rc::new(TestWindows::new());
+        let mut tester = WidgetTester::without_views(
+            TestPlatform::new().with_windows(Rc::clone(&windows)),
+        );
+        let events: Rc<RefCell<Vec<String>>> = Rc::default();
+        let log = Rc::clone(&events);
+
+        struct Observer {
+            log: Rc<RefCell<Vec<String>>>,
+        }
+
+        impl crate::WidgetsBindingObserver for Observer {
+            fn did_pop_route(&self, _app: &mut App, view: ViewId) -> bool {
+                self.log.borrow_mut().push(format!("pop:{view:?}"));
+                true
+            }
+
+            fn did_change_view_focus(&self, _app: &mut App, event: ViewFocusEvent) {
+                self.log
+                    .borrow_mut()
+                    .push(format!("focus:{:?}:{:?}", event.view_id, event.state));
+            }
+
+            fn did_change_app_lifecycle_state(&self, _app: &mut App, state: AppLifecycleState) {
+                self.log.borrow_mut().push(format!("lifecycle:{state:?}"));
+            }
+        }
+
+        let observer = Rc::new(Observer {
+            log: Rc::clone(&log),
+        });
+        tester.update(|app| {
+            crate::WidgetsBinding::instance(app).add_observer(app, observer);
+            run_app(app, SizedBox::new().into_widget());
+        });
+        tester.pump_by(Duration::ZERO);
+        let view = tester.views()[0];
+
+        assert!(tester.shell().pop_route(view));
+        tester.shell().view_focus_changed(ViewFocusEvent {
+            view_id: view,
+            state: ViewFocusState::Focused,
+            direction: ViewFocusDirection::Forward,
+        });
+        tester
+            .shell()
+            .app_lifecycle_state_changed(AppLifecycleState::Resumed);
+        tester
+            .shell()
+            .app_lifecycle_state_changed(AppLifecycleState::Inactive);
+
+        assert_eq!(
+            *events.borrow(),
+            [
+                format!("pop:{view:?}"),
+                format!("focus:{view:?}:Focused"),
+                "lifecycle:Resumed".to_owned(),
+                "lifecycle:Inactive".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn drop_tears_down_every_window_and_disposes_its_states() {
+        let disposed: Rc<RefCell<Vec<&'static str>>> = Rc::default();
+        {
+            let windows = Rc::new(TestWindows::new());
+            let mut tester = WidgetTester::without_views(
+                TestPlatform::new().with_windows(Rc::clone(&windows)),
+            );
+            let spy = Rc::clone(&disposed);
+            tester.update(|app| {
+                app.platform()
+                    .request_view(WindowConfig::default(), Some("one".to_owned()))
+                    .unwrap();
+                app.platform()
+                    .request_view(WindowConfig::default(), Some("two".to_owned()))
+                    .unwrap();
+                run_widget(
+                    app,
+                    MultiViewApp::new(move |_app, view| {
+                        let label = match view.initial_data().as_deref() {
+                            Some("one") => "win-1",
+                            Some("two") => "win-2",
+                            _ => return None,
+                        };
+                        Some(
+                            Directionality::new(
+                                TextDirection::Ltr,
+                                DisposeSpy {
+                                    label,
+                                    disposed: Rc::clone(&spy),
+                                },
+                            )
+                            .into_widget(),
+                        )
+                    })
+                    .into_widget(),
+                );
+            });
+            tester.pump_by(Duration::ZERO);
+            assert_eq!(tester.views().len(), 2);
+            assert!(disposed.borrow().is_empty());
+        }
+        assert_eq!(*disposed.borrow(), ["win-1", "win-2"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "A Timer is still pending even after the widget tree was disposed.")]
+    fn drop_catches_a_pending_timer_in_a_multi_window_test() {
+        let windows = Rc::new(TestWindows::new());
+        let mut tester = WidgetTester::without_views(
+            TestPlatform::new().with_windows(Rc::clone(&windows)),
+        );
+        tester.update(|app| {
+            run_app(app, SizedBox::new().into_widget());
+            Timer::new(app, Duration::from_secs(5), Listener::new(|_| {}));
+        });
+        tester.pump_by(Duration::ZERO);
+    }
+
+    #[test]
+    fn closing_the_only_window_unmounts_its_tree_on_pump() {
+        let windows = Rc::new(TestWindows::new());
+        let mut tester = WidgetTester::without_views(
+            TestPlatform::new().with_windows(Rc::clone(&windows)),
+        );
+        tester.update(|app| {
+            app.platform()
+                .request_view(WindowConfig::default(), None)
+                .unwrap();
+            run_widget(
+                app,
+                MultiViewApp::new(|_app, _view| {
+                    Some(
+                        Directionality::new(
+                            TextDirection::Ltr,
+                            crate::widgets::basic::Builder::new(|app, context| {
+                                let window = WindowScope::of(app, context);
+                                button("Close Only", move |_| window.close())
+                            }),
+                        )
+                        .into_widget(),
+                    )
+                })
+                .into_widget(),
+            );
+        });
+        tester.pump_by(Duration::ZERO);
+        expect(&tester, &find::text("Close Only"), finds_one_widget());
+
+        tester.tap(find::text("Close Only"));
+        tester.pump();
+        assert!(tester.views().is_empty());
+        expect(&tester, &find::text("Close Only"), finds_nothing());
+    }
+
+    #[test]
+    fn platform_clock_only_moves_with_pump_by() {
+        let mut tester = WidgetTester::new();
+        tester.pump_widget(SizedBox::new());
+        let t0 = tester.platform().now();
+        std::thread::sleep(Duration::from_millis(5));
+        tester.pump();
+        assert_eq!(tester.platform().now(), t0);
+
+        tester.pump_by(Duration::from_millis(50));
+        assert_eq!(
+            tester.platform().now().duration_since(t0),
+            Duration::from_millis(50)
+        );
+    }
+
+    #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "tests pump_until waiting for work on a real background thread"
+    )]
+    fn pump_until_waits_for_work_completing_on_another_thread() {
+        let mut tester = WidgetTester::without_views(TestPlatform::new());
+        let ready = Rc::new(Cell::new(false));
+        let set_ready = Rc::clone(&ready);
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+
+        tester.update(|app| {
+            let cx = app.to_async();
+            let flag = Rc::clone(&set_ready);
+            // A future woken from a real worker thread, as async host I/O or a program thread does.
+            let waker_slot: std::sync::Arc<std::sync::Mutex<Option<std::task::Waker>>> =
+                std::sync::Arc::default();
+            let done_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let worker_waker = std::sync::Arc::clone(&waker_slot);
+            let worker_done = std::sync::Arc::clone(&done_flag);
+            drop(app.spawn(async move |_cx| {
+                std::future::poll_fn(|task_cx| {
+                    if done_flag.load(std::sync::atomic::Ordering::Acquire) {
+                        std::task::Poll::Ready(())
+                    } else {
+                        *waker_slot.lock().unwrap() = Some(task_cx.waker().clone());
+                        std::task::Poll::Pending
+                    }
+                })
+                .await;
+                flag.set(true);
+            }));
+            std::thread::spawn(move || {
+                rx.recv().unwrap();
+                std::thread::sleep(Duration::from_millis(10));
+                worker_done.store(true, std::sync::atomic::Ordering::Release);
+                if let Some(waker) = worker_waker.lock().unwrap().take() {
+                    waker.wake();
+                }
+            });
+            drop(cx);
+        });
+
+        tester.pump();
+        assert!(!ready.get());
+        tx.send(()).unwrap();
+        tester.pump_until("worker thread to complete", |_| ready.get());
+        assert!(ready.get());
+    }
+
+    #[test]
+    fn drag_in_second_window_moves_the_second_window_gesture() {
+        let windows = Rc::new(TestWindows::new());
+        let mut tester = WidgetTester::without_views(
+            TestPlatform::new().with_windows(Rc::clone(&windows)),
+        );
+        let dragged = Rc::new(Cell::new(Offset::ZERO));
+        let seen = Rc::clone(&dragged);
+
+        tester.update(|app| {
+            app.platform()
+                .request_view(WindowConfig::default(), Some("a".to_owned()))
+                .unwrap();
+            app.platform()
+                .request_view(WindowConfig::default(), Some("b".to_owned()))
+                .unwrap();
+            run_widget(
+                app,
+                MultiViewApp::new(move |_app, view| match view.initial_data().as_deref() {
+                    Some("a") => Some(
+                        Directionality::new(TextDirection::Ltr, Text::new("First")).into_widget(),
+                    ),
+                    Some("b") => {
+                        let seen = Rc::clone(&seen);
+                        Some(
+                            Directionality::new(
+                                TextDirection::Ltr,
+                                Center::new().child(
+                                    GestureDetector::new()
+                                        .behavior(HitTestBehavior::Opaque)
+                                        .on_pan_update(Rc::new(move |_, details| {
+                                            seen.set(seen.get() + details.delta);
+                                        }))
+                                        .child(
+                                            SizedBox::new()
+                                                .width(200.0)
+                                                .height(200.0)
+                                                .child(Center::new().child(Text::new("DragMe"))),
+                                        ),
+                                ),
+                            )
+                            .into_widget(),
+                        )
+                    }
+                    _ => None,
+                })
+                .into_widget(),
+            );
+        });
+        tester.pump_by(Duration::ZERO);
+        tester.drag(find::text("DragMe"), Offset::new(50.0, 0.0));
+        assert!(dragged.get().dx() > 0.0);
+    }
+}

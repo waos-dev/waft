@@ -198,35 +198,39 @@ impl State for MultiViewAppState {
 mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
+    use std::sync::Arc;
     use std::time::Duration;
 
-    use std::sync::Arc;
-
-    use waft_embedder::{Compositor, Platform as _, View as _, ViewId, ViewMetrics, WindowConfig};
-    use waft_foundation::AppCell;
+    use waft_embedder::{
+        Compositor, EmbedderClient, Platform as _, View as _, ViewId, ViewMetrics, WindowConfig,
+    };
     use waft_test::{
         MockCompositor, TestPlatform, TestView, TestViewHost, TestWindow, TestWindows,
     };
 
     use super::*;
-    use crate::test_harness::{
-        Quits, report_view_added, report_view_removed, report_windows_made, request_view_close,
-        views_cell,
-    };
+    use crate::test_harness::Quits;
+    use crate::testing::WidgetTester;
     use crate::{AppLifecycleListener, SizedBox, run_app, run_app_with};
 
-    struct Platform {
-        cell: Rc<AppCell>,
+    struct Harness {
+        tester: WidgetTester,
         windows: Rc<TestWindows>,
         quits: Rc<Quits>,
     }
 
-    fn platform(views: &[Rc<TestView>]) -> Platform {
+    fn harness(views: &[Rc<TestView>]) -> Harness {
         let windows = Rc::new(TestWindows::new());
         let quits = Rc::new(Quits::default());
-        let cell = views_cell(views, &windows, &quits);
-        Platform {
-            cell,
+        let mut platform = TestPlatform::new()
+            .with_windows(Rc::clone(&windows))
+            .with_app_exit(Rc::clone(&quits) as Rc<dyn waft_embedder::AppExit>);
+        for view in views {
+            platform = platform.with_view(Rc::clone(view) as ViewRef);
+        }
+        let tester = WidgetTester::without_views(platform);
+        Harness {
+            tester,
             windows,
             quits,
         }
@@ -237,43 +241,36 @@ mod tests {
     }
 
     /// Mounts `root` and runs the frame that shows it.
-    fn mount(cell: &AppCell, root: WidgetRef) {
-        crate::binding::run_widget(&mut cell.borrow_mut(), root);
-        cell.elapse(Duration::ZERO);
-        crate::test_harness::binding_pump(&mut cell.borrow_mut(), Duration::ZERO);
+    fn mount(tester: &mut WidgetTester, root: WidgetRef) {
+        tester.update(|app| crate::binding::run_widget(app, root));
+        tester.pump_by(Duration::ZERO);
     }
 
-    fn run_app_titled(cell: &AppCell, title: &str) {
+    fn run_app_titled(tester: &mut WidgetTester, title: &str) {
         let config = WindowConfig {
             title: title.to_owned(),
             ..WindowConfig::default()
         };
-        run_app_with(
-            &mut cell.borrow_mut(),
-            SizedBox::new().into_widget(),
-            config,
-        );
-        cell.elapse(Duration::ZERO);
+        tester.update(|app| run_app_with(app, SizedBox::new().into_widget(), config));
+        tester.pump_by(Duration::ZERO);
     }
 
     #[test]
     fn every_view_the_app_is_given_shows_the_content() {
         let (first, second) = (view(1), view(2));
-        let platform = platform(&[Rc::clone(&first), Rc::clone(&second)]);
-        run_app_titled(&platform.cell, "unused where views are given");
-        assert_eq!(first.presented(), 1);
-        assert_eq!(second.presented(), 1);
-        assert!(platform.windows.made().is_empty(), "no window asked for");
+        let mut h = harness(&[Rc::clone(&first), Rc::clone(&second)]);
+        run_app_titled(&mut h.tester, "unused where views are given");
+        assert!(first.presented() > 0);
+        assert!(second.presented() > 0);
+        assert!(h.windows.made().is_empty(), "no window asked for");
     }
 
     #[test]
     fn given_no_view_the_app_asks_for_its_window_and_shows_the_content_in_it() {
-        let platform = platform(&[]);
-        run_app_titled(&platform.cell, "Notes");
-        let window = Rc::clone(&platform.windows.made()[0]);
+        let mut h = harness(&[]);
+        run_app_titled(&mut h.tester, "Notes");
+        let window = Rc::clone(&h.windows.made()[0]);
         assert_eq!(window.config().title, "Notes");
-
-        report_windows_made(&platform.cell, &platform.windows, Duration::from_millis(16));
         assert!(window.test_view().presented() > 0);
     }
 
@@ -284,11 +281,11 @@ mod tests {
                 .with_id(ViewId(2))
                 .with_initial_data("inspector"),
         );
-        let platform = platform(&[view(1), inspector]);
+        let mut h = harness(&[view(1), inspector]);
         let shown: Rc<RefCell<Vec<Option<String>>>> = Rc::default();
         let seen = Rc::clone(&shown);
         mount(
-            &platform.cell,
+            &mut h.tester,
             MultiViewApp::new(move |_app, view| {
                 seen.borrow_mut().push(view.initial_data());
                 Some(SizedBox::new().into_widget())
@@ -300,11 +297,11 @@ mod tests {
 
     #[test]
     fn a_view_the_app_asked_for_arrives_and_shows_what_its_data_says() {
-        let platform = platform(&[]);
+        let mut h = harness(&[]);
         let shown: Rc<RefCell<Vec<Option<String>>>> = Rc::default();
         let seen = Rc::clone(&shown);
         mount(
-            &platform.cell,
+            &mut h.tester,
             MultiViewApp::new(move |_app, view| {
                 seen.borrow_mut().push(view.initial_data());
                 (view.initial_data().as_deref() == Some("inspector"))
@@ -312,27 +309,25 @@ mod tests {
             })
             .into_widget(),
         );
-        platform
-            .cell
-            .borrow()
+        h.tester
             .platform()
             .request_view(WindowConfig::default(), Some("inspector".to_owned()))
             .expect("a desktop makes windows");
-        report_windows_made(&platform.cell, &platform.windows, Duration::from_millis(16));
+        h.tester.pump();
         assert!(shown.borrow().contains(&Some("inspector".to_owned())));
-        assert!(platform.windows.made()[0].test_view().presented() > 0);
+        assert!(h.windows.made()[0].test_view().presented() > 0);
     }
 
     #[test]
     fn a_view_on_a_layer_of_the_apps_arrives_as_every_view_and_shows_what_its_data_says() {
         let compositor = Arc::new(MockCompositor::new());
         let layer = compositor.make_layer(false);
-        let platform = Rc::new(TestPlatform::new().with_compositor(compositor));
-        let cell = AppCell::with_platform(Rc::clone(&platform) as waft_embedder::PlatformRef);
+        let mut tester =
+            WidgetTester::without_views(TestPlatform::new().with_compositor(compositor));
         let shown: Rc<RefCell<Vec<Option<String>>>> = Rc::default();
         let seen = Rc::clone(&shown);
         mount(
-            &cell,
+            &mut tester,
             MultiViewApp::new(move |_app, view| {
                 seen.borrow_mut().push(view.initial_data());
                 Some(SizedBox::new().into_widget())
@@ -344,7 +339,7 @@ mod tests {
             device_pixel_ratio: 2.0,
             ..ViewMetrics::default()
         };
-        let embedder = platform.view_embedder().expect("a view embedder");
+        let embedder = tester.platform().view_embedder().expect("a view embedder");
         embedder
             .add_view(
                 &layer,
@@ -353,8 +348,8 @@ mod tests {
                 Some("prompt".to_owned()),
             )
             .expect("a view on the layer");
-        let added = Rc::clone(&platform.added_views()[0]);
-        report_view_added(&cell, added.id(), Duration::from_millis(16));
+        let added = Rc::clone(&tester.platform().added_views()[0]);
+        tester.pump();
         assert_eq!(*shown.borrow(), [Some("prompt".to_owned())]);
         assert!(added.presented() > 0);
     }
@@ -384,9 +379,9 @@ mod tests {
                 .with_initial_data("someone else's"),
             WindowConfig::default(),
         );
-        let platform = platform(&[Rc::clone(window.test_view()), view(2)]);
+        let mut h = harness(&[Rc::clone(window.test_view()), view(2)]);
         mount(
-            &platform.cell,
+            &mut h.tester,
             MultiViewApp::new(|_app, view| {
                 view.initial_data()
                     .is_none()
@@ -398,12 +393,11 @@ mod tests {
             view: ViewId(1),
             asked: std::cell::Cell::new(0),
         });
-        {
-            let mut app = platform.cell.borrow_mut();
-            WidgetsBinding::instance(&mut app).add_observer(&mut app, owner.clone());
-        }
+        h.tester.update(|app| {
+            WidgetsBinding::instance(app).add_observer(app, owner.clone());
+        });
         assert_eq!(window.test_view().presented(), 0);
-        request_view_close(&platform.cell, ViewId(1));
+        h.tester.shell().view_close_requested(ViewId(1));
         assert_eq!(owner.asked.get(), 1, "its owner decides");
         assert_eq!(window.closes(), 0, "nobody here closes it");
     }
@@ -414,19 +408,22 @@ mod tests {
             TestView::new(300.0, 200.0).with_id(ViewId(1)),
             WindowConfig::default(),
         );
-        let platform = platform(&[Rc::clone(window.test_view()), view(2)]);
-        crate::binding::run_widget(
-            &mut platform.cell.borrow_mut(),
-            MultiViewApp::new(|_app, _view| Some(SizedBox::new().into_widget())).into_widget(),
-        );
+        let mut h = harness(&[Rc::clone(window.test_view()), view(2)]);
+        h.tester.update(|app| {
+            crate::binding::run_widget(
+                app,
+                MultiViewApp::new(|_app, _view| Some(SizedBox::new().into_widget())).into_widget(),
+            );
+        });
         assert_eq!(
             window.test_view().presented(),
             0,
             "closed before its first frame"
         );
-        request_view_close(&platform.cell, ViewId(1));
+        h.tester.shell().view_close_requested(ViewId(1));
         assert_eq!(window.closes(), 1);
-        assert_eq!(platform.quits.count(), 0, "not the last view");
+        assert_eq!(h.quits.count(), 0, "not the last view");
+        h.tester.pump_by(Duration::ZERO);
     }
 
     #[test]
@@ -435,11 +432,11 @@ mod tests {
             TestView::new(300.0, 200.0).with_id(ViewId(1)),
             WindowConfig::default(),
         );
-        let platform = platform(&[Rc::clone(window.test_view())]);
+        let mut h = harness(&[Rc::clone(window.test_view())]);
         let asked = Rc::new(std::cell::Cell::new(0));
         let counted = Rc::clone(&asked);
         mount(
-            &platform.cell,
+            &mut h.tester,
             MultiViewApp::new(|_app, _view| Some(SizedBox::new().into_widget()))
                 .on_close_requested(Rc::new(move |_app, view| {
                     assert_eq!(view.id(), ViewId(1));
@@ -447,43 +444,40 @@ mod tests {
                 }))
                 .into_widget(),
         );
-        request_view_close(&platform.cell, ViewId(1));
+        h.tester.shell().view_close_requested(ViewId(1));
         assert_eq!(asked.get(), 1);
-        assert_eq!(platform.quits.count(), 0);
+        assert_eq!(h.quits.count(), 0);
         assert_eq!(window.closes(), 0);
     }
 
     #[test]
     fn closing_the_apps_last_view_asks_to_quit() {
-        let platform = platform(&[]);
-        run_app_titled(&platform.cell, "Notes");
-        report_windows_made(&platform.cell, &platform.windows, Duration::from_millis(16));
-        let view = platform.windows.made()[0].test_view().id();
+        let mut h = harness(&[]);
+        run_app_titled(&mut h.tester, "Notes");
+        let view = h.windows.made()[0].test_view().id();
 
-        request_view_close(&platform.cell, view);
-        assert_eq!(platform.quits.count(), 1);
+        h.tester.shell().view_close_requested(view);
+        assert_eq!(h.quits.count(), 1);
     }
 
     #[test]
     fn closing_the_apps_last_view_keeps_it_when_the_app_refuses_to_quit() {
-        let platform = platform(&[]);
-        let listener = {
-            let mut app = platform.cell.borrow_mut();
-            AppLifecycleListener::new(&mut app).on_exit_requested(
-                &mut app,
+        let mut h = harness(&[]);
+        let listener = h.tester.update(|app| {
+            AppLifecycleListener::new(app).on_exit_requested(
+                app,
                 Rc::new(|_app| {
                     waft_foundation::Task::ready(waft_embedder::AppExitResponse::Cancel)
                 }),
             )
-        };
-        run_app_titled(&platform.cell, "Notes");
-        report_windows_made(&platform.cell, &platform.windows, Duration::from_millis(16));
-        let view = platform.windows.made()[0].test_view().id();
+        });
+        run_app_titled(&mut h.tester, "Notes");
+        let view = h.windows.made()[0].test_view().id();
 
-        request_view_close(&platform.cell, view);
-        assert_eq!(platform.quits.count(), 0);
-        assert_eq!(platform.windows.made()[0].closes(), 0);
-        listener.dispose(&mut platform.cell.borrow_mut());
+        h.tester.shell().view_close_requested(view);
+        assert_eq!(h.quits.count(), 0);
+        assert_eq!(h.windows.made()[0].closes(), 0);
+        h.tester.update(|app| listener.dispose(app));
     }
 
     #[test]
@@ -492,11 +486,11 @@ mod tests {
             TestView::new(300.0, 200.0).with_id(ViewId(1)),
             WindowConfig::default(),
         );
-        let platform = platform(&[Rc::clone(window.test_view()), view(2)]);
-        run_app_titled(&platform.cell, "unused");
+        let mut h = harness(&[Rc::clone(window.test_view()), view(2)]);
+        run_app_titled(&mut h.tester, "unused");
 
-        request_view_close(&platform.cell, ViewId(1));
-        assert_eq!(platform.quits.count(), 0, "not the last view");
+        h.tester.shell().view_close_requested(ViewId(1));
+        assert_eq!(h.quits.count(), 0, "not the last view");
         assert_eq!(window.closes(), 1);
     }
 
@@ -506,56 +500,48 @@ mod tests {
             TestView::new(300.0, 200.0).with_id(ViewId(1)),
             WindowConfig::default(),
         );
-        let platform = platform(&[Rc::clone(window.test_view()), view(2)]);
-        run_app_titled(&platform.cell, "unused where views are given");
+        let mut h = harness(&[Rc::clone(window.test_view()), view(2)]);
+        run_app_titled(&mut h.tester, "unused where views are given");
 
-        request_view_close(&platform.cell, ViewId(1));
+        h.tester.shell().view_close_requested(ViewId(1));
         assert_eq!(window.closes(), 1);
-        assert_eq!(platform.quits.count(), 0, "not the last view");
-    }
-
-    /// An embedder's app: no view at start, no windows on request, views given later.
-    fn embedded() -> (Rc<AppCell>, Rc<TestPlatform>) {
-        let platform = Rc::new(TestPlatform::new());
-        let cell = AppCell::with_platform(Rc::clone(&platform) as waft_embedder::PlatformRef);
-        WidgetsBinding::instance(&mut cell.borrow_mut());
-        (cell, platform)
+        assert_eq!(h.quits.count(), 0, "not the last view");
     }
 
     #[test]
     fn a_view_given_after_the_start_shows_the_content() {
-        let (cell, platform) = embedded();
+        let mut tester = WidgetTester::without_views(TestPlatform::new());
         mount(
-            &cell,
+            &mut tester,
             MultiViewApp::new(|_app, _view| Some(SizedBox::new().into_widget())).into_widget(),
         );
-        let given = view(1);
-        platform.give_view(Rc::clone(&given) as ViewRef);
-        report_view_added(&cell, ViewId(1), Duration::from_millis(16));
+        let given = tester.give_view(TestView::new(300.0, 200.0).with_id(ViewId(1)));
+        tester.pump();
         assert_eq!(given.presented(), 1);
     }
 
     #[test]
     fn a_view_taken_back_is_no_longer_shown() {
-        let (cell, platform) = embedded();
         let given = view(1);
-        platform.give_view(Rc::clone(&given) as ViewRef);
+        let mut tester = WidgetTester::without_views(
+            TestPlatform::new().with_view(Rc::clone(&given) as ViewRef),
+        );
         mount(
-            &cell,
+            &mut tester,
             MultiViewApp::new(|_app, _view| Some(SizedBox::new().into_widget())).into_widget(),
         );
-        platform.take_view(ViewId(1));
-        report_view_removed(&cell, ViewId(1), Duration::from_millis(16));
+        tester.platform().take_view(ViewId(1));
+        tester.pump();
 
         let presented = given.presented();
-        crate::test_harness::binding_pump(&mut cell.borrow_mut(), Duration::from_millis(32));
+        tester.pump_by(Duration::from_millis(16));
         assert_eq!(given.presented(), presented, "not drawn once taken back");
     }
 
     #[test]
     #[should_panic(expected = "starts with MultiViewApp")]
     fn run_app_given_no_view_where_no_window_can_be_made_says_how_to_start() {
-        let (cell, _platform) = embedded();
-        run_app(&mut cell.borrow_mut(), SizedBox::new().into_widget());
+        let tester = WidgetTester::without_views(TestPlatform::new());
+        tester.update(|app| run_app(app, SizedBox::new().into_widget()));
     }
 }
