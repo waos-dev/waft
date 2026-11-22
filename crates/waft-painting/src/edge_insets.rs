@@ -672,6 +672,50 @@ impl EdgeInsets {
     /// An [`EdgeInsets`] with zero offsets in each direction.
     pub const ZERO: EdgeInsets = EdgeInsets::only(0.0, 0.0, 0.0, 0.0);
 
+    /// The same insets with the left side `left`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_left(mut self, left: f64) -> EdgeInsets {
+        self.left = left;
+        self
+    }
+
+    /// The same insets with the top side `top`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_top(mut self, top: f64) -> EdgeInsets {
+        self.top = top;
+        self
+    }
+
+    /// The same insets with the right side `right`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_right(mut self, right: f64) -> EdgeInsets {
+        self.right = right;
+        self
+    }
+
+    /// The same insets with the bottom side `bottom`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_bottom(mut self, bottom: f64) -> EdgeInsets {
+        self.bottom = bottom;
+        self
+    }
+
+    /// The same insets with the left and right sides each `horizontal`, as Dart's
+    /// `EdgeInsets.symmetric(horizontal:)` sets them.
+    pub const fn with_horizontal(mut self, horizontal: f64) -> EdgeInsets {
+        self.left = horizontal;
+        self.right = horizontal;
+        self
+    }
+
+    /// The same insets with the top and bottom sides each `vertical`, as Dart's
+    /// `EdgeInsets.symmetric(vertical:)` sets them.
+    pub const fn with_vertical(mut self, vertical: f64) -> EdgeInsets {
+        self.top = vertical;
+        self.bottom = vertical;
+        self
+    }
+
     /// The total offset in the horizontal direction.
     pub fn horizontal(&self) -> f64 {
         self.left + self.right
@@ -1045,6 +1089,50 @@ impl EdgeInsetsDirectional {
     /// same effect, but will be cheaper to [`resolve`](Self::resolve).
     pub const ZERO: EdgeInsetsDirectional = EdgeInsetsDirectional::only(0.0, 0.0, 0.0, 0.0);
 
+    /// The same insets with the start side `start`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_start(mut self, start: f64) -> EdgeInsetsDirectional {
+        self.start = start;
+        self
+    }
+
+    /// The same insets with the top side `top`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_top(mut self, top: f64) -> EdgeInsetsDirectional {
+        self.top = top;
+        self
+    }
+
+    /// The same insets with the end side `end`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_end(mut self, end: f64) -> EdgeInsetsDirectional {
+        self.end = end;
+        self
+    }
+
+    /// The same insets with the bottom side `bottom`: one of Dart's `copyWith` arguments, named, so
+    /// a chain of them reads as Dart's named arguments do.
+    pub const fn with_bottom(mut self, bottom: f64) -> EdgeInsetsDirectional {
+        self.bottom = bottom;
+        self
+    }
+
+    /// The same insets with the start and end sides each `horizontal`, as Dart's
+    /// `EdgeInsetsDirectional.symmetric(horizontal:)` sets them.
+    pub const fn with_horizontal(mut self, horizontal: f64) -> EdgeInsetsDirectional {
+        self.start = horizontal;
+        self.end = horizontal;
+        self
+    }
+
+    /// The same insets with the top and bottom sides each `vertical`, as Dart's
+    /// `EdgeInsetsDirectional.symmetric(vertical:)` sets them.
+    pub const fn with_vertical(mut self, vertical: f64) -> EdgeInsetsDirectional {
+        self.top = vertical;
+        self.bottom = vertical;
+        self
+    }
+
     /// Whether every dimension is non-negative.
     pub fn is_non_negative(&self) -> bool {
         self.start >= 0.0 && self.top >= 0.0 && self.end >= 0.0 && self.bottom >= 0.0
@@ -1220,6 +1308,36 @@ impl Debug for EdgeInsetsDirectional {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn named_setters_say_what_the_positional_constructors_leave_to_their_order() {
+        assert_eq!(
+            EdgeInsets::ZERO.with_vertical(9.0).with_horizontal(12.0),
+            EdgeInsets::symmetric(9.0, 12.0)
+        );
+        assert_eq!(
+            EdgeInsets::ZERO.with_left(16.0).with_bottom(8.0),
+            EdgeInsets::only(16.0, 0.0, 0.0, 8.0)
+        );
+        assert_eq!(
+            EdgeInsets::all(4.0).with_top(0.0).with_right(2.0),
+            EdgeInsets::only(4.0, 0.0, 2.0, 4.0)
+        );
+        assert_eq!(
+            EdgeInsetsDirectional::ZERO
+                .with_horizontal(12.0)
+                .with_vertical(9.0),
+            EdgeInsetsDirectional::symmetric(12.0, 9.0)
+        );
+        assert_eq!(
+            EdgeInsetsDirectional::ZERO
+                .with_start(16.0)
+                .with_end(4.0)
+                .with_top(1.0)
+                .with_bottom(2.0),
+            EdgeInsetsDirectional::only(16.0, 1.0, 4.0, 2.0)
+        );
+    }
 
     #[test]
     fn edge_insets_constructors() {

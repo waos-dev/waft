@@ -4,6 +4,7 @@
   "pages": [
     "start",
     "architecture",
+    "from-flutter",
     "state",
     "handles",
     "layout",
