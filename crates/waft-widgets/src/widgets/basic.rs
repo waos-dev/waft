@@ -16,7 +16,10 @@ use waft_embedder::{
     RSuperellipse, Rect, SemanticsHitTestBehavior, SemanticsInputType, SemanticsRole,
     SemanticsValidationResult, Size, TextBaseline, TextDirection,
 };
-use waft_foundation::{App, Handle, Ref, ValueKey, VoidCallback};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty,
+    EnumProperty, Handle, Ref, ValueKey, VoidCallback,
+};
 use waft_gestures::{
     PointerCancelEventListener, PointerDownEventListener, PointerEnterEventListener,
     PointerExitEventListener, PointerHoverEventListener, PointerMoveEventListener,
@@ -162,6 +165,10 @@ impl Directionality {
 impl InheritedWidget for Directionality {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("textDirection", self.text_direction));
     }
 
     fn child(&self) -> &WidgetRef {
@@ -3081,6 +3088,39 @@ impl RenderObjectWidget for SizedBox {
         self.key.as_ref()
     }
 
+    /// Dart's `SizedBox.toStringShort`: `SizedBox.expand` and `SizedBox.shrink` by the sizes
+    /// those constructors give.
+    fn to_string_short(&self) -> String {
+        let type_name = match (self.width, self.height) {
+            (Some(f64::INFINITY), Some(f64::INFINITY)) => "SizedBox.expand",
+            (Some(0.0), Some(0.0)) => "SizedBox.shrink",
+            _ => "SizedBox",
+        };
+        crate::describe_widget(type_name, self.key())
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let expanded_or_shrunk = matches!(
+            (self.width, self.height),
+            (Some(f64::INFINITY), Some(f64::INFINITY)) | (Some(0.0), Some(0.0))
+        );
+        let level = if expanded_or_shrunk {
+            DiagnosticLevel::Hidden
+        } else {
+            DiagnosticLevel::Info
+        };
+        properties.add(
+            DoubleProperty::new("width", self.width)
+                .default_value(None)
+                .with_level(level),
+        );
+        properties.add(
+            DoubleProperty::new("height", self.height)
+                .default_value(None)
+                .with_level(level),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderConstrainedBox::new(app, self.additional_constraints(), None).as_object()
     }
@@ -3182,6 +3222,11 @@ impl RenderObjectWidget for ConstrainedBox {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties
+            .add(DiagnosticsProperty::new("constraints", self.constraints).with_show_name(false));
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -3793,6 +3838,15 @@ impl RenderObjectWidget for LimitedBox {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DoubleProperty::new("maxWidth", self.max_width).default_value(Some(f64::INFINITY)),
+        );
+        properties.add(
+            DoubleProperty::new("maxHeight", self.max_height).default_value(Some(f64::INFINITY)),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -7229,6 +7283,13 @@ impl RenderObjectWidget for ColoredBox {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("color", self.color.color()));
+        properties.add(
+            DiagnosticsProperty::new("isAntiAlias", self.is_anti_alias).default_value(Some(true)),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderColoredBox::new(app, self.color.color(), self.is_anti_alias, None).as_object()
     }
@@ -7775,6 +7836,39 @@ struct FlexConfiguration {
 }
 
 impl FlexConfiguration {
+    /// Dart's `Flex.debugFillProperties`, which `Row` and `Column` inherit.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("direction", self.direction));
+        properties.add(EnumProperty::new(
+            "mainAxisAlignment",
+            self.main_axis_alignment,
+        ));
+        properties.add(
+            EnumProperty::new("mainAxisSize", self.main_axis_size)
+                .default_value(Some(MainAxisSize::Max)),
+        );
+        properties.add(EnumProperty::new(
+            "crossAxisAlignment",
+            self.cross_axis_alignment,
+        ));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::new("verticalDirection", self.vertical_direction)
+                .default_value(Some(VerticalDirection::Down)),
+        );
+        properties.add(
+            EnumProperty::<TextBaseline>::new("textBaseline", self.text_baseline)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::new("clipBehavior", self.clip_behavior).default_value(Some(Clip::None)),
+        );
+        properties.add(DoubleProperty::new("spacing", self.spacing).default_value(Some(0.0)));
+    }
+
     /// A flex laid out along `direction`, with every other field at Dart's default.
     fn new(direction: Axis) -> FlexConfiguration {
         FlexConfiguration {
@@ -8337,6 +8431,10 @@ impl RenderObjectWidget for Flex {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.configuration().debug_fill_properties(properties);
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         self.configuration().create_render_object(app, context)
     }
@@ -8513,6 +8611,10 @@ impl RenderObjectWidget for Row {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.configuration().debug_fill_properties(properties);
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -8692,6 +8794,10 @@ impl RenderObjectWidget for Column {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.configuration().debug_fill_properties(properties);
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {

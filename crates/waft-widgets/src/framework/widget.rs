@@ -7,7 +7,10 @@ use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use waft_foundation::{App, HandleId, Key};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticableNode, DiagnosticsTreeStyle, HandleId,
+    IntoPropertyName, Key,
+};
 use waft_rendering::{
     AnyRenderObject, ContainerRenderObjectMixin, ErasedRenderObject, ParentData, RenderHandle,
     RenderObject, RenderObjectWithChildMixin,
@@ -112,6 +115,19 @@ pub trait Widget: Any + Debug {
     /// instead of creating a new one.
     fn key(&self) -> Option<&KeyRef>;
 
+    /// Dart's `toStringShort`: the type, then the key when there is one, as
+    /// `Text-[<'title'>]`.
+    fn to_string_short(&self) -> String {
+        describe_widget(self.type_name(), self.key())
+    }
+
+    /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
+    /// order. Dart's `Widget` base only sets the dense tree style, which
+    /// [`to_diagnostics_node`](<dyn Widget>::to_diagnostics_node) does before calling this.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
     /// Inflates this configuration to a concrete instance. `this` is this widget's shared
     /// reference, which the element keeps.
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement;
@@ -193,6 +209,33 @@ pub trait Widget: Any + Debug {
     /// [`StatefulWidget::as_preferred_size_widget`].
     fn as_preferred_size_widget(&self) -> Option<&dyn PreferredSizeWidget> {
         None
+    }
+}
+
+impl dyn Widget {
+    /// Dart's `Widget.toDiagnosticsNode(name:, style:)`: a snapshot of this widget's properties,
+    /// in the dense style unless `style` says otherwise.
+    pub fn to_diagnostics_node(
+        &self,
+        name: impl IntoPropertyName,
+        style: Option<DiagnosticsTreeStyle>,
+    ) -> DiagnosticableNode {
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Dense;
+        self.debug_fill_properties(&mut properties);
+        let node = DiagnosticableNode::from_parts(name, self.to_string_short(), properties);
+        match style {
+            Some(style) => node.with_style(style),
+            None => node,
+        }
+    }
+}
+
+/// Dart's `Widget.toStringShort`: `type_name`, then `-` and the key when there is one.
+pub fn describe_widget(type_name: &str, key: Option<&KeyRef>) -> String {
+    match key {
+        Some(key) => format!("{type_name}-{key:?}"),
+        None => type_name.to_string(),
     }
 }
 
@@ -299,6 +342,12 @@ pub trait StatelessWidget: Debug + 'static {
         None
     }
 
+    /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
+    /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
     /// Dart's constructor asserts that relate two or more arguments.
     ///
     /// A fluent chain of setters has seen every argument only once it ends, so the framework
@@ -341,6 +390,10 @@ impl<W: StatelessWidget> IntoWidget<StatelessKind> for W {
 impl<W: StatelessWidget> Widget for Stateless<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -408,6 +461,12 @@ pub trait StatefulWidget: Debug + 'static {
         None
     }
 
+    /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
+    /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
     /// See [`StatelessWidget::debug_check_constructor`].
     fn debug_check_constructor(&self) {}
 
@@ -451,6 +510,10 @@ impl<W: StatefulWidget> IntoWidget<StatefulKind> for W {
 impl<W: StatefulWidget> Widget for Stateful<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -517,6 +580,12 @@ pub trait InheritedWidget: Debug + 'static {
         None
     }
 
+    /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
+    /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
     /// See [`StatelessWidget::debug_check_constructor`].
     fn debug_check_constructor(&self) {}
 
@@ -560,6 +629,10 @@ impl<W: InheritedWidget> IntoWidget<InheritedKind> for W {
 impl<W: InheritedWidget> Widget for Inherited<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -633,6 +706,12 @@ pub trait ParentDataWidget: Debug + 'static {
         None
     }
 
+    /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
+    /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
     /// See [`StatelessWidget::debug_check_constructor`].
     fn debug_check_constructor(&self) {}
 
@@ -692,6 +771,10 @@ impl<W: ParentDataWidget> IntoWidget<ParentDataKind> for W {
 impl<W: ParentDataWidget> Widget for ParentDataWrapper<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -771,6 +854,18 @@ pub trait RenderObjectWidget: Debug + 'static {
     /// See [`Widget::key`].
     fn key(&self) -> Option<&KeyRef> {
         None
+    }
+
+    /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
+    /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
+    /// Dart's `toStringShort`, for a widget that names itself apart from its type, as
+    /// `SizedBox.expand` does; see [`Widget::to_string_short`].
+    fn to_string_short(&self) -> String {
+        describe_widget(short_type_name::<Self>(), self.key())
     }
 
     /// See [`StatelessWidget::debug_check_constructor`].
@@ -855,6 +950,14 @@ impl<W: LeafRenderObjectWidget> Widget for LeafRenderObject<W> {
         self.0.key()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
+    }
+
+    fn to_string_short(&self) -> String {
+        self.0.to_string_short()
+    }
+
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
         LeafRenderObjectElement::new(app, this).as_element()
     }
@@ -937,6 +1040,14 @@ where
 {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
+    }
+
+    fn to_string_short(&self) -> String {
+        self.0.to_string_short()
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -1042,6 +1153,14 @@ where
 {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
+    }
+
+    fn to_string_short(&self) -> String {
+        self.0.to_string_short()
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {

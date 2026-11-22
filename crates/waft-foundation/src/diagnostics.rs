@@ -3580,6 +3580,13 @@ impl DiagnosticableNode {
         }
     }
 
+    /// Dart `DiagnosticableNode(style:)`: the node drawn in `style` rather than the one its
+    /// properties asked for.
+    pub fn with_style(mut self, style: DiagnosticsTreeStyle) -> Self {
+        self.style = style;
+        self
+    }
+
     /// Dart `DiagnosticableNode(emptyBodyDescription:)`, from the builder.
     pub fn with_empty_body_description(mut self, description: impl Into<String>) -> Self {
         self.empty_body_description = Some(description.into());

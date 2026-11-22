@@ -106,7 +106,21 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — no subtyping between parent-data types, so Dart's `is StackParentData` test cannot pass for a subclass.
   Affect: a `ParentDataWidget` over a render object whose Dart parent data is a subclass of the expected one is rejected unless the widget names that type too.
 
+- Change: a widget's `debug_fill_properties` is a method of each widget kind (`StatelessWidget`, `StatefulWidget`, `InheritedWidget`, `ParentDataWidget`, `RenderObjectWidget`) and of `Widget`, which an element's dump calls; `to_string_short` is overridable on a render object widget and on a widget implementing `Widget` itself, the two kinds whose Dart classes override it (`SizedBox`, `RootWidget`).
+  Reason: language — a user's widget implements a kind, which its erased wrapper forwards; no `super.debugFillProperties` call, so the framework sets `Widget`'s dense style first.
+  Affect: none in a dump; a stateless or stateful widget cannot rename itself in one.
+
+- Deferred: `Widget.debugDescribeChildren` and a widget's own `toStringDeep`. Trigger: a dump of a widget rather than an element, or a leaf render object widget that describes children (none in Flutter's libraries).
+
+- Change: an element's and a state's diagnostics are added in Dart's order by the framework: `Element`'s, its widget's among them, then `RenderObjectElement`'s render object, then the element class's own `debug_fill_properties` (`StatefulElement` adds its state); a state's `debug_fill_properties` comes after `State`'s lifecycle and mounting lines.
+  Reason: language — no `super` call from a trait default.
+  Affect: none.
+
 ## binding.rs → binding.dart
+
+- Change: `debug_dump_app(app)` answers the text Dart's `debugDumpApp` prints, headed `WidgetsBinding - DEBUG MODE` (or `RELEASE MODE`).
+  Reason: platform — there is no `debugPrint` to throttle, one binding type stands for Dart's `WidgetsFlutterBinding`, and Rust builds have no profile mode.
+  Affect: the caller prints or compares it.
 
 - Change: `WidgetsBinding`'s lifecycle, exit and back-gesture handlers do not catch a panicking observer.
   Reason: language — no `FlutterError.reportError` hook to catch and continue.
