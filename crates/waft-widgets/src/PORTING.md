@@ -80,9 +80,9 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 ## widgets/slotted_render_object_widget.rs → slotted_render_object_widget.dart
 
-- Change: `debug_name_for_slot` names a slot by `describe_enum`, its `Debug` form with the first letter lowered, where Dart names an enum value by its `.name` and anything else by `toString()`.
-  Reason: language — Rust cannot ask whether a value is an enum, and a derived `Debug` is the one name every slot type has.
-  Affect: an enum slot reads as Dart's (`bottomRight`, `deleteIcon`); a slot that is not an enum reads as its `Debug` with the first letter lowered.
+- Change: `debug_name_for_slot` names a slot whose `Debug` is a bare name (`BottomRight`, as an enum case derives it) by that name with its first letter lowered, and any other slot by its `Debug`, where Dart names an enum value by its `.name` and anything else by `toString()`.
+  Reason: language — Rust cannot ask whether a value is an enum; a derived `Debug` tells an enum case, a bare name, from a struct, which carries its fields.
+  Affect: an enum slot reads as Dart's (`bottomRight`, `deleteIcon`), and a struct slot as its `Debug` (`TestSlot(3)`); a unit struct used as a slot reads as an enum case would.
 
 ## framework/ → framework.dart
 
