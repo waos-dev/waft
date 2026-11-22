@@ -170,6 +170,14 @@ impl InheritedWidget for MenuBarTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for MenuBarThemeData {}
+
+impl std::fmt::Display for MenuBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

@@ -1,7 +1,8 @@
 //! Flutter counterpart: material_ui's `bottom_sheet_theme.dart`.
 
 use waft_embedder::{Clip, Color, Size, lerp_double};
-use waft_painting::{AnyColor, ShapeBorderRef};
+use waft_foundation::{DiagnosticsProperty, DoubleProperty};
+use waft_painting::{AnyColor, ColorProperty, ShapeBorderRef};
 use waft_rendering::BoxConstraints;
 
 /// Defines default property values for `BottomSheet`'s `Material`.
@@ -289,6 +290,65 @@ fn pick<T>(
     }
 }
 
+impl waft_foundation::Diagnosticable for BottomSheetThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            ColorProperty::new("modalBackgroundColor", self.modal_background_color)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("modalBarrierColor", self.modal_barrier_color).default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("modalElevation", self.modal_elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("showDragHandle", self.show_drag_handle)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "dragHandleColor",
+                self.drag_handle_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Size>::new("dragHandleSize", self.drag_handle_size)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<Clip>>::new(
+                "clipBehavior",
+                self.clip_behavior.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for BottomSheetThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_painting::ShapeBorder;
@@ -434,5 +494,57 @@ mod tests {
                 Some(4.0)
             );
         });
+    }
+    // Flutter's "Default BottomSheetThemeData debugFillProperties".
+    #[test]
+    fn a_bottom_sheet_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &BottomSheetThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // bottom_sheet_theme_test.dart 'BottomSheetThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_bottom_sheet_theme_describes_every_property() {
+        let theme = BottomSheetThemeData::new()
+            .background_color(Color::new(0xffffffff))
+            .elevation(2.0)
+            .shadow_color(Color::new(0xff00ffff))
+            .shape(RoundedRectangleBorder::new(
+                BorderSide::NONE,
+                BorderRadiusGeometry::circular(2.0),
+            ))
+            .clip_behavior(Clip::AntiAlias)
+            .constraints(BoxConstraints::new().min_width(200.0).max_width(640.0))
+            .drag_handle_color(Color::new(0xffffffff))
+            .drag_handle_size(Size::new(20.0, 20.0));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xffffffff)),
+                "elevation: 2.0".to_string(),
+                format!("shadowColor: {}", Color::new(0xff00ffff)),
+                format!(
+                    "shape: {}",
+                    ShapeBorderRef::from(RoundedRectangleBorder::new(
+                        BorderSide::NONE,
+                        BorderRadiusGeometry::circular(2.0)
+                    ))
+                ),
+                format!("dragHandleColor: {}", Color::new(0xffffffff)),
+                "dragHandleSize: Size(20.0, 20.0)".to_string(),
+                "clipBehavior: Clip.antiAlias".to_string(),
+                "constraints: BoxConstraints(200.0<=w<=640.0, 0.0<=h<=Infinity)".to_string(),
+            ]
+        );
     }
 }

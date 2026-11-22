@@ -13,6 +13,7 @@ use waft_embedder::{
     Color, Matrix4, Offset, Paint, RRect, Rect, Size, TargetPlatform, TextBaseline, TextDirection,
     clamp_double, lerp_double,
 };
+use waft_foundation::DoubleProperty;
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, Handle, K_IS_WEB, Listener, Ref, ValueChanged,
 };
@@ -242,6 +243,12 @@ impl Debug for CupertinoSlider {
 }
 
 impl StatefulWidget for CupertinoSlider {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("value", self.value));
+        properties.add(DoubleProperty::new("min", self.min));
+        properties.add(DoubleProperty::new("max", self.max));
+    }
+
     type State = CupertinoSliderState;
 
     fn key(&self) -> Option<&KeyRef> {

@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `badge_theme.dart`.
 
 use waft_embedder::{Color, Offset, lerp_double};
-use waft_foundation::App;
-use waft_painting::{AlignmentGeometry, EdgeInsetsGeometry, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{AlignmentGeometry, ColorProperty, EdgeInsetsGeometry, TextStyle};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::theme::Theme;
@@ -255,6 +255,36 @@ impl InheritedWidget for BadgeTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for BadgeThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(ColorProperty::new("textColor", self.text_color).default_value(None));
+        properties.add(DoubleProperty::new("smallSize", self.small_size).default_value(None));
+        properties.add(DoubleProperty::new("largeSize", self.large_size).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("textStyle", self.text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", self.alignment)
+                .default_value(None),
+        );
+        properties
+            .add(DiagnosticsProperty::<Offset>::new("offset", self.offset).default_value(None));
+    }
+}
+
+impl std::fmt::Display for BadgeThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! Ported from `test/badge_theme_test.dart`; the `debugFillProperties` cases wait for
@@ -262,7 +292,7 @@ mod tests {
     //! from its `RenderParagraph`, as [`crate::badge::tests`] does.
 
     use waft_embedder::{RRect, Radius, Size};
-    use waft_painting::Alignment;
+    use waft_painting::{Alignment, AlignmentDirectional};
     use waft_widgets::{SizedBox, Text};
 
     use waft_widgets::testing::{WidgetTester, test_widgets};
@@ -527,5 +557,57 @@ mod tests {
                 Some(4.0)
             );
         });
+    }
+    // Flutter's "Default BadgeThemeData debugFillProperties".
+    #[test]
+    fn a_badge_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &BadgeThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // badge_theme_test.dart 'BadgeThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_badge_theme_describes_every_property() {
+        let theme = BadgeThemeData::new()
+            .background_color(Color::new(0xfffffff0))
+            .text_color(Color::new(0xfffffff1))
+            .small_size(1.0)
+            .large_size(2.0)
+            .text_style(TextStyle::new().font_size(4.0))
+            .padding(EdgeInsetsGeometry::all(5.0))
+            .alignment(AlignmentGeometry::Directional(AlignmentDirectional::new(
+                6.0, 7.0,
+            )))
+            .offset(Offset::ZERO);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xfffffff0)),
+                format!("textColor: {}", Color::new(0xfffffff1)),
+                "smallSize: 1.0".to_string(),
+                "largeSize: 2.0".to_string(),
+                format!("textStyle: {}", TextStyle::new().font_size(4.0)),
+                "padding: EdgeInsets.all(5.0)".to_string(),
+                format!(
+                    "alignment: {}",
+                    AlignmentGeometry::Directional(AlignmentDirectional::new(6.0, 7.0))
+                ),
+                "offset: Offset(0.0, 0.0)".to_string(),
+            ]
+        );
     }
 }

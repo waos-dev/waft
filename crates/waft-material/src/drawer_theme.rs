@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `drawer_theme.dart`.
 
 use waft_embedder::{Clip, Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::ShapeBorderRef;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, ShapeBorderRef};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::theme::Theme;
@@ -273,6 +273,41 @@ impl InheritedWidget for DrawerTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for DrawerThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(ColorProperty::new("scrimColor", self.scrim_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("endShape", self.end_shape.clone())
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("width", self.width).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<Clip>>::new(
+                "clipBehavior",
+                self.clip_behavior.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for DrawerThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::cell::RefCell;
@@ -524,5 +559,61 @@ pub(crate) mod tests {
                 Some(200.0)
             );
         });
+    }
+    // Flutter's "Default DrawerThemeData debugFillProperties".
+    #[test]
+    fn a_drawer_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &DrawerThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // drawer_theme_test.dart 'Custom debugFillProperties'.
+    #[test]
+    fn an_assigned_drawer_theme_describes_every_property() {
+        let theme = DrawerThemeData::new()
+            .background_color(Color::new(0x00000099))
+            .scrim_color(Color::new(0x00000098))
+            .elevation(5.0)
+            .shadow_color(Color::new(0x00000097))
+            .surface_tint_color(Color::new(0x00000096))
+            .shape(RoundedRectangleBorder::new(
+                BorderSide::NONE,
+                BorderRadiusGeometry::circular(2.0),
+            ))
+            .width(200.0)
+            .clip_behavior(Clip::HardEdge);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0x00000099)),
+                format!("scrimColor: {}", Color::new(0x00000098)),
+                "elevation: 5.0".to_string(),
+                format!("shadowColor: {}", Color::new(0x00000097)),
+                format!("surfaceTintColor: {}", Color::new(0x00000096)),
+                format!(
+                    "shape: {}",
+                    waft_painting::ShapeBorderRef::from(RoundedRectangleBorder::new(
+                        BorderSide::NONE,
+                        BorderRadiusGeometry::circular(2.0)
+                    ))
+                ),
+                "width: 200.0".to_string(),
+                "clipBehavior: Clip.hardEdge".to_string(),
+            ]
+        );
     }
 }

@@ -5,14 +5,18 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use waft_embedder::{Brightness, Color};
-use waft_foundation::App;
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty, EnumProperty,
+};
 use waft_painting::AnyColor;
 use waft_widgets::{
     BuildContext, IconTheme, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, MediaQuery,
     StatelessWidget, WidgetRef,
 };
 
-use crate::colors::{CupertinoColors, CupertinoDynamicColor};
+use crate::colors::{
+    CupertinoColorValue, CupertinoColors, CupertinoDynamicColor, create_cupertino_color_property,
+};
 use crate::icon_theme_data::CupertinoIconThemeData;
 use crate::text_theme::CupertinoTextThemeData;
 
@@ -142,6 +146,11 @@ impl CupertinoTheme {
 impl StatelessWidget for CupertinoTheme {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `CupertinoTheme.debugFillProperties`: `data.debugFillProperties(properties)`.
+        Diagnosticable::debug_fill_properties(&self.data, properties);
     }
 
     fn build(&self, _app: &mut App, _context: BuildContext) -> WidgetRef {
@@ -747,6 +756,68 @@ impl CupertinoTextThemeDefaults {
     }
 }
 
+impl Diagnosticable for CupertinoThemeData {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let default_data = CupertinoThemeData::new();
+        properties.add(
+            EnumProperty::<Brightness>::new("brightness", self.brightness()).default_value(None),
+        );
+        color_property(
+            properties,
+            "primaryColor",
+            self.primary_color(),
+            default_data.primary_color(),
+        );
+        color_property(
+            properties,
+            "primaryContrastingColor",
+            self.primary_contrasting_color(),
+            default_data.primary_contrasting_color(),
+        );
+        color_property(
+            properties,
+            "barBackgroundColor",
+            self.bar_background_color(),
+            default_data.bar_background_color(),
+        );
+        color_property(
+            properties,
+            "scaffoldBackgroundColor",
+            self.scaffold_background_color(),
+            default_data.scaffold_background_color(),
+        );
+        color_property(
+            properties,
+            "selectionHandleColor",
+            self.selection_handle_color(),
+            default_data.selection_handle_color(),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("applyThemeToAll", Some(self.apply_theme_to_all()))
+                .default_value(Some(default_data.apply_theme_to_all())),
+        );
+        Diagnosticable::debug_fill_properties(&self.text_theme(), properties);
+    }
+}
+
+fn color_property(
+    properties: &mut DiagnosticPropertiesBuilder,
+    name: &str,
+    value: AnyColor,
+    default_value: AnyColor,
+) {
+    properties.add(
+        create_cupertino_color_property(name, Some(value))
+            .default_value(Some(CupertinoColorValue(default_value))),
+    );
+}
+
+impl std::fmt::Display for CupertinoThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
@@ -1010,5 +1081,42 @@ mod tests {
         assert_eq!(subclass.text_theme(), base.text_theme());
         assert_ne!(subclass, base);
         assert_eq!(subclass, subclass.copy_with());
+    }
+    // theme_test.dart 'CupertinoTheme diagnostics'.
+    #[test]
+    fn cupertino_theme_data_describes_every_dart_property() {
+        let properties = waft_widgets::testing::describe_properties(|properties| {
+            Diagnosticable::debug_fill_properties(&CupertinoThemeData::new(), properties)
+        });
+        let mut builder = waft_foundation::DiagnosticPropertiesBuilder::new();
+        Diagnosticable::debug_fill_properties(&CupertinoThemeData::new(), &mut builder);
+        let names: std::collections::HashSet<&str> = builder
+            .properties
+            .iter()
+            .filter_map(|node| node.name())
+            .collect();
+        let expected: std::collections::HashSet<&str> = [
+            "brightness",
+            "primaryColor",
+            "primaryContrastingColor",
+            "barBackgroundColor",
+            "scaffoldBackgroundColor",
+            "applyThemeToAll",
+            "textStyle",
+            "actionTextStyle",
+            "actionSmallTextStyle",
+            "tabLabelTextStyle",
+            "navTitleTextStyle",
+            "navLargeTitleTextStyle",
+            "navActionTextStyle",
+            "pickerTextStyle",
+            "dateTimePickerTextStyle",
+            "selectionHandleColor",
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(names, expected);
+        // A default theme leaves every property at its default.
+        assert_eq!(properties, Vec::<String>::new());
     }
 }

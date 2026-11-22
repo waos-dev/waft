@@ -1,7 +1,7 @@
 //! Flutter counterpart: `cupertino/text_theme.dart`.
 
 use waft_embedder::{FontWeight, TextDecoration};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty};
 use waft_painting::{AnyColor, TextStyle};
 use waft_widgets::BuildContext;
 
@@ -531,6 +531,78 @@ impl TextThemeDefaultsBuilder {
         } else {
             TextThemeDefaultsBuilder::new(resolved_label_color, resolved_inactive_gray)
         }
+    }
+}
+
+impl Diagnosticable for CupertinoTextThemeData {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let default_data = CupertinoTextThemeData::new();
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("textStyle", Some(self.text_style()))
+                .default_value(Some(default_data.text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "actionTextStyle",
+                Some(self.action_text_style()),
+            )
+            .default_value(Some(default_data.action_text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "actionSmallTextStyle",
+                Some(self.action_small_text_style()),
+            )
+            .default_value(Some(default_data.action_small_text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "tabLabelTextStyle",
+                Some(self.tab_label_text_style()),
+            )
+            .default_value(Some(default_data.tab_label_text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "navTitleTextStyle",
+                Some(self.nav_title_text_style()),
+            )
+            .default_value(Some(default_data.nav_title_text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "navLargeTitleTextStyle",
+                Some(self.nav_large_title_text_style()),
+            )
+            .default_value(Some(default_data.nav_large_title_text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "navActionTextStyle",
+                Some(self.nav_action_text_style()),
+            )
+            .default_value(Some(default_data.nav_action_text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "pickerTextStyle",
+                Some(self.picker_text_style()),
+            )
+            .default_value(Some(default_data.picker_text_style())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "dateTimePickerTextStyle",
+                Some(self.date_time_picker_text_style()),
+            )
+            .default_value(Some(default_data.date_time_picker_text_style())),
+        );
+    }
+}
+
+impl std::fmt::Display for CupertinoTextThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 

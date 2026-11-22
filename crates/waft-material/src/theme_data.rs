@@ -14,7 +14,10 @@ use waft_cupertino::{
     CupertinoThemeData, CupertinoThemeDataOverrides, NoDefaultCupertinoThemeData,
 };
 use waft_embedder::{Brightness, Color, Offset, TargetPlatform, clamp_double, lerp_double};
-use waft_foundation::{App, K_IS_WEB, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty,
+    EnumProperty, IterableProperty, K_IS_WEB, PRECISION_ERROR_TOLERANCE,
+};
 use waft_painting::AnyColor;
 use waft_rendering::{BoxConstraints, Constraints};
 use waft_widgets::{BuildContext, IconThemeData};
@@ -83,6 +86,205 @@ use crate::time_picker_theme::TimePickerThemeData;
 use crate::toggle_buttons_theme::ToggleButtonsThemeData;
 use crate::tooltip_theme::TooltipThemeData;
 use crate::typography::Typography;
+
+/// A diagnostics value printed as Dart's `Enum.toString`, `Brightness.light`.
+///
+/// Dart's `DiagnosticsProperty<SomeEnum>` prints the enum's `toString`, which prefixes the
+/// enum's type; [`waft_foundation::EnumProperty`] prints only the variant name.
+pub(crate) struct DartEnum<T>(pub T);
+
+impl<T: Debug> fmt::Display for DartEnum<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}.{}",
+            waft_foundation::short_type_name(std::any::type_name::<T>()),
+            waft_foundation::describe_enum(&self.0)
+        )
+    }
+}
+
+impl<T: PartialEq> PartialEq for DartEnum<T> {
+    fn eq(&self, other: &DartEnum<T>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Clone> Clone for DartEnum<T> {
+    fn clone(&self) -> DartEnum<T> {
+        DartEnum(self.0.clone())
+    }
+}
+
+/// Text a diagnostics property prints as its value, without the quotes a `String` property
+/// would add.
+#[derive(Clone, PartialEq)]
+pub(crate) struct DiagnosticsText(pub String);
+
+impl fmt::Display for DiagnosticsText {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl fmt::Debug for DiagnosticsText {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// A diagnostics value printed by its `Debug`, for a type whose `Debug` is Dart's `toString`
+/// but which has no `Display` (the widgets crate's value types, whose file this stage leaves
+/// to its own port).
+pub(crate) struct DartDebug<T>(pub T);
+
+impl<T: Debug> fmt::Display for DartDebug<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl<T: PartialEq> PartialEq for DartDebug<T> {
+    fn eq(&self, other: &DartDebug<T>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Clone> Clone for DartDebug<T> {
+    fn clone(&self) -> DartDebug<T> {
+        DartDebug(self.0.clone())
+    }
+}
+
+/// A [`Radius`] printed as `dart:ui`'s `Radius.toString` does.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) struct RadiusDiagnostics(pub waft_embedder::Radius);
+
+impl fmt::Display for RadiusDiagnostics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0.x == self.0.y {
+            write!(f, "Radius.circular({:.1})", self.0.x)
+        } else {
+            write!(f, "Radius.elliptical({:.1}, {:.1})", self.0.x, self.0.y)
+        }
+    }
+}
+
+/// A value whose Dart class does not override `toString`, so Dart prints
+/// `Instance of 'RoundSliderThumbShape'`.
+pub(crate) struct InstanceOf<T>(pub T);
+
+impl<T: Debug> fmt::Display for InstanceOf<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let debug = format!("{:?}", self.0);
+        let name = debug
+            .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .next()
+            .unwrap_or(&debug);
+        write!(f, "Instance of '{name}'")
+    }
+}
+
+impl<T: PartialEq> PartialEq for InstanceOf<T> {
+    fn eq(&self, other: &InstanceOf<T>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Clone> Clone for InstanceOf<T> {
+    fn clone(&self) -> InstanceOf<T> {
+        InstanceOf(self.0.clone())
+    }
+}
+
+/// An [`IconThemeData`] printed as Dart's `Diagnosticable.toString` does:
+/// `IconThemeData#1a2b3(color: …)`.
+///
+/// `waft-widgets` has no `Diagnosticable` for `IconThemeData` yet; this is the property list
+/// of its `debugFillProperties`, at the info level its `toString` prints.
+pub(crate) struct IconThemeDiagnostics(pub IconThemeData);
+
+impl IconThemeDiagnostics {
+    fn properties(&self) -> Vec<String> {
+        let mut properties = Vec::new();
+        if let Some(size) = self.0.size {
+            properties.push(format!(
+                "size: {}",
+                waft_foundation::debug_format_double(Some(size))
+            ));
+        }
+        if let Some(fill) = self.0.fill {
+            properties.push(format!(
+                "fill: {}",
+                waft_foundation::debug_format_double(Some(fill))
+            ));
+        }
+        if let Some(weight) = self.0.weight {
+            properties.push(format!(
+                "weight: {}",
+                waft_foundation::debug_format_double(Some(weight))
+            ));
+        }
+        if let Some(grade) = self.0.grade {
+            properties.push(format!(
+                "grade: {}",
+                waft_foundation::debug_format_double(Some(grade))
+            ));
+        }
+        if let Some(optical_size) = self.0.optical_size {
+            properties.push(format!(
+                "opticalSize: {}",
+                waft_foundation::debug_format_double(Some(optical_size))
+            ));
+        }
+        if let Some(color) = &self.0.color {
+            properties.push(format!("color: {}", color.color()));
+        }
+        if let Some(opacity) = self.0.opacity {
+            properties.push(format!(
+                "opacity: {}",
+                waft_foundation::debug_format_double(Some(opacity))
+            ));
+        }
+        if let Some(shadows) = &self.0.shadows {
+            properties.push(format!("shadows: {shadows:?}"));
+        }
+        if let Some(apply_text_scaling) = self.0.apply_text_scaling {
+            properties.push(format!("applyTextScaling: {apply_text_scaling}"));
+        }
+        properties
+    }
+}
+
+impl fmt::Display for IconThemeDiagnostics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let properties = self.properties();
+        write!(
+            f,
+            "{}",
+            waft_foundation::describe_identity(
+                "IconThemeData",
+                &self.0 as *const IconThemeData as *const () as usize as u64
+            )
+        )?;
+        if !properties.is_empty() {
+            write!(f, "({})", properties.join(", "))?;
+        }
+        Ok(())
+    }
+}
+
+impl PartialEq for IconThemeDiagnostics {
+    fn eq(&self, other: &IconThemeDiagnostics) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Clone for IconThemeDiagnostics {
+    fn clone(&self) -> IconThemeDiagnostics {
+        IconThemeDiagnostics(self.0.clone())
+    }
+}
 
 /// Defines a customized theme for components with an `adaptive` factory constructor.
 ///
@@ -2193,8 +2395,16 @@ impl ThemeDataBuilder {
 
     /// The theme Dart's factory constructor returns. `app` gives `defaultTargetPlatform`,
     /// the default of `platform`.
-    #[allow(deprecated)]
     pub fn build(self, app: &App) -> ThemeData {
+        self.build_for_platform(app.platform().target_platform())
+    }
+
+    /// The theme Dart's factory constructor returns for a known `defaultTargetPlatform`.
+    ///
+    /// Dart reads the global; a theme's own diagnostics has no [`App`], so it builds its
+    /// `ThemeData.fallback()` default from this theme's platform.
+    #[allow(deprecated)]
+    pub(crate) fn build_for_platform(self, default_platform: TargetPlatform) -> ThemeData {
         let ThemeDataBuilder {
             adaptations,
             mut apply_elevation_overlay_color,
@@ -2292,7 +2502,7 @@ impl ThemeDataBuilder {
             cupertino_override_theme.map(|override_theme| override_theme.no_default());
         let extensions = extensions.unwrap_or_default();
         let adaptations = adaptations.unwrap_or_default();
-        let platform = platform.unwrap_or_else(|| app.platform().target_platform());
+        let platform = platform.unwrap_or(default_platform);
         match platform {
             TargetPlatform::Android | TargetPlatform::Fuchsia | TargetPlatform::IOS => {
                 material_tap_target_size.get_or_insert(MaterialTapTargetSize::Padded);
@@ -3906,6 +4116,336 @@ impl VisualDensity {
 impl Default for VisualDensity {
     fn default() -> VisualDensity {
         VisualDensity::STANDARD
+    }
+}
+
+impl waft_foundation::Diagnosticable for VisualDensity {
+    fn to_string_short(&self) -> String {
+        format!(
+            "{}(h: {}, v: {})",
+            waft_foundation::describe_identity("VisualDensity", self.identity_hash()),
+            waft_foundation::debug_format_double(Some(self.horizontal)),
+            waft_foundation::debug_format_double(Some(self.vertical)),
+        )
+    }
+
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            waft_foundation::DoubleProperty::new("horizontal", self.horizontal)
+                .default_value(Some(0.0)),
+        );
+        properties.add(
+            waft_foundation::DoubleProperty::new("vertical", self.vertical)
+                .default_value(Some(0.0)),
+        );
+    }
+}
+
+impl fmt::Display for VisualDensity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
+#[allow(deprecated)]
+impl Diagnosticable for ThemeData {
+    #[allow(
+        clippy::large_unopt_stack_frames,
+        reason = "Dart builds one ThemeData fallback by value"
+    )]
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `ThemeData.fallback()` reads `defaultTargetPlatform`, a global; a theme's
+        // diagnostics has no `App`, so the default is built for this theme's platform.
+        let default_data = ThemeData::builder()
+            .brightness(Brightness::Light)
+            .platform(self.platform)
+            .build_for_platform(self.platform);
+
+        // GENERAL CONFIGURATION
+        properties.add(
+            IterableProperty::<DartDebug<AdaptationRef>>::new(
+                "adaptations",
+                Some(
+                    self.adaptation_map
+                        .values()
+                        .map(|adaptation| DartDebug(adaptation.clone()))
+                        .collect(),
+                ),
+            )
+            .default_value(Some(
+                default_data
+                    .adaptation_map
+                    .values()
+                    .map(|adaptation| DartDebug(adaptation.clone()))
+                    .collect(),
+            ))
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "applyElevationOverlayColor",
+                self.apply_elevation_overlay_color,
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<InstanceOf<NoDefaultCupertinoThemeData>>::new(
+                "cupertinoOverrideTheme",
+                self.cupertino_override_theme.clone().map(InstanceOf),
+            )
+            .default_value(
+                default_data
+                    .cupertino_override_theme
+                    .clone()
+                    .map(InstanceOf),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            IterableProperty::<DiagnosticsText>::new(
+                "extensions",
+                Some(
+                    self.extensions
+                        .values()
+                        .map(|extension| DiagnosticsText(format!("{extension:?}")))
+                        .collect(),
+                ),
+            )
+            .default_value(Some(
+                default_data
+                    .extensions
+                    .values()
+                    .map(|extension| DiagnosticsText(format!("{extension:?}")))
+                    .collect(),
+            ))
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<DartDebug<InputDecorationThemeData>>::new(
+                "inputDecorationTheme",
+                Some(DartDebug(self.input_decoration_theme.clone())),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<DartEnum<MaterialTapTargetSize>>::new(
+                "materialTapTargetSize",
+                Some(DartEnum(self.material_tap_target_size)),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<PageTransitionsTheme>::new(
+                "pageTransitionsTheme",
+                self.page_transitions_theme.clone(),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            EnumProperty::<TargetPlatform>::new("platform", Some(self.platform))
+                .default_value(Some(default_data.platform))
+                .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<ScrollbarThemeData>::new(
+                "scrollbarTheme",
+                self.scrollbar_theme.clone(),
+            )
+            .default_value(Some(default_data.scrollbar_theme.clone()))
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<InstanceOf<InteractiveInkFeatureFactoryRef>>::new(
+                "splashFactory",
+                Some(InstanceOf(self.splash_factory.clone())),
+            )
+            .default_value(Some(InstanceOf(default_data.splash_factory.clone())))
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("useMaterial3", self.use_material3)
+                .default_value(Some(default_data.use_material3))
+                .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<VisualDensity>::new("visualDensity", self.visual_density)
+                .default_value(Some(default_data.visual_density))
+                .with_level(DiagnosticLevel::Debug),
+        );
+
+        // COLORS
+        macro_rules! color_property {
+            ($($name:literal => $field:ident),* $(,)?) => {
+                $(
+                    properties.add(
+                        waft_painting::ColorProperty::new($name, Some(self.$field))
+                            .default_value(Some(default_data.$field))
+                            .with_level(DiagnosticLevel::Debug),
+                    );
+                )*
+            };
+        }
+        color_property!(
+            "canvasColor" => canvas_color,
+            "cardColor" => card_color,
+        );
+        properties.add(
+            DiagnosticsProperty::<ColorScheme>::new("colorScheme", self.color_scheme.clone())
+                .default_value(Some(default_data.color_scheme.clone()))
+                .with_level(DiagnosticLevel::Debug),
+        );
+        color_property!(
+            "disabledColor" => disabled_color,
+            "dividerColor" => divider_color,
+            "focusColor" => focus_color,
+            "highlightColor" => highlight_color,
+            "hintColor" => hint_color,
+            "hoverColor" => hover_color,
+            "primaryColorDark" => primary_color_dark,
+            "primaryColorLight" => primary_color_light,
+            "primaryColor" => primary_color,
+            "scaffoldBackgroundColor" => scaffold_background_color,
+            "secondaryHeaderColor" => secondary_header_color,
+            "shadowColor" => shadow_color,
+            "splashColor" => splash_color,
+            "unselectedWidgetColor" => unselected_widget_color,
+        );
+
+        // TYPOGRAPHY & ICONOGRAPHY
+        properties.add(
+            DiagnosticsProperty::<IconThemeDiagnostics>::new(
+                "iconTheme",
+                Some(IconThemeDiagnostics(self.icon_theme.clone())),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<IconThemeDiagnostics>::new(
+                "primaryIconTheme",
+                Some(IconThemeDiagnostics(self.primary_icon_theme.clone())),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextTheme>::new(
+                "primaryTextTheme",
+                self.primary_text_theme.clone(),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextTheme>::new("textTheme", self.text_theme.clone())
+                .with_level(DiagnosticLevel::Debug),
+        );
+        properties.add(
+            DiagnosticsProperty::<Typography>::new("typography", self.typography.clone())
+                .default_value(Some(default_data.typography.clone()))
+                .with_level(DiagnosticLevel::Debug),
+        );
+
+        // COMPONENT THEMES
+        properties.add(
+            DiagnosticsProperty::<ActionIconThemeData>::new(
+                "actionIconTheme",
+                self.action_icon_theme.clone(),
+            )
+            .with_level(DiagnosticLevel::Debug),
+        );
+        macro_rules! component_property {
+            ($($name:literal => $field:ident),* $(,)?) => {
+                $(
+                    properties.add(
+                        DiagnosticsProperty::<_>::new(
+                            $name,
+                            self.$field.clone(),
+                        )
+                        .default_value(Some(default_data.$field.clone()))
+                        .with_level(DiagnosticLevel::Debug),
+                    );
+                )*
+            };
+        }
+        component_property!(
+            "appBarTheme" => app_bar_theme,
+            "badgeTheme" => badge_theme,
+            "bannerTheme" => banner_theme,
+            "bottomNavigationBarTheme" => bottom_navigation_bar_theme,
+            "bottomSheetTheme" => bottom_sheet_theme,
+            "cardTheme" => card_theme,
+            "carouselViewTheme" => carousel_view_theme,
+            "checkboxTheme" => checkbox_theme,
+            "dataTableTheme" => data_table_theme,
+            "datePickerTheme" => date_picker_theme,
+            "dialogTheme" => dialog_theme,
+            "dividerTheme" => divider_theme,
+            "drawerTheme" => drawer_theme,
+            "dropdownMenuTheme" => dropdown_menu_theme,
+            "elevatedButtonTheme" => elevated_button_theme,
+            "filledButtonTheme" => filled_button_theme,
+            "floatingActionButtonTheme" => floating_action_button_theme,
+            "iconButtonTheme" => icon_button_theme,
+            "listTileTheme" => list_tile_theme,
+            "menuBarTheme" => menu_bar_theme,
+            "menuButtonTheme" => menu_button_theme,
+            "menuTheme" => menu_theme,
+            "navigationBarTheme" => navigation_bar_theme,
+            "navigationDrawerTheme" => navigation_drawer_theme,
+            "navigationRailTheme" => navigation_rail_theme,
+            "outlinedButtonTheme" => outlined_button_theme,
+            "popupMenuTheme" => popup_menu_theme,
+            "progressIndicatorTheme" => progress_indicator_theme,
+            "radioTheme" => radio_theme,
+            "searchBarTheme" => search_bar_theme,
+            "searchViewTheme" => search_view_theme,
+            "segmentedButtonTheme" => segmented_button_theme,
+            "snackBarTheme" => snack_bar_theme,
+            "switchTheme" => switch_theme,
+            "textButtonTheme" => text_button_theme,
+            "textSelectionTheme" => text_selection_theme,
+            "timePickerTheme" => time_picker_theme,
+        );
+        macro_rules! component_property_without_default {
+            ($($name:literal => $field:ident),* $(,)?) => {
+                $(
+                    properties.add(
+                        DiagnosticsProperty::<_>::new(
+                            $name,
+                            self.$field.clone(),
+                        )
+                        .with_level(DiagnosticLevel::Debug),
+                    );
+                )*
+            };
+        }
+        component_property_without_default!(
+            "buttonTheme" => button_theme,
+            "chipTheme" => chip_theme,
+            "expansionTileTheme" => expansion_tile_theme,
+            "sliderTheme" => slider_theme,
+            "tabBarTheme" => tab_bar_theme,
+            "toggleButtonsTheme" => toggle_buttons_theme,
+            "tooltipTheme" => tooltip_theme,
+        );
+
+        // DEPRECATED (newest deprecations at the bottom)
+        properties.add(
+            DiagnosticsProperty::<ButtonBarThemeData>::new(
+                "buttonBarTheme",
+                self.button_bar_theme.clone(),
+            )
+            .default_value(Some(default_data.button_bar_theme.clone()))
+            .with_level(DiagnosticLevel::Debug),
+        );
+        color_property!(
+            "dialogBackgroundColor" => dialog_background_color,
+            "indicatorColor" => indicator_color,
+        );
+    }
+}
+
+impl fmt::Display for ThemeData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 
@@ -5864,6 +6404,128 @@ mod tests {
                 .expect("a body style");
             assert_eq!(body.font_size, Some(14.0));
             assert!(!body.inherit);
+        });
+    }
+    // theme_data_test.dart 'ThemeData implements debugFillProperties'.
+    #[test]
+    fn a_theme_describes_each_property_once_under_its_dart_name() {
+        test_widgets(|tester| {
+            let app = tester.cell.borrow();
+            let theme = ThemeData::new(&app);
+            let mut properties = waft_foundation::DiagnosticPropertiesBuilder::new();
+            Diagnosticable::debug_fill_properties(&theme, &mut properties);
+            let names: Vec<String> = properties
+                .properties
+                .iter()
+                .filter_map(|node| node.name().map(str::to_string))
+                .collect();
+            let unique: std::collections::HashSet<&str> =
+                names.iter().map(String::as_str).collect();
+            assert_eq!(names.len(), unique.len(), "duplicate property name");
+            let expected: std::collections::HashSet<&str> = [
+                // GENERAL CONFIGURATION
+                "adaptations",
+                "applyElevationOverlayColor",
+                "cupertinoOverrideTheme",
+                "extensions",
+                "inputDecorationTheme",
+                "materialTapTargetSize",
+                "pageTransitionsTheme",
+                "platform",
+                "scrollbarTheme",
+                "splashFactory",
+                "visualDensity",
+                "useMaterial3",
+                // COLOR
+                "colorScheme",
+                "primaryColor",
+                "primaryColorLight",
+                "primaryColorDark",
+                "focusColor",
+                "hoverColor",
+                "shadowColor",
+                "canvasColor",
+                "scaffoldBackgroundColor",
+                "cardColor",
+                "dividerColor",
+                "highlightColor",
+                "splashColor",
+                "unselectedWidgetColor",
+                "disabledColor",
+                "secondaryHeaderColor",
+                "hintColor",
+                // TYPOGRAPHY & ICONOGRAPHY
+                "typography",
+                "textTheme",
+                "primaryTextTheme",
+                "iconTheme",
+                "primaryIconTheme",
+                // COMPONENT THEMES
+                "actionIconTheme",
+                "appBarTheme",
+                "badgeTheme",
+                "bannerTheme",
+                "bottomNavigationBarTheme",
+                "bottomSheetTheme",
+                "buttonTheme",
+                "cardTheme",
+                "carouselViewTheme",
+                "checkboxTheme",
+                "chipTheme",
+                "dataTableTheme",
+                "datePickerTheme",
+                "dialogTheme",
+                "dividerTheme",
+                "drawerTheme",
+                "dropdownMenuTheme",
+                "elevatedButtonTheme",
+                "expansionTileTheme",
+                "filledButtonTheme",
+                "floatingActionButtonTheme",
+                "iconButtonTheme",
+                "listTileTheme",
+                "menuBarTheme",
+                "menuButtonTheme",
+                "menuTheme",
+                "navigationBarTheme",
+                "navigationDrawerTheme",
+                "navigationRailTheme",
+                "outlinedButtonTheme",
+                "popupMenuTheme",
+                "progressIndicatorTheme",
+                "radioTheme",
+                "searchBarTheme",
+                "searchViewTheme",
+                "segmentedButtonTheme",
+                "sliderTheme",
+                "snackBarTheme",
+                "switchTheme",
+                "tabBarTheme",
+                "textButtonTheme",
+                "textSelectionTheme",
+                "timePickerTheme",
+                "toggleButtonsTheme",
+                "tooltipTheme",
+                // DEPRECATED (newest deprecations at the bottom)
+                "buttonBarTheme",
+                "dialogBackgroundColor",
+                "indicatorColor",
+            ]
+            .into_iter()
+            .collect();
+            assert_eq!(unique, expected);
+        });
+    }
+
+    // theme_data_test.dart 'ThemeData.toString has less than 200 characters output'.
+    #[test]
+    fn a_theme_to_string_is_short() {
+        test_widgets(|tester| {
+            let app = tester.cell.borrow();
+            let theme = ThemeData::from(ColorScheme::dark()).build(&app);
+            assert!(Diagnosticable::to_string(&theme).len() < 200);
+            let theme = ThemeData::from(ColorScheme::light()).build(&app);
+            assert!(Diagnosticable::to_string(&theme).len() < 200);
         });
     }
 }

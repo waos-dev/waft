@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `navigation_rail_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, ShapeBorderRef, TextStyle};
 use waft_widgets::{
     BuildContext, IconThemeData, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
 };
@@ -377,6 +377,100 @@ impl InheritedWidget for NavigationRailTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for NavigationRailThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        let default_theme = NavigationRailThemeData::new();
+        properties.add(
+            ColorProperty::new("backgroundColor", self.background_color)
+                .default_value(default_theme.background_color),
+        );
+        properties.add(
+            DoubleProperty::new("elevation", self.elevation).default_value(default_theme.elevation),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "unselectedLabelTextStyle",
+                self.unselected_label_text_style.clone(),
+            )
+            .default_value(default_theme.unselected_label_text_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "selectedLabelTextStyle",
+                self.selected_label_text_style.clone(),
+            )
+            .default_value(default_theme.selected_label_text_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+                "unselectedIconTheme",
+                self.unselected_icon_theme
+                    .clone()
+                    .map(crate::theme_data::IconThemeDiagnostics),
+            )
+            .default_value(
+                default_theme
+                    .unselected_icon_theme
+                    .clone()
+                    .map(crate::theme_data::IconThemeDiagnostics),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::IconThemeDiagnostics>::new(
+                "selectedIconTheme",
+                self.selected_icon_theme
+                    .clone()
+                    .map(crate::theme_data::IconThemeDiagnostics),
+            )
+            .default_value(
+                default_theme
+                    .selected_icon_theme
+                    .clone()
+                    .map(crate::theme_data::IconThemeDiagnostics),
+            ),
+        );
+        properties.add(
+            DoubleProperty::new("groupAlignment", self.group_alignment)
+                .default_value(default_theme.group_alignment),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<NavigationRailLabelType>>::new(
+                "labelType",
+                self.label_type.map(crate::theme_data::DartEnum),
+            )
+            .default_value(default_theme.label_type.map(crate::theme_data::DartEnum)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("useIndicator", self.use_indicator)
+                .default_value(default_theme.use_indicator),
+        );
+        properties.add(
+            ColorProperty::new("indicatorColor", self.indicator_color)
+                .default_value(default_theme.indicator_color),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new(
+                "indicatorShape",
+                self.indicator_shape.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("minWidth", self.min_width).default_value(default_theme.min_width),
+        );
+        properties.add(
+            DoubleProperty::new("minExtendedWidth", self.min_extended_width)
+                .default_value(default_theme.min_extended_width),
+        );
+    }
+}
+
+impl std::fmt::Display for NavigationRailThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! Ported from `test/navigation_rail_theme_test.dart`.
@@ -384,8 +478,8 @@ mod tests {
     use waft_embedder::Size;
     use waft_painting::ShapeBorder;
     use waft_painting::{
-        Alignment, AlignmentGeometry, BorderSide, RoundedRectangleBorder, ShapeDecoration,
-        StadiumBorder,
+        Alignment, AlignmentGeometry, BorderSide, CircleBorder, RoundedRectangleBorder,
+        ShapeBorderRef, ShapeDecoration, StadiumBorder,
     };
     use waft_widgets::{AnyElement, Flexible, Icon, IconData, IconTheme, RichText, Text};
 
@@ -979,5 +1073,67 @@ mod tests {
 
         assert!(!theme(NavigationRailThemeData::new().min_width(1.0)).update_should_notify(&old));
         assert!(theme(NavigationRailThemeData::new().min_width(2.0)).update_should_notify(&old));
+    }
+    // Flutter's "Default NavigationRailThemeData debugFillProperties".
+    #[test]
+    fn a_navigation_rail_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &NavigationRailThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // navigation_rail_theme_test.dart 'Custom debugFillProperties'.
+    #[test]
+    fn an_assigned_navigation_rail_theme_describes_every_property() {
+        let theme = NavigationRailThemeData::new()
+            .background_color(Color::new(0x00000099))
+            .elevation(5.0)
+            .selected_icon_theme(IconThemeData::new().color(Color::new(0x00000098)))
+            .unselected_icon_theme(IconThemeData::new().color(Color::new(0x00000097)))
+            .selected_label_text_style(TextStyle::new().font_size(9.0))
+            .unselected_label_text_style(TextStyle::new().font_size(7.0))
+            .group_alignment(1.0)
+            .label_type(NavigationRailLabelType::Selected)
+            .use_indicator(true)
+            .indicator_color(Color::new(0x00000096))
+            .indicator_shape(CircleBorder::default());
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0x00000099)),
+                "elevation: 5.0".to_string(),
+                "unselectedLabelTextStyle: TextStyle(inherit: true, size: 7.0)".to_string(),
+                "selectedLabelTextStyle: TextStyle(inherit: true, size: 9.0)".to_string(),
+                format!(
+                    "unselectedIconTheme: IconThemeData#00000(color: {})",
+                    Color::new(0x00000097)
+                ),
+                format!(
+                    "selectedIconTheme: IconThemeData#00000(color: {})",
+                    Color::new(0x00000098)
+                ),
+                "groupAlignment: 1.0".to_string(),
+                "labelType: NavigationRailLabelType.selected".to_string(),
+                "useIndicator: true".to_string(),
+                format!("indicatorColor: {}", Color::new(0x00000096)),
+                format!(
+                    "indicatorShape: {}",
+                    ShapeBorderRef::from(CircleBorder::default())
+                ),
+            ]
+        );
     }
 }

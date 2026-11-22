@@ -5,7 +5,7 @@
 )]
 
 use waft_embedder::lerp_double;
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, FlagProperty};
 use waft_painting::EdgeInsetsGeometry;
 use waft_widgets::{
     BuildContext, InheritedWidget, IntoWidget, KeyRef, MainAxisAlignment, MainAxisSize,
@@ -245,6 +245,63 @@ impl InheritedWidget for ButtonBarTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for ButtonBarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<MainAxisAlignment>>::new(
+                "alignment",
+                self.alignment.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<MainAxisSize>>::new(
+                "mainAxisSize",
+                self.main_axis_size.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<ButtonTextTheme>>::new(
+                "textTheme",
+                self.button_text_theme.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("minWidth", self.button_min_width).default_value(None));
+        properties.add(DoubleProperty::new("height", self.button_height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.button_padding)
+                .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("buttonAlignedDropdown", self.button_aligned_dropdown)
+                .if_true("dropdown width matches button")
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<ButtonBarLayoutBehavior>>::new(
+                "layoutBehavior",
+                self.layout_behavior.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<VerticalDirection>>::new(
+                "overflowDirection",
+                self.overflow_direction.map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for ButtonBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_widgets::testing::test_widgets;
@@ -392,5 +449,50 @@ mod tests {
                 Some(84.0)
             );
         });
+    }
+    // Flutter's "Default ButtonBarThemeData debugFillProperties".
+    #[test]
+    fn a_button_bar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ButtonBarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // button_bar_theme_test.dart 'ButtonBarThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_button_bar_theme_describes_every_property() {
+        let theme = ButtonBarThemeData::new()
+            .with_alignment(MainAxisAlignment::Center)
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_button_text_theme(ButtonTextTheme::Accent)
+            .with_button_min_width(10.0)
+            .with_button_height(42.0)
+            .with_button_padding(EdgeInsetsGeometry::symmetric(0.0, 7.3))
+            .with_button_aligned_dropdown(true)
+            .with_layout_behavior(ButtonBarLayoutBehavior::Constrained)
+            .with_overflow_direction(VerticalDirection::Up);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        assert_eq!(
+            description,
+            [
+                "alignment: MainAxisAlignment.center".to_string(),
+                "mainAxisSize: MainAxisSize.max".to_string(),
+                "textTheme: ButtonTextTheme.accent".to_string(),
+                "minWidth: 10.0".to_string(),
+                "height: 42.0".to_string(),
+                "padding: EdgeInsets(7.3, 0.0, 7.3, 0.0)".to_string(),
+                "dropdown width matches button".to_string(),
+                "layoutBehavior: ButtonBarLayoutBehavior.constrained".to_string(),
+                "overflowDirection: VerticalDirection.up".to_string(),
+            ]
+        );
     }
 }

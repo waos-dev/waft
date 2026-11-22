@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `radio_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
 use waft_painting::{AnyBorderSide, BorderSide};
 use waft_services::MouseCursorRef;
 use waft_widgets::{
@@ -382,12 +382,89 @@ impl InheritedWidget for RadioTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for RadioThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "fillColor",
+                self.fill_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("splashRadius", self.splash_radius).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartEnum<MaterialTapTargetSize>>::new(
+                "materialTapTargetSize",
+                self.material_tap_target_size
+                    .map(crate::theme_data::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<VisualDensity>::new("visualDensity", self.visual_density)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "backgroundColor",
+                self.background_color
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyBorderSide>>::new(
+                "side",
+                self.side.clone().map(crate::theme_data::DartDebug),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "innerRadius",
+                self.inner_radius
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for RadioThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
     use std::rc::Rc;
 
     use waft_embedder::Size;
+    use waft_painting::BorderStyle;
     use waft_services::SystemMouseCursors;
     use waft_widgets::{FocusHighlightStrategy, SizedBox, WidgetState, WidgetStatePropertyAll};
 
@@ -926,5 +1003,79 @@ mod tests {
                 &[circle(LOCAL_THEME_FILL_COLOR)],
             );
         });
+    }
+    // Flutter's "Default RadioThemeData debugFillProperties".
+    #[test]
+    fn a_radio_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &RadioThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // radio_theme_test.dart 'RadioThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_radio_theme_describes_every_property() {
+        let theme = RadioThemeData::new()
+            .mouse_cursor(Rc::new(WidgetStatePropertyAll::new(Some(
+                SystemMouseCursors::CLICK.into(),
+            ))))
+            .fill_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff0,
+            )))))
+            .overlay_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff1,
+            )))))
+            .splash_radius(1.0)
+            .material_tap_target_size(MaterialTapTargetSize::ShrinkWrap)
+            .visual_density(VisualDensity::STANDARD)
+            .background_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff2,
+            )))))
+            .side(BorderSide::new(
+                Color::new(0xfffffff3),
+                2.0,
+                BorderStyle::Solid,
+                1.0,
+            ))
+            .inner_radius(Rc::new(WidgetStatePropertyAll::new(Some(5.0))));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                "mouseCursor: WidgetStatePropertyAll(SystemMouseCursor(click))".to_string(),
+                format!(
+                    "fillColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff0)
+                ),
+                format!(
+                    "overlayColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff1)
+                ),
+                "splashRadius: 1.0".to_string(),
+                "materialTapTargetSize: MaterialTapTargetSize.shrinkWrap".to_string(),
+                "visualDensity: VisualDensity#00000(h: 0.0, v: 0.0)".to_string(),
+                format!(
+                    "backgroundColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff2)
+                ),
+                format!(
+                    "side: {}",
+                    BorderSide::new(Color::new(0xfffffff3), 2.0, BorderStyle::Solid, 1.0)
+                ),
+                "innerRadius: WidgetStatePropertyAll(5.0)".to_string(),
+            ]
+        );
     }
 }

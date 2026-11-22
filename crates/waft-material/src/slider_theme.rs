@@ -8,8 +8,8 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Color, Size, lerp_double};
-use waft_foundation::App;
-use waft_painting::{AnyColor, EdgeInsetsGeometry, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, EnumProperty};
+use waft_painting::{AnyColor, ColorProperty, EdgeInsetsGeometry, TextStyle};
 use waft_services::MouseCursorRef;
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
@@ -976,6 +976,286 @@ impl Debug for SliderThemeData {
 ///  * `Slider::semantic_formatter_callback`, which shows an example use case.
 ///  * `RangeSlider::semantic_formatter_callback`, which shows an example use case.
 pub type SemanticFormatterCallback = Rc<dyn Fn(f64) -> String>;
+
+impl waft_foundation::Diagnosticable for SliderThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        let default_theme = SliderThemeData::new();
+        properties.add(
+            DoubleProperty::new("trackHeight", self.track_height)
+                .default_value(default_theme.track_height),
+        );
+        properties.add(
+            ColorProperty::new("activeTrackColor", self.active_track_color)
+                .default_value(default_theme.active_track_color),
+        );
+        properties.add(
+            ColorProperty::new("inactiveTrackColor", self.inactive_track_color)
+                .default_value(default_theme.inactive_track_color),
+        );
+        properties.add(
+            ColorProperty::new(
+                "secondaryActiveTrackColor",
+                self.secondary_active_track_color,
+            )
+            .default_value(default_theme.secondary_active_track_color),
+        );
+        properties.add(
+            ColorProperty::new("disabledActiveTrackColor", self.disabled_active_track_color)
+                .default_value(default_theme.disabled_active_track_color),
+        );
+        properties.add(
+            ColorProperty::new(
+                "disabledInactiveTrackColor",
+                self.disabled_inactive_track_color,
+            )
+            .default_value(default_theme.disabled_inactive_track_color),
+        );
+        properties.add(
+            ColorProperty::new(
+                "disabledSecondaryActiveTrackColor",
+                self.disabled_secondary_active_track_color,
+            )
+            .default_value(default_theme.disabled_secondary_active_track_color),
+        );
+        properties.add(
+            ColorProperty::new("activeTickMarkColor", self.active_tick_mark_color)
+                .default_value(default_theme.active_tick_mark_color),
+        );
+        properties.add(
+            ColorProperty::new("inactiveTickMarkColor", self.inactive_tick_mark_color)
+                .default_value(default_theme.inactive_tick_mark_color),
+        );
+        properties.add(
+            ColorProperty::new(
+                "disabledActiveTickMarkColor",
+                self.disabled_active_tick_mark_color,
+            )
+            .default_value(default_theme.disabled_active_tick_mark_color),
+        );
+        properties.add(
+            ColorProperty::new(
+                "disabledInactiveTickMarkColor",
+                self.disabled_inactive_tick_mark_color,
+            )
+            .default_value(default_theme.disabled_inactive_tick_mark_color),
+        );
+        properties.add(
+            ColorProperty::new("thumbColor", self.thumb_color)
+                .default_value(default_theme.thumb_color),
+        );
+        properties.add(
+            ColorProperty::new(
+                "overlappingShapeStrokeColor",
+                self.overlapping_shape_stroke_color,
+            )
+            .default_value(default_theme.overlapping_shape_stroke_color),
+        );
+        properties.add(
+            ColorProperty::new("disabledThumbColor", self.disabled_thumb_color)
+                .default_value(default_theme.disabled_thumb_color),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DartDebug<AnyColor>>::new(
+                "overlayColor",
+                self.overlay_color.clone().map(crate::theme_data::DartDebug),
+            )
+            .default_value(
+                default_theme
+                    .overlay_color
+                    .clone()
+                    .map(crate::theme_data::DartDebug),
+            ),
+        );
+        properties.add(
+            ColorProperty::new("valueIndicatorColor", self.value_indicator_color)
+                .default_value(default_theme.value_indicator_color),
+        );
+        properties.add(
+            ColorProperty::new(
+                "valueIndicatorStrokeColor",
+                self.value_indicator_stroke_color,
+            )
+            .default_value(default_theme.value_indicator_stroke_color),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderComponentShapeRef>>::new(
+                "overlayShape",
+                self.overlay_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .overlay_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderTickMarkShapeRef>>::new(
+                "tickMarkShape",
+                self.tick_mark_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .tick_mark_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderComponentShapeRef>>::new(
+                "thumbShape",
+                self.thumb_shape.clone().map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .thumb_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderTrackShapeRef>>::new(
+                "trackShape",
+                self.track_shape.clone().map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .track_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<SliderComponentShapeRef>>::new(
+                "valueIndicatorShape",
+                self.value_indicator_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .value_indicator_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderTickMarkShapeRef>>::new(
+                "rangeTickMarkShape",
+                self.range_tick_mark_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .range_tick_mark_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderThumbShapeRef>>::new(
+                "rangeThumbShape",
+                self.range_thumb_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .range_thumb_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderTrackShapeRef>>::new(
+                "rangeTrackShape",
+                self.range_track_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            )
+            .default_value(
+                default_theme
+                    .range_track_shape
+                    .clone()
+                    .map(crate::theme_data::InstanceOf),
+            ),
+        );
+        properties.add(DiagnosticsProperty::<crate::theme_data::InstanceOf<RangeSliderValueIndicatorShapeRef>>::new("rangeValueIndicatorShape", self.range_value_indicator_shape.clone().map(crate::theme_data::InstanceOf)).default_value(default_theme.range_value_indicator_shape.clone().map(crate::theme_data::InstanceOf)));
+        properties.add(
+            EnumProperty::<ShowValueIndicator>::new(
+                "showValueIndicator",
+                self.show_value_indicator,
+            )
+            .default_value(default_theme.show_value_indicator),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "valueIndicatorTextStyle",
+                self.value_indicator_text_style.clone(),
+            )
+            .default_value(default_theme.value_indicator_text_style.clone()),
+        );
+        properties.add(
+            DoubleProperty::new("minThumbSeparation", self.min_thumb_separation)
+                .default_value(default_theme.min_thumb_separation),
+        );
+        properties.add(DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new("thumbSelector", self.thumb_selector.as_ref().map(|_| crate::theme_data::DiagnosticsText("Closure: (TextDirection, RangeValues, double, Size, Size, double) => Thumb?".to_string()))).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(
+                default_theme
+                    .mouse_cursor
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            ),
+        );
+        properties.add(
+            EnumProperty::<SliderInteraction>::new("allowedInteraction", self.allowed_interaction)
+                .default_value(default_theme.allowed_interaction),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(default_theme.padding),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::DiagnosticsText>::new(
+                "thumbSize",
+                self.thumb_size
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            )
+            .default_value(
+                default_theme
+                    .thumb_size
+                    .as_deref()
+                    .map(crate::button_style::widget_state_property_text),
+            ),
+        );
+        properties.add(
+            DoubleProperty::new("trackGap", self.track_gap).default_value(default_theme.track_gap),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("year2023", self.year2023)
+                .default_value(default_theme.year2023),
+        );
+    }
+}
+
+impl std::fmt::Display for SliderThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -3037,5 +3317,18 @@ mod tests {
                 primary
             ));
         });
+    }
+    // Flutter's "Default SliderThemeData debugFillProperties".
+    #[test]
+    fn a_slider_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &SliderThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }
