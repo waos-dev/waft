@@ -194,9 +194,30 @@ impl Debug for BoxShadow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "BoxShadow({:?}, {:?}, {:.1}, {:.1}, {:?})",
-            self.color, self.offset, self.blur_radius, self.spread_radius, self.blur_style
+            "BoxShadow({:?}, {:?}, {:.1}, {:.1}, {})",
+            self.color,
+            self.offset,
+            self.blur_radius,
+            self.spread_radius,
+            blur_style_name(self.blur_style)
         )
+    }
+}
+
+/// Dart's `$blurStyle`: the enum's name as `<Enum>.<variant>`.
+fn blur_style_name(blur_style: BlurStyle) -> &'static str {
+    match blur_style {
+        BlurStyle::Normal => "BlurStyle.normal",
+        BlurStyle::Solid => "BlurStyle.solid",
+        BlurStyle::Inner => "BlurStyle.inner",
+        BlurStyle::Outer => "BlurStyle.outer",
+    }
+}
+
+/// Dart's `BoxShadow.toString`, which [`Debug`] already renders.
+impl fmt::Display for BoxShadow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
     }
 }
 

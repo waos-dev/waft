@@ -1,12 +1,30 @@
 //! Flutter counterpart: `painting/placeholder_span.dart`.
 
 use waft_embedder::{PlaceholderAlignment, TextBaseline};
+use waft_foundation::{DiagnosticPropertiesBuilder, EnumProperty};
 
 use crate::inline_span::InlineSpan;
 
 /// The unicode character to represent a placeholder (Dart's
 /// `PlaceholderSpan.placeholderCodeUnit`).
 pub const PLACEHOLDER_CODE_UNIT: u16 = 0xFFFC;
+
+/// Dart's `PlaceholderSpan.debugFillProperties`: the alignment and baseline a concrete
+/// placeholder adds after its span properties.
+///
+/// Dart writes this in `PlaceholderSpan.debugFillProperties` and the concrete class calls
+/// `super`; Rust has no `super`, so the body is a function the class calls.
+pub fn placeholder_span_debug_fill_properties(
+    span: &dyn PlaceholderSpan,
+    properties: &mut DiagnosticPropertiesBuilder,
+) {
+    properties.add(
+        EnumProperty::<PlaceholderAlignment>::new("alignment", span.alignment())
+            .default_value(None),
+    );
+    properties
+        .add(EnumProperty::<TextBaseline>::new("baseline", span.baseline()).default_value(None));
+}
 
 /// An immutable placeholder that is embedded inline within text.
 ///

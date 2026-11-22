@@ -6,7 +6,9 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 use waft_embedder::{Canvas, Offset, Path, Rect, Size};
-use waft_foundation::{App, VoidCallback};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticableNode, VoidCallback, short_type_name,
+};
 
 use crate::basic_types::TextDirection;
 use crate::edge_insets::{EdgeInsets, EdgeInsetsGeometry};
@@ -22,6 +24,25 @@ use crate::image_provider::ImageConfiguration;
 /// shared between boxes; [`BoxPainter`] objects can cache resources to
 /// make painting on a particular surface faster.
 pub trait Decoration: Any + Debug {
+    /// Dart's `Decoration.debugFillProperties`, inherited from `Diagnosticable`: a subclass
+    /// adds its own properties and calls this first, as Dart's `super` does.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
+    /// Dart's `Decoration.toDiagnosticsNode(name:)`, inherited from `Diagnosticable`; a
+    /// `dyn Decoration` cannot name the `Sized` `Diagnosticable`, so the bridge lives here.
+    fn diagnostics_node(&self, name: Option<String>) -> DiagnosticableNode {
+        let mut builder = DiagnosticPropertiesBuilder::new();
+        self.debug_fill_properties(&mut builder);
+        DiagnosticableNode::from_parts(name, self.to_string_short(), builder)
+    }
+
+    /// Dart's `Decoration.toStringShort`: the runtime type.
+    fn to_string_short(&self) -> String {
+        short_type_name(std::any::type_name::<Self>()).to_string()
+    }
+
     /// In debug mode, panics if the object is not in a valid configuration.
     /// Otherwise, returns true.
     fn debug_assert_is_valid(&self) -> bool {

@@ -278,17 +278,13 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — a `DiagnosticsProperty` prints its value through `Display`, which std's `HashMap` does not implement, and the port stores the widths in a `HashMap` rather than Dart's insertion-ordered map.
   Affect: a dump reads as Dart's, with columns in index order whatever order they were set in.
 
-- Change: `RenderDecoratedBox`'s `decoration` is a `DiagnosticsProperty<String>` holding the decoration's `Debug` text.
-  Reason: language — a decoration is held as a `DecorationRef` trait object, and painting's `Decoration` diagnostics are not ported.
-  Affect: a `BoxDecoration` reads `BoxDecoration { … }` where Dart's diagnostic prints `BoxDecoration(…)`.
-
 - Change: `RenderImage`'s `image` is a `DiagnosticsProperty<String>` holding `[width×height]`.
   Reason: language — `ui.Image` is a host type with no `Display`.
   Affect: none; the line reads as Dart's.
 
 ## Deferred
 - `paragraph_test.dart`'s "paints selection highlights outside fade layer and handles after text": the checks of the fade's `saveLayer` and shader rect. Trigger: the fade overflow shader.
-- `RenderParagraph` and `RenderEditable`'s `locale` line, and their text child (`debugDescribeChildren`), which need painting's text-painter locale and inline-span diagnostics. Trigger: a localized text painter and inline-span diagnostics.
+- `RenderParagraph` and `RenderEditable`'s `locale` line, which needs painting's text-painter locale. Trigger: a localized text painter.
 - `_SelectableFragment`'s diagnostics. Trigger: a dump that includes selection fragments.
 - `RenderAnimatedOpacity`'s `opacity` line and the `alwaysIncludeSemantics` flags of the opacity boxes. Trigger: animation diagnostics and the semantics tree.
 - `RenderRepaintBoundary`'s repaint-usefulness metrics. Trigger: the repaint-boundary paint counters.

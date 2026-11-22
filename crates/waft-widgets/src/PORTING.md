@@ -702,6 +702,10 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
   Reason: language — the tag needs `SemanticsTag` equality by index, and `SemanticsTag` compares by identity until the semantics tree needs it.
   Affect: an inline widget contributes no semantics node of its own.
 
+- Change: a `WidgetSpan`'s `widget` diagnostic line is a `DiagnosticsProperty<String>` reading `Instance of 'Widget'`.
+  Reason: language — a `WidgetRef` is an erased arena handle with no runtime class name.
+  Affect: a span dump names the kind where Dart names the widget's class.
+
 ## widgets/table.rs → table.dart
 
 - Change: `Table`'s constructor checks (a baseline alignment has a `text_baseline`, the rows have the same number of cells, no row is empty) run when the table creates or updates its render object.

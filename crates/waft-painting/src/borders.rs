@@ -6,8 +6,10 @@ use std::rc::Rc;
 
 use waft_embedder::{Canvas, FillRule, Paint, PaintStyle, Path, PathBuilder, Stroke};
 use waft_embedder::{Color, Offset, Rect, lerp_double};
+use waft_foundation::{DiagnosticPropertiesBuilder, Diagnosticable, DoubleProperty, EnumProperty};
 
 use crate::basic_types::TextDirection;
+use crate::colors::ColorProperty;
 use crate::edge_insets::EdgeInsetsGeometry;
 
 /// The style of line to draw for a [`BorderSide`] in a `Border`.
@@ -267,13 +269,38 @@ impl Default for BorderSide {
     }
 }
 
+impl Diagnosticable for BorderSide {
+    fn to_string_short(&self) -> String {
+        "BorderSide".to_string()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            ColorProperty::new("color", Some(self.color))
+                .default_value(Some(Color::new(0xFF000000))),
+        );
+        properties.add(DoubleProperty::new("width", Some(self.width)).default_value(Some(1.0)));
+        properties.add(
+            DoubleProperty::new("strokeAlign", Some(self.stroke_align))
+                .default_value(Some(Self::STROKE_ALIGN_INSIDE)),
+        );
+        properties.add(
+            EnumProperty::<BorderStyle>::new("style", Some(self.style))
+                .default_value(Some(BorderStyle::Solid)),
+        );
+    }
+}
+
 impl Debug for BorderSide {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(
-            f,
-            "BorderSide(color: {:?}, width: {:.1})",
-            self.color, self.width
-        )
+        f.write_str(&Diagnosticable::to_string(self))
+    }
+}
+
+/// Dart's `BorderSide.toString`, which [`Debug`] already renders.
+impl fmt::Display for BorderSide {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(self, f)
     }
 }
 
@@ -518,6 +545,13 @@ impl PartialEq for ShapeBorderRef {
 impl Debug for ShapeBorderRef {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         Debug::fmt(&*self.0, f)
+    }
+}
+
+/// Dart's `ShapeBorder.toString`, which the inner border's [`Debug`] already renders.
+impl fmt::Display for ShapeBorderRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(self, f)
     }
 }
 
@@ -1019,6 +1053,7 @@ impl Debug for AnyBorderSide {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::box_border::Border;
 
     fn side(color: Color, width: f64) -> BorderSide {
         BorderSide {
@@ -1026,6 +1061,64 @@ mod tests {
             width,
             ..BorderSide::default()
         }
+    }
+
+    // border_side_test.dart 'BorderSide - toString'.
+    #[test]
+    fn border_side_to_string() {
+        let side = BorderSide::new(
+            Color::new(0xFFAABBCC),
+            1.2345,
+            BorderStyle::Solid,
+            BorderSide::STROKE_ALIGN_INSIDE,
+        );
+        assert_eq!(
+            format!("{side}"),
+            format!("BorderSide(color: {}, width: 1.2)", Color::new(0xFFAABBCC))
+        );
+    }
+
+    // shape_border_test.dart 'Compound borders' (the parts this port's `+` covers).
+    #[test]
+    fn compound_borders_to_string() {
+        let b1 = Border::all(Color::new(0xFF00FF00), 1.0, BorderStyle::Solid, -1.0);
+        let b2 = Border::all(Color::new(0xFF0000FF), 1.0, BorderStyle::Solid, -1.0);
+        let b1 = ShapeBorderRef::new(b1);
+        let b2 = ShapeBorderRef::new(b2);
+        assert_eq!(
+            b1.plus(&b2).to_string(),
+            format!(
+                "Border.all(BorderSide(color: {})) + Border.all(BorderSide(color: {}))",
+                Color::new(0xFF00FF00),
+                Color::new(0xFF0000FF)
+            )
+        );
+        let two_b2 = b2.plus(&b2);
+        assert_eq!(
+            b1.plus(&two_b2).to_string(),
+            format!(
+                "Border.all(BorderSide(color: {})) + Border.all(BorderSide(color: {}, width: 2.0))",
+                Color::new(0xFF00FF00),
+                Color::new(0xFF0000FF)
+            )
+        );
+        let scaled = b1.plus(&b2).scale(3.0);
+        assert_eq!(
+            scaled.to_string(),
+            format!(
+                "Border.all(BorderSide(color: {}, width: 3.0)) + Border.all(BorderSide(color: {}, width: 3.0))",
+                Color::new(0xFF00FF00),
+                Color::new(0xFF0000FF)
+            )
+        );
+        assert_eq!(
+            b1.plus(&b2).scale(0.0).to_string(),
+            format!(
+                "Border.all(BorderSide(color: {}, width: 0.0, style: none)) + Border.all(BorderSide(color: {}, width: 0.0, style: none))",
+                Color::new(0xFF00FF00),
+                Color::new(0xFF0000FF)
+            )
+        );
     }
 
     #[test]

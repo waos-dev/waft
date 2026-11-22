@@ -1,11 +1,14 @@
 //! Flutter counterpart: `painting/box_decoration.dart`.
 
 use std::any::Any;
-use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::fmt::{self, Debug, Formatter, Result as FmtResult};
 
 use waft_embedder::{BlendMode, Canvas, Paint};
 use waft_embedder::{Offset, Path, PathBuilder, Rect, Size};
-use waft_foundation::{App, VoidCallback};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty, DiagnosticsTreeStyle,
+    EnumProperty, IterableProperty, VoidCallback,
+};
 
 use crate::basic_types::TextDirection;
 use crate::border_radius::BorderRadiusGeometry;
@@ -13,7 +16,7 @@ use crate::borders::{BorderSide, BorderStyle};
 use crate::box_border::{Border, BorderDirectional, BoxBorder, BoxBorderRef, BoxShape};
 use crate::box_shadow::BoxShadow;
 use crate::circle_border::{oval_path, rrect_path};
-use crate::colors::AnyColor;
+use crate::colors::{AnyColor, ColorProperty};
 use crate::decoration::{BoxPainter, Decoration, DecorationRef};
 use crate::draw::draw_rrect;
 use crate::edge_insets::{EdgeInsets, EdgeInsetsGeometry};
@@ -268,6 +271,10 @@ impl PartialEq for BoxDecoration {
 }
 
 impl Decoration for BoxDecoration {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        Diagnosticable::debug_fill_properties(self, properties);
+    }
+
     fn debug_assert_is_valid(&self) -> bool {
         debug_assert!(
             self.shape != BoxShape::Circle || self.border_radius.is_none(),
@@ -368,17 +375,54 @@ impl Decoration for BoxDecoration {
     }
 }
 
+impl Diagnosticable for BoxDecoration {
+    fn to_string_short(&self) -> String {
+        "BoxDecoration".to_string()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Whitespace;
+        properties.empty_body_description = Some("<no decorations specified>".to_string());
+
+        properties.add(
+            ColorProperty::new("color", self.color.as_ref().map(|color| **color))
+                .default_value(None),
+        );
+        // Dart's `DiagnosticsProperty<DecorationImage>('image', image, defaultValue: null)`
+        // waits with `DecorationImage`; see `PORTING.md`.
+        properties.add(
+            DiagnosticsProperty::<BoxBorderRef>::new("border", self.border.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderRadiusGeometry>::new("borderRadius", self.border_radius)
+                .default_value(None),
+        );
+        properties.add(
+            IterableProperty::<BoxShadow>::new("boxShadow", self.box_shadow.clone())
+                .default_value(None)
+                .with_style(DiagnosticsTreeStyle::Whitespace),
+        );
+        properties.add(
+            DiagnosticsProperty::<GradientRef>::new("gradient", self.gradient.clone())
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<BoxShape>::new("shape", Some(self.shape))
+                .default_value(Some(BoxShape::Rectangle)),
+        );
+    }
+}
+
 impl Debug for BoxDecoration {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct("BoxDecoration")
-            .field("color", &self.color)
-            .field("border", &self.border)
-            .field("border_radius", &self.border_radius)
-            .field("box_shadow", &self.box_shadow)
-            .field("gradient", &self.gradient)
-            .field("background_blend_mode", &self.background_blend_mode)
-            .field("shape", &self.shape)
-            .finish()
+        f.write_str(&Diagnosticable::to_string(self))
+    }
+}
+
+impl fmt::Display for BoxDecoration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(self, f)
     }
 }
 
@@ -614,6 +658,7 @@ mod tests {
     use super::*;
     use waft_embedder::Color;
     use waft_embedder::{Radius, lerp_double};
+    use waft_foundation::{DiagnosticLevel, DiagnosticsNode};
 
     use waft_embedder::valo::{Op, Shader};
 
@@ -888,5 +933,71 @@ mod tests {
             .color(Color::new(0x00000000))
             .background_blend_mode(BlendMode::Difference);
         assert_ne!(one, two);
+    }
+
+    // box_test.dart 'should not have a 0 sized colored Box'.
+    #[test]
+    fn a_box_decorations_node_says_when_it_has_nothing_to_paint() {
+        let decoration = BoxDecoration::new();
+        assert_eq!(
+            decoration
+                .diagnostics_node(Some("decoration".to_string()))
+                .to_string_deep_with("  ", None, None, DiagnosticLevel::Info, 65),
+            "  decoration: BoxDecoration:\n  <no decorations specified>\n"
+        );
+        assert_eq!(Decoration::to_string_short(&decoration), "BoxDecoration");
+    }
+
+    #[test]
+    fn a_box_decorations_node_lists_its_properties() {
+        let decoration = BoxDecoration::new().color(Color::new(0xFF00FF00));
+        assert_eq!(
+            decoration
+                .diagnostics_node(Some("decoration".to_string()))
+                .to_string_deep_with("  ", None, None, DiagnosticLevel::Info, 640),
+            format!(
+                "  decoration: BoxDecoration:\n  color: {}\n",
+                Color::new(0xFF00FF00)
+            )
+        );
+        assert_eq!(
+            Diagnosticable::to_string(&decoration),
+            format!("BoxDecoration(color: {})", Color::new(0xFF00FF00))
+        );
+    }
+
+    #[test]
+    fn a_box_decorations_node_lists_every_kind_of_decoration() {
+        let red = Color::new(0xFFFF0000);
+        let blue = Color::new(0xFF0000FF);
+        let decoration = BoxDecoration::new()
+            .border(Border::all(
+                blue,
+                2.0,
+                BorderStyle::Solid,
+                BorderSide::STROKE_ALIGN_INSIDE,
+            ))
+            .border_radius(BorderRadius::circular(4.0))
+            .box_shadow(vec![BoxShadow::new(
+                red,
+                waft_embedder::Offset::new(1.0, 2.0),
+                3.0,
+                4.0,
+                waft_embedder::BlurStyle::Normal,
+            )])
+            .gradient(crate::gradient::LinearGradient::new(vec![red, blue]));
+        let dump = decoration
+            .diagnostics_node(Some("decoration".to_string()))
+            .to_string_deep_with("  ", None, None, DiagnosticLevel::Info, 640);
+        assert_eq!(
+            dump,
+            format!(
+                "  decoration: BoxDecoration:\n\
+                 \u{20} border: Border.all(BorderSide(color: {blue}, width: 2.0))\n\
+                 \u{20} borderRadius: BorderRadius.circular(4.0)\n\
+                 \u{20} boxShadow: BoxShadow({red}, Offset(1.0, 2.0), 3.0, 4.0, BlurStyle.normal)\n\
+                 \u{20} gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [{red}, {blue}], tileMode: TileMode.clamp)\n"
+            )
+        );
     }
 }
