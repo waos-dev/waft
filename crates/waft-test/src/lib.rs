@@ -53,8 +53,8 @@ pub use http::{MockHttpClient, MockResponse, SentRequest};
 pub use image_codecs::{CodecCall, ImageAnswers, ImageFacts, MockImageCodecs};
 pub use media::{
     AssetAnswers, FrameAsked, MadeLayer, MockCameras, MockCaptureSession, MockCompositor,
-    MockMediaAsset, MockMediaAssets, MockPlayer, MockPlayers, MockVideoFrame,
-    MockVideoFrameReaders, PlayerCall, VideoOutputKind,
+    MockLayer, MockMediaAsset, MockMediaAssets, MockPlayer, MockPlayers, MockVideoFrame,
+    MockVideoFrameReaders, PlayerCall, Presented, VideoOutputKind,
 };
 pub use menus::{
     MockDockMenu, MockMenuBar, MockPopupMenus, MockTrayIcons, ShownMenu, ShownTrayIcon,
