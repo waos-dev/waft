@@ -178,7 +178,7 @@ impl Diagnosticable for TextSpan {
     }
 
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        crate::inline_span::inline_span_debug_fill_properties(self, properties);
+        crate::inline_span::inline_span_debug_fill_properties(self.style.as_ref(), properties);
 
         properties.add(
             StringProperty::new("text", self.text.clone())

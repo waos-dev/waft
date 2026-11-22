@@ -226,10 +226,7 @@ pub trait InlineSpan: Debug {
     /// Dart's `debugFillProperties` lives on `Diagnosticable`, whose `Self: Sized` bound a
     /// `dyn InlineSpan` cannot meet; a concrete span delegates its own diagnostics here.
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Whitespace;
-        if let Some(style) = self.style() {
-            Diagnosticable::debug_fill_properties(style, properties);
-        }
+        inline_span_debug_fill_properties(self.style(), properties);
     }
 
     /// Dart's `InlineSpan.debugDescribeChildren`, inherited from `DiagnosticableTree`.
@@ -265,14 +262,14 @@ pub trait InlineSpan: Debug {
     }
 }
 
-/// Dart's `InlineSpan.debugFillProperties`: the whitespace tree style, then the span's
-/// style's own properties.
+/// Dart's `InlineSpan.debugFillProperties`: the whitespace tree style, then the properties of
+/// the span's `style`. A span that adds its own calls this first, as Dart's `super` does.
 pub fn inline_span_debug_fill_properties(
-    span: &dyn InlineSpan,
+    style: Option<&TextStyle>,
     properties: &mut DiagnosticPropertiesBuilder,
 ) {
     properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Whitespace;
-    if let Some(style) = span.style() {
+    if let Some(style) = style {
         Diagnosticable::debug_fill_properties(style, properties);
     }
 }

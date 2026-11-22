@@ -237,7 +237,7 @@ impl InlineSpan for WidgetSpan {
     }
 
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        inline_span_debug_fill_properties(self, properties);
+        inline_span_debug_fill_properties(self.style(), properties);
         placeholder_span_debug_fill_properties(self, properties);
         properties.add(DiagnosticsProperty::<String>::new(
             "widget",
