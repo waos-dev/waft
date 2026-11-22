@@ -11,8 +11,8 @@ use waft_embedder::{
 };
 use waft_rendering::RenderParagraph;
 use waft_shell::Shell;
+use waft_test::TestView;
 use waft_widgets::WidgetsBinding;
-use waft_winui_test_support::CaptureView;
 
 /// Records the next turn the framework asks for, so the driver can fire it when that time comes.
 struct LoopDispatcher {
@@ -72,7 +72,7 @@ impl Dispatcher for LoopDispatcher {
 }
 
 struct LoopPlatform {
-    view: Rc<CaptureView>,
+    view: Rc<TestView>,
     origin: Instant,
     clock: Cell<Duration>,
     frame_requested: Cell<bool>,
@@ -112,7 +112,7 @@ struct Driver {
 }
 impl Driver {
     fn new() -> Driver {
-        let view = Rc::new(CaptureView::new([900, 2000]));
+        let view = Rc::new(TestView::new(900.0, 2000.0));
         let platform = Rc::new(LoopPlatform {
             view,
             origin: Instant::now(),

@@ -60,7 +60,6 @@ valo-system-fonts = "0.26.0"
 valo-geometry = "0.26.0"
 wgpu = "30"
 pollster = "0.4"
-png = "0.17"
 web-time = "1"
 
 # Line tables as the only debug information in debug builds, the workspace's own crates and every

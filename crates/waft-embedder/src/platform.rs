@@ -665,6 +665,25 @@ pub trait Platform: Any {
         None
     }
 
+    /// `image`'s pixels read back from the device it lives on, as straight-alpha RGBA: Dart's
+    /// `Image.toByteData(format: ImageByteFormat.rawStraightRgba)`, as a test reads what a widget
+    /// paints. It is a call on the platform, where Dart's is on the image, because only the host
+    /// holds the device; a host answers it through its [`SnapshotDelegate`](crate::SnapshotDelegate).
+    /// [`ImageErrorKind::Unsupported`](crate::image_codecs::ImageErrorKind::Unsupported) where the
+    /// host has no renderer.
+    fn read_image_pixels(
+        &self,
+        image: &crate::Image,
+    ) -> crate::image_codecs::ImageFuture<valo::PixelBuffer> {
+        let _ = image;
+        Box::pin(std::future::ready(Err(
+            crate::image_codecs::ImageError::new(
+                crate::image_codecs::ImageErrorKind::Unsupported,
+                "this host has no renderer to read an image back with",
+            ),
+        )))
+    }
+
     /// An image of a video frame the app holds, its hardware buffer imported as a texture on the
     /// renderer's device with no copy ([`import_texture`](Self::import_texture)), holding the frame
     /// while the image lives: a still picture a media asset read, drawn as any image. Not

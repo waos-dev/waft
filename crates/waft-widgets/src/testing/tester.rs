@@ -86,7 +86,7 @@ impl WidgetTester {
             next_pointer: std::cell::Cell::new(1),
         };
         tester.report_view_metrics_changes();
-        tester.install_flutter_test_fonts();
+        tester.install_platform_fonts();
         tester.pump_pre_test_tree();
         tester
     }
@@ -158,11 +158,13 @@ impl WidgetTester {
         )
     }
 
-    /// flutter_test's fonts: every family is FlutterTest.
-    fn install_flutter_test_fonts(&self) {
+    /// The platform's fonts: flutter_test's, every family FlutterTest, unless the case gave the
+    /// platform others, as one that looks at its view's pixels gives it the system's
+    /// ([`TestPlatform::with_system_fonts`]).
+    fn install_platform_fonts(&self) {
         let mut app = self.cell.borrow_mut();
         let binding = waft_painting::PaintingBinding::instance(&mut app);
-        binding.install_flutter_test_fonts(&mut app);
+        binding.install_platform_fonts(&mut app);
     }
 
     /// The platform the app runs on, for a case that changes what the host reports while it

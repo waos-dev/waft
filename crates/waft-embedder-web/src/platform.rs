@@ -281,6 +281,22 @@ impl Platform for WebPlatform {
                 .make_raster_snapshot_sync(picture, width, height),
         )
     }
+
+    fn read_image_pixels(
+        &self,
+        image: &waft_embedder::Image,
+    ) -> waft_embedder::image_codecs::ImageFuture<valo::PixelBuffer> {
+        match self.snapshots.borrow().as_ref() {
+            // The browser answers the read on its own: there is nothing to wait on.
+            Some(snapshots) => snapshots.read_pixels(image, |_device| {}),
+            None => Box::pin(std::future::ready(Err(
+                waft_embedder::image_codecs::ImageError::new(
+                    waft_embedder::image_codecs::ImageErrorKind::Unsupported,
+                    "the page's renderer has not started",
+                ),
+            ))),
+        }
+    }
 }
 
 /// The page's screen, and no pointer: the page sees the pointer only over itself, in its own

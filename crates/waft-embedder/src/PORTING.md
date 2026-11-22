@@ -176,6 +176,10 @@ Ported against Flutter `9c427b5d7b`.
   Reason: platform — a picture here is valo's display list, which holds no device, and a valo image is a texture already drawn, where Impeller's is a deferred image it rasterizes at its first draw.
   Affect: an app reaches it through `app.platform()`; the drawing is submitted at the call, and anything drawn with the image waits for it on the GPU.
 
+- Change: `Image.toByteData(format: rawStraightRgba)` is `Platform::read_image_pixels(image)`, answering valo's `PixelBuffer`; the other formats are not offered, and a PNG is encoded from the pixels (`waft_test::encode_png`).
+  Reason: platform — only the host holds the device an image lives on, as with `picture_to_image_sync`; valo reads back what a picture draws, so the image is drawn into one of its size and that is read (`SnapshotDelegate::read_pixels`).
+  Affect: every host answers it through its `SnapshotDelegate`; natively the wait for the GPU is the platform's `Dispatcher`'s work, off the main thread, and a browser answers on its own. The test platform reads back the same way on its GPU (`TestPlatform::with_gpu`).
+
 - Change: `Platform` is `Any`, and `downcast_ref` on the trait object hands an app its host's own type; `PlatformDispatcher` is one class on every platform.
   Reason: platform — what a host offers beyond the interface (a picture from an `IOSurface`-backed buffer, its renderer's image context) belongs to that host, and naming each system's kinds in the interface would close it to the next system.
   Affect: the interface carries only what every host can answer, such as `import_pixels` for `decodeImageFromPixels`; an app that wants more names its host crate and downcasts.
@@ -384,7 +388,6 @@ Ported against Flutter `9c427b5d7b`.
 - A backdrop filter over a composition layer, which shows the layer unfiltered. Trigger: an app that needs glass over a video.
 - `SceneBuilder`'s shader-mask and colour-filter pushes. Trigger: the framework layers that call them.
 - Decoding at any size but the file's own, which in Dart is `instantiateImageCodec`'s target width and height and the `getTargetSize` callback of `instantiateImageCodecWithSize`. Trigger: `ResizeImage`, which is what the image widget's `cacheWidth` and `cacheHeight` become.
-- Reading an image's pixels back (`Image.toByteData`). Trigger: golden tests.
 - The colour space an image carries beyond sRGB, so a photograph in a wider one is drawn as though it were sRGB. Trigger: a display that shows more colours than sRGB.
 - Making an image from pixels that were never encoded (`ImageDescriptor.raw`, `decodeImageFromPixels`). Trigger: a caller holding pixels rather than a file.
 - How far along a decode is, which Dart's codec reports as it reads the file. Trigger: a provider that reports progress.

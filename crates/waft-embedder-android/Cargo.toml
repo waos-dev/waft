@@ -19,7 +19,7 @@ image-software = ["dep:valo-codec-software"]
 image-worker = ["valo-codec/worker"]
 
 [dependencies]
-waft-embedder.workspace = true
+waft-embedder = { workspace = true, features = ["valo-codec"] }
 raw-window-handle.workspace = true
 valo.workspace = true
 valo-system-fonts.workspace = true

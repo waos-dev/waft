@@ -15,8 +15,8 @@ use waft_embedder::{
     ViewError, ViewFocusEvent, ViewHost, ViewId, ViewMetrics, ViewRef, WindowConfig,
 };
 
-use waft_embedder::image_codecs::ImageCodecs;
-use waft_embedder::valo;
+use waft_embedder::image_codecs::{ImageCodecs, ImageError, ImageErrorKind, ImageFuture};
+use waft_embedder::{SystemFontSource, test_support, valo};
 
 use crate::windows::view_of_request;
 use crate::{TestFontSource, TestTimeZone, TestView, TestWindows};
@@ -25,6 +25,7 @@ type FontSourceMaker = Rc<dyn Fn() -> Box<dyn FontSource>>;
 type ImageCodecOpener = Rc<dyn Fn(Arc<[u8]>) -> ImageCodecFuture>;
 type PixelImporter = Rc<dyn Fn(valo::PixelBuffer) -> Option<Image>>;
 type PictureRasterizer = Rc<dyn Fn(&Picture, u32, u32) -> Option<Image>>;
+type ImageReader = Rc<dyn Fn(&Image) -> ImageFuture<valo::PixelBuffer>>;
 type FrameImporter = Rc<dyn Fn(&dyn VideoFrame) -> Option<Image>>;
 type BufferImporter = Rc<dyn Fn(&dyn HardwareBuffer) -> Option<Image>>;
 
@@ -63,6 +64,7 @@ pub struct TestPlatform {
     image_codec: Option<ImageCodecOpener>,
     pixel_import: Option<PixelImporter>,
     picture_to_image: Option<PictureRasterizer>,
+    image_read_back: Option<ImageReader>,
     frame_import: Option<FrameImporter>,
     buffer_import: Option<BufferImporter>,
     windows: Option<Rc<TestWindows>>,
@@ -113,6 +115,7 @@ impl TestPlatform {
             image_codec: None,
             pixel_import: None,
             picture_to_image: None,
+            image_read_back: None,
             frame_import: None,
             buffer_import: None,
             windows: None,
@@ -228,6 +231,27 @@ impl TestPlatform {
         self
     }
 
+    /// The system's fonts in place of flutter_test's, as a host shapes text against, for a test
+    /// that looks at what its text draws as.
+    pub fn with_system_fonts(self) -> TestPlatform {
+        self.with_font_source(|| {
+            Box::new(SystemFontSource::new(valo_system_fonts::fontmgr::platform()))
+        })
+    }
+
+    /// One GPU with no window, as a host has its renderer's: encoded pictures, such as a PNG's
+    /// bytes, are opened on it, images made from pixels and pictures, and images read back. What
+    /// a test that looks at what the app paints gives its platform. Encoded pictures are decoded
+    /// by valo's software decoders, the same on every machine.
+    pub fn with_gpu(self) -> TestPlatform {
+        self.with_image_codec(test_support::open_image_codec)
+            .with_pixel_import(test_support::imported_pixels)
+            .with_picture_to_image(|picture, width, height| {
+                Some(test_support::picture_to_image(picture, [width, height]))
+            })
+            .with_read_image_pixels(test_support::read_image_pixels)
+    }
+
     /// The decoder behind `open_image_codec`; none unless set, so every image fails to open.
     pub fn with_image_codec(
         mut self,
@@ -253,6 +277,15 @@ impl TestPlatform {
         draw: impl Fn(&Picture, u32, u32) -> Option<Image> + 'static,
     ) -> TestPlatform {
         self.picture_to_image = Some(Rc::new(draw));
+        self
+    }
+
+    /// The renderer behind `read_image_pixels`; none unless set, so no image is read back.
+    pub fn with_read_image_pixels(
+        mut self,
+        read: impl Fn(&Image) -> ImageFuture<valo::PixelBuffer> + 'static,
+    ) -> TestPlatform {
+        self.image_read_back = Some(Rc::new(read));
         self
     }
 
@@ -583,6 +616,16 @@ impl Platform for TestPlatform {
             .and_then(|draw| draw(picture, width, height))
     }
 
+    fn read_image_pixels(&self, image: &Image) -> ImageFuture<valo::PixelBuffer> {
+        match &self.image_read_back {
+            Some(read) => read(image),
+            None => Box::pin(std::future::ready(Err(ImageError::new(
+                ImageErrorKind::Unsupported,
+                "the test platform reads no image back: give it with_gpu",
+            )))),
+        }
+    }
+
     fn import_video_frame(&self, frame: &dyn VideoFrame) -> Option<Image> {
         self.frame_import.as_ref().and_then(|import| import(frame))
     }
@@ -795,6 +838,33 @@ mod tests {
         let platform = TestPlatform::new();
         let mut source = platform.font_source().expect("the test platform has fonts");
         assert!(source.family("Roboto")[0].matches("FlutterTest"));
+    }
+
+    #[test]
+    fn with_the_systems_fonts_a_family_is_the_systems_not_flutter_tests() {
+        let platform = TestPlatform::new().with_system_fonts();
+        let mut source = platform.font_source().expect("the test platform has fonts");
+        let face = source
+            .face_for_codepoint('a', Default::default())
+            .expect("the system has a face for 'a'");
+        assert!(!face.matches("FlutterTest"));
+    }
+
+    #[test]
+    fn with_gpu_a_png_opens_as_its_picture() {
+        use waft_embedder::valo;
+        let pixels = valo::PixelBuffer::new(
+            valo::PixelLayout::packed([3, 2], valo::PixelFormat::Rgba8, valo::AlphaType::Straight),
+            vec![255; 3 * 2 * 4],
+        )
+        .expect("white pixels");
+        let png = crate::encode_png(&pixels);
+        let platform = TestPlatform::new().with_gpu();
+        let mut codec =
+            pollster::block_on(platform.open_image_codec(png.into())).expect("a PNG opens");
+        assert_eq!(codec.frame_count(), 1);
+        let frame = pollster::block_on(codec.next_frame()).expect("its frame");
+        assert_eq!(frame.image.size(), [3, 2]);
     }
 
     #[test]

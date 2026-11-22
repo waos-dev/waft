@@ -33,6 +33,8 @@ waft-test.workspace = true
 waft-embedder = { workspace = true, features = ["test-support"] }
 waft-rendering = { workspace = true, features = ["test-support"] }
 valo-system-fonts.workspace = true
+# Waits on a capture's pixels in the testing module's tests.
+pollster.workspace = true
 
 [lints]
 workspace = true

@@ -52,6 +52,8 @@ pub mod test_support;
 mod text;
 mod text_editing;
 mod text_input;
+#[cfg(feature = "valo-codec")]
+pub mod valo_images;
 mod views;
 mod vsync;
 mod window;

@@ -23,6 +23,10 @@
 //! Elsewhere the crate still builds, with no host in it, so the workspace's tests cover the
 //! reckonings that need no UIKit on any machine.
 
+// Proving the GPU device `Send`, to wait on it off the main thread, walks a type graph deeper
+// than the default limit.
+#![cfg_attr(target_os = "ios", recursion_limit = "256")]
+
 #[cfg(any(target_os = "ios", test))]
 mod keyboard_inset;
 #[cfg(any(target_os = "ios", test))]

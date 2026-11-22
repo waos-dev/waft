@@ -22,7 +22,7 @@ image-worker = ["valo-codec/worker"]
 test-support = []
 
 [dependencies]
-waft-embedder.workspace = true
+waft-embedder = { workspace = true, features = ["valo-codec"] }
 valo.workspace = true
 valo-system-fonts.workspace = true
 valo-codec.workspace = true

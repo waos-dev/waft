@@ -11,6 +11,9 @@
 //! `TestFlutterView`: real implementations of the host traits that answer what a test
 //! configures and record what the framework asks of them. Its fonts are flutter_test's: every
 //! family is FlutterTest ([`TestFontSource`]) unless the test gives the platform other fonts.
+//! A test that looks at what the app paints gives the platform the system's fonts and a GPU
+//! with no window ([`TestPlatform::with_system_fonts`], [`TestPlatform::with_gpu`]), reads
+//! a widget's image back through it, and can encode the pixels as a PNG ([`encode_png`]).
 //! In a debug build, [`object_snapshot`] and [`assert_no_new_objects`] check that a piece of a
 //! test leaves no object behind in the `App`'s arena.
 //!
@@ -35,6 +38,7 @@ mod notifications;
 mod objects;
 mod opener;
 mod platform;
+mod png_bytes;
 mod time_zone;
 mod view;
 mod view_host;
@@ -60,6 +64,7 @@ pub use notifications::MockNotifications;
 pub use objects::{ObjectSnapshot, assert_no_new_objects, object_snapshot};
 pub use opener::{MockOpener, Opened};
 pub use platform::{TestDispatcher, TestPlatform};
+pub use png_bytes::encode_png;
 pub use time_zone::TestTimeZone;
 pub use view::{IMPLICIT_VIEW_ID, MetricsListener, TestView};
 pub use view_host::{TestViewHost, TextInputCall};
