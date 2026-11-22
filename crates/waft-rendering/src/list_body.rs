@@ -139,6 +139,19 @@ pub trait RenderListBodyMixin:
         }
     }
 
+    /// Dart's `RenderListBody.debugFillProperties`, which a subclass of `RenderListBody`
+    /// reaches through its super call.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(EnumProperty::<AxisDirection>::new(
+            "axisDirection",
+            self.list_body_data(app).axis_direction,
+        ));
+    }
+
     /// The direction in which the children are laid out.
     ///
     /// For example, if the [`axis_direction`](Self::axis_direction) is [`AxisDirection::Down`],
@@ -565,10 +578,7 @@ impl RenderObject for RenderListBody {
         app: &App,
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
-        properties.add(EnumProperty::<AxisDirection>::new(
-            "axisDirection",
-            self.get(app).list_body.axis_direction,
-        ));
+        RenderListBodyMixin::debug_fill_properties(self, app, properties);
     }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {

@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `badge.dart`.
 
 use waft_embedder::{Clip, Color, Offset, Size, TextBaseline};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder};
 use waft_painting::{
     AlignmentGeometry, BorderSide, EdgeInsetsGeometry, ShapeDecoration, StadiumBorder,
     TextDirection, TextStyle,
@@ -542,6 +542,15 @@ impl RenderAligningShiftedBox for RenderBadge {
 
 impl RenderObject for RenderBadge {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_RenderBadge` inherits `RenderAligningShiftedBox.debugFillProperties`.
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -1380,5 +1389,31 @@ pub(crate) mod tests {
             });
             assert_eq!(find::text("0").evaluate(tester).len(), 1);
         });
+    }
+
+    /// Dart's `_RenderBadge` fills no properties of its own; it inherits
+    /// `RenderAligningShiftedBox.debugFillProperties`.
+    #[test]
+    fn a_badge_fills_the_properties_it_inherits() {
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let badge = RenderBadge::new(
+            &mut app,
+            AlignmentGeometry::TOP_LEFT,
+            0.0,
+            false,
+            Offset::ZERO,
+            Some(TextDirection::Ltr),
+        );
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(badge, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(names, ["alignment", "textDirection"]);
     }
 }

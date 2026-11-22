@@ -7,7 +7,7 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Brightness, Color, Offset, Size, TextBaseline, TextDirection};
-use waft_foundation::{App, Handle, Ref, ValueChanged};
+use waft_foundation::{App, DiagnosticsNode, Handle, Ref, ValueChanged};
 use waft_gestures::{GestureLongPressCallback, GestureTapCallback};
 use waft_painting::{
     AnyColor, Border, BoxDecoration, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef,
@@ -1453,12 +1453,24 @@ impl WidgetStateProperty<Option<Color>> for IndividualOverrides {
 }
 
 // Identifies the children of a _ListTileElement.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum ListTileSlot {
     Leading,
     Title,
     Subtitle,
     Trailing,
+}
+
+/// Dart's `_ListTileSlot.name`, which `debugNameForSlot` returns for an enum.
+impl fmt::Debug for ListTileSlot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            ListTileSlot::Leading => "leading",
+            ListTileSlot::Title => "title",
+            ListTileSlot::Subtitle => "subtitle",
+            ListTileSlot::Trailing => "trailing",
+        })
+    }
 }
 
 /// Dart's `_ListTile`.
@@ -1978,6 +1990,13 @@ impl SlottedContainerRenderObjectMixin<ListTileSlot> for RenderListTile {
 
 impl RenderObject for RenderListTile {
     waft_rendering::render_object_accessors!();
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        SlottedContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         SlottedContainerRenderObjectMixin::did_attach(self, app, owner);
@@ -5835,5 +5854,79 @@ pub(crate) mod tests {
                 Some(false)
             ));
         });
+    }
+
+    /// Dart's `_ListTileSlot` names, which `debugNameForSlot` prints for the enum.
+    #[test]
+    fn list_tile_slots_are_named_as_dart_names_them() {
+        assert_eq!(format!("{:?}", ListTileSlot::Leading), "leading");
+        assert_eq!(format!("{:?}", ListTileSlot::Title), "title");
+        assert_eq!(format!("{:?}", ListTileSlot::Subtitle), "subtitle");
+        assert_eq!(format!("{:?}", ListTileSlot::Trailing), "trailing");
+    }
+
+    /// Dart's `_RenderListTile` names its children after their slots, in the order its
+    /// `children` getter answers.
+    #[test]
+    fn a_list_tile_describes_its_children_by_slot() {
+        use waft_foundation::{AppCell, DiagnosticsNode};
+        use waft_rendering::{BoxConstraints, RenderConstrainedBox};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let tile = RenderListTile::new(
+            &mut app,
+            false,
+            VisualDensity::STANDARD,
+            false,
+            TextDirection::Ltr,
+            TextBaseline::Alphabetic,
+            None,
+            16.0,
+            4.0,
+            40.0,
+            None,
+            ListTileTitleAlignment::ThreeLine,
+        );
+        let child = |app: &mut App| {
+            RenderConstrainedBox::new(app, BoxConstraints::tight(Size::new(10.0, 10.0)), None)
+                .as_box()
+        };
+        let leading = child(&mut app);
+        let title = child(&mut app);
+        let subtitle = child(&mut app);
+        let trailing = child(&mut app);
+        SlottedContainerRenderObjectMixin::set_child(
+            tile,
+            &mut app,
+            Some(leading),
+            &ListTileSlot::Leading,
+        );
+        SlottedContainerRenderObjectMixin::set_child(
+            tile,
+            &mut app,
+            Some(title),
+            &ListTileSlot::Title,
+        );
+        SlottedContainerRenderObjectMixin::set_child(
+            tile,
+            &mut app,
+            Some(subtitle),
+            &ListTileSlot::Subtitle,
+        );
+        SlottedContainerRenderObjectMixin::set_child(
+            tile,
+            &mut app,
+            Some(trailing),
+            &ListTileSlot::Trailing,
+        );
+
+        let node = tile.as_object().to_diagnostics_node(&app, None);
+        let names: Vec<&str> = node
+            .children()
+            .iter()
+            .filter_map(|child| child.name())
+            .collect();
+        assert_eq!(names, ["leading", "title", "subtitle", "trailing"]);
     }
 }

@@ -4,7 +4,7 @@ use waft_animation::{Curve, Curves, Interval, Tween};
 use waft_embedder::{
     ImageFilter, Matrix4, Offset, Size, TargetPlatform, TextBaseline, TextDirection,
 };
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DoubleProperty, Handle};
 use waft_painting::{Alignment, EdgeInsetsGeometry};
 use waft_rendering::{
     AnyOffsetLayer, AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult,
@@ -778,6 +778,16 @@ impl RenderProxyBoxMixin for RenderFlexibleSpaceHeaderOpacity {}
 
 impl RenderObject for RenderFlexibleSpaceHeaderOpacity {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_RenderFlexibleSpaceHeaderOpacity` inherits `RenderOpacity.debugFillProperties`;
+        // the `alwaysIncludeSemantics` flag is semantics.
+        properties.add(DoubleProperty::new("opacity", self.get(app).opacity));
+    }
 
     fn always_needs_compositing(self: RenderHandle<Self>, app: &App) -> bool {
         self.child(app).is_some() && self.get(app).alpha > 0
@@ -1921,5 +1931,24 @@ mod tests {
                 );
             });
         }
+    }
+
+    /// Dart's `_RenderFlexibleSpaceHeaderOpacity` fills no properties of its own; it inherits
+    /// `RenderOpacity.debugFillProperties`'s `opacity` line.
+    #[test]
+    fn a_header_opacity_fills_the_opacity_it_inherits() {
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let render = RenderFlexibleSpaceHeaderOpacity::new(&mut app, 0.5);
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(render, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(names, ["opacity"]);
     }
 }

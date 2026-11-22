@@ -225,22 +225,25 @@ pub trait SlottedContainerRenderObjectMixin<S: SlotValue>: RenderObject {
         }
     }
 
-    /// Flutter's `SlottedContainerRenderObjectMixin.debugDescribeChildren`: the children in slot
-    /// order, each named by [`debug_name_for_slot`](Self::debug_name_for_slot).
+    /// Flutter's `SlottedContainerRenderObjectMixin.debugDescribeChildren`: the children in the
+    /// order [`children`](Self::children) answers, each named by the slot it occupies.
     fn debug_describe_children(
         self: RenderHandle<Self>,
         app: &App,
     ) -> Vec<Rc<dyn DiagnosticsNode>> {
-        self.slotted_container_data(app)
-            .slot_to_child
-            .iter()
-            .map(|(slot, child)| {
-                Rc::new(child.as_object().to_diagnostics_node(
-                    app,
-                    SlottedContainerRenderObjectMixin::debug_name_for_slot(self.get(app), slot),
-                )) as Rc<dyn DiagnosticsNode>
-            })
-            .collect()
+        let mut nodes: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        for child in self.children(app) {
+            let slot = self
+                .slotted_container_data(app)
+                .slot_to_child
+                .iter()
+                .find(|(_, current)| *current == child)
+                .map(|(slot, _)| slot.clone())
+                .expect("every child occupies a slot");
+            let name = SlottedContainerRenderObjectMixin::debug_name_for_slot(self.get(app), &slot);
+            nodes.push(Rc::new(child.as_object().to_diagnostics_node(app, name)));
+        }
+        nodes
     }
 
     /// Dart's `_setChild`.
