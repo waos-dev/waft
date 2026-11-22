@@ -1607,8 +1607,10 @@ impl StatefulWidget for MaterialInterior {
     }
 
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        // Dart's `_MaterialInterior` extends `ImplicitlyAnimatedWidget`, whose own
-        // properties (`duration`, `curve`) the framework adds once waft-widgets has that body.
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
         properties.add(DiagnosticsProperty::<ShapeBorderRef>::new(
             "shape",
             self.shape.clone(),

@@ -3749,7 +3749,7 @@ impl StatefulWidget for AnimatedDefaultTextStyle {
             DiagnosticsProperty::<String>::new(
                 "textHeightBehavior",
                 self.text_height_behavior
-                    .map(crate::widgets::text::describe_text_height_behavior),
+                    .map(|behavior| behavior.to_string()),
             )
             .default_value(None),
         );

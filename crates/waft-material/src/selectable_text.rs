@@ -668,8 +668,7 @@ impl StatefulWidget for SelectableText {
 
     #[allow(deprecated)]
     fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        // Dart's `selectionControls`, `scrollBehavior` and `textHeightBehavior` lines wait for
-        // those types' `Display`.
+        // Dart's `selectionControls` line waits for that type's `Display`.
         properties
             .add(DiagnosticsProperty::<String>::new("data", self.data.clone()).default_value(None));
         properties.add(
@@ -743,6 +742,13 @@ impl StatefulWidget for SelectableText {
                 self.scroll_behavior
                     .as_ref()
                     .map(|behavior| format!("{behavior:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextHeightBehavior>::new(
+                "textHeightBehavior",
+                self.text_height_behavior,
             )
             .default_value(None),
         );
@@ -4138,8 +4144,7 @@ mod tests {
     }
 
     /// `selectable_text_test.dart`, "SelectableText implements debugFillProperties". The
-    /// `selectionControls` and `textHeightBehavior` lines are left out until those types have
-    /// a `Display`.
+    /// `selectionControls` line is left out until that type has a `Display`.
     #[test]
     fn a_selectable_text_describes_its_properties() {
         use std::rc::Rc;

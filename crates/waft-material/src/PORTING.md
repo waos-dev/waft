@@ -843,4 +843,4 @@ Ported against: 34b89b2086d4
 - menu_anchor.rs: `MenuAnchor`, `MenuBar` and `SubmenuButton` `debugDescribeChildren` (their `menuChildren`), because this port has no widget-level `debugDescribeChildren` hook; an element dump shows the built children. Trigger: a widget-level children hook in waft-widgets.
 - list_tile.rs, material_button.rs, menu_style.rs, input_decorator.rs: the `visualDensity` diagnostic line, and `StepStyle::index_style`'s default. Trigger: `VisualDensity`'s `Display` in theme_data.rs and a fallback `ThemeData` for `StepStyle`'s default.
 - list_tile.rs: the `onTap` and `onLongPress` diagnostic lines. Trigger: a `Display` for the port's callback types.
-- tooltip.rs, selectable_text.rs, text_field.rs: the `positionDelegate`, `selectionControls` and `textHeightBehavior` diagnostic lines. Trigger: a `Display` for those function and trait-object types.
+- tooltip.rs, selectable_text.rs, text_field.rs: the `positionDelegate` and `selectionControls` diagnostic lines. Trigger: a `Display` for those function and trait-object types.

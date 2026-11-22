@@ -45,16 +45,6 @@ use crate::widgets::selection_container::{
 };
 use crate::widgets::widget_span::WidgetSpan;
 
-/// Dart's `TextHeightBehavior.toString`, which the text widgets' dumps print.
-pub(crate) fn describe_text_height_behavior(behavior: TextHeightBehavior) -> String {
-    format!(
-        "TextHeightBehavior(applyHeightToFirstAscent: {}, applyHeightToLastDescent: {}, leadingDistribution: {})",
-        behavior.apply_height_to_first_ascent,
-        behavior.apply_height_to_last_descent,
-        waft_foundation::describe_enum(&behavior.leading_distribution),
-    )
-}
-
 // ---------------------------------------------------------------------------------------------
 // DefaultTextStyle
 
@@ -363,7 +353,8 @@ impl InheritedWidget for DefaultTextStyle {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "textHeightBehavior",
-                self.text_height_behavior.map(describe_text_height_behavior),
+                self.text_height_behavior
+                    .map(|behavior| behavior.to_string()),
             )
             .default_value(None),
         );
@@ -513,7 +504,7 @@ impl InheritedWidget for DefaultTextHeightBehavior {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "textHeightBehavior",
-                Some(describe_text_height_behavior(self.text_height_behavior)),
+                Some(self.text_height_behavior.to_string()),
             )
             .default_value(None),
         );
@@ -858,7 +849,8 @@ impl StatelessWidget for Text {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "textHeightBehavior",
-                self.text_height_behavior.map(describe_text_height_behavior),
+                self.text_height_behavior
+                    .map(|behavior| behavior.to_string()),
             )
             .default_value(None),
         );
@@ -2122,7 +2114,8 @@ impl RenderObjectWidget for RichText {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "textHeightBehavior",
-                self.text_height_behavior.map(describe_text_height_behavior),
+                self.text_height_behavior
+                    .map(|behavior| behavior.to_string()),
             )
             .default_value(None),
         );
