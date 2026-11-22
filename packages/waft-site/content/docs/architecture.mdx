@@ -115,25 +115,6 @@ An app runs on one main thread, and its async work runs there as tasks:
 - `app.run_in_background(work)` runs blocking or CPU-heavy work on a background thread and answers a task with the result.
 - A callback from outside the app, such as a system observer, hands work back to the main thread with `post` on the `AsyncApp` that `app.to_async()` returns.
 
-## Names that differ from Flutter
+## Coming from Flutter
 
-Waft keeps Flutter's names; what changes is what Rust needs:
-
-| Flutter | Waft |
-| --- | --- |
-| `Text('Hi', maxLines: 1)` | `Text::new("Hi").max_lines(1)`: a required argument is `new`'s, each named one a builder method |
-| `Expanded(child: list)` | `Expanded::new(list)`: a required child is `new`'s argument; an optional one is `.child(…)`, as `Padding::new(insets).child(text)` |
-| `children: [a, b]` | `.children([a.into_widget(), b.into_widget()])`: a child is a `WidgetRef`, which `.into_widget()` makes of any widget |
-| `EdgeInsets.all(12)`, `EdgeInsets.symmetric(vertical: 8, horizontal: 16)` | `EdgeInsetsGeometry::all(12.0)`, `EdgeInsetsGeometry::symmetric(8.0, 16.0)`, vertical first: `Padding` and `Container::padding` take an `EdgeInsetsGeometry`, and an `EdgeInsets` becomes one with `.into()` |
-| `size.width`, `offset.dx` | `size.width()`, `offset.dx()`: a Dart getter is a method |
-| `FontWeight.w600`, `FontWeight.bold`, `Alignment.center` | `FontWeight::W600`, `FontWeight::BOLD`, `Alignment::CENTER`: a constant is in capitals |
-| `Color(0xFF2196F3)` | `Color::new(0xFF2196F3)`, or `Color::from_argb(255, 33, 150, 243)` |
-| `onPressed: () { … }` | `Listener::new(…)` of a closure taking `app`; a callback handed a value, as a switch's, is a closure taking `app` and the value, not an `Rc` |
-| `Theme.of(context)` | `ThemeResources::of(app, context)`: every call is passed `app`, which holds all state |
-| `setState(() { … })` | `self.set_state(app, …)`, with a closure that changes the state |
-| a widget class | a struct that derives `Debug`, which every widget must, and implements `StatelessWidget` or `StatefulWidget` |
-| the `Listener` widget, for raw pointer events | `waft_widgets::Listener`, from the `waft-widgets` crate; `waft::Listener` is the callback |
-
-## Not in Waft
-
-`FutureBuilder` and `StreamBuilder` (a task and an entity do their work), `AnimatedList`, `InteractiveViewer`, the `Router`, and accessibility. A panic in `build` ends the program, where Flutter paints its red error box.
+How Flutter's code reads in Waft, and the traps a Flutter writer falls into, are on their own page: [Coming from Flutter](/docs/from-flutter).

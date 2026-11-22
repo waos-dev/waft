@@ -1,0 +1,119 @@
+---
+title: Coming from Flutter
+description: How Flutter's code reads in Waft, and the traps a Flutter writer falls into.
+---
+Waft keeps Flutter's names, so what you know of Flutter tells what a widget is and does. What changes is how a call is written in Rust. Read this page before writing Waft code; each trap below is one that compiles, or nearly does, and then does the wrong thing or costs a round of guessing.
+
+## How a call is written
+
+| Flutter | Waft |
+| --- | --- |
+| `Text('Hi', maxLines: 1)` | `Text::new("Hi").max_lines(1)`: `new` takes the required arguments, each named one is a builder method of the same name |
+| `Expanded(child: list)` | `Expanded::new(list)`: a required child is `new`'s argument; an optional one is `.child(…)`, as `Padding::new(insets).child(text)` |
+| `children: [a, b]` | `.children([a.into_widget(), b.into_widget()])`: a child is a `WidgetRef`, which `.into_widget()` makes of any widget |
+| `size.width`, `offset.dx` | `size.width()`, `offset.dx()`: a Dart getter is a method |
+| `FontWeight.w600`, `Alignment.center` | `FontWeight::W600`, `Alignment::CENTER`: a constant is in capitals |
+| `Color(0xFF2196F3)` | `Color::new(0xFF2196F3)`, or `Color::from_argb(255, 33, 150, 243)` |
+| `onPressed: () { … }` | `Listener::new(\|app\| …)` |
+| `onChanged: (value) { … }` | `Rc::new(\|app: &mut App, value: bool\| …)`: a `ValueChanged<T>` is an `Rc` of a closure taking `app` and the value |
+| `Theme.of(context)` | `Theme::of(app, context)` (Material), `CupertinoTheme::of(app, context)`, `ThemeResources::of(app, context)` (WinUI): every call is passed `app`, which holds all state |
+| `setState(() { … })` | `self.set_state(app, \|state\| …)` |
+| a widget class | a struct that derives `Debug`, which every widget must, and implements `StatelessWidget` or `StatefulWidget` |
+| the `Listener` widget, for raw pointer events | `waft_widgets::Listener`; `waft::Listener` is the callback |
+
+## Traps
+
+**Required arguments are positional, in the order Dart declares them, whatever order you would guess.** Dart's labels are gone, so read the signature:
+
+```rust
+IconButton::new(on_pressed, icon)          // Dart declares onPressed before icon
+FilledButton::new(on_pressed, child)
+Switch::new(value, on_changed)
+```
+
+**A required argument Dart lets be `null` is an `Option`:**
+
+```rust
+FilledButton::new(Some(Listener::new(|app| save(app))), Some(Text::new("Save")))
+Switch::new(on, None)                      // a switch that does nothing: shown disabled
+```
+
+**Insets and radii: name the sides.** `EdgeInsets::symmetric` and `only` are positional in Dart's declaration order, which differs between types: `EdgeInsets::symmetric(vertical, horizontal)` but `EdgeInsetsDirectional::symmetric(horizontal, vertical)`. A swap compiles. Write the sides by name instead:
+
+```rust
+EdgeInsets::ZERO.with_vertical(9.0).with_horizontal(12.0)    // not symmetric(9.0, 12.0)
+EdgeInsets::ZERO.with_left(16.0).with_bottom(8.0)            // not only(16.0, 0.0, 0.0, 8.0)
+EdgeInsets::all(16.0).with_top(0.0)
+```
+
+**`…Geometry` parameters take `.into()`.** `Padding`, `Container::padding`, `ClipRRect::border_radius` and `Align::alignment` take the geometry type, which holds either the plain or the directional value:
+
+```rust
+Padding::new(EdgeInsets::ZERO.with_horizontal(16.0).into())
+ClipRRect::new().border_radius(BorderRadius::circular(12.0).into())
+Align::new().alignment(Alignment::TOP_CENTER.into())
+```
+
+**Data classes whose getters are methods use `with_*` setters.** A `ColorScheme`, a `ThemeData` built from one, `EdgeInsets`:
+
+```rust
+ColorScheme::new(brightness, primary, on_primary, secondary, on_secondary, error, on_error, surface, on_surface)
+    .with_outline(separator)
+    .with_surface_container(surface)
+```
+
+**A value that depends on a widget's state** (hovered, pressed, selected) is a `WidgetStateProperty`:
+
+```rust
+<dyn WidgetStateProperty<Option<Color>>>::all(Some(white))
+<dyn WidgetStateProperty<Option<Color>>>::resolve_with(move |states| {
+    Some(if states.contains(&WidgetState::Selected) { accent } else { fill })
+})
+```
+
+**`TextStyle` is built with its setters,** since some of its fields are private:
+
+```rust
+TextStyle::new().font_size(15.0).font_weight(FontWeight::W600).color(label)
+```
+
+**A stateful widget** needs the nightly feature, a `StateData` field and the accessors macro; `build` takes a `Handle` to the state:
+
+```rust
+#![feature(arbitrary_self_types)]
+
+struct CounterState { state: StateData<Counter>, count: u32 }
+
+impl State for CounterState {
+    type Widget = Counter;
+    waft::state_accessors!();
+
+    fn build(self: Handle<Self>, app: &mut App, _context: BuildContext) -> WidgetRef {
+        let count = app.get(self).count;
+        FilledButton::new(
+            Some(Listener::new(move |app| self.set_state(app, |state| state.count += 1))),
+            Some(Text::new(format!("{count}"))),
+        )
+        .into_widget()
+    }
+}
+```
+
+**Lay out for the room you are given with `LayoutBuilder`, not `MediaQuery`.** `MediaQuery` tells the window's size, which is not the widget's when it sits in a frame, a pane or a dialog:
+
+```rust
+LayoutBuilder::new(|app, context, constraints| page(app, context, constraints.max_width))
+```
+
+**Material's icons need their font installed,** once `run_app` has made the font collection, in an app and in a test alike; without it every icon draws nothing, silently:
+
+```rust
+run_app_with(app, root, window);
+install_material_icon_font(app);
+```
+
+**To see what a widget paints in a test,** give the test platform the system's fonts and a GPU, then capture it: [Seeing what a widget paints](/docs/testing#seeing-what-a-widget-paints).
+
+## Not in Waft
+
+`FutureBuilder` and `StreamBuilder` (a task and an entity do their work), `AnimatedList`, `InteractiveViewer`, the `Router`, and accessibility. A panic in `build` ends the program, where Flutter paints its red error box.
