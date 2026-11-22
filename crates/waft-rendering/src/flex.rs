@@ -9,7 +9,7 @@ use std::ops::Add;
 use waft_embedder::{Clip, Offset, Size, TextBaseline, TextDirection};
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DoubleProperty, EnumProperty, Handle,
-    PRECISION_ERROR_TOLERANCE,
+    PRECISION_ERROR_TOLERANCE, describe_enum, display_or_null,
 };
 use waft_painting::{Axis, VerticalDirection};
 
@@ -157,6 +157,13 @@ pub enum FlexFit {
     Loose,
 }
 
+/// Dart's enum `toString`: `FlexFit.tight`.
+impl fmt::Display for FlexFit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "FlexFit.{}", describe_enum(self))
+    }
+}
+
 /// Parent data for use with [`RenderFlex`].
 #[derive(Debug)]
 pub struct FlexParentData {
@@ -244,8 +251,10 @@ impl fmt::Display for FlexParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}; flex={:?}; fit={:?}",
-            self.box_parent_data, self.flex, self.fit
+            "{}; flex={}; fit={}",
+            self.box_parent_data,
+            display_or_null(&self.flex),
+            display_or_null(&self.fit)
         )
     }
 }
@@ -1983,6 +1992,23 @@ mod tests {
         EnginePhase, ignoring_hash_codes, layout, layout_with, painted_ops, pump_frame,
     };
     use waft_embedder::valo::Op;
+
+    /// A flex child's parent data reads as Dart's `toString`: `null` for what is unset, and an
+    /// enum by its type and case.
+    #[test]
+    fn flex_parent_data_reads_as_darts() {
+        let mut parent_data = FlexParentData::default();
+        assert_eq!(
+            parent_data.to_string(),
+            "offset=Offset(0.0, 0.0); flex=null; fit=null"
+        );
+        parent_data.flex = Some(2);
+        parent_data.fit = Some(FlexFit::Tight);
+        assert_eq!(
+            parent_data.to_string(),
+            "offset=Offset(0.0, 0.0); flex=2; fit=FlexFit.tight"
+        );
+    }
 
     /// `flex_test.dart`: "Defaults".
     #[test]

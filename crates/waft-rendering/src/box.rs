@@ -1033,7 +1033,7 @@ impl ParentData for BoxParentData {
 
 impl fmt::Display for BoxParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "offset={:?}", self.offset)
+        write!(f, "offset={}", self.offset)
     }
 }
 

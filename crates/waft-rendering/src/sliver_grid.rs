@@ -7,6 +7,7 @@ use std::rc::Rc;
 use waft_embedder::{Matrix4, Offset};
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle, PRECISION_ERROR_TOLERANCE,
+    display_or_null,
 };
 use waft_painting::axis_direction_is_reversed;
 
@@ -600,8 +601,9 @@ impl Display for SliverGridParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "crossAxisOffset={:?}; {}",
-            self.cross_axis_offset, self.adaptor
+            "crossAxisOffset={}; {}",
+            display_or_null(&self.cross_axis_offset.map(|offset| format!("{offset:?}"))),
+            self.adaptor
         )
     }
 }

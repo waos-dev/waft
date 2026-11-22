@@ -10,7 +10,7 @@ use indexmap::IndexMap;
 use waft_embedder::{Matrix4, Offset};
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
-    DiagnosticsTreeStyle, Handle, message,
+    DiagnosticsTreeStyle, Handle, display_or_null, message,
 };
 use waft_painting::{Axis, AxisDirection};
 
@@ -273,7 +273,7 @@ impl ContainerParentDataMixin for SliverMultiBoxAdaptorParentData {
 
 impl Display for SliverMultiBoxAdaptorParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "index={:?}; ", self.index)?;
+        write!(f, "index={}; ", display_or_null(&self.index))?;
         if self.keep_alive() {
             f.write_str("keepAlive; ")?;
         }

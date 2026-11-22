@@ -3981,5 +3981,22 @@ pub fn debug_format_double(value: Option<f64>) -> String {
     }
 }
 
+/// Dart's string interpolation of a nullable value, `'$value'`: the value's `Display`, or
+/// `null`.
+pub fn display_or_null<T: fmt::Display>(value: &Option<T>) -> impl fmt::Display + '_ {
+    DisplayOrNull(value)
+}
+
+struct DisplayOrNull<'a, T>(&'a Option<T>);
+
+impl<T: fmt::Display> fmt::Display for DisplayOrNull<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(value) => value.fmt(f),
+            None => f.write_str("null"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

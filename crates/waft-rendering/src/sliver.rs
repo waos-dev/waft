@@ -1041,7 +1041,7 @@ impl ParentData for SliverPhysicalParentData {
 
 impl Display for SliverPhysicalParentData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "paintOffset={:?}", self.paint_offset)
+        write!(f, "paintOffset={}", self.paint_offset)
     }
 }
 
