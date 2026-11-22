@@ -346,6 +346,21 @@ pub trait RenderObjectWithChildMixin: RenderObject {
         self.child_data(app).child
     }
 
+    /// Flutter's `RenderObjectWithChildMixin.debugDescribeChildren`: the child, named `child`.
+    /// A class with this mixin answers [`RenderObject::debug_describe_children`] with it.
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        self.child(app)
+            .map(|child| {
+                Rc::new(child.as_object().to_diagnostics_node(app, "child"))
+                    as Rc<dyn DiagnosticsNode>
+            })
+            .into_iter()
+            .collect()
+    }
+
     /// Sets the unique child, adopting or dropping as Flutter's setter does.
     fn set_child(self: RenderHandle<Self>, app: &mut App, value: Option<Self::ChildType>) {
         if let Some(old) = self.child(app) {
@@ -504,6 +519,21 @@ pub trait ContainerRenderObjectMixin: RenderObject {
     /// The first child in the child list.
     fn first_child(self: RenderHandle<Self>, app: &App) -> Option<Self::ChildType> {
         self.container_data(app).first_child
+    }
+
+    /// Flutter's `ContainerRenderObjectMixin.debugDescribeChildren`: the children in order,
+    /// named `child 1`, `child 2`, …. A class with this mixin answers
+    /// [`RenderObject::debug_describe_children`] with it.
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let mut children: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        ContainerRenderObjectMixin::visit_children(self, app, &mut |child| {
+            let name = format!("child {}", children.len() + 1);
+            children.push(Rc::new(child.to_diagnostics_node(app, name)));
+        });
+        children
     }
 
     /// The last child in the child list.
@@ -1004,6 +1034,19 @@ pub trait RenderObject: 'static + Sized {
         false
     }
 
+    /// Dart's `super.debugFillProperties` as a class's override calls it: `RenderObject`'s
+    /// properties, then `RenderBox`'s or `RenderSliver`'s, which the framework adds before
+    /// [`debug_fill_properties`](Self::debug_fill_properties). A class whose Dart override leaves
+    /// the super call out, as `RenderView`'s does, overrides this to add nothing.
+    fn debug_fill_base_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        self.as_render_object(app)
+            .fill_base_properties(app, properties);
+    }
+
     /// Dart's `debugFillProperties`: the properties this class shows in a dump, after its base
     /// classes'. A trait default cannot call `super`, so the framework adds `RenderObject`'s and
     /// `RenderBox`'s or `RenderSliver`'s properties first and an override adds only its own,
@@ -1289,6 +1332,7 @@ pub(crate) struct RenderObjectVTable {
     pub interface: fn(HandleId, TypeId) -> Option<Box<dyn Any>>,
     pub paint: fn(&mut App, HandleId, &mut PaintingContext, Offset),
     pub dispose: fn(&mut App, HandleId),
+    pub debug_fill_base_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
     pub debug_fill_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
     pub debug_describe_children: fn(&App, HandleId) -> Vec<Rc<dyn DiagnosticsNode>>,
     /// The Rust type's path, which a dump names the object by, as Dart's `runtimeType`.
@@ -1338,6 +1382,9 @@ impl RenderObjectVTable {
             interface: |id, interface| T::interface(resolve(id), interface),
             paint: |app, id, context, offset| T::paint(resolve(id), app, context, offset),
             dispose: |app, id| T::dispose(resolve(id), app),
+            debug_fill_base_properties: |app, id, properties| {
+                T::debug_fill_base_properties(resolve(id), app, properties)
+            },
             debug_fill_properties: |app, id, properties| {
                 T::debug_fill_properties(resolve(id), app, properties)
             },
@@ -1434,7 +1481,7 @@ impl AnyRenderObject {
         name: impl IntoPropertyName,
     ) -> DiagnosticableTreeNode {
         let mut properties = DiagnosticPropertiesBuilder::new();
-        self.debug_fill_base_properties(app, &mut properties);
+        (self.vtable.debug_fill_base_properties)(app, self.id, &mut properties);
         (self.vtable.debug_fill_properties)(app, self.id, &mut properties);
         let children = (self.vtable.debug_describe_children)(app, self.id);
         DiagnosticableTreeNode::from_parts(name, self.to_string_short(app), properties, children)
@@ -1453,8 +1500,12 @@ impl AnyRenderObject {
     }
 
     /// The properties `RenderObject`'s `debugFillProperties` adds, then `RenderBox`'s or
-    /// `RenderSliver`'s.
-    fn debug_fill_base_properties(self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+    /// `RenderSliver`'s: [`RenderObject::debug_fill_base_properties`]'s default.
+    pub(crate) fn fill_base_properties(
+        self,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
         let data = self.data(app);
         properties.add(
             FlagProperty::new("needsCompositing", data.needs_compositing)
