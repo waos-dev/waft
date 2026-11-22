@@ -405,6 +405,13 @@ impl Debug for GradientRef {
     }
 }
 
+/// Dart's `Gradient.toString`, which the inner gradient's [`Debug`] already renders.
+impl fmt::Display for GradientRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 impl PartialEq for dyn Gradient {
     fn eq(&self, other: &dyn Gradient) -> bool {
         self.eq_gradient(other)

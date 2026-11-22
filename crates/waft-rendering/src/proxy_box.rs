@@ -2234,10 +2234,10 @@ impl RenderObject for RenderDecoratedBox {
         properties: &mut DiagnosticPropertiesBuilder,
     ) {
         let this = self.get(app);
-        properties.add(DiagnosticsProperty::<String>::new(
-            "decoration",
-            Some(format!("{:?}", this.decoration)),
-        ));
+        properties.add(
+            this.decoration
+                .diagnostics_node(Some("decoration".to_string())),
+        );
         properties.add(DiagnosticsProperty::<ImageConfiguration>::new(
             "configuration",
             Some(this.configuration.clone()),
@@ -10232,6 +10232,34 @@ mod tests {
             Some(child.as_box()),
         );
         assert!(parent.as_object().paints_child(&app, child.as_object()));
+    }
+
+    /// `box_test.dart` 'should not have a 0 sized colored Box'.
+    #[test]
+    fn a_decorated_box_dump_shows_its_decoration() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let decorated = RenderDecoratedBox::new(
+            &mut app,
+            DecorationRef::new(BoxDecoration::new()),
+            DecorationPosition::Background,
+            ImageConfiguration::EMPTY,
+            None,
+        );
+        assert_eq!(
+            ignoring_hash_codes(
+                &decorated
+                    .as_object()
+                    .to_string_deep_with(&app, waft_foundation::DiagnosticLevel::Info)
+            ),
+            "RenderDecoratedBox#00000 NEEDS-LAYOUT NEEDS-PAINT DETACHED\n\
+             \u{20}  parentData: MISSING\n\
+             \u{20}  constraints: MISSING\n\
+             \u{20}  size: MISSING\n\
+             \u{20}  decoration: BoxDecoration:\n\
+             \u{20}    <no decorations specified>\n\
+             \u{20}  configuration: ImageConfiguration()\n"
+        );
     }
 
     #[test]

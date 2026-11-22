@@ -14,8 +14,8 @@ use waft_embedder::{
     TextDirection, TextHeightBehavior, TextPosition, TextRange, TextSelection, clamp_double,
 };
 use waft_foundation::{
-    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, IntProperty, Listener,
-    ValueNotifier,
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle,
+    Handle, IntProperty, Listener, ValueNotifier,
 };
 use waft_gestures::TapDownDetails;
 use waft_painting::{
@@ -1946,14 +1946,19 @@ impl RenderObject for RenderEditable {
         ));
     }
 
-    /// Dart's `debugDescribeChildren` shows the text, not the inline widget children; the text
-    /// node waits for painting's inline-span diagnostics, so this shows none yet.
+    /// Dart's `debugDescribeChildren` shows the text, not the inline widget children.
     fn debug_describe_children(
         self: RenderHandle<Self>,
-        _app: &App,
-    ) -> Vec<std::rc::Rc<dyn waft_foundation::DiagnosticsNode>> {
-        let _ = self;
-        Vec::new()
+        app: &App,
+    ) -> Vec<std::rc::Rc<dyn DiagnosticsNode>> {
+        let this = self.get(app);
+        match this.text_painter.text() {
+            Some(text) => vec![std::rc::Rc::new(text.diagnostics_node(
+                Some("text".to_string()),
+                Some(DiagnosticsTreeStyle::Transition),
+            )) as std::rc::Rc<dyn DiagnosticsNode>],
+            None => Vec::new(),
+        }
     }
 
     fn visit_children(
@@ -2420,6 +2425,47 @@ mod tests {
             EnginePhase::Layout,
         );
         editable
+    }
+
+    /// `editable_intrinsics_test.dart` "editable intrinsics": the text child of a dump.
+    #[test]
+    fn an_editable_dump_shows_its_text() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let delegate = app.create(TestDelegate::default());
+        let start = LayerLink::new(&mut app);
+        let end = LayerLink::new(&mut app);
+        let offset = FixedViewportOffset::zero(&mut app).erase();
+        let editable = RenderEditable::new(
+            &mut app,
+            TextDirection::Ltr,
+            start,
+            end,
+            offset,
+            delegate.as_text_selection_delegate(),
+        );
+        editable.set_text(
+            &mut app,
+            Some(
+                TextSpan::new()
+                    .text("12345")
+                    .style(TextStyle::new().height(1.0).font_size(10.0))
+                    .into_span(),
+            ),
+        );
+        let dump = editable.as_object().to_string_deep(&app);
+        assert!(
+            dump.ends_with(
+                " ╘═╦══ text ═══\n\
+                 \u{20}\u{20} ║ TextSpan:\n\
+                 \u{20}\u{20} ║   inherit: true\n\
+                 \u{20}\u{20} ║   size: 10.0\n\
+                 \u{20}\u{20} ║   height: 1.0x\n\
+                 \u{20}\u{20} ║   \"12345\"\n\
+                 \u{20}\u{20} ╚═══════════\n"
+            ),
+            "{dump}"
+        );
     }
 
     #[test]

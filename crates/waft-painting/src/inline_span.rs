@@ -8,6 +8,10 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use waft_embedder::{ParagraphBuilder, TextPosition};
+use waft_foundation::{
+    DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticableTreeNode, DiagnosticsNode,
+    DiagnosticsTreeStyle, short_type_name,
+};
 use waft_gestures::HitTestTarget;
 
 use crate::basic_types::RenderComparison;
@@ -215,6 +219,62 @@ pub trait InlineSpan: Debug {
 
     /// Dart's `==`: deep equality on the same span class.
     fn eq_span(&self, other: &dyn InlineSpan) -> bool;
+
+    /// Dart's `InlineSpan.debugFillProperties`, inherited from `Diagnosticable`: the tree
+    /// style and the span's style.
+    ///
+    /// Dart's `debugFillProperties` lives on `Diagnosticable`, whose `Self: Sized` bound a
+    /// `dyn InlineSpan` cannot meet; a concrete span delegates its own diagnostics here.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Whitespace;
+        if let Some(style) = self.style() {
+            Diagnosticable::debug_fill_properties(style, properties);
+        }
+    }
+
+    /// Dart's `InlineSpan.debugDescribeChildren`, inherited from `DiagnosticableTree`.
+    fn debug_describe_children(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
+        Vec::new()
+    }
+
+    /// Dart's `InlineSpan.toDiagnosticsNode(name:, style:)`, inherited from
+    /// `Diagnosticable`; a `dyn InlineSpan` answers through this method.
+    fn diagnostics_node(
+        &self,
+        name: Option<String>,
+        style: Option<DiagnosticsTreeStyle>,
+    ) -> DiagnosticableTreeNode {
+        let mut builder = DiagnosticPropertiesBuilder::new();
+        self.debug_fill_properties(&mut builder);
+        let mut node = DiagnosticableTreeNode::from_parts(
+            name,
+            self.to_string_short(),
+            builder,
+            self.debug_describe_children(),
+        );
+        if let Some(style) = style {
+            node = node.with_style(style);
+        }
+        node
+    }
+
+    /// Dart's `Diagnosticable.toStringShort` for this span: the type name, as Dart prints
+    /// `runtimeType`.
+    fn to_string_short(&self) -> String {
+        short_type_name(std::any::type_name::<Self>()).to_string()
+    }
+}
+
+/// Dart's `InlineSpan.debugFillProperties`: the whitespace tree style, then the span's
+/// style's own properties.
+pub fn inline_span_debug_fill_properties(
+    span: &dyn InlineSpan,
+    properties: &mut DiagnosticPropertiesBuilder,
+) {
+    properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Whitespace;
+    if let Some(style) = span.style() {
+        Diagnosticable::debug_fill_properties(style, properties);
+    }
 }
 
 impl PartialEq for dyn InlineSpan {

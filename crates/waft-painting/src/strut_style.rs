@@ -1,9 +1,15 @@
 //! Flutter counterpart: `painting/strut_style.dart`.
 
 use std::fmt::{self, Debug};
+use std::rc::Rc;
 
 use waft_embedder::StrutStyle as UiStrutStyle;
 use waft_embedder::{FontStyle, FontWeight, TextLeadingDistribution};
+use waft_foundation::{
+    DiagnosticLevel, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsNode,
+    DiagnosticsProperty, DoubleProperty, EnumProperty, FlagProperty, IterableProperty,
+    MessageProperty, StringProperty,
+};
 
 use crate::basic_types::RenderComparison;
 use crate::text_scaler::TextScaler;
@@ -379,23 +385,101 @@ impl PartialEq for StrutStyle {
     }
 }
 
+impl Diagnosticable for StrutStyle {
+    fn to_string_short(&self) -> String {
+        "StrutStyle".to_string()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.debug_fill_properties_with_prefix(properties, "");
+    }
+}
+
+impl StrutStyle {
+    /// Dart's `debugFillProperties(properties, {String prefix = ''})`.
+    pub fn debug_fill_properties_with_prefix(
+        &self,
+        properties: &mut DiagnosticPropertiesBuilder,
+        prefix: &str,
+    ) {
+        if let Some(debug_label) = &self.debug_label {
+            properties.add(MessageProperty::new(
+                format!("{prefix}debugLabel"),
+                debug_label.clone(),
+            ));
+        }
+        let mut styles: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        styles.push(Rc::new(
+            StringProperty::new(format!("{prefix}family"), self.font_family.clone())
+                .default_value(None)
+                .quoted(false),
+        ));
+        styles.push(Rc::new(
+            IterableProperty::<String>::new(
+                format!("{prefix}familyFallback"),
+                self.font_family_fallback_list(),
+            )
+            .default_value(None),
+        ));
+        styles.push(Rc::new(
+            DoubleProperty::new(format!("{prefix}size"), self.font_size).default_value(None),
+        ));
+        let weight_description = self
+            .font_weight
+            .map(|font_weight| format!("w{}00", font_weight.index() + 1));
+        let mut weight =
+            DiagnosticsProperty::<FontWeight>::new(format!("{prefix}weight"), self.font_weight)
+                .default_value(None);
+        if let Some(weight_description) = weight_description {
+            weight = weight.description(weight_description);
+        }
+        styles.push(Rc::new(weight));
+        styles.push(Rc::new(
+            EnumProperty::<FontStyle>::new(format!("{prefix}style"), self.font_style)
+                .default_value(None),
+        ));
+        styles.push(Rc::new(
+            DoubleProperty::new(format!("{prefix}height"), self.height)
+                .unit("x")
+                .default_value(None),
+        ));
+        styles.push(Rc::new(
+            FlagProperty::new(format!("{prefix}forceStrutHeight"), self.force_strut_height)
+                .default_value(None)
+                .if_true(format!("{prefix}<strut height forced>"))
+                .if_false(format!("{prefix}<strut height normal>")),
+        ));
+        if self.height.is_some() {
+            styles.push(Rc::new(
+                EnumProperty::<TextLeadingDistribution>::new(
+                    format!("{prefix}leadingDistribution"),
+                    self.leading_distribution,
+                )
+                .default_value(None),
+            ));
+        }
+
+        let style_specified = styles
+            .iter()
+            .any(|node| !node.is_filtered(DiagnosticLevel::Info));
+        for style in styles {
+            properties.add_rc(style);
+        }
+
+        if !style_specified {
+            properties.add(
+                FlagProperty::new(format!("{prefix}forceStrutHeight"), self.force_strut_height)
+                    .default_value(None)
+                    .if_true(format!("{prefix}<strut height forced>"))
+                    .if_false(format!("{prefix}<strut height normal>")),
+            );
+        }
+    }
+}
+
 impl Debug for StrutStyle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut s = f.debug_struct("StrutStyle");
-        if cfg!(debug_assertions) {
-            s.field("debug_label", &self.debug_label);
-        }
-        s.field("family", &self.font_family)
-            .field("family_fallback", &self.font_family_fallback_list())
-            .field("size", &self.font_size)
-            .field("weight", &self.font_weight)
-            .field("style", &self.font_style)
-            .field("height", &self.height)
-            .field("force_strut_height", &self.force_strut_height);
-        if self.height.is_some() {
-            s.field("leading_distribution", &self.leading_distribution);
-        }
-        s.finish()
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 
@@ -515,13 +599,13 @@ impl FromTextStyle<'_> {
 mod tests {
     use super::*;
 
-    /// Dart's `strut_style_test.dart`. Its `toString` assertions are diagnostics-only: Rust
-    /// formats with `Debug`, so they are not ported.
+    /// Dart's `strut_style_test.dart` "StrutStyle diagnostics test".
     #[test]
     fn strut_style_diagnostics_test() {
         let s0 = StrutStyle::new().font_family("Serif").font_size(14.0);
         assert_eq!(s0.font_family.as_deref(), Some("Serif"));
         assert_eq!(s0.font_size, Some(14.0));
+        assert_eq!(format!("{s0:?}"), "StrutStyle(family: Serif, size: 14.0)");
 
         let s1 = StrutStyle::new()
             .font_family("Serif")
@@ -530,19 +614,46 @@ mod tests {
         assert_eq!(s1.font_family.as_deref(), Some("Serif"));
         assert_eq!(s1.font_size, Some(14.0));
         assert_eq!(s1, s1.clone());
+        assert_eq!(
+            format!("{s1:?}"),
+            "StrutStyle(family: Serif, size: 14.0, <strut height forced>)"
+        );
 
         let s2 = StrutStyle::new()
             .font_family("Serif")
             .font_size(14.0)
             .force_strut_height(false);
         assert_eq!(s2.force_strut_height, Some(false));
+        assert_eq!(
+            format!("{s2:?}"),
+            "StrutStyle(family: Serif, size: 14.0, <strut height normal>)"
+        );
+
+        let s3 = StrutStyle::new();
+        assert_eq!(format!("{s3:?}"), "StrutStyle");
+
+        let s4 = StrutStyle::new().force_strut_height(false);
+        assert_eq!(format!("{s4:?}"), "StrutStyle(<strut height normal>)");
+
+        let s5 = StrutStyle::new().force_strut_height(true);
+        assert_eq!(format!("{s5:?}"), "StrutStyle(<strut height forced>)");
 
         let s6 = StrutStyle::new()
             .height(14.0)
             .leading_distribution(TextLeadingDistribution::Even);
+        assert_eq!(
+            format!("{s6:?}"),
+            "StrutStyle(height: 14.0x, leadingDistribution: even)"
+        );
+
         let s7 = StrutStyle::new()
             .height(14.0)
             .leading_distribution(TextLeadingDistribution::Proportional);
+        assert_eq!(
+            format!("{s7:?}"),
+            "StrutStyle(height: 14.0x, leadingDistribution: proportional)"
+        );
+
         assert_ne!(s6, s7);
     }
 

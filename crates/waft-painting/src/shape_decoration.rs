@@ -5,7 +5,10 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 use waft_embedder::{Canvas, Offset, Paint};
 use waft_embedder::{Path, Rect, Size};
-use waft_foundation::{App, VoidCallback};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty, DiagnosticsTreeStyle,
+    IterableProperty, VoidCallback,
+};
 
 use crate::basic_types::TextDirection;
 use crate::borders::{BorderSide, BorderStyle, ShapeBorderRef};
@@ -13,7 +16,7 @@ use crate::box_border::{Border, BoxShape};
 use crate::box_decoration::BoxDecoration;
 use crate::box_shadow::BoxShadow;
 use crate::circle_border::CircleBorder;
-use crate::colors::AnyColor;
+use crate::colors::{AnyColor, ColorProperty};
 use crate::decoration::{BoxPainter, Decoration, DecorationRef};
 use crate::edge_insets::EdgeInsetsGeometry;
 use crate::gradient::GradientRef;
@@ -264,6 +267,10 @@ impl PartialEq for ShapeDecoration {
 }
 
 impl Decoration for ShapeDecoration {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        Diagnosticable::debug_fill_properties(self, properties);
+    }
+
     fn padding(&self) -> EdgeInsetsGeometry {
         self.shape.dimensions()
     }
@@ -342,14 +349,44 @@ impl Decoration for ShapeDecoration {
     }
 }
 
+impl Diagnosticable for ShapeDecoration {
+    fn to_string_short(&self) -> String {
+        "ShapeDecoration".to_string()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Whitespace;
+        properties.add(
+            ColorProperty::new("color", self.color.as_ref().map(|color| **color))
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<GradientRef>::new("gradient", self.gradient.clone())
+                .default_value(None),
+        );
+        // Dart's `DiagnosticsProperty<DecorationImage>('image', image, defaultValue: null)`
+        // waits with `DecorationImage`; see `PORTING.md`.
+        properties.add(
+            IterableProperty::<BoxShadow>::new("shadows", self.shadows.clone())
+                .default_value(None)
+                .with_style(DiagnosticsTreeStyle::Whitespace),
+        );
+        properties.add(DiagnosticsProperty::<ShapeBorderRef>::new(
+            "shape",
+            Some(self.shape.clone()),
+        ));
+    }
+}
+
 impl Debug for ShapeDecoration {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct("ShapeDecoration")
-            .field("color", &self.color)
-            .field("gradient", &self.gradient)
-            .field("shadows", &self.shadows)
-            .field("shape", &self.shape)
-            .finish()
+        f.write_str(&Diagnosticable::to_string(self))
+    }
+}
+
+impl std::fmt::Display for ShapeDecoration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(self, f)
     }
 }
 
@@ -530,6 +567,7 @@ impl Debug for ShapeDecorationPainter {
 mod tests {
     use super::*;
     use waft_embedder::Color;
+    use waft_foundation::DiagnosticsNode;
 
     use waft_embedder::Radius;
 
@@ -813,5 +851,27 @@ mod tests {
         assert!(!contains(&clip_path, 1.0, 1.0));
         assert!(!contains(&clip_path, 15.0, 1.0));
         assert!(!contains(&clip_path, 99.0, 19.0));
+    }
+
+    #[test]
+    fn a_shape_decorations_node_lists_its_shape() {
+        let decoration = ShapeDecoration::new(CircleBorder::new(BorderSide::NONE, 0.0));
+        assert_eq!(
+            decoration
+                .diagnostics_node(Some("decoration".to_string()))
+                .to_string_deep_with(
+                    "  ",
+                    None,
+                    None,
+                    waft_foundation::DiagnosticLevel::Info,
+                    640
+                ),
+            "  decoration: ShapeDecoration:\n  shape: CircleBorder(BorderSide(width: 0.0, style: none))\n"
+        );
+        assert_eq!(Decoration::to_string_short(&decoration), "ShapeDecoration");
+        assert_eq!(
+            Diagnosticable::to_string(&decoration),
+            "ShapeDecoration(shape: CircleBorder(BorderSide(width: 0.0, style: none)))"
+        );
     }
 }

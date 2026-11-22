@@ -14,8 +14,9 @@ use waft_embedder::{
     TextDirection, TextHeightBehavior, TextPosition, TextRange, TextSelection,
 };
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsProperty,
-    DoubleProperty, EnumProperty, FlagProperty, Handle, IntProperty, Ref,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsNode,
+    DiagnosticsProperty, DiagnosticsTreeStyle, DoubleProperty, EnumProperty, FlagProperty, Handle,
+    IntProperty, Ref,
 };
 use waft_painting::{
     ClipContext, InlineSpanRef, PaintingBinding, PlaceholderDimensions, PlaceholderSpan,
@@ -1122,14 +1123,19 @@ impl RenderObject for RenderParagraph {
         );
     }
 
-    /// Dart's `debugDescribeChildren` shows the text, not the inline widget children; the text
-    /// node waits for painting's inline-span diagnostics, so this shows none yet.
+    /// Dart's `debugDescribeChildren` shows the text, not the inline widget children.
     fn debug_describe_children(
         self: RenderHandle<Self>,
-        _app: &App,
-    ) -> Vec<std::rc::Rc<dyn waft_foundation::DiagnosticsNode>> {
-        let _ = self;
-        Vec::new()
+        app: &App,
+    ) -> Vec<std::rc::Rc<dyn DiagnosticsNode>> {
+        let this = self.get(app);
+        match this.text_painter.text() {
+            Some(text) => vec![std::rc::Rc::new(text.diagnostics_node(
+                Some("text".to_string()),
+                Some(DiagnosticsTreeStyle::Transition),
+            )) as std::rc::Rc<dyn DiagnosticsNode>],
+            None => Vec::new(),
+        }
     }
 
     fn visit_children(
@@ -3803,31 +3809,37 @@ mod tests {
         EnginePhase, ignoring_hash_codes, layout_with, pump_frame, test_render_root,
     };
 
-    /// `paragraph_test.dart`: "toStringDeep". The `locale` line and the text child wait for
-    /// painting's locale and diagnostics; see `PORTING.md`.
+    /// `paragraph_test.dart`: "toStringDeep".
     #[test]
     fn a_paragraph_dump_shows_its_text_layout() {
         let cell = AppCell::new();
         let mut app = cell.borrow_mut();
         let paragraph = RenderParagraph::new(
             &mut app,
-            span(
-                "I polished up that handle so carefullee\nThat now I am the Ruler of the Queen's Navee!",
-            ),
+            TextSpan::new()
+                .text(
+                    "I polished up that handle so carefullee\nThat now I am the Ruler of the Queen's Navee!",
+                )
+                .into_span(),
             TextDirection::Ltr,
             None,
         );
         assert_eq!(
             ignoring_hash_codes(&paragraph.as_object().to_string_deep(&app)),
             "RenderParagraph#00000 NEEDS-LAYOUT NEEDS-PAINT DETACHED\n\
-             \u{20}  parentData: MISSING\n\
-             \u{20}  constraints: MISSING\n\
-             \u{20}  size: MISSING\n\
-             \u{20}  textAlign: start\n\
-             \u{20}  textDirection: ltr\n\
-             \u{20}  softWrap: wrapping at box width\n\
-             \u{20}  overflow: clip\n\
-             \u{20}  maxLines: unlimited\n"
+             \u{20}│ parentData: MISSING\n\
+             \u{20}│ constraints: MISSING\n\
+             \u{20}│ size: MISSING\n\
+             \u{20}│ textAlign: start\n\
+             \u{20}│ textDirection: ltr\n\
+             \u{20}│ softWrap: wrapping at box width\n\
+             \u{20}│ overflow: clip\n\
+             \u{20}│ maxLines: unlimited\n\
+             \u{20}╘═╦══ text ═══\n\
+             \u{20}\u{20} ║ TextSpan:\n\
+             \u{20}\u{20} ║   \"I polished up that handle so carefullee\n\
+             \u{20}\u{20} ║   That now I am the Ruler of the Queen's Navee!\"\n\
+             \u{20}\u{20} ╚═══════════\n"
         );
     }
 
