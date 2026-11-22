@@ -7,8 +7,9 @@ use std::rc::Rc;
 
 use waft_embedder::{Clip, Matrix4, Offset, Size, TextDirection};
 use waft_foundation::{
-    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsTreeStyle, EnumProperty, Handle,
-    IntProperty, ListenableObject, Listener, OptionRetained, Retained, ValueNotifier, message,
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle,
+    EnumProperty, Handle, IntProperty, ListenableObject, Listener, OptionRetained, Retained,
+    ValueNotifier, message,
 };
 use waft_painting::{Alignment, AlignmentGeometry};
 use waft_rendering::{
@@ -962,6 +963,23 @@ impl State for OverlayState {
 
     crate::state_accessors!();
 
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let entries: Vec<String> = app
+            .get(self)
+            .entries
+            .iter()
+            .map(|entry| format!("{:?}", app.get(entry.handle())))
+            .collect();
+        properties.add(DiagnosticsProperty::<String>::new(
+            "entries",
+            Some(format!("[{}]", entries.join(", "))),
+        ));
+    }
+
     fn init_state(self: Handle<Self>, app: &mut App) {
         let initial = self.widget(app).initial_entries.clone();
         self.insert_all(app, initial, None, None);
@@ -1137,6 +1155,13 @@ struct Theater {
 
 impl RenderObjectWidget for Theater {
     type RenderObject = RenderTheater;
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(IntProperty::<usize>::new(
+            "skipCount",
+            Some(self.skip_count),
+        ));
+    }
 
     fn debug_check_constructor(&self) {
         debug_assert!(self.children.len() >= self.skip_count);
@@ -3231,6 +3256,38 @@ impl Element for RawOverlayPortalElement {
     crate::element_accessors!();
 
     const IS_RENDER_OBJECT_ELEMENT: bool = true;
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "child",
+                state.child.map(|child| child.to_string_short(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "overlayChild",
+                state.overlay_child.map(|child| child.to_string_short(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "overlayLocation",
+                state
+                    .overlay_child
+                    .and_then(|child| child.slot(app))
+                    .map(|slot| format!("{slot:?}")),
+            )
+            .default_value(None),
+        );
+    }
 
     fn render_object(self: Handle<Self>, app: &App) -> Option<AnyRenderObject> {
         self.render_object_element_data(app).render_object()

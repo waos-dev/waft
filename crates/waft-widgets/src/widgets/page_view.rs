@@ -12,8 +12,9 @@ use std::time::Duration;
 use waft_animation::Curve;
 use waft_embedder::{Clip, clamp_double};
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, CompleterFuture, Handle, OptionRetained,
-    PRECISION_ERROR_TOLERANCE, ValueChanged,
+    App, ChangeNotifier, ChangeNotifierData, CompleterFuture, DiagnosticPropertiesBuilder,
+    DiagnosticsProperty, EnumProperty, FlagProperty, Handle, OptionRetained,
+    PRECISION_ERROR_TOLERANCE, ValueChanged, describe_identity,
 };
 use waft_gestures::DragStartBehavior;
 use waft_painting::{Axis, AxisDirection, flip_axis_direction, text_direction_to_axis_direction};
@@ -1541,6 +1542,62 @@ impl PageViewState {
 impl State for PageViewState {
     type Widget = PageView;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let widget = self.widget(app);
+        properties.add(EnumProperty::new(
+            "scrollDirection",
+            widget.scroll_direction,
+        ));
+        properties.add(FlagProperty::new("reverse", Some(widget.reverse)).if_true("reversed"));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "controller",
+                app.get(self).controller.as_ref().map(|controller| {
+                    describe_identity("PageController", controller.id().identity_hash())
+                }),
+            )
+            .with_show_name(false),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "physics",
+                widget
+                    .physics
+                    .as_ref()
+                    .map(|physics| format!("{physics:?}")),
+            )
+            .with_show_name(false),
+        );
+        properties.add(
+            FlagProperty::new("pageSnapping", Some(widget.page_snapping))
+                .if_false("snapping disabled"),
+        );
+        properties.add(
+            FlagProperty::new(
+                "allowImplicitScrolling",
+                Some(widget.allow_implicit_scrolling),
+            )
+            .if_true("allow implicit scrolling"),
+        );
+        properties.add(
+            DiagnosticsProperty::<ScrollCacheExtent>::new(
+                "scrollCacheExtent",
+                widget.scroll_cache_extent,
+            )
+            .default_value(Some(ScrollCacheExtent::Viewport(
+                if widget.allow_implicit_scrolling {
+                    1.0
+                } else {
+                    0.0
+                },
+            ))),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         self.init_controller(app);

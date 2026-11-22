@@ -9,8 +9,8 @@ use std::rc::Rc;
 use waft_embedder::{
     BlurStyle, Canvas, Color, FontWeight, Offset, Paint, Rect, Size, TextAlign, TextDirection,
 };
-use waft_foundation::{App, Handle};
-use waft_painting::{BoxShadow, PaintingBinding, TextPainter, TextSpan, TextStyle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, EnumProperty, Handle, StringProperty};
+use waft_painting::{BoxShadow, ColorProperty, PaintingBinding, TextPainter, TextSpan, TextStyle};
 use waft_rendering::CustomPainter;
 
 use crate::framework::{
@@ -405,6 +405,30 @@ impl State for BannerState {
     type Widget = Banner;
     crate::state_accessors!();
 
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let widget = self.widget(app);
+        properties.add(
+            StringProperty::new("message", Some(widget.message.clone())).with_show_name(false),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", widget.text_direction)
+                .default_value(None),
+        );
+        properties.add(EnumProperty::new("location", widget.location));
+        properties.add(
+            EnumProperty::<TextDirection>::new("layoutDirection", widget.layout_direction)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("color", widget.color).with_show_name(false));
+        widget
+            .text_style
+            .debug_fill_properties_with_prefix(properties, "text ");
+    }
+
     fn build(self: Handle<Self>, app: &mut App, context: BuildContext) -> WidgetRef {
         let (text_direction, layout_direction) = {
             let widget = self.widget(app);
@@ -461,6 +485,15 @@ impl CheckedModeBanner {
 impl StatelessWidget for CheckedModeBanner {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let message = if cfg!(debug_assertions) {
+            "\"DEBUG\""
+        } else {
+            "disabled"
+        };
+        properties.add(waft_foundation::MessageProperty::new("", message));
     }
 
     fn build(&self, _app: &mut App, _context: BuildContext) -> WidgetRef {

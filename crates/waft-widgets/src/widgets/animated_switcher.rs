@@ -9,7 +9,7 @@ use waft_animation::{
     Animation, AnimationBehavior, AnimationController, AnimationRef, AnimationStatusListener,
     Curve, CurvedAnimation, Curves,
 };
-use waft_foundation::{App, Handle, HandleId, ValueKey};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle, HandleId, IntProperty, ValueKey};
 use waft_painting::AlignmentGeometry;
 use waft_scheduler::{Ticker, TickerCallback, TickerProviderObject};
 
@@ -428,6 +428,19 @@ impl StatefulWidget for AnimatedSwitcher {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(IntProperty::new("duration", self.duration.as_millis() as i64).unit("ms"));
+        properties.add(
+            IntProperty::<i64>::new(
+                "reverseDuration",
+                self.reverse_duration
+                    .map(|duration| duration.as_millis() as i64),
+            )
+            .unit("ms")
+            .default_value(None),
+        );
     }
 
     fn create_state(&self) -> AnimatedSwitcherState {

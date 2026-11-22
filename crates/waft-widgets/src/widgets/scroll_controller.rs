@@ -648,6 +648,12 @@ impl AnyScrollController {
         (self.vtable.dispose_change_notifier)(app, self.id);
     }
 
+    /// The identity a dump shows, Dart's `describeIdentity(controller)` without the description
+    /// its `toString` adds: a widget's properties are filled without an `App`.
+    pub fn identity_hash(self) -> u64 {
+        self.id.identity_hash()
+    }
+
     /// Dart's `controller.runtimeType`, for the identity checks a `Scrollable` makes.
     pub fn type_id(self) -> TypeId {
         (self.vtable.type_id)()

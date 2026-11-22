@@ -3,7 +3,10 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use waft_embedder::{Rect, TargetPlatform};
-use waft_foundation::{App, Handle, Listener, OptionRetained};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, Listener, ObjectFlagProperty,
+    OptionRetained, StringProperty,
+};
 use waft_rendering::RenderBox;
 use waft_services::TextSelectionDelegate;
 use waft_services::{IOSSystemContextMenuItemData, SystemContextMenuController};
@@ -242,6 +245,26 @@ pub enum IOSSystemContextMenuItem {
 }
 
 impl IOSSystemContextMenuItem {
+    /// Dart's `IOSSystemContextMenuItem` subclasses' `debugFillProperties`.
+    pub fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        match self {
+            Self::LookUp { title } | Self::SearchWeb { title } => {
+                properties.add(DiagnosticsProperty::<String>::new("title", title.clone()));
+            }
+            Self::Share { title } => {
+                properties.add(StringProperty::new("title", title.clone()));
+            }
+            Self::Custom { title, on_pressed } => {
+                properties.add(StringProperty::new("title", Some(title.clone())));
+                properties.add(ObjectFlagProperty::<String>::has(
+                    "onPressed",
+                    Some(format!("{on_pressed:?}")),
+                ));
+            }
+            Self::Copy | Self::Cut | Self::Paste | Self::SelectAll | Self::LiveText => {}
+        }
+    }
+
     /// Returns the representation of this class used by the host.
     pub fn get_data(
         &self,

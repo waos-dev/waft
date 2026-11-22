@@ -7,7 +7,7 @@
 //! builds (see `PORTING.md`).
 
 use waft_embedder::{Matrix4, Offset, Size, TextBaseline};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, FlagProperty};
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult, PaintingContext, RenderBox,
     RenderBoxData, RenderHandle, RenderObject, RenderObjectData, RenderObjectWithChildData,
@@ -329,6 +329,32 @@ impl Visibility {
 }
 
 impl StatelessWidget for Visibility {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("visible", Some(self.visible))
+                .if_false("hidden")
+                .if_true("visible"),
+        );
+        properties.add(
+            FlagProperty::new("maintainState", Some(self.maintain_state)).if_false("maintainState"),
+        );
+        properties.add(
+            FlagProperty::new("maintainAnimation", Some(self.maintain_animation))
+                .if_false("maintainAnimation"),
+        );
+        properties.add(
+            FlagProperty::new("maintainSize", Some(self.maintain_size)).if_false("maintainSize"),
+        );
+        properties.add(
+            FlagProperty::new("maintainSemantics", Some(self.maintain_semantics))
+                .if_false("maintainSemantics"),
+        );
+        properties.add(
+            FlagProperty::new("maintainInteractivity", Some(self.maintain_interactivity))
+                .if_false("maintainInteractivity"),
+        );
+    }
+
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
     }

@@ -18,10 +18,10 @@ use waft_animation::{
 };
 use waft_embedder::{Canvas, Clip, ClipOp, Color, Offset, Paint, Rect, Size, clamp_double};
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, Listenable, ListenableObject, Listener,
-    OptionRetained, Timer, ValueNotifier,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, EnumProperty, Handle,
+    Listenable, ListenableObject, Listener, MessageProperty, OptionRetained, Timer, ValueNotifier,
 };
-use waft_painting::{Axis, AxisDirection, axis_direction_to_axis};
+use waft_painting::{Axis, AxisDirection, ColorProperty, axis_direction_to_axis};
 use waft_physics::{Simulation, SpringDescription, SpringSimulation, Tolerance, near_equal};
 use waft_rendering::{
     CustomPainter, GrowthDirection, TickerProviderRef, apply_growth_direction_to_axis_direction,
@@ -210,6 +210,18 @@ impl StatefulWidget for GlowingOverscrollIndicator {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("axisDirection", self.axis_direction));
+        let show_description = match (self.show_leading, self.show_trailing) {
+            (true, true) => "both sides",
+            (true, false) => "leading side only",
+            (false, true) => "trailing side only",
+            (false, false) => "neither side (!)",
+        };
+        properties.add(MessageProperty::new("show", show_description));
+        properties.add(ColorProperty::new("color", self.color).with_show_name(false));
     }
 
     fn create_state(&self) -> GlowingOverscrollIndicatorState {
@@ -1132,6 +1144,10 @@ impl StatefulWidget for StretchingOverscrollIndicator {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("axisDirection", self.axis_direction));
     }
 
     fn create_state(&self) -> StretchingOverscrollIndicatorState {

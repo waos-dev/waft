@@ -10,7 +10,9 @@ use std::rc::Rc;
 
 use waft_animation::{Animatable, AnimationRef, AnyAnimation};
 use waft_embedder::{FilterQuality, Matrix4, Offset, Rect, Size, TextAlign, TextDirection};
-use waft_foundation::{App, Handle, Listenable, Listener};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, Listenable, Listener,
+};
 use waft_painting::{Alignment, AlignmentGeometry, Axis, DecorationRef, TextOverflow, TextStyle};
 use waft_rendering::{
     AnyRenderObject, DecorationPosition, RelativeRect, RenderAnimatedOpacity,
@@ -93,6 +95,17 @@ pub trait AnimatedWidget: Debug + 'static {
     /// Override this method to build widgets that depend on the state of the
     /// listenable (e.g., the current value of the animation).
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef;
+
+    /// Dart's `AnimatedWidget.debugFillProperties`, which a subclass's own body calls where
+    /// Dart writes `super`.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let listenable = self.listenable();
+        let identity = Rc::as_ptr(&listenable) as *const () as usize as u64;
+        properties.add(DiagnosticsProperty::<String>::new(
+            "listenable",
+            Some(waft_foundation::describe_identity("Listenable", identity)),
+        ));
+    }
 }
 
 /// The kind tag of [`IntoWidget`] for an [`AnimatedWidget`].
@@ -118,6 +131,10 @@ impl<W: AnimatedWidget> StatefulWidget for Animated<W> {
 
     fn type_name(&self) -> &'static str {
         short_type_name::<W>()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(properties);
     }
 
     fn create_state(&self) -> AnimatedState<W> {
@@ -1051,6 +1068,16 @@ impl RenderObjectWidget for FadeTransition {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "opacity",
+            Some(waft_foundation::describe_identity(
+                "Animation",
+                self.opacity.id().identity_hash(),
+            )),
+        ));
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {

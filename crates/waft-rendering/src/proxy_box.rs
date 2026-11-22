@@ -267,6 +267,17 @@ pub enum HitTestBehavior {
     Translucent,
 }
 
+/// Dart's enum `toString`, which a widget's dump prints: the type and the case.
+impl std::fmt::Display for HitTestBehavior {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "HitTestBehavior.{}",
+            waft_foundation::describe_enum(self)
+        )
+    }
+}
+
 /// Dart's `LayerLink.toString`: the identity and whether a leader is connected.
 fn layer_link_description(app: &App, link: Handle<LayerLink>) -> String {
     let linked = link.leader(app).is_some();

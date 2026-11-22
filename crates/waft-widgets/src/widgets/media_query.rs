@@ -12,7 +12,7 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Brightness, CaptionStyle, Size, View as EmbedderView, ViewPadding, ViewRef};
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle};
 use waft_gestures::{DeviceGestureSettings, K_TOUCH_SLOP};
 use waft_painting::{BorderRadius, EdgeInsets, TextScaler};
 
@@ -506,6 +506,13 @@ pub struct MediaQueryData {
     ///  * [`MediaQuery::maybe_caption_style_of`], a method to find and depend on the caption
     ///    style defined for a [`BuildContext`].
     pub caption_style: Option<CaptionStyle>,
+}
+
+/// Dart's `MediaQueryData.toString`, which a `MediaQuery` dump prints.
+impl fmt::Display for MediaQueryData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
 }
 
 impl MediaQueryData {
@@ -1037,7 +1044,10 @@ impl Debug for MediaQueryData {
             format!("size: {:?}", self.size),
             format!("devicePixelRatio: {:.1}", self.device_pixel_ratio),
             format!("textScaler: {:?}", self.text_scaler),
-            format!("platformBrightness: {:?}", self.platform_brightness),
+            format!(
+                "platformBrightness: Brightness.{}",
+                waft_foundation::describe_enum(&self.platform_brightness)
+            ),
             format!("padding: {:?}", self.padding),
             format!("viewPadding: {:?}", self.view_padding),
             format!("viewInsets: {:?}", self.view_insets),
@@ -1050,7 +1060,10 @@ impl Debug for MediaQueryData {
             format!("reduceMotion: {}", self.reduce_motion),
             format!("invertColors: {}", self.invert_colors),
             format!("boldText: {}", self.bold_text),
-            format!("navigationMode: {:?}", self.navigation_mode),
+            format!(
+                "navigationMode: {}",
+                waft_foundation::describe_enum(&self.navigation_mode)
+            ),
             format!("gestureSettings: {:?}", self.gesture_settings),
             format!(
                 "supportsShowingSystemContextMenu: {}",
@@ -1076,7 +1089,6 @@ impl Debug for MediaQueryData {
                 "displayCornerRadii: {}",
                 nullable(self.display_corner_radii.as_ref())
             ),
-            format!("captionStyle: {}", nullable(self.caption_style.as_ref())),
         ];
         write!(f, "MediaQueryData({})", properties.join(", "))
     }
@@ -2119,6 +2131,10 @@ impl InheritedWidget for MediaQuery {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("data", self.data.clone()).with_show_name(false));
+    }
+
     fn child(&self) -> &WidgetRef {
         &self.child
     }
@@ -2790,5 +2806,17 @@ mod tests {
             Brightness::Dark,
             "the platform's brightness"
         );
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use super::*;
+    use crate::testing::has_one_line_description;
+
+    /// `media_query_test.dart`, "MediaQueryData.fromView is sane": the one-line description.
+    #[test]
+    fn media_query_data_has_a_one_line_description() {
+        assert!(has_one_line_description(&MediaQueryData::new()));
     }
 }

@@ -7,8 +7,8 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::{Color, Shadow, clamp_double, lerp_double};
-use waft_foundation::App;
-use waft_painting::AnyColor;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{AnyColor, ColorProperty};
 
 use crate::framework::BuildContext;
 
@@ -71,7 +71,45 @@ pub struct IconThemeData {
 pub type IconThemeDataResolver =
     Rc<dyn Fn(&IconThemeData, &mut App, BuildContext) -> IconThemeData>;
 
+/// Dart's list `toString` for a shadow list, which an icon theme's dump prints.
+pub(crate) fn describe_shadows(shadows: &[Shadow]) -> String {
+    format!(
+        "[{}]",
+        shadows
+            .iter()
+            .map(|shadow| format!("{shadow:?}"))
+            .collect::<Vec<String>>()
+            .join(", ")
+    )
+}
+
 impl IconThemeData {
+    /// Dart's `IconThemeData.debugFillProperties`, which [`IconTheme`](crate::IconTheme)'s own
+    /// body calls where Dart writes `super`.
+    pub fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("size", self.size).default_value(None));
+        properties.add(DoubleProperty::new("fill", self.fill).default_value(None));
+        properties.add(DoubleProperty::new("weight", self.weight).default_value(None));
+        properties.add(DoubleProperty::new("grade", self.grade).default_value(None));
+        properties.add(DoubleProperty::new("opticalSize", self.optical_size).default_value(None));
+        properties.add(
+            ColorProperty::new("color", self.color.as_ref().map(|color| color.color()))
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("opacity", self.opacity).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "shadows",
+                self.shadows.as_deref().map(describe_shadows),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("applyTextScaling", self.apply_text_scaling)
+                .default_value(None),
+        );
+    }
+
     /// Creates an icon theme data.
     ///
     /// The opacity applies to both explicit and default icon colors. The value is clamped
@@ -328,6 +366,19 @@ impl PartialEq for IconThemeData {
             && self.opacity == other.opacity
             && self.shadows == other.shadows
             && self.apply_text_scaling == other.apply_text_scaling
+    }
+}
+
+impl waft_foundation::Diagnosticable for IconThemeData {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        IconThemeData::debug_fill_properties(self, properties);
+    }
+}
+
+/// Dart's `Diagnosticable.toString`, which a property holding an icon theme prints.
+impl fmt::Display for IconThemeData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 

@@ -6,7 +6,7 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Matrix4, Offset, clamp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, IterableProperty};
 use waft_painting::{Axis, EdgeInsets};
 use waft_rendering::{
     AnyRenderObject, AnyRenderSliver, PaintingContext, RenderHandle, RenderObject,
@@ -535,6 +535,27 @@ impl SliverFillRemaining {
 impl StatelessWidget for SliverFillRemaining {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        if let Some(child) = &self.child {
+            properties.add_rc(Rc::new(
+                child.to_diagnostics_node(Some("child".to_string()), None),
+            ));
+        } else {
+            properties.add(DiagnosticsProperty::<String>::new("child", None::<String>));
+        }
+        let mut flags: Vec<String> = Vec::new();
+        if self.has_scroll_body {
+            flags.push("scrollable".to_string());
+        }
+        if self.fill_overscroll {
+            flags.push("fillOverscroll".to_string());
+        }
+        if flags.is_empty() {
+            flags.push("nonscrollable".to_string());
+        }
+        properties.add(IterableProperty::<String>::new("mode", flags));
     }
 
     fn build(&self, _app: &mut App, _context: BuildContext) -> WidgetRef {

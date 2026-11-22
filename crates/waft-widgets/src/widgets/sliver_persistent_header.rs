@@ -7,7 +7,10 @@ use std::time::Duration;
 
 use waft_animation::Curve;
 use waft_embedder::{Matrix4, Offset, Rect};
-use waft_foundation::{App, Handle, ListenableObject, Listener, OptionRetained};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, IterableProperty,
+    ListenableObject, Listener, OptionRetained,
+};
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, AnyRenderSliverFloatingPersistentHeader,
     FloatingHeaderSnapConfiguration, OverScrollHeaderStretchConfiguration, PaintingContext,
@@ -209,6 +212,24 @@ impl SliverPersistentHeader {
 impl StatelessWidget for SliverPersistentHeader {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "delegate",
+            Some(format!("{:?}", self.delegate)),
+        ));
+        let mut flags: Vec<String> = Vec::new();
+        if self.pinned {
+            flags.push("pinned".to_string());
+        }
+        if self.floating {
+            flags.push("floating".to_string());
+        }
+        if flags.is_empty() {
+            flags.push("normal".to_string());
+        }
+        properties.add(IterableProperty::<String>::new("mode", flags));
     }
 
     fn build(&self, _app: &mut App, _context: BuildContext) -> WidgetRef {

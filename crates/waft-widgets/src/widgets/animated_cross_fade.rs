@@ -9,7 +9,10 @@ use waft_animation::{
     CurveTween, Curves, Drive, Tween,
 };
 use waft_embedder::Clip;
-use waft_foundation::{App, Handle, Listener, OptionRetained, ValueKey};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, EnumProperty, Handle, IntProperty,
+    Listener, OptionRetained, ValueKey, describe_identity,
+};
 use waft_painting::AlignmentGeometry;
 use waft_scheduler::{Ticker, TickerCallback, TickerProviderObject};
 
@@ -326,6 +329,24 @@ impl StatefulWidget for AnimatedCrossFade {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("crossFadeState", self.cross_fade_state));
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", Some(self.alignment))
+                .default_value(Some(AlignmentGeometry::TOP_CENTER)),
+        );
+        properties.add(IntProperty::new("duration", self.duration.as_millis() as i64).unit("ms"));
+        properties.add(
+            IntProperty::<i64>::new(
+                "reverseDuration",
+                self.reverse_duration
+                    .map(|duration| duration.as_millis() as i64),
+            )
+            .unit("ms")
+            .default_value(None),
+        );
+    }
+
     fn create_state(&self) -> AnimatedCrossFadeState {
         AnimatedCrossFadeState {
             state: StateData::new(),
@@ -404,6 +425,32 @@ impl AnimatedCrossFadeState {
 impl State for AnimatedCrossFadeState {
     type Widget = AnimatedCrossFade;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let widget = self.widget(app);
+        properties.add(EnumProperty::new("crossFadeState", widget.cross_fade_state));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "controller",
+                app.get(self).controller.as_ref().map(|controller| {
+                    describe_identity("AnimationController", controller.id().identity_hash())
+                }),
+            )
+            .with_show_name(false),
+        );
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", Some(widget.alignment))
+                .default_value(Some(AlignmentGeometry::TOP_CENTER)),
+        );
+        properties.add(
+            EnumProperty::new("clipBehavior", widget.clip_behavior)
+                .default_value(Some(Clip::HardEdge)),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         let widget = self.widget(app);

@@ -39,7 +39,7 @@ pub use finder::{Finder, FindsOne, RenderTarget, find};
 pub use gestures::TestPointer;
 pub use matchers::{
     FinderMatcher, expect, finds_at_least_n_widgets, finds_n_widgets, finds_nothing,
-    finds_one_widget, finds_widgets,
+    finds_one_widget, finds_widgets, has_one_line_description,
 };
 pub use test_text_field::{
     TestTextField, TestTextFieldState, TestTextSelectionHandleControls,

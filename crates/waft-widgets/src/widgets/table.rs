@@ -6,7 +6,9 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::{SemanticsRole, TextBaseline, TextDirection};
-use waft_foundation::{App, Handle, Key, LocalKey};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, EnumProperty, Handle, IntProperty, Key, LocalKey,
+};
 use waft_painting::DecorationRef;
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, ErasedRenderObject, RenderBox, RenderHandle, RenderTable,
@@ -388,6 +390,16 @@ struct TableSlot {
     row: usize,
 }
 
+impl TableSlot {
+    /// Dart's `_TableSlot.debugFillProperties`; nothing prints a slot, which the element keeps
+    /// only for identity.
+    #[allow(dead_code)]
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(IntProperty::<usize>::new("x", Some(self.column)));
+        properties.add(IntProperty::<usize>::new("y", Some(self.row)));
+    }
+}
+
 /// Dart's `_TableElement`.
 struct TableElement {
     element: ElementData,
@@ -764,6 +776,13 @@ impl ParentDataWidget for TableCellParentDataWidget {
 
     fn child(&self) -> &WidgetRef {
         &self.child
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::<TableCellVerticalAlignment>::new(
+            "verticalAlignment",
+            self.vertical_alignment,
+        ));
     }
 
     fn apply_parent_data(&self, app: &mut App, render_object: AnyRenderObject) {

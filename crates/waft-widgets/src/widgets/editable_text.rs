@@ -17,9 +17,10 @@ use waft_embedder::{
     TextInputType, TextPosition, TextRange, TextSelection, ViewId, clamp_double,
 };
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, HandleId, K_IS_WEB, Listenable,
-    ListenableHandle, ListenableObject, Listener, OptionRetained, Retained, Task, Timer,
-    ValueListenable, ValueListenableHandle, ValueNotifier,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsProperty,
+    EnumProperty, Handle, HandleId, IntProperty, K_IS_WEB, Listenable, ListenableHandle,
+    ListenableObject, Listener, OptionRetained, Retained, Task, Timer, ValueListenable,
+    ValueListenableHandle, ValueNotifier, describe_identity,
 };
 use waft_gestures::{DragStartBehavior, PointerDownEvent, PointerUpEvent};
 use waft_painting::{
@@ -444,6 +445,11 @@ pub type TextEditingControllerRef = Retained<AnyTextEditingController>;
 waft_foundation::erased_handle!(AnyTextEditingController: TextEditingControllerLeaf => TextEditingControllerLeaf::as_controller);
 
 impl AnyTextEditingController {
+    /// The identity a dump shows.
+    pub fn identity_hash(self) -> u64 {
+        self.id.identity_hash()
+    }
+
     fn data(self, app: &App) -> &TextEditingControllerData {
         (self.vtable.data)(app, self.id)
     }
@@ -2036,6 +2042,222 @@ impl StatefulWidget for EditableText {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "controller",
+            Some(describe_identity(
+                "TextEditingController",
+                self.controller.identity_hash(),
+            )),
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "focusNode",
+            Some(describe_identity(
+                "FocusNode",
+                self.focus_node.id().identity_hash(),
+            )),
+        ));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("obscureText", Some(self.obscure_text))
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("readOnly", Some(self.read_only))
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("autocorrect", self.autocorrect).default_value(None),
+        );
+        properties.add(
+            EnumProperty::new(
+                "smartDashesType",
+                self.smart_dashes_type.unwrap_or(if self.obscure_text {
+                    SmartDashesType::Disabled
+                } else {
+                    SmartDashesType::Enabled
+                }),
+            )
+            .default_value(Some(if self.obscure_text {
+                SmartDashesType::Disabled
+            } else {
+                SmartDashesType::Enabled
+            })),
+        );
+        properties.add(
+            EnumProperty::new(
+                "smartQuotesType",
+                self.smart_quotes_type.unwrap_or(if self.obscure_text {
+                    SmartQuotesType::Disabled
+                } else {
+                    SmartQuotesType::Enabled
+                }),
+            )
+            .default_value(Some(if self.obscure_text {
+                SmartQuotesType::Disabled
+            } else {
+                SmartQuotesType::Enabled
+            })),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableSuggestions", Some(self.enable_suggestions))
+                .default_value(Some(true)),
+        );
+        waft_foundation::Diagnosticable::debug_fill_properties(&self.style, properties);
+        properties.add(
+            EnumProperty::<TextAlign>::new("textAlign", Some(self.text_align)).default_value(None),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Locale>::new("locale", self.locale.clone()).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextScaler>::new("textScaler", self.text_scaler.clone())
+                .default_value(None),
+        );
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).default_value(Some(1)));
+        properties.add(IntProperty::<i32>::new("minLines", self.min_lines).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("expands", Some(self.expands))
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("autofocus", Some(self.autofocus))
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextInputType>::new("keyboardType", self.keyboard_type)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "scrollController",
+                self.scroll_controller.as_ref().map(|controller| {
+                    describe_identity("ScrollController", controller.identity_hash())
+                }),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "scrollPhysics",
+                self.scroll_physics
+                    .as_ref()
+                    .map(|physics| format!("{physics:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "autofillHints",
+                Some(format!("[{}]", self.autofill_hints.join(", "))),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textHeightBehavior",
+                self.text_height_behavior
+                    .map(crate::widgets::text::describe_text_height_behavior),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("scribbleEnabled", Some(self.scribble_enabled))
+                .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "stylusHandwritingEnabled",
+                Some(self.stylus_handwriting_enabled),
+            )
+            .default_value(Some(Self::DEFAULT_STYLUS_HANDWRITING_ENABLED)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "enableIMEPersonalizedLearning",
+                Some(self.enable_ime_personalized_learning),
+            )
+            .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "enableInlinePrediction",
+                self.enable_inline_prediction,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "enableInteractiveSelection",
+                self.enable_interactive_selection,
+            )
+            .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "undoController",
+                self.undo_controller.as_ref().map(|controller| {
+                    describe_identity(
+                        "UndoHistoryController",
+                        controller.handle().id().identity_hash(),
+                    )
+                }),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "spellCheckConfiguration",
+                self.spell_check_configuration
+                    .as_ref()
+                    .map(|configuration| format!("{configuration:?}")),
+            )
+            .default_value(None),
+        );
+        let describe_mime_types = |mime_types: &[String]| format!("[{}]", mime_types.join(", "));
+        let (content_commit_mime_types, content_commit_mime_types_default): (
+            Vec<String>,
+            Vec<String>,
+        ) = match &self.content_insertion_configuration {
+            Some(configuration) => (
+                configuration.allowed_mime_types.clone(),
+                K_DEFAULT_CONTENT_INSERTION_MIME_TYPES
+                    .iter()
+                    .map(|mime_type| mime_type.to_string())
+                    .collect(),
+            ),
+            None => (Vec::new(), Vec::new()),
+        };
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "contentCommitMimeTypes",
+                Some(describe_mime_types(&content_commit_mime_types)),
+            )
+            .default_value(Some(describe_mime_types(
+                &content_commit_mime_types_default,
+            ))),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "hintLocales",
+                self.hint_locales.as_ref().map(|locales| {
+                    format!(
+                        "[{}]",
+                        locales
+                            .iter()
+                            .map(|locale| locale.to_string())
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                    )
+                }),
+            )
+            .default_value(None),
+        );
     }
 
     fn create_state(&self) -> EditableTextState {

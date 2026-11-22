@@ -9,7 +9,10 @@
 use std::rc::Rc;
 
 use waft_embedder::{ImageDecodeError, Size, TextDirection};
-use waft_foundation::{App, Handle, OptionRetained, Ref};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    FlagProperty, Handle, IntProperty, OptionRetained, Ref,
+};
 use waft_painting::{
     Alignment, BoxFit, ImageConfiguration, ImageInfo, ImageProviderRef, ImageRepeat, ImageStream,
     ImageStreamListener, MemoryImage,
@@ -121,6 +124,17 @@ mod tests {
     }
 }
 
+/// Dart's `ImageInfo.toString`, which an image widget's dump prints.
+fn describe_image_info(info: &ImageInfo) -> String {
+    let [width, height] = info.image.size();
+    let label = info
+        .debug_label
+        .as_ref()
+        .map(|label| format!("{label} "))
+        .unwrap_or_default();
+    format!("{label}[{width}×{height}] @ {}x", info.scale)
+}
+
 /// Draws an image that is already decoded. Flutter `RawImage`.
 ///
 /// Most callers want [`Image`], which finds the image first. This is the widget underneath it,
@@ -228,6 +242,28 @@ impl RenderObjectWidget for RawImage {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "image",
+            self.image.as_ref().map(describe_image_info),
+        ));
+        properties.add(DoubleProperty::new("width", self.width).default_value(None));
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+        properties.add(DoubleProperty::new("opacity", self.opacity).default_value(Some(1.0)));
+        properties.add(EnumProperty::<BoxFit>::new("fit", self.fit).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Alignment>::new("alignment", Some(self.alignment))
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::new("repeat", self.repeat).default_value(Some(ImageRepeat::NoRepeat)),
+        );
+        properties.add(
+            FlagProperty::new("matchTextDirection", Some(self.match_text_direction))
+                .if_true("match text direction"),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -393,6 +429,28 @@ impl StatefulWidget for Image {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "image",
+            Some("Instance of 'ImageProvider'".to_string()),
+        ));
+        properties.add(DoubleProperty::new("width", self.width).default_value(None));
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+        properties.add(DoubleProperty::new("opacity", self.opacity).default_value(Some(1.0)));
+        properties.add(EnumProperty::<BoxFit>::new("fit", self.fit).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Alignment>::new("alignment", Some(self.alignment))
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::new("repeat", self.repeat).default_value(Some(ImageRepeat::NoRepeat)),
+        );
+        properties.add(
+            FlagProperty::new("matchTextDirection", Some(self.match_text_direction))
+                .if_true("match text direction"),
+        );
+    }
+
     fn create_state(&self) -> ImageState {
         ImageState {
             state: StateData::new(),
@@ -477,6 +535,30 @@ impl ImageState {
 impl State for ImageState {
     type Widget = Image;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "stream",
+            state.stream.as_ref().map(|_| "ImageStream".to_string()),
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "pixels",
+            state.resolved.as_ref().map(describe_image_info),
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "loadingProgress",
+            None::<String>,
+        ));
+        properties.add(IntProperty::<i32>::new("frameNumber", None).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("wasSynchronouslyLoaded", None).default_value(None),
+        );
+    }
 
     fn did_change_dependencies(self: Handle<Self>, app: &mut App) {
         let context = self.context(app);

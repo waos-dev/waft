@@ -6,9 +6,13 @@ use waft_embedder::{
     BlendMode, FontVariation, FontWeight, Matrix4, Paint, Shadow, TextDirection,
     TextLeadingDistribution,
 };
-use waft_foundation::App;
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    StringProperty,
+};
 use waft_painting::{
-    AlignmentGeometry, AnyColor, K_DEFAULT_FONT_SIZE, TextOverflow, TextSpan, TextStyle,
+    AlignmentGeometry, AnyColor, ColorProperty, K_DEFAULT_FONT_SIZE, TextOverflow, TextSpan,
+    TextStyle,
 };
 
 use crate::framework::{BuildContext, IntoWidget, KeyRef, StatelessWidget, WidgetRef};
@@ -17,6 +21,7 @@ use crate::widgets::basic::{
 };
 use crate::widgets::icon_data::IconData;
 use crate::widgets::icon_theme::IconTheme;
+use crate::widgets::icon_theme_data::describe_shadows;
 use crate::widgets::media_query::MediaQuery;
 use crate::widgets::text::RichText;
 
@@ -375,6 +380,44 @@ impl PartialEq for Icon {
 }
 
 impl StatelessWidget for Icon {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "icon",
+                self.icon.as_ref().map(|icon| format!("{icon:?}")),
+            )
+            .if_null("<empty>")
+            .with_show_name(false),
+        );
+        properties.add(DoubleProperty::new("size", self.size).default_value(None));
+        properties.add(DoubleProperty::new("fill", self.fill).default_value(None));
+        properties.add(DoubleProperty::new("weight", self.weight).default_value(None));
+        properties.add(DoubleProperty::new("grade", self.grade).default_value(None));
+        properties.add(DoubleProperty::new("opticalSize", self.optical_size).default_value(None));
+        properties.add(
+            ColorProperty::new("color", self.color.as_ref().map(|color| color.color()))
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "shadows",
+                self.shadows.as_deref().map(describe_shadows),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            StringProperty::new("semanticLabel", self.semantic_label.clone()).default_value(None),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("applyTextScaling", self.apply_text_scaling)
+                .default_value(None),
+        );
+    }
+
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
     }

@@ -8,7 +8,10 @@ use std::rc::Rc;
 
 use waft_embedder::{Canvas, Color, Offset, Paint, Path, Rect};
 use waft_foundation::Ref;
-use waft_foundation::{App, ChangeNotifier, ChangeNotifierData, Handle, K_IS_WEB};
+use waft_foundation::{
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsProperty,
+    Handle, K_IS_WEB,
+};
 use waft_painting::{
     AnyBorderSide, AnyColor, AnyTextStyle, BorderSide, BorderSideExtension, ColorExtension,
     EdgeInsetsGeometry, OutlinedBorder, OutlinedBorderRef, RoundedRectangleBorder, ShapeBorder,
@@ -1433,6 +1436,12 @@ pub trait WidgetStateProperty<T>: Debug + 'static {
     /// Downcast support for Dart's `is` checks in `==`.
     fn as_any(&self) -> &dyn Any;
 
+    /// Dart's `WidgetStateProperty.debugFillProperties`, from `Diagnosticable`: a property
+    /// adds its own fields.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
     /// Dart's `other is WidgetStateMapper<T>`: the mapper this property is, if it is one,
     /// as the private mapper subclasses of `WidgetStateColor` and the rest are.
     fn as_mapper(&self) -> Option<&WidgetStateMapper<T>> {
@@ -1743,6 +1752,13 @@ impl<T> WidgetStateMapper<T> {
 }
 
 impl<T: Clone + Debug + PartialEq + 'static> WidgetStateProperty<T> for WidgetStateMapper<T> {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "map",
+            Some(format!("{:?}", self.map)),
+        ));
+    }
+
     fn resolve(&self, states: &WidgetStates) -> T {
         for (key, value) in &self.map {
             if key.is_satisfied_by(states) {

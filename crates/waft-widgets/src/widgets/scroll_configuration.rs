@@ -7,7 +7,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 use waft_embedder::{Color, PointerDeviceKind, TargetPlatform};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty};
 use waft_gestures::{
     GestureVelocityTrackerBuilder, IOSScrollViewFlingVelocityTracker,
     MacOSScrollViewFlingVelocityTracker, MultitouchDragStrategy, VelocityTracker,
@@ -708,6 +708,13 @@ impl ScrollConfiguration {
 impl InheritedWidget for ScrollConfiguration {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "behavior",
+            Some(format!("{:?}", self.behavior)),
+        ));
     }
 
     fn child(&self) -> &WidgetRef {

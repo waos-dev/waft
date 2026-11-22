@@ -1606,6 +1606,12 @@ impl From<AnyScrollPosition> for AnyViewportOffset {
 
 impl AnyScrollPosition {
     /// Dart's `position.runtimeType`.
+    /// The identity a dump shows, Dart's `describeIdentity(position)` without the description
+    /// Dart's `toString` collects.
+    pub fn identity_hash(self) -> u64 {
+        self.id.identity_hash()
+    }
+
     pub fn type_id(self) -> TypeId {
         (self.vtable.type_id)()
     }

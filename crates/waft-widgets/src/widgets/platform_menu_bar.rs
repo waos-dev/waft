@@ -9,7 +9,10 @@ use waft_embedder::{
     IconImage, MenuEntry, MenuId, MenuItem, MenuItemCheck, MenuShortcut, ProvidedItem,
     ShortcutModifiers, TargetPlatform,
 };
-use waft_foundation::{App, Handle, VoidCallback};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, FlagProperty, Handle,
+    IterableProperty, StringProperty, VoidCallback,
+};
 use waft_services::LogicalKeyboardKey;
 
 use crate::WidgetsBinding;
@@ -583,10 +586,63 @@ pub trait PlatformMenuItem: Debug {
         delegate: &dyn PlatformMenuDelegate,
         get_id: &mut MenuItemSerializableIdGenerator<'_>,
     ) -> Vec<MenuEntry>;
+
+    /// Dart's `PlatformMenuItem.debugFillProperties`, which an implementor's own body calls
+    /// where Dart writes `super`.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        fill_platform_menu_item_properties(self, properties);
+    }
+
+    /// Dart's `PlatformMenuItem.toStringShort`: the identity, then the label in parentheses.
+    fn to_string_short(&self) -> String {
+        format!(
+            "{}({})",
+            waft_foundation::describe_identity(
+                waft_foundation::short_type_name(std::any::type_name::<Self>()),
+                self as *const Self as *const () as usize as u64,
+            ),
+            self.label()
+        )
+    }
+
+    /// Dart's `PlatformMenuItem.toDiagnosticsNode(name:)`, from `Diagnosticable`.
+    fn diagnostics_node(&self, name: Option<String>) -> waft_foundation::DiagnosticableNode {
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        self.debug_fill_properties(&mut properties);
+        waft_foundation::DiagnosticableNode::from_parts(name, self.to_string_short(), properties)
+    }
+
+    /// Dart's `Diagnosticable.toString`, which a group's member list prints.
+    fn diagnostic_string(&self) -> String {
+        use waft_foundation::{DiagnosticLevel, DiagnosticsNode, DiagnosticsTreeStyle};
+        self.diagnostics_node(None)
+            .with_style(DiagnosticsTreeStyle::SingleLine)
+            .to_string_with(None, DiagnosticLevel::Info)
+    }
 }
 
 /// The bodies of Dart's `PlatformMenuItem` base class, which its implementors reach as `super`.
 pub struct PlatformMenuItemBase;
+
+/// Dart's `PlatformMenuItem.debugFillProperties`, one body for its implementors.
+pub fn fill_platform_menu_item_properties<T: PlatformMenuItem + ?Sized>(
+    item: &T,
+    properties: &mut DiagnosticPropertiesBuilder,
+) {
+    properties.add(StringProperty::new("label", Some(item.label().to_string())));
+    properties.add(
+        StringProperty::new("tooltip", item.tooltip().map(str::to_string)).default_value(None),
+    );
+    properties.add(
+        DiagnosticsProperty::<String>::new(
+            "shortcut",
+            item.shortcut().map(|shortcut| format!("{shortcut:?}")),
+        )
+        .default_value(None),
+    );
+    properties
+        .add(FlagProperty::new("enabled", Some(item.on_selected().is_some())).if_false("DISABLED"));
+}
 
 impl PlatformMenuItemBase {
     /// Converts the given [`PlatformMenuItem`] into the entry the host's menu takes.
@@ -834,9 +890,26 @@ impl Debug for PlatformMenu {
     }
 }
 
+impl PlatformMenu {
+    /// Dart's `PlatformMenu.debugDescribeChildren`: the items of the submenu.
+    pub fn debug_describe_children(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
+        self.menus
+            .iter()
+            .map(|menu| Rc::new(menu.diagnostics_node(None)) as Rc<dyn DiagnosticsNode>)
+            .collect()
+    }
+}
+
 impl PlatformMenuItem for PlatformMenu {
     fn label(&self) -> &str {
         &self.label
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        fill_platform_menu_item_properties(self, properties);
+        properties.add(StringProperty::new("label", Some(self.label.clone())));
+        properties
+            .add(FlagProperty::new("enabled", Some(!self.menus.is_empty())).if_false("DISABLED"));
     }
 
     fn tooltip(&self) -> Option<&str> {
@@ -910,6 +983,17 @@ impl PlatformMenuItem for PlatformMenuItemGroup {
         ""
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        fill_platform_menu_item_properties(self, properties);
+        properties.add(IterableProperty::<String>::new(
+            "members",
+            self.members
+                .iter()
+                .map(|member| member.diagnostic_string())
+                .collect::<Vec<String>>(),
+        ));
+    }
+
     fn members(&self) -> Vec<PlatformMenuItemRef> {
         self.members.clone()
     }
@@ -981,6 +1065,11 @@ impl PlatformMenuItem for PlatformProvidedMenuItem {
     fn label(&self) -> &str {
         // The label is ignored for platform provided menus.
         ""
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        fill_platform_menu_item_properties(self, properties);
+        properties.add(FlagProperty::new("enabled", Some(self.enabled)).if_false("DISABLED"));
     }
 
     fn to_menu_entries(

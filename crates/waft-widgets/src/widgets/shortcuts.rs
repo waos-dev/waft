@@ -10,8 +10,9 @@ use std::rc::Rc;
 use std::sync::LazyLock;
 
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, HandleId, ListenableObject, Listener,
-    OptionRetained, Ref, Retained,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticableNode,
+    DiagnosticsProperty, FlagProperty, Handle, HandleId, ListenableObject, Listener,
+    MessageProperty, OptionRetained, Ref, Retained, describe_identity,
 };
 use waft_scheduler::{FrameCallback, SchedulerBinding};
 use waft_services::{
@@ -178,6 +179,30 @@ pub trait ShortcutActivator: Debug {
     ///
     /// Intended to be used in debug mode for logging purposes.
     fn debug_describe_keys(&self) -> String;
+
+    /// Dart's `ShortcutActivator.debugFillProperties`, from `Diagnosticable`: an activator
+    /// adds its own fields.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
+    /// Dart's `ShortcutActivator.toStringShort`: the type and the identity.
+    fn to_string_short(&self) -> String {
+        describe_identity(
+            waft_foundation::short_type_name(std::any::type_name::<Self>()),
+            self as *const Self as *const () as usize as u64,
+        )
+    }
+
+    /// Dart's `Diagnosticable.toString`, which a shortcut map's entries print.
+    fn diagnostic_string(&self) -> String {
+        use waft_foundation::{DiagnosticLevel, DiagnosticsNode, DiagnosticsTreeStyle};
+        let mut builder = DiagnosticPropertiesBuilder::new();
+        self.debug_fill_properties(&mut builder);
+        DiagnosticableNode::from_parts(None, self.to_string_short(), builder)
+            .with_style(DiagnosticsTreeStyle::SingleLine)
+            .to_string_with(None, DiagnosticLevel::Info)
+    }
 }
 
 /// The erased [`ShortcutActivator`]: what a shortcut map is keyed by.
@@ -302,6 +327,13 @@ impl Debug for LogicalKeySet {
 }
 
 impl ShortcutActivator for LogicalKeySet {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "keys",
+            Some(self.debug_describe_keys()),
+        ));
+    }
+
     fn triggers(&self) -> Option<Vec<LogicalKeyboardKey>> {
         Some(self.triggers.iter().copied().collect())
     }
@@ -331,7 +363,10 @@ impl ShortcutActivator for LogicalKeySet {
         });
         sorted_keys
             .iter()
-            .map(|key| format!("{:?}", key.debug_name()))
+            .map(|key| {
+                key.debug_name()
+                    .expect("a LogicalKeyboardKey has a debug name")
+            })
             .collect::<Vec<String>>()
             .join(" + ")
     }
@@ -525,6 +560,14 @@ fn intersects(
 }
 
 impl ShortcutActivator for SingleActivator {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(MessageProperty::new("keys", self.debug_describe_keys()));
+        properties.add(
+            FlagProperty::new("includeRepeats", Some(self.include_repeats))
+                .if_false("excluding repeats"),
+        );
+    }
+
     fn triggers(&self) -> Option<Vec<LogicalKeyboardKey>> {
         Some(vec![self.trigger])
     }
@@ -672,6 +715,17 @@ impl CharacterActivator {
 }
 
 impl ShortcutActivator for CharacterActivator {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(MessageProperty::new(
+            "character",
+            self.debug_describe_keys(),
+        ));
+        properties.add(
+            FlagProperty::new("includeRepeats", Some(self.include_repeats))
+                .if_false("excluding repeats"),
+        );
+    }
+
     fn accepts(&self, app: &App, event: &KeyEvent, state: Handle<HardwareKeyboard>) -> bool {
         // Ignore triggers, since we're only interested in the character.
         event.character() == Some(self.character.as_str())
@@ -701,6 +755,20 @@ impl ShortcutActivator for CharacterActivator {
 pub struct ActivatorIntentPair {
     activator: ShortcutActivatorRef,
     intent: IntentRef,
+}
+
+impl ActivatorIntentPair {
+    /// Dart's `_ActivatorIntentPair.debugFillProperties`.
+    pub fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "activator",
+            Some(self.activator.debug_describe_keys()),
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "intent",
+            Some(self.intent.diagnostic_string()),
+        ));
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1052,6 +1120,59 @@ impl ShortcutManagerBase for ShortcutManager {
     crate::shortcut_manager_accessors!();
 }
 
+impl ShortcutManager {
+    /// Dart's `ShortcutManager.debugFillProperties`, which a [`Shortcuts`] dump prints through
+    /// the manager's `toString`.
+    pub fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let shortcuts = self.shortcuts(app);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "shortcuts",
+            Some(describe_shortcut_map_for_diagnostics(&shortcuts)),
+        ));
+        properties.add(
+            FlagProperty::new("modal", Some(self.modal(app)))
+                .if_true("modal")
+                .default_value(Some(false)),
+        );
+    }
+}
+
+/// Dart's `Map.toString` for a shortcut map, which the manager's dump prints: each key by its
+/// `toString`, each intent by its own.
+fn describe_shortcut_map_for_diagnostics(shortcuts: &ShortcutMap) -> String {
+    let entries: Vec<String> = shortcuts
+        .iter()
+        .map(|(activator, intent)| {
+            format!(
+                "{}: {}",
+                activator.diagnostic_string(),
+                intent.diagnostic_string()
+            )
+        })
+        .collect();
+    format!("{{{}}}", entries.join(", "))
+}
+
+/// Dart's `ShortcutMapProperty` description, which the [`Shortcuts`] widget prints: each key by
+/// `debugDescribeKeys`, in braces.
+fn describe_shortcut_map(shortcuts: &ShortcutMap) -> String {
+    let entries: Vec<String> = shortcuts
+        .iter()
+        .map(|(activator, intent)| {
+            format!(
+                "{{{}}}: {}",
+                activator.debug_describe_keys(),
+                intent.diagnostic_string()
+            )
+        })
+        .collect();
+    format!("{{{}}}", entries.join(", "))
+}
+
 impl ChangeNotifier for ShortcutManager {
     fn change_notifier_data(&self) -> &ChangeNotifierData {
         &self.change_notifier
@@ -1218,6 +1339,24 @@ impl StatefulWidget for Shortcuts {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "manager",
+                self.manager.as_ref().map(|manager| {
+                    describe_identity("ShortcutManager", manager.id().identity_hash())
+                }),
+            )
+            .default_value(None),
+        );
+        let description = match &self.debug_label {
+            Some(label) if !label.is_empty() => Some(label.clone()),
+            _ => Some(describe_shortcut_map(&self.shortcuts)),
+        };
+        properties
+            .add(DiagnosticsProperty::<String>::new("shortcuts", description).with_show_name(true));
     }
 
     fn create_state(&self) -> ShortcutsState {
@@ -2089,5 +2228,108 @@ mod tests {
             ));
             assert!(log.borrow().is_empty());
         });
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use waft_rendering::testing::ignoring_hash_codes;
+
+    use super::*;
+    use crate::testing::describe_properties;
+    use crate::widgets::actions::ActivateIntent;
+    use crate::widgets::basic::SizedBox;
+    use crate::widgets::focus_traversal::{DirectionalFocusIntent, TraversalDirection};
+
+    /// `shortcuts_test.dart`, "LogicalKeySet diagnostics work."
+    #[test]
+    fn a_logical_key_set_describes_its_keys() {
+        let set = LogicalKeySet::new(
+            LogicalKeyboardKey::KEY_A,
+            Some(LogicalKeyboardKey::KEY_B),
+            None,
+            None,
+        );
+        assert_eq!(
+            describe_properties(|properties| set.debug_fill_properties(properties)),
+            ["keys: Key A + Key B"]
+        );
+    }
+
+    /// `shortcuts_test.dart`, "diagnostics.": single key, no repeats, combination.
+    #[test]
+    fn a_single_activator_describes_its_keys_and_repeats() {
+        let single = SingleActivator::new(LogicalKeyboardKey::KEY_A);
+        assert_eq!(
+            describe_properties(|properties| single.debug_fill_properties(properties)),
+            ["keys: Key A"]
+        );
+
+        let no_repeats = SingleActivator::new(LogicalKeyboardKey::KEY_A).include_repeats(false);
+        assert_eq!(
+            describe_properties(|properties| no_repeats.debug_fill_properties(properties)),
+            ["keys: Key A", "excluding repeats"]
+        );
+
+        let combination = SingleActivator::new(LogicalKeyboardKey::KEY_A)
+            .control(true)
+            .shift(true)
+            .alt(true)
+            .meta(true);
+        assert_eq!(
+            describe_properties(|properties| combination.debug_fill_properties(properties)),
+            ["keys: Control + Alt + Meta + Shift + Key A"]
+        );
+    }
+
+    /// `shortcuts_test.dart`, "Shortcuts diagnostics work."
+    #[test]
+    fn shortcuts_describe_their_map() {
+        let shortcuts: ShortcutMap = vec![
+            (
+                Rc::new(LogicalKeySet::new(
+                    LogicalKeyboardKey::SHIFT,
+                    Some(LogicalKeyboardKey::KEY_A),
+                    None,
+                    None,
+                )),
+                Rc::new(ActivateIntent),
+            ),
+            (
+                Rc::new(LogicalKeySet::new(
+                    LogicalKeyboardKey::SHIFT,
+                    Some(LogicalKeyboardKey::ARROW_RIGHT),
+                    None,
+                    None,
+                )),
+                Rc::new(DirectionalFocusIntent::new(TraversalDirection::Right)),
+            ),
+        ];
+        let widget = Shortcuts::new(shortcuts, SizedBox::shrink());
+        let description =
+            describe_properties(|properties| widget.debug_fill_properties(properties));
+        assert_eq!(
+            ignoring_hash_codes(&description.join("\n")),
+            "shortcuts: {{Shift + Key A}: ActivateIntent#00000, {Shift + Arrow Right}: DirectionalFocusIntent#00000(direction: right)}"
+        );
+    }
+
+    /// `shortcuts_test.dart`, "Shortcuts diagnostics work when debugLabel specified."
+    #[test]
+    fn a_shortcuts_label_replaces_the_map() {
+        let shortcuts: ShortcutMap = vec![(
+            Rc::new(LogicalKeySet::new(
+                LogicalKeyboardKey::KEY_A,
+                Some(LogicalKeyboardKey::KEY_B),
+                None,
+                None,
+            )),
+            Rc::new(ActivateIntent),
+        )];
+        let widget = Shortcuts::new(shortcuts, SizedBox::shrink()).debug_label("<Debug Label>");
+        assert_eq!(
+            describe_properties(|properties| widget.debug_fill_properties(properties)),
+            ["shortcuts: <Debug Label>"]
+        );
     }
 }

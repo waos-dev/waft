@@ -3,7 +3,10 @@
 use std::fmt::{self, Debug};
 use std::rc::{Rc, Weak};
 
-use waft_foundation::{App, Handle, Ref, Task};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle, Ref, Task,
+    describe_identity,
+};
 use waft_scheduler::SchedulerBinding;
 
 use crate::binding::{
@@ -133,6 +136,54 @@ impl Debug for AppLifecycleListener {
 }
 
 impl AppLifecycleListener {
+    /// Dart's `AppLifecycleListener.debugFillProperties`.
+    pub fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let listener = app.get(self);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "binding",
+            Some(describe_identity(
+                "WidgetsBinding",
+                listener.binding.id().identity_hash(),
+            )),
+        ));
+        properties.add(
+            FlagProperty::new("onStateChange", Some(listener.on_state_change.is_some()))
+                .if_true("onStateChange"),
+        );
+        properties.add(
+            FlagProperty::new("onInactive", Some(listener.on_inactive.is_some()))
+                .if_true("onInactive"),
+        );
+        properties.add(
+            FlagProperty::new("onResume", Some(listener.on_resume.is_some())).if_true("onResume"),
+        );
+        properties
+            .add(FlagProperty::new("onHide", Some(listener.on_hide.is_some())).if_true("onHide"));
+        properties
+            .add(FlagProperty::new("onShow", Some(listener.on_show.is_some())).if_true("onShow"));
+        properties.add(
+            FlagProperty::new("onPause", Some(listener.on_pause.is_some())).if_true("onPause"),
+        );
+        properties.add(
+            FlagProperty::new("onRestart", Some(listener.on_restart.is_some()))
+                .if_true("onRestart"),
+        );
+        properties.add(
+            FlagProperty::new(
+                "onExitRequested",
+                Some(listener.on_exit_requested.is_some()),
+            )
+            .if_true("onExitRequested"),
+        );
+        properties.add(
+            FlagProperty::new("onDetach", Some(listener.on_detach.is_some())).if_true("onDetach"),
+        );
+    }
+
     /// Creates an [`AppLifecycleListener`].
     pub fn new(app: &mut App) -> Ref<AppLifecycleListener> {
         let binding = WidgetsBinding::instance(app);

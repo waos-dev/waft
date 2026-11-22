@@ -5,7 +5,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use waft_foundation::{
-    App, Handle, Listenable, Listener, OptionRetained, Ref, ValueListenable, ValueNotifier,
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle, Listenable,
+    Listener, OptionRetained, Ref, ValueListenable, ValueNotifier,
 };
 pub use waft_scheduler::TickerProvider;
 use waft_scheduler::{Ticker, TickerCallback};
@@ -224,6 +225,15 @@ impl StatefulWidget for TickerMode {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("requested mode", Some(self.enabled))
+                .if_true("enabled")
+                .if_false("disabled")
+                .with_show_name(true),
+        );
+    }
+
     fn create_state(&self) -> TickerModeState {
         TickerModeState {
             state: StateData::new(),
@@ -358,6 +368,15 @@ impl EffectiveTickerMode {
 }
 
 impl InheritedWidget for EffectiveTickerMode {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("effective mode", Some(self.enabled))
+                .if_true("enabled")
+                .if_false("disabled")
+                .with_show_name(true),
+        );
+    }
+
     fn child(&self) -> &WidgetRef {
         &self.child
     }
@@ -413,6 +432,31 @@ pub trait SingleTickerProviderStateMixin: State {
         self: Handle<Self>,
         app: &mut App,
     ) -> &mut SingleTickerProviderStateMixinData;
+
+    /// Dart's `SingleTickerProviderStateMixin.debugFillProperties`, which a state's own body
+    /// calls where Dart's mixin adds its line.
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let ticker = self.single_ticker_provider_data(app).ticker.handle();
+        let ticker_description = ticker.map(|ticker| {
+            let active = ticker.is_active(app);
+            let muted = ticker.muted(app);
+            match (active, muted) {
+                (true, true) => "active but muted".to_string(),
+                (true, false) => "active".to_string(),
+                (false, true) => "inactive and muted".to_string(),
+                (false, false) => "inactive".to_string(),
+            }
+        });
+        properties.add(
+            DiagnosticsProperty::<String>::new("ticker", ticker_description)
+                .with_show_separator(false)
+                .default_value(None),
+        );
+    }
 
     /// [`TickerProvider::create_ticker`]: creates a ticker with the given callback.
     fn create_ticker(self: Handle<Self>, app: &mut App, on_tick: TickerCallback) -> Ref<Ticker> {
@@ -551,6 +595,29 @@ pub trait TickerProviderStateMixin: State {
         self: Handle<Self>,
         app: &mut App,
     ) -> &mut TickerProviderStateMixinData;
+
+    /// Dart's `TickerProviderStateMixin.debugFillProperties`, which a state's own body calls
+    /// where Dart's mixin adds its line.
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let tickers = self.ticker_provider_data(app).tickers.as_ref();
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "tickers",
+                tickers.map(|tickers| {
+                    format!(
+                        "tracking {} ticker{}",
+                        tickers.len(),
+                        if tickers.len() == 1 { "" } else { "s" }
+                    )
+                }),
+            )
+            .default_value(None),
+        );
+    }
 
     /// [`TickerProvider::create_ticker`]: creates a ticker with the given callback.
     fn create_ticker(self: Handle<Self>, app: &mut App, on_tick: TickerCallback) -> Ref<Ticker> {

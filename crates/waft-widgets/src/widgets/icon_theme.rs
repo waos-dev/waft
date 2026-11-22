@@ -1,6 +1,6 @@
 //! Flutter counterpart: `widgets/icon_theme.dart`.
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder};
 
 use crate::framework::{BuildContext, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 use crate::widgets::basic::Builder;
@@ -104,6 +104,10 @@ impl IconTheme {
 }
 
 impl InheritedWidget for IconTheme {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        self.data.debug_fill_properties(properties);
+    }
+
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
     }
