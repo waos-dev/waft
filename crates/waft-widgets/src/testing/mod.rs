@@ -18,6 +18,7 @@
 
 mod capture;
 mod delayed;
+mod diagnostics;
 mod entry;
 mod finder;
 mod finders;
@@ -32,6 +33,7 @@ mod text_input;
 
 pub use capture::capture_image;
 pub use delayed::delayed;
+pub use diagnostics::describe_properties;
 pub use entry::{TargetPlatformVariant, test_widgets, test_widgets_variant};
 pub use finder::{Finder, FindsOne, RenderTarget, find};
 pub use gestures::TestPointer;
