@@ -14,7 +14,7 @@ use waft_embedder::{
     Clip, Color, Offset, Size, SystemUiOverlayStyle, TargetPlatform, TextBaseline, TextDirection,
     clamp_double,
 };
-use waft_foundation::{App, AsyncCallback, Handle, Ref};
+use waft_foundation::{App, AsyncCallback, DiagnosticPropertiesBuilder, Handle, Ref};
 use waft_painting::{
     Alignment, AlignmentDirectional, AlignmentGeometry, AnyColor, EdgeInsets, EdgeInsetsGeometry,
     ShapeBorderRef, TextOverflow, TextStyle,
@@ -2895,6 +2895,15 @@ impl RenderAligningShiftedBox for RenderAppBarTitleBox {
 
 impl RenderObject for RenderAppBarTitleBox {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_RenderAppBarTitleBox` inherits `RenderAligningShiftedBox.debugFillProperties`.
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -6676,5 +6685,24 @@ mod tests {
                 .on_pressed(Listener::new(|_| {}))
                 .into_widget()
         });
+    }
+
+    /// Dart's `_RenderAppBarTitleBox` fills no properties of its own; it inherits
+    /// `RenderAligningShiftedBox.debugFillProperties`.
+    #[test]
+    fn a_title_box_fills_the_properties_it_inherits() {
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let title_box = RenderAppBarTitleBox::new(&mut app, Some(TextDirection::Ltr));
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(title_box, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(names, ["alignment", "textDirection"]);
     }
 }

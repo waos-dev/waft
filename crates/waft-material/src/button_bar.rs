@@ -5,9 +5,10 @@
 )]
 
 use std::fmt;
+use std::rc::Rc;
 
 use waft_embedder::{Offset, Size, TextDirection};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsNode};
 use waft_painting::{Axis, EdgeInsets, EdgeInsetsGeometry};
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult, ContainerBoxParentData,
@@ -404,6 +405,22 @@ impl RenderFlexMixin for RenderButtonBarRow {
 
 impl RenderObject for RenderButtonBarRow {
     waft_rendering::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // Dart's `_RenderButtonBarRow` inherits `RenderFlex.debugFillProperties`.
+        RenderFlexMixin::debug_fill_properties(self, app, properties);
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        ContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         self.set_has_checked_layout_width(app, false);
@@ -1102,5 +1119,61 @@ mod tests {
             ));
             assert_eq!(tester.get_size(find::by_type::<ButtonBar>()), Size::ZERO);
         });
+    }
+
+    /// Dart's `_RenderButtonBarRow` fills no properties of its own; it inherits
+    /// `RenderFlex.debugFillProperties` and names its children `child 1`, `child 2`, ….
+    #[test]
+    fn a_button_bar_row_fills_the_properties_it_inherits() {
+        use waft_foundation::{AppCell, DiagnosticPropertiesBuilder, DiagnosticsNode};
+        use waft_rendering::RenderConstrainedBox;
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let row = RenderButtonBarRow::new(
+            &mut app,
+            TextDirection::Ltr,
+            MainAxisAlignment::End,
+            MainAxisSize::Min,
+            VerticalDirection::Down,
+            None,
+        );
+        let first =
+            RenderConstrainedBox::new(&mut app, BoxConstraints::tight(Size::new(10.0, 10.0)), None)
+                .as_box();
+        let second =
+            RenderConstrainedBox::new(&mut app, BoxConstraints::tight(Size::new(10.0, 10.0)), None)
+                .as_box();
+        row.insert(&mut app, first, None);
+        row.insert(&mut app, second, None);
+
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        RenderObject::debug_fill_properties(row, &app, &mut properties);
+        let names: Vec<&str> = properties
+            .properties
+            .iter()
+            .filter_map(|property| property.name())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "direction",
+                "mainAxisAlignment",
+                "mainAxisSize",
+                "crossAxisAlignment",
+                "textDirection",
+                "verticalDirection",
+                "textBaseline",
+                "spacing",
+            ]
+        );
+
+        let node = row.as_object().to_diagnostics_node(&app, None);
+        let children: Vec<&str> = node
+            .children()
+            .iter()
+            .filter_map(|child| child.name())
+            .collect();
+        assert_eq!(children, ["child 1", "child 2"]);
     }
 }

@@ -20,8 +20,8 @@ use waft_embedder::{
     Brightness, Canvas, Color, Matrix4, Offset, Paint, PaintStyle, Size, TextBaseline, lerp_double,
 };
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, Listenable, Listener, MergingListenable,
-    OptionRetained, Ref,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticsNode, Handle, Listenable, Listener,
+    MergingListenable, OptionRetained, Ref,
 };
 use waft_painting::{
     AnyBorderSide, AnyColor, AnyTextStyle, BorderSide, EdgeInsets, EdgeInsetsDirectional,
@@ -924,7 +924,7 @@ impl Debug for FloatingLabelAlignment {
 }
 
 // Identifies the children of a _RenderDecorationElement.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum DecorationSlot {
     Icon,
     Input,
@@ -937,6 +937,25 @@ enum DecorationSlot {
     HelperError,
     Counter,
     Container,
+}
+
+/// Dart's `_DecorationSlot.name`, which `debugNameForSlot` returns for an enum.
+impl fmt::Debug for DecorationSlot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            DecorationSlot::Icon => "icon",
+            DecorationSlot::Input => "input",
+            DecorationSlot::Label => "label",
+            DecorationSlot::Hint => "hint",
+            DecorationSlot::Prefix => "prefix",
+            DecorationSlot::Suffix => "suffix",
+            DecorationSlot::PrefixIcon => "prefixIcon",
+            DecorationSlot::SuffixIcon => "suffixIcon",
+            DecorationSlot::HelperError => "helperError",
+            DecorationSlot::Counter => "counter",
+            DecorationSlot::Container => "container",
+        })
+    }
 }
 
 impl DecorationSlot {
@@ -1764,6 +1783,13 @@ impl SlottedContainerRenderObjectMixin<DecorationSlot> for RenderDecoration {
 
 impl RenderObject for RenderDecoration {
     waft_rendering::render_object_accessors!();
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        SlottedContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         SlottedContainerRenderObjectMixin::did_attach(self, app, owner);
@@ -17275,6 +17301,62 @@ pub(crate) mod tests {
                 assert!(border_is(tester, &disabled_border));
             });
         }
+
+        // input_decorator_test.dart 'InputDecorator.debugDescribeChildren'.
+        #[test]
+        fn a_decoration_describes_its_children_by_slot() {
+            test_widgets(|tester| {
+                tester.pump_widget(
+                    BuildInputDecorator::new(
+                        InputDecoration::new()
+                            .icon(Text::new("icon"))
+                            .label_text("label")
+                            .hint_text("hint")
+                            .prefix_text("prefix")
+                            .suffix_text("suffix")
+                            .prefix_icon(Text::new("prefixIcon"))
+                            .suffix_icon(Text::new("suffixIcon"))
+                            .helper_text("helper")
+                            .counter_text("counter"),
+                    )
+                    .child(Text::new("text"))
+                    .build(),
+                );
+
+                // No Semantics wrapper to walk through: accessibility is deferred, so the
+                // decorator's element answers with `_RenderDecoration` itself.
+                let decoration = tester
+                    .render_object(find::by_type::<InputDecorator>())
+                    .downcast::<RenderDecoration>(&tester.cell.borrow())
+                    .expect("the decorator's render object");
+                let names: Vec<String> = {
+                    let app = tester.cell.borrow();
+                    decoration
+                        .as_object()
+                        .to_diagnostics_node(&app, None)
+                        .children()
+                        .iter()
+                        .map(|node| node.name().expect("a named child").to_owned())
+                        .collect()
+                };
+                assert_eq!(
+                    names,
+                    [
+                        "icon",
+                        "input",
+                        "prefixIcon",
+                        "suffixIcon",
+                        "prefix",
+                        "suffix",
+                        "label",
+                        "hint",
+                        "helperError",
+                        "counter",
+                        "container",
+                    ]
+                );
+            });
+        }
     }
 
     // input_decorator_test.dart's 'Material2' group and the
@@ -21280,6 +21362,58 @@ pub(crate) mod tests {
         #[test]
         fn the_floating_label_is_hit_where_it_is_painted_ltr() {
             test_widgets(|tester| check_floating_label_hit_test(tester, TextDirection::Ltr));
+        }
+
+        // input_decorator_test.dart 'InputDecorator.debugDescribeChildren' (Material 2).
+        #[test]
+        fn a_material_2_decoration_describes_its_children_by_slot() {
+            test_widgets(|tester| {
+                M2::new(
+                    InputDecoration::new()
+                        .icon(Text::new("icon"))
+                        .label_text("label")
+                        .hint_text("hint")
+                        .prefix_text("prefix")
+                        .suffix_text("suffix")
+                        .prefix_icon(Text::new("prefixIcon"))
+                        .suffix_icon(Text::new("suffixIcon"))
+                        .helper_text("helper")
+                        .counter_text("counter"),
+                )
+                .child(Text::new("text"))
+                .pump(tester);
+
+                let decoration = tester
+                    .render_object(find::by_type::<InputDecorator>())
+                    .downcast::<RenderDecoration>(&tester.cell.borrow())
+                    .expect("the decorator's render object");
+                let names: Vec<String> = {
+                    let app = tester.cell.borrow();
+                    decoration
+                        .as_object()
+                        .to_diagnostics_node(&app, None)
+                        .children()
+                        .iter()
+                        .map(|node| node.name().expect("a named child").to_owned())
+                        .collect()
+                };
+                assert_eq!(
+                    names,
+                    [
+                        "icon",
+                        "input",
+                        "prefixIcon",
+                        "suffixIcon",
+                        "prefix",
+                        "suffix",
+                        "label",
+                        "hint",
+                        "helperError",
+                        "counter",
+                        "container",
+                    ]
+                );
+            });
         }
     }
 }

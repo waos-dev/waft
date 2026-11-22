@@ -8,7 +8,7 @@ use std::time::Duration;
 use waft_embedder::{
     Color, Offset, PathBuilder, RRect, Radius, Rect, Size, TextBaseline, clamp_double,
 };
-use waft_foundation::{App, Handle, Listener, Ref, ValueChanged};
+use waft_foundation::{App, DiagnosticsNode, Handle, Listener, Ref, ValueChanged};
 use waft_painting::{
     AlignmentGeometry, Axis, BorderSide, ClipContext, EdgeInsets, EdgeInsetsDirectional,
     EdgeInsetsGeometry, OutlinedBorderRef, RoundedRectangleBorder, TextDirection, TextStyle,
@@ -1548,6 +1548,13 @@ impl<T: Clone + PartialEq + Debug + 'static> RenderBoxContainerDefaultsMixin
 
 impl<T: Clone + PartialEq + Debug + 'static> RenderObject for RenderSegmentedButton<T> {
     waft_rendering::render_object_accessors!();
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        ContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -3399,5 +3406,44 @@ pub(crate) mod tests {
                 "lines painted: {lines:?}"
             );
         });
+    }
+
+    /// Dart's `_RenderSegmentedButton` fills no properties of its own; its
+    /// `ContainerRenderObjectMixin` names the children `child 1`, `child 2`, ….
+    #[test]
+    fn a_segmented_button_describes_its_children_in_order() {
+        use waft_foundation::{AppCell, DiagnosticsNode};
+        use waft_painting::StadiumBorder;
+        use waft_rendering::{BoxConstraints, RenderConstrainedBox};
+
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let border = || OutlinedBorderRef::new(StadiumBorder::default());
+        let render = RenderSegmentedButton::<i32>::new(
+            &mut app,
+            Vec::new(),
+            border(),
+            border(),
+            TextDirection::Ltr,
+            0.0,
+            false,
+            Axis::Horizontal,
+        );
+        let child = |app: &mut App| {
+            RenderConstrainedBox::new(app, BoxConstraints::tight(Size::new(10.0, 10.0)), None)
+                .as_box()
+        };
+        let first = child(&mut app);
+        let second = child(&mut app);
+        render.insert(&mut app, first, None);
+        render.insert(&mut app, second, None);
+
+        let node = render.as_object().to_diagnostics_node(&app, None);
+        let names: Vec<&str> = node
+            .children()
+            .iter()
+            .filter_map(|child| child.name())
+            .collect();
+        assert_eq!(names, ["child 1", "child 2"]);
     }
 }
