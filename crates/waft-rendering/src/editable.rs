@@ -13,11 +13,14 @@ use waft_embedder::{
     Paint, Radius, Rect, Size, TargetPlatform, TextAffinity, TextAlign, TextBaseline, TextBox,
     TextDirection, TextHeightBehavior, TextPosition, TextRange, TextSelection, clamp_double,
 };
-use waft_foundation::{App, Handle, Listener, ValueNotifier};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, IntProperty, Listener,
+    ValueNotifier,
+};
 use waft_gestures::TapDownDetails;
 use waft_painting::{
-    ClipContext, InlineSpanRef, PaintingBinding, PlaceholderDimensions, StrutStyle, TextPainter,
-    TextScaler, TextWidthBasis,
+    ClipContext, ColorProperty, InlineSpanRef, PaintingBinding, PlaceholderDimensions, StrutStyle,
+    TextPainter, TextScaler, TextWidthBasis,
 };
 use waft_services::{
     AnyTextSelectionDelegate, SelectionChangedCause, TextLayoutMetrics, is_whitespace,
@@ -1910,6 +1913,48 @@ impl RenderInlineChildrenContainerDefaults for RenderEditable {}
 
 impl RenderObject for RenderEditable {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(ColorProperty::new("cursorColor", this.cursor_color));
+        // A Dart `ValueNotifier`'s `toString` is its class, which a Rust handle cannot name.
+        properties.add(DiagnosticsProperty::<String>::new(
+            "showCursor",
+            Some("Instance of 'ValueNotifier<bool>'".to_string()),
+        ));
+        properties.add(IntProperty::<i32>::new("maxLines", this.max_lines));
+        properties.add(IntProperty::<i32>::new("minLines", this.min_lines));
+        properties.add(
+            DiagnosticsProperty::new("expands", Some(this.expands)).default_value(Some(false)),
+        );
+        properties.add(ColorProperty::new("selectionColor", this.selection_color));
+        properties.add(
+            DiagnosticsProperty::new("textScaler", self.text_scaler(app))
+                .default_value(Some(TextScaler::NO_SCALING)),
+        );
+        properties.add(DiagnosticsProperty::<TextSelection>::new(
+            "selection",
+            this.selection,
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "offset",
+            Some("Instance of 'ViewportOffset'".to_string()),
+        ));
+    }
+
+    /// Dart's `debugDescribeChildren` shows the text, not the inline widget children; the text
+    /// node waits for painting's inline-span diagnostics, so this shows none yet.
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        _app: &App,
+    ) -> Vec<std::rc::Rc<dyn waft_foundation::DiagnosticsNode>> {
+        let _ = self;
+        Vec::new()
+    }
 
     fn visit_children(
         self: RenderHandle<Self>,

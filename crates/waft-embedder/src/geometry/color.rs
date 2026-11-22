@@ -738,6 +738,13 @@ fn get_color_transform(source: ColorSpace, destination: ColorSpace) -> ColorTran
     }
 }
 
+/// Dart's `Color.toString`, which [`Debug`] already renders.
+impl std::fmt::Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

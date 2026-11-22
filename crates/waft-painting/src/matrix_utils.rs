@@ -1,6 +1,13 @@
 //! Flutter counterpart: `painting/matrix_utils.dart`.
 
+use std::any::Any;
+use std::fmt;
+
 use waft_embedder::{Matrix4, Offset, Rect};
+use waft_foundation::{
+    DiagnosticLevel, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle, IntoPropertyName,
+    TextTreeConfiguration, TextTreeRenderer, debug_format_double,
+};
 
 /// Returns the transform as an [`Offset`] if it is only a 2D translation.
 pub fn get_as_translation(transform: Matrix4) -> Option<Offset> {
@@ -110,6 +117,128 @@ pub fn force_to_point(offset: Offset) -> Matrix4 {
     storage[13] = offset.dy() as f32; // Row 1, Column 3: y' = offset.dy
     storage[15] = 1.0; // Row 3, Column 3: w' = w
     Matrix4::from_flutter_array(&storage)
+}
+
+/// Returns the matrix's rows, each prefixed with its index.
+///
+/// Flutter counterpart: `debugDescribeTransform`.
+pub fn debug_describe_transform(transform: Matrix4) -> Vec<String> {
+    let m = transform.to_flutter_array();
+    (0..4)
+        .map(|row| {
+            let entries: Vec<String> = (0..4)
+                .map(|column| debug_format_double(Some(f64::from(m[column * 4 + row]))))
+                .collect();
+            format!("[{row}] {}", entries.join(","))
+        })
+        .collect()
+}
+
+/// Property which handles [`Matrix4`] that represent transforms.
+pub struct TransformProperty {
+    inner: DiagnosticsProperty<String>,
+    matrix: Matrix4,
+}
+
+impl TransformProperty {
+    /// Create a diagnostics property for [`Matrix4`] objects.
+    pub fn new(name: impl IntoPropertyName, value: Matrix4) -> TransformProperty {
+        let name = name.into_property_name();
+        TransformProperty {
+            inner: DiagnosticsProperty::new(name, Some(debug_describe_transform(value).join("\n"))),
+            matrix: value,
+        }
+    }
+
+    /// Dart `TransformProperty(level:)`.
+    pub fn with_level(mut self, level: DiagnosticLevel) -> Self {
+        self.inner = self.inner.with_level(level);
+        self
+    }
+
+    /// Dart's `TransformProperty.valueToString`.
+    pub fn value_to_string(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
+        if parent_configuration.is_some_and(|config| !config.line_break_properties) {
+            let values: Vec<String> = debug_describe_transform(self.matrix)
+                .into_iter()
+                .map(|row| {
+                    row.split_once(' ')
+                        .expect("a row has an index")
+                        .1
+                        .to_string()
+                })
+                .collect();
+            return format!("[{}]", values.join("; "));
+        }
+        debug_describe_transform(self.matrix).join("\n")
+    }
+}
+
+impl DiagnosticsNode for TransformProperty {
+    fn name(&self) -> Option<&str> {
+        self.inner.name()
+    }
+
+    fn value(&self) -> Option<&dyn Any> {
+        Some(&self.matrix as &dyn Any)
+    }
+
+    fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
+        self.value_to_string(parent_configuration)
+    }
+
+    fn show_separator(&self) -> bool {
+        self.inner.show_separator()
+    }
+
+    fn level(&self) -> DiagnosticLevel {
+        self.inner.level()
+    }
+
+    fn show_name(&self) -> bool {
+        self.inner.show_name()
+    }
+
+    fn line_prefix(&self) -> Option<&str> {
+        self.inner.line_prefix()
+    }
+
+    fn style(&self) -> Option<DiagnosticsTreeStyle> {
+        self.inner.style()
+    }
+
+    fn allow_wrap(&self) -> bool {
+        self.inner.allow_wrap()
+    }
+
+    fn allow_name_wrap(&self) -> bool {
+        self.inner.allow_name_wrap()
+    }
+
+    fn to_string_deep_with(
+        &self,
+        prefix_line_one: &str,
+        prefix_other_lines: Option<&str>,
+        parent_configuration: Option<&TextTreeConfiguration>,
+        min_level: DiagnosticLevel,
+        wrap_width: usize,
+    ) -> String {
+        TextTreeRenderer::new()
+            .min_level(min_level)
+            .wrap_width(wrap_width)
+            .render_with(
+                self,
+                prefix_line_one,
+                prefix_other_lines,
+                parent_configuration,
+            )
+    }
+}
+
+impl fmt::Display for TransformProperty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.to_string_with(None, DiagnosticLevel::Info))
+    }
 }
 
 #[cfg(test)]

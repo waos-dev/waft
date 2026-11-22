@@ -1217,6 +1217,13 @@ impl Debug for EdgeInsetsDirectional {
     }
 }
 
+/// Dart's `EdgeInsetsGeometry.toString`, which [`Debug`] already renders.
+impl std::fmt::Display for EdgeInsetsGeometry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1200,6 +1200,16 @@ impl Debug for BorderDirectional {
     }
 }
 
+/// Dart's `BoxShape.toString`: the enum's type and name.
+impl std::fmt::Display for BoxShape {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BoxShape::Rectangle => f.write_str("BoxShape.rectangle"),
+            BoxShape::Circle => f.write_str("BoxShape.circle"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

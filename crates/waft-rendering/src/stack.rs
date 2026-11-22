@@ -3,9 +3,13 @@
 
 use std::any::{Any, TypeId};
 use std::fmt::{self, Debug};
+use std::rc::Rc;
 
 use waft_embedder::{Clip, Offset, Rect, Size, TextBaseline, TextDirection, lerp_double};
-use waft_foundation::{App, Handle};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle,
+    EnumProperty, Handle, IntProperty,
+};
 use waft_painting::{Alignment, AlignmentGeometry};
 
 use crate::box_::{
@@ -992,6 +996,31 @@ impl RenderStackBase for RenderStack {
 impl RenderObject for RenderStack {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let data = RenderStackBase::stack_data(self, app);
+        properties.add(DiagnosticsProperty::new("alignment", data.alignment));
+        properties.add(EnumProperty::<TextDirection>::new(
+            "textDirection",
+            data.text_direction,
+        ));
+        properties.add(EnumProperty::<StackFit>::new("fit", data.fit));
+        properties.add(
+            EnumProperty::<Clip>::new("clipBehavior", Some(data.clip_behavior))
+                .default_value(Some(Clip::HardEdge)),
+        );
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        ContainerRenderObjectMixin::debug_describe_children(self, app)
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderStackBase::perform_layout(self, app)
     }
@@ -1195,6 +1224,36 @@ impl RenderStackBase for RenderIndexedStack {
 
 impl RenderObject for RenderIndexedStack {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(IntProperty::<i32>::new("index", self.get(app).index));
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let index = self.index(app);
+        let mut children = Vec::new();
+        let mut i = 0;
+        let mut child = self.first_child(app);
+        while let Some(current) = child {
+            let mut node = current
+                .as_object()
+                .to_diagnostics_node(app, format!("child {}", i + 1));
+            if Some(i) != index {
+                node = node.with_style(DiagnosticsTreeStyle::Offstage);
+            }
+            children.push(Rc::new(node) as Rc<dyn DiagnosticsNode>);
+            child = self.child_after(app, current);
+            i += 1;
+        }
+        children
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderStackBase::perform_layout(self, app)

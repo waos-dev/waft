@@ -4,7 +4,7 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 ## Identical
 
-- colors.rs → colors.dart (`HSVColor`, `HSLColor`)
+- colors.rs → colors.dart (`HSVColor`, `HSLColor`, `ColorProperty`)
 - box_fit.rs → box_fit.dart
 - geometry.rs → geometry.dart (`positionDependentBox`)
 - beveled_rectangle_border.rs → beveled_rectangle_border.dart
@@ -12,7 +12,7 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - paint_utilities.rs → paint_utilities.dart (`paintZigZag`)
 - basic_types.rs → basic_types.dart (the dart:ui re-exports)
 - text_painter.rs → text_painter.dart (`kDefaultFontSize`, `TextOverflow`)
-- matrix_utils.rs → matrix_utils.dart
+- matrix_utils.rs → matrix_utils.dart (`TransformProperty`, `debugDescribeTransform`)
 - alignment.rs → alignment.dart
 - border_radius.rs → border_radius.dart
 - edge_insets.rs → edge_insets.dart
@@ -127,6 +127,12 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: platform — the renderer tints an image by alpha and ignores the paint's colour channels.
   Affect: fading an image works; tinting one does nothing.
 
+## matrix_utils.rs → matrix_utils.dart (`TransformProperty`)
+
+- Change: a `TransformProperty` keeps the matrix's formatted text in a `DiagnosticsProperty<String>` beside the matrix.
+  Reason: language — `DiagnosticsProperty` prints its value through `Display`, which the host's `Matrix4` does not implement.
+  Affect: a dump reads as Dart's; the property's value is the text, not the matrix.
+
 ## Deferred
 
 - `DecorationImage`, and the `image` field on `BoxDecoration` and `ShapeDecoration`. Trigger: a decoration that paints an image.
@@ -135,7 +141,6 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - `ResizeImage`. Trigger: decoding to a chosen size.
 - `ImageProvider.evict` and `obtainCacheStatus`. Trigger: a caller that drops or inspects one image in the cache.
 - `debug.dart`'s other flags (`debugPaintPictureSizesEnabled`, `debugInvertOversizedImages`, …). Trigger: image loading, or tests that need it.
-- `ColorProperty`. Trigger: diagnostics.
 - Custom `TextScaler` / `SystemTextScaler`. Trigger: `MediaQuery`.
 - `EdgeInsets.fromViewPadding` / `fromWindowPadding`. Trigger: embedder / `MediaQuery`.
 - `_MixedBorderRadius` and cross-kind `add` / `subtract` / `lerp`. Trigger: first consumer that adds a `BorderRadius` to a `BorderRadiusDirectional`.

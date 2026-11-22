@@ -268,8 +268,32 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — a Rust struct cannot be subclassed, and keeping `BoxConstraints` `Copy` means the subclass rides beside it, as `AnyColor` carries a `Color`'s (D17).
   Affect: a subclass instance survives one hop (parent's `layout` or `layout_child` → the child's stored constraints → a `LayoutBuilder`'s builder); a render object that hands its own `constraints()` on to its child passes the plain value, where Dart passes the subclass object along. Nothing in Flutter's scaffold relies on more than one hop.
 
+## proxy_box.rs, table.rs, image.rs, editable.rs, custom_paint.rs → their Dart files (diagnostics)
+
+- Change: a value whose Dart `toString` names its runtime class prints `Instance of '…'` with the kind Waft knows: `RenderCustomPaint`'s painters read `Instance of 'CustomPainter'`, `RenderPhysicalShape`'s clipper `Instance of 'CustomClipper<Path>'`, `RenderMetaData`'s meta data `Instance of 'Object'`, and `RenderEditable`'s `showCursor` and `offset` `Instance of 'ValueNotifier<bool>'` and `Instance of 'ViewportOffset'`.
+  Reason: language — a Rust trait object or erased handle carries no runtime class name.
+  Affect: a dump names the kind where Dart names the app's class.
+
+- Change: `RenderTable`'s `specified column widths` is a `DiagnosticsProperty<String>` holding the map's text with its columns in ascending order.
+  Reason: language — a `DiagnosticsProperty` prints its value through `Display`, which std's `HashMap` does not implement, and the port stores the widths in a `HashMap` rather than Dart's insertion-ordered map.
+  Affect: a dump reads as Dart's, with columns in index order whatever order they were set in.
+
+- Change: `RenderDecoratedBox`'s `decoration` is a `DiagnosticsProperty<String>` holding the decoration's `Debug` text.
+  Reason: language — a decoration is held as a `DecorationRef` trait object, and painting's `Decoration` diagnostics are not ported.
+  Affect: a `BoxDecoration` reads `BoxDecoration { … }` where Dart's diagnostic prints `BoxDecoration(…)`.
+
+- Change: `RenderImage`'s `image` is a `DiagnosticsProperty<String>` holding `[width×height]`.
+  Reason: language — `ui.Image` is a host type with no `Display`.
+  Affect: none; the line reads as Dart's.
+
 ## Deferred
 - `paragraph_test.dart`'s "paints selection highlights outside fade layer and handles after text": the checks of the fade's `saveLayer` and shader rect. Trigger: the fade overflow shader.
+- `RenderParagraph` and `RenderEditable`'s `locale` line, and their text child (`debugDescribeChildren`), which need painting's text-painter locale and inline-span diagnostics. Trigger: a localized text painter and inline-span diagnostics.
+- `_SelectableFragment`'s diagnostics. Trigger: a dump that includes selection fragments.
+- `RenderAnimatedOpacity`'s `opacity` line and the `alwaysIncludeSemantics` flags of the opacity boxes. Trigger: animation diagnostics and the semantics tree.
+- `RenderRepaintBoundary`'s repaint-usefulness metrics. Trigger: the repaint-boundary paint counters.
+- The semantics render objects' diagnostics (`RenderSemanticsGestureHandler` gestures, `RenderBlockSemantics` blocking, `RenderExcludeSemantics` excluding, `RenderIndexedSemantics` index). Trigger: the semantics tree.
+- `RenderImage`'s `scale` and its `opacity` as an `Animation<double>`. Trigger: an animated image opacity and the image's scale as an own field.
 
 - box.rs: `AnyBoxConstraints`'s `Hash` (Dart's subclasses override `hashCode`). Trigger: the first map or set keyed by one.
 - `RenderImage`'s `color` / `colorBlendMode` and `invertColors`. Trigger: painting's colour filters.
@@ -293,7 +317,6 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - `SliverConstraints.debugAssertIsValid` extra numeric checks. Trigger: a caller that relies on those messages.
 - `RenderIgnoreBaseline`, which reports no baseline for a child that has one, so that a baseline-aligned row puts that child at the top. Trigger: a child a baseline-aligned `Row` should not align by its baseline.
 - `PaintingContext.pushColorFilter`. Trigger: its first caller.
-- proxy_box.rs: the physical models' diagnostics. Trigger: diagnostics.
 - proxy_box.rs: `CustomClipper.getApproximateClipRect` and the clips' `describeApproximatePaintClip`, with `_DismissibleClipper`'s override of it. Trigger: the semantics tree.
 
 ## object.rs, layer.rs, binding.rs → object.dart, layer.dart, binding.dart (diagnostics)

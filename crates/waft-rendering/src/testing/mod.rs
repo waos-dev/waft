@@ -24,3 +24,23 @@ pub use rendering_tester::{
     EnginePhase, TEST_VIEW_SIZE, install_test_fonts, layout, layout_with, pump_frame,
     test_pipeline_owner, test_render_root,
 };
+
+/// Dart's `equalsIgnoringHashCodes`: every `#` and five hex digits read as `#00000`.
+pub fn ignoring_hash_codes(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('#') {
+        out.push_str(&rest[..at]);
+        let hash = &rest[at + 1..];
+        let digits = hash.chars().take_while(char::is_ascii_hexdigit).count();
+        if digits == 5 {
+            out.push_str("#00000");
+            rest = &hash[5..];
+        } else {
+            out.push('#');
+            rest = hash;
+        }
+    }
+    out.push_str(rest);
+    out
+}

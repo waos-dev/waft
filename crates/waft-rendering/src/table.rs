@@ -9,7 +9,10 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::{Offset, Rect, Size, TextBaseline, TextDirection};
-use waft_foundation::{App, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty,
+    IterableProperty, MessageProperty, PRECISION_ERROR_TOLERANCE, debug_format_double, message,
+};
 use waft_painting::{BoxPainter, ClipContext, DecorationRef, ImageConfiguration};
 
 use crate::box_::{
@@ -203,6 +206,19 @@ impl fmt::Debug for IntrinsicColumnWidth {
             Some(flex) => write!(f, "IntrinsicColumnWidth(flex: {flex:.1})"),
             None => f.write_str("IntrinsicColumnWidth(flex: null)"),
         }
+    }
+}
+
+impl fmt::Display for dyn TableColumnWidth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+/// Dart compares these objects by identity, which [`Rc`] shares.
+impl PartialEq for dyn TableColumnWidth {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
     }
 }
 
@@ -1232,6 +1248,93 @@ impl RenderTable {
 impl RenderObject for RenderTable {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(
+            DiagnosticsProperty::<TableBorder>::new("border", this.border).default_value(None),
+        );
+        let column_widths = {
+            let mut keys: Vec<&usize> = this.column_widths.keys().collect();
+            keys.sort();
+            format!(
+                "{{{}}}",
+                keys.into_iter()
+                    .map(|key| format!("{key}: {}", this.column_widths[key]))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
+        properties.add(
+            DiagnosticsProperty::<String>::new("specified column widths", Some(column_widths))
+                .with_level(if this.column_widths.is_empty() {
+                    DiagnosticLevel::Hidden
+                } else {
+                    DiagnosticLevel::Info
+                }),
+        );
+        properties.add(DiagnosticsProperty::<TableColumnWidthRef>::new(
+            "default column width",
+            Some(Rc::clone(&this.default_column_width)),
+        ));
+        properties.add(MessageProperty::new(
+            "table size",
+            format!("{}\u{00D7}{}", this.columns, this.rows),
+        ));
+        properties.add(
+            IterableProperty::<String>::new(
+                "column offsets",
+                this.column_lefts.as_ref().map(|lefts| {
+                    lefts
+                        .iter()
+                        .map(|left| debug_format_double(Some(*left)))
+                        .collect()
+                }),
+            )
+            .if_null("unknown"),
+        );
+        properties.add(
+            IterableProperty::<String>::new(
+                "row offsets",
+                this.row_tops
+                    .iter()
+                    .map(|top| debug_format_double(Some(*top)))
+                    .collect::<Vec<_>>(),
+            )
+            .if_null("unknown"),
+        );
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let this = self.get(app);
+        if this.children.is_empty() {
+            return vec![Rc::new(message("table is empty")) as Rc<dyn DiagnosticsNode>];
+        }
+        let mut children: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        for y in 0..this.rows {
+            for x in 0..this.columns {
+                let name = format!("child ({x}, {y})");
+                match this.children[x + y * this.columns] {
+                    Some(child) => {
+                        children.push(Rc::new(child.as_object().to_diagnostics_node(app, name)))
+                    }
+                    None => children.push(Rc::new(
+                        DiagnosticsProperty::<String>::new(name, None)
+                            .if_null("is null")
+                            .with_show_separator(false),
+                    )),
+                }
+            }
+        }
+        children
+    }
+
     fn did_detach(self: RenderHandle<Self>, app: &mut App) {
         let this = self.get_mut(app);
         if let Some(painters) = this.row_decoration_painters.take() {
@@ -1689,7 +1792,9 @@ mod tests {
     use super::*;
     use crate::proxy_box::RenderConstrainedBox;
     use crate::shifted_box::RenderPositionedBox;
-    use crate::testing::{EnginePhase, layout, layout_with, painted_ops, pump_frame};
+    use crate::testing::{
+        EnginePhase, ignoring_hash_codes, layout, layout_with, painted_ops, pump_frame,
+    };
 
     fn sized_box(app: &mut App, width: f64, height: f64) -> AnyRenderBox {
         RenderConstrainedBox::new(app, BoxConstraints::tight(Size::new(width, height)), None)
@@ -1716,6 +1821,19 @@ mod tests {
         let table = RenderTable::new(&mut app, TextDirection::Ltr);
         layout(&mut app, table.as_box());
         assert_eq!(table.size(&app), Size::new(800.0, 600.0));
+        assert_eq!(
+            ignoring_hash_codes(&table.as_object().to_string_deep(&app)),
+            "RenderTable#00000 NEEDS-PAINT\n\
+             \u{20}│ parentData: <none> (can use size)\n\
+             \u{20}│ constraints: BoxConstraints(w=800.0, h=600.0)\n\
+             \u{20}│ size: Size(800.0, 600.0)\n\
+             \u{20}│ default column width: FlexColumnWidth(1.0)\n\
+             \u{20}│ table size: 0\u{00D7}0\n\
+             \u{20}│ column offsets: unknown\n\
+             \u{20}│ row offsets: []\n\
+             \u{20}│\n\
+             \u{20}└─table is empty\n"
+        );
     }
 
     /// `table_test.dart`: "Table control test; loose".
@@ -1807,6 +1925,67 @@ mod tests {
             .as_object()
             .parent_data_of::<TableCellParentData>(&app);
         assert_eq!((parent_data.x, parent_data.y), (Some(2), Some(0)));
+        assert_eq!(
+            ignoring_hash_codes(&table.as_object().to_string_deep(&app)),
+            "RenderTable#00000 relayoutBoundary=up1 NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE\n\
+             \u{20}│ parentData: offset=Offset(335.0, 185.0) (can use size)\n\
+             \u{20}│ constraints: BoxConstraints(0.0<=w<=800.0, 0.0<=h<=600.0)\n\
+             \u{20}│ size: Size(130.0, 230.0)\n\
+             \u{20}│ default column width: IntrinsicColumnWidth(flex: null)\n\
+             \u{20}│ table size: 5\u{00D7}5\n\
+             \u{20}│ column offsets: 0.0, 10.0, 30.0, 130.0, 130.0\n\
+             \u{20}│ row offsets: 0.0, 30.0, 30.0, 30.0, 30.0, 230.0\n\
+             \u{20}│\n\
+             \u{20}├─child (0, 0): RenderConstrainedBox#00000 relayoutBoundary=up2 NEEDS-PAINT\n\
+             \u{20}│   parentData: offset=Offset(0.0, 0.0); default vertical alignment\n\
+             \u{20}│     (can use size)\n\
+             \u{20}│   constraints: BoxConstraints(w=10.0, 0.0<=h<=Infinity)\n\
+             \u{20}│   size: Size(10.0, 30.0)\n\
+             \u{20}│   additionalConstraints: BoxConstraints(w=10.0, h=30.0)\n\
+             \u{20}│\n\
+             \u{20}├─child (1, 0): RenderConstrainedBox#00000 relayoutBoundary=up2 NEEDS-PAINT\n\
+             \u{20}│   parentData: offset=Offset(10.0, 0.0); default vertical alignment\n\
+             \u{20}│     (can use size)\n\
+             \u{20}│   constraints: BoxConstraints(w=20.0, 0.0<=h<=Infinity)\n\
+             \u{20}│   size: Size(20.0, 20.0)\n\
+             \u{20}│   additionalConstraints: BoxConstraints(w=20.0, h=20.0)\n\
+             \u{20}│\n\
+             \u{20}├─child (2, 0): RenderConstrainedBox#00000 relayoutBoundary=up2 NEEDS-PAINT\n\
+             \u{20}│   parentData: offset=Offset(30.0, 0.0); default vertical alignment\n\
+             \u{20}│     (can use size)\n\
+             \u{20}│   constraints: BoxConstraints(w=100.0, 0.0<=h<=Infinity)\n\
+             \u{20}│   size: Size(100.0, 10.0)\n\
+             \u{20}│   additionalConstraints: BoxConstraints(w=30.0, h=10.0)\n\
+             \u{20}│\n\
+             \u{20}├─child (3, 0) is null\n\
+             \u{20}├─child (4, 0) is null\n\
+             \u{20}├─child (0, 1) is null\n\
+             \u{20}├─child (1, 1) is null\n\
+             \u{20}├─child (2, 1) is null\n\
+             \u{20}├─child (3, 1) is null\n\
+             \u{20}├─child (4, 1) is null\n\
+             \u{20}├─child (0, 2) is null\n\
+             \u{20}├─child (1, 2) is null\n\
+             \u{20}├─child (2, 2) is null\n\
+             \u{20}├─child (3, 2) is null\n\
+             \u{20}├─child (4, 2) is null\n\
+             \u{20}├─child (0, 3) is null\n\
+             \u{20}├─child (1, 3) is null\n\
+             \u{20}├─child (2, 3) is null\n\
+             \u{20}├─child (3, 3) is null\n\
+             \u{20}├─child (4, 3) is null\n\
+             \u{20}├─child (0, 4) is null\n\
+             \u{20}├─child (1, 4) is null\n\
+             \u{20}├─child (2, 4): RenderConstrainedBox#00000 relayoutBoundary=up2 NEEDS-PAINT\n\
+             \u{20}│   parentData: offset=Offset(30.0, 30.0); default vertical alignment\n\
+             \u{20}│     (can use size)\n\
+             \u{20}│   constraints: BoxConstraints(w=100.0, 0.0<=h<=Infinity)\n\
+             \u{20}│   size: Size(100.0, 200.0)\n\
+             \u{20}│   additionalConstraints: BoxConstraints(w=100.0, h=200.0)\n\
+             \u{20}│\n\
+             \u{20}├─child (3, 4) is null\n\
+             \u{20}└─child (4, 4) is null\n"
+        );
     }
 
     /// `table_test.dart`: "Table test: removing cells".

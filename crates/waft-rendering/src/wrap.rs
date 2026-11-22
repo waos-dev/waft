@@ -5,7 +5,10 @@ use std::fmt;
 use std::ops::{Add, Sub};
 
 use waft_embedder::{Clip, Offset, Size, TextBaseline, TextDirection};
-use waft_foundation::{App, Handle, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DoubleProperty, EnumProperty, Handle,
+    PRECISION_ERROR_TOLERANCE,
+};
 use waft_painting::{Axis, VerticalDirection};
 
 use crate::box_::{
@@ -921,6 +924,38 @@ impl RenderBoxContainerDefaultsMixin for RenderWrap {}
 impl RenderObject for RenderWrap {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(EnumProperty::<Axis>::new("direction", this.direction));
+        properties.add(EnumProperty::<WrapAlignment>::new(
+            "alignment",
+            this.alignment,
+        ));
+        properties.add(DoubleProperty::new("spacing", this.spacing));
+        properties.add(EnumProperty::<WrapAlignment>::new(
+            "runAlignment",
+            this.run_alignment,
+        ));
+        properties.add(DoubleProperty::new("runSpacing", this.run_spacing));
+        // Dart passes `runSpacing` here, not `crossAxisAlignment`.
+        properties.add(DoubleProperty::new("crossAxisAlignment", this.run_spacing));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<VerticalDirection>::new(
+                "verticalDirection",
+                Some(this.vertical_direction),
+            )
+            .default_value(Some(VerticalDirection::Down)),
+        );
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         debug_assert!(self.debug_has_necessary_directions(app));
@@ -1154,7 +1189,28 @@ mod tests {
 
     use super::*;
     use crate::proxy_box::RenderConstrainedBox;
-    use crate::testing::{EnginePhase, layout_with, painted_ops};
+    use crate::testing::{EnginePhase, ignoring_hash_codes, layout_with, painted_ops};
+
+    /// `wrap_test.dart`: "Wrap test; toStringDeep".
+    #[test]
+    fn a_wrap_dump_shows_its_defaults() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let render_wrap = RenderWrap::new(&mut app);
+        assert_eq!(
+            ignoring_hash_codes(&render_wrap.as_object().to_string_deep(&app)),
+            "RenderWrap#00000 NEEDS-LAYOUT NEEDS-PAINT DETACHED\n\
+             \u{20}  parentData: MISSING\n\
+             \u{20}  constraints: MISSING\n\
+             \u{20}  size: MISSING\n\
+             \u{20}  direction: horizontal\n\
+             \u{20}  alignment: start\n\
+             \u{20}  spacing: 0.0\n\
+             \u{20}  runAlignment: start\n\
+             \u{20}  runSpacing: 0.0\n\
+             \u{20}  crossAxisAlignment: 0.0\n"
+        );
+    }
 
     /// A box at least 80 square, as `wrap_test.dart`'s children are.
     fn box_80(app: &mut App) -> AnyRenderBox {

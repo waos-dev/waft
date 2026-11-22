@@ -7,6 +7,10 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 use waft_embedder::{Color, clamp_double, lerp_double};
+use waft_foundation::{
+    DiagnosticLevel, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle, IntoPropertyName,
+    TextTreeConfiguration, TextTreeRenderer,
+};
 
 fn unit_channel(component: f64) -> f64 {
     (component * 255.0).round().clamp(0.0, 255.0) / 255.0
@@ -280,6 +284,119 @@ impl Debug for HSLColor {
             "HSLColor({}, {}, {}, {})",
             self.alpha, self.hue, self.saturation, self.lightness
         )
+    }
+}
+
+/// [`DiagnosticsProperty`] that has a [`Color`] as value.
+///
+/// Flutter's `ColorProperty` only adds JSON fields this port has no counterpart for, so a color
+/// prints through [`Color`]'s `Display`.
+pub struct ColorProperty {
+    inner: DiagnosticsProperty<Color>,
+}
+
+impl ColorProperty {
+    /// The value of the property.
+    pub fn value(&self) -> Option<&Color> {
+        self.inner.value()
+    }
+
+    /// Create a diagnostics property for a [`Color`].
+    pub fn new(name: impl IntoPropertyName, value: impl Into<Option<Color>>) -> ColorProperty {
+        ColorProperty {
+            inner: DiagnosticsProperty::new(name, value),
+        }
+    }
+
+    /// Dart `ColorProperty(defaultValue:)`.
+    pub fn default_value(mut self, default_value: Option<Color>) -> Self {
+        self.inner = self.inner.default_value(default_value);
+        self
+    }
+
+    /// Dart `ColorProperty(showName:)`.
+    pub fn with_show_name(mut self, show_name: bool) -> Self {
+        self.inner = self.inner.with_show_name(show_name);
+        self
+    }
+
+    /// Dart `ColorProperty(style:)`.
+    pub fn with_style(mut self, style: DiagnosticsTreeStyle) -> Self {
+        self.inner = self.inner.with_style(style);
+        self
+    }
+
+    /// Dart `ColorProperty(level:)`.
+    pub fn with_level(mut self, level: DiagnosticLevel) -> Self {
+        self.inner = self.inner.with_level(level);
+        self
+    }
+}
+
+impl DiagnosticsNode for ColorProperty {
+    fn name(&self) -> Option<&str> {
+        self.inner.name()
+    }
+
+    fn value(&self) -> Option<&dyn Any> {
+        DiagnosticsNode::value(&self.inner)
+    }
+
+    fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
+        self.inner.to_description(parent_configuration)
+    }
+
+    fn show_separator(&self) -> bool {
+        self.inner.show_separator()
+    }
+
+    fn level(&self) -> DiagnosticLevel {
+        self.inner.level()
+    }
+
+    fn show_name(&self) -> bool {
+        self.inner.show_name()
+    }
+
+    fn line_prefix(&self) -> Option<&str> {
+        self.inner.line_prefix()
+    }
+
+    fn style(&self) -> Option<DiagnosticsTreeStyle> {
+        self.inner.style()
+    }
+
+    fn allow_wrap(&self) -> bool {
+        self.inner.allow_wrap()
+    }
+
+    fn allow_name_wrap(&self) -> bool {
+        self.inner.allow_name_wrap()
+    }
+
+    fn to_string_deep_with(
+        &self,
+        prefix_line_one: &str,
+        prefix_other_lines: Option<&str>,
+        parent_configuration: Option<&TextTreeConfiguration>,
+        min_level: DiagnosticLevel,
+        wrap_width: usize,
+    ) -> String {
+        TextTreeRenderer::new()
+            .min_level(min_level)
+            .wrap_width(wrap_width)
+            .render_with(
+                self,
+                prefix_line_one,
+                prefix_other_lines,
+                parent_configuration,
+            )
+    }
+}
+
+impl fmt::Display for ColorProperty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.to_string_with(None, DiagnosticLevel::Info))
     }
 }
 

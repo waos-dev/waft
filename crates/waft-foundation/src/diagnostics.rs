@@ -3672,6 +3672,12 @@ impl DiagnosticableTreeNode {
         }
     }
 
+    /// Sets the node's style, as Dart's `toDiagnosticsNode(style:)` does.
+    pub fn with_style(mut self, style: DiagnosticsTreeStyle) -> Self {
+        self.inner.style = style;
+        self
+    }
+
     /// The node's short description.
     pub fn description(&self) -> &str {
         self.inner.description()

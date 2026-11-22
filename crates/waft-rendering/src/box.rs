@@ -16,7 +16,7 @@ use std::rc::Rc;
 use waft_embedder::{
     Matrix4, Offset, Rect, Size, TextBaseline, ViewConstraints, clamp_double, lerp_double,
 };
-use waft_foundation::{App, Handle, HandleId};
+use waft_foundation::{App, Handle, HandleId, debug_format_double};
 use waft_gestures::{
     HitTestEntry, HitTestResult, HitTestTarget, PointerEvent, remove_perspective_transform,
 };
@@ -658,9 +658,13 @@ impl Display for BoxConstraints {
         }
         fn describe(min: f64, max: f64, dim: &str) -> String {
             if min == max {
-                format!("{dim}={min:.1}")
+                format!("{dim}={}", debug_format_double(Some(min)))
             } else {
-                format!("{min:.1}<={dim}<={max:.1}")
+                format!(
+                    "{}<={dim}<={}",
+                    debug_format_double(Some(min)),
+                    debug_format_double(Some(max))
+                )
             }
         }
         write!(

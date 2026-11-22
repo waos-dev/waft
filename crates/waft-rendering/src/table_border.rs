@@ -419,6 +419,13 @@ impl fmt::Debug for TableBorder {
     }
 }
 
+/// Dart's `TableBorder.toString`, which [`Debug`] already renders.
+impl fmt::Display for TableBorder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_embedder::Radius;

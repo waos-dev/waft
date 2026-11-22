@@ -874,6 +874,13 @@ impl Debug for BorderRadiusDirectional {
     }
 }
 
+/// Dart's `BorderRadius.toString`, which [`Debug`] already renders.
+impl std::fmt::Display for BorderRadius {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

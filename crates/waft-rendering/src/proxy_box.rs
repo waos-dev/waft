@@ -16,6 +16,8 @@
 use std::any::Any;
 use std::rc::Rc;
 
+use indexmap::IndexMap;
+
 use waft_animation::{AnimationRef, AnyAnimation};
 use waft_embedder::Locale;
 use waft_embedder::{
@@ -23,7 +25,10 @@ use waft_embedder::{
     PathBuilder, RRect, RSuperellipse, Rect, Size, TextBaseline, rrect_radii_elliptical,
     rsuperellipse_radii_elliptical, valo,
 };
-use waft_foundation::{App, Handle, Listenable, Listener, OptionRetained};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    FlagProperty, FlagsSummary, Handle, Listenable, Listener, OptionRetained, describe_identity,
+};
 use waft_gestures::{
     PointerCancelEventListener, PointerDownEventListener, PointerEnterEventListener, PointerEvent,
     PointerExitEventListener, PointerHoverEventListener, PointerMoveEventListener,
@@ -32,8 +37,8 @@ use waft_gestures::{
 };
 use waft_painting::{
     Alignment, AlignmentGeometry, BorderRadius, BorderRadiusGeometry, BoxFit, BoxPainter, BoxShape,
-    ClipContext, DecorationRef, ImageConfiguration, ShapeBorderRef, TextDirection, apply_box_fit,
-    draw_rrect, get_as_translation,
+    ClipContext, ColorProperty, DecorationRef, ImageConfiguration, ShapeBorderRef, TextDirection,
+    TransformProperty, apply_box_fit, draw_rrect, get_as_translation,
 };
 use waft_services::{MouseCursor, MouseCursorRef, MouseTrackerAnnotation};
 
@@ -230,6 +235,19 @@ pub trait RenderProxyBoxWithHitTestBehavior: RenderProxyBoxMixin {
     fn hit_test_self(self: RenderHandle<Self>, app: &App, _position: Offset) -> bool {
         self.behavior(app) == HitTestBehavior::Opaque
     }
+
+    /// Dart's `RenderProxyBoxWithHitTestBehavior.debugFillProperties`: a class that inherits
+    /// the behavior adds it before its own properties.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(
+            EnumProperty::<HitTestBehavior>::new("behavior", Some(self.behavior(app)))
+                .default_value(None),
+        );
+    }
 }
 
 /// How to behave during hit tests.
@@ -247,6 +265,16 @@ pub enum HitTestBehavior {
     /// Translucent targets both receive events within their bounds and permit
     /// targets visually behind them to also receive events.
     Translucent,
+}
+
+/// Dart's `LayerLink.toString`: the identity and whether a leader is connected.
+fn layer_link_description(app: &App, link: Handle<LayerLink>) -> String {
+    let linked = link.leader(app).is_some();
+    format!(
+        "{}({})",
+        describe_identity("LayerLink", link.id().identity_hash()),
+        if linked { "<linked>" } else { "<dangling>" }
+    )
 }
 
 /// Flutter's `RenderConstrainedBox` fields.
@@ -458,6 +486,17 @@ impl RenderProxyBoxMixin for RenderConstrainedBox {}
 impl RenderObject for RenderConstrainedBox {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::new(
+            "additionalConstraints",
+            self.get(app).constrained_box.additional_constraints,
+        ));
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderConstrainedBoxBase::perform_layout(self, app);
     }
@@ -634,6 +673,14 @@ impl RenderProxyBoxMixin for RenderOpacity {}
 
 impl RenderObject for RenderOpacity {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DoubleProperty::new("opacity", self.opacity(app)));
+    }
 
     fn always_needs_compositing(self: RenderHandle<Self>, app: &App) -> bool {
         self.child(app).is_some() && self.get(app).alpha > 0
@@ -832,6 +879,18 @@ impl RenderProxyBoxMixin for RenderLeaderLayer {}
 
 impl RenderObject for RenderLeaderLayer {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let link = self.get(app).link.handle();
+        properties.add(DiagnosticsProperty::<String>::new(
+            "link",
+            Some(layer_link_description(app, link)),
+        ));
+    }
 
     fn always_needs_compositing(self: RenderHandle<Self>, _app: &App) -> bool {
         true
@@ -1105,6 +1164,30 @@ impl RenderProxyBoxMixin for RenderFollowerLayer {}
 
 impl RenderObject for RenderFollowerLayer {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "link",
+            Some(layer_link_description(app, this.link.handle())),
+        ));
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "showWhenUnlinked",
+            Some(this.show_when_unlinked),
+        ));
+        properties.add(DiagnosticsProperty::<Offset>::new(
+            "offset",
+            Some(this.offset),
+        ));
+        properties.add(TransformProperty::new(
+            "current transform matrix",
+            self.current_transform(app),
+        ));
+    }
 
     fn always_needs_compositing(self: RenderHandle<Self>, _app: &App) -> bool {
         true
@@ -1793,6 +1876,50 @@ impl RenderProxyBoxWithHitTestBehavior for RenderPointerListener {
 impl RenderObject for RenderPointerListener {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+        let this = self.get(app);
+        let mut listeners = IndexMap::new();
+        listeners.insert(
+            "down".to_string(),
+            this.on_pointer_down.is_some().then_some(()),
+        );
+        listeners.insert(
+            "move".to_string(),
+            this.on_pointer_move.is_some().then_some(()),
+        );
+        listeners.insert("up".to_string(), this.on_pointer_up.is_some().then_some(()));
+        listeners.insert(
+            "hover".to_string(),
+            this.on_pointer_hover.is_some().then_some(()),
+        );
+        listeners.insert(
+            "cancel".to_string(),
+            this.on_pointer_cancel.is_some().then_some(()),
+        );
+        listeners.insert(
+            "panZoomStart".to_string(),
+            this.on_pointer_pan_zoom_start.is_some().then_some(()),
+        );
+        listeners.insert(
+            "panZoomUpdate".to_string(),
+            this.on_pointer_pan_zoom_update.is_some().then_some(()),
+        );
+        listeners.insert(
+            "panZoomEnd".to_string(),
+            this.on_pointer_pan_zoom_end.is_some().then_some(()),
+        );
+        listeners.insert(
+            "signal".to_string(),
+            this.on_pointer_signal.is_some().then_some(()),
+        );
+        properties.add(FlagsSummary::<()>::new("listeners", listeners).if_empty("<none>"));
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
     }
@@ -2100,6 +2227,22 @@ impl RenderProxyBoxMixin for RenderDecoratedBox {}
 
 impl RenderObject for RenderDecoratedBox {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "decoration",
+            Some(format!("{:?}", this.decoration)),
+        ));
+        properties.add(DiagnosticsProperty::<ImageConfiguration>::new(
+            "configuration",
+            Some(this.configuration.clone()),
+        ));
+    }
 
     fn did_detach(self: RenderHandle<Self>, app: &mut App) {
         if let Some(mut painter) = self.get_mut(app).painter.take() {
@@ -2685,6 +2828,32 @@ impl RenderProxyBoxWithHitTestBehavior for RenderMouseRegion {
 impl RenderObject for RenderMouseRegion {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+        let data = self.mouse_region_data(app);
+        let mut listeners = IndexMap::new();
+        listeners.insert("enter".to_string(), data.on_enter.is_some().then_some(()));
+        listeners.insert("hover".to_string(), data.on_hover.is_some().then_some(()));
+        listeners.insert("exit".to_string(), data.on_exit.is_some().then_some(()));
+        properties.add(FlagsSummary::<()>::new("listeners", listeners).if_empty("<none>"));
+        properties.add(
+            DiagnosticsProperty::<String>::new("cursor", Some(data.cursor.debug_description()))
+                .default_value(Some("defer".to_string())),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("opaque", Some(data.opaque)).default_value(Some(true)),
+        );
+        properties.add(
+            FlagProperty::new("validForMouseTracker", Some(data.valid_for_mouse_tracker))
+                .default_value(Some(true))
+                .if_false("invalid for MouseTracker"),
+        );
+    }
+
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         RenderMouseRegionBase::did_attach(self, app, owner);
     }
@@ -2955,6 +3124,20 @@ impl RenderProxyBoxMixin for RenderLimitedBox {}
 impl RenderObject for RenderLimitedBox {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(
+            DoubleProperty::new("maxWidth", this.max_width).default_value(Some(f64::INFINITY)),
+        );
+        properties.add(
+            DoubleProperty::new("maxHeight", this.max_height).default_value(Some(f64::INFINITY)),
+        );
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         let size = self.compute_size(app, constraints, ChildLayoutHelper::layout_child);
@@ -3190,6 +3373,17 @@ impl RenderProxyBoxMixin for RenderAspectRatio {}
 
 impl RenderObject for RenderAspectRatio {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DoubleProperty::new(
+            "aspectRatio",
+            self.get(app).aspect_ratio,
+        ));
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -3468,6 +3662,16 @@ impl RenderProxyBoxMixin for RenderIntrinsicWidth {}
 
 impl RenderObject for RenderIntrinsicWidth {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(DoubleProperty::new("stepWidth", this.step_width));
+        properties.add(DoubleProperty::new("stepHeight", this.step_height));
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
@@ -5366,6 +5570,20 @@ pub trait RenderPhysicalModelBase<T: Clone + 'static>: RenderCustomClip<T> {
         self.physical_model_data_mut(app).color = value;
         self.mark_needs_paint(app);
     }
+
+    /// Dart's `_RenderPhysicalModelBase.debugFillProperties`: what a subclass's own override
+    /// adds before its properties.
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let data = self.physical_model_data(app);
+        properties.add(DoubleProperty::new("elevation", data.elevation));
+        properties.add(ColorProperty::new("color", data.color));
+        // Dart passes `color` here, not `shadowColor`.
+        properties.add(ColorProperty::new("shadowColor", data.color));
+    }
 }
 
 /// The device pixel ratio of the view `render_object` paints into, which the engine's
@@ -5529,6 +5747,23 @@ impl RenderPhysicalModelBase<RRect> for RenderPhysicalModel {
 
 impl RenderObject for RenderPhysicalModel {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderPhysicalModelBase::debug_fill_properties(self, app, properties);
+        let this = self.get(app);
+        properties.add(DiagnosticsProperty::<BoxShape>::new(
+            "shape",
+            Some(this.shape),
+        ));
+        properties.add(DiagnosticsProperty::<BorderRadius>::new(
+            "borderRadius",
+            this.border_radius,
+        ));
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         if let Some(child) = self.child(app) {
@@ -5816,6 +6051,19 @@ impl RenderPhysicalModelBase<Path> for RenderPhysicalShape {
 
 impl RenderObject for RenderPhysicalShape {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderPhysicalModelBase::debug_fill_properties(self, app, properties);
+        let clipper = self.clipper(app);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "clipper",
+            clipper.map(|_| "Instance of 'CustomClipper<Path>'".to_string()),
+        ));
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         if let Some(child) = self.child(app) {
@@ -6328,6 +6576,28 @@ impl RenderProxyBoxMixin for RenderTransform {}
 impl RenderObject for RenderTransform {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(TransformProperty::new("transform matrix", this.transform));
+        properties.add(DiagnosticsProperty::<Offset>::new("origin", this.origin));
+        properties.add(DiagnosticsProperty::<AlignmentGeometry>::new(
+            "alignment",
+            this.alignment,
+        ));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
+                .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "transformHitTests",
+            Some(this.transform_hit_tests),
+        ));
+    }
+
     fn always_needs_compositing(self: RenderHandle<Self>, app: &App) -> bool {
         self.child(app).is_some() && self.get(app).filter_quality.is_some()
     }
@@ -6707,6 +6977,23 @@ impl RenderProxyBoxMixin for RenderFittedBox {}
 impl RenderObject for RenderFittedBox {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(EnumProperty::<BoxFit>::new("fit", Some(this.fit)));
+        properties.add(DiagnosticsProperty::<AlignmentGeometry>::new(
+            "alignment",
+            Some(this.alignment),
+        ));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", this.text_direction)
+                .default_value(None),
+        );
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         let Some(child) = self.child(app) else {
@@ -6996,6 +7283,22 @@ impl RenderProxyBoxMixin for RenderFractionalTranslation {}
 impl RenderObject for RenderFractionalTranslation {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(DiagnosticsProperty::<Offset>::new(
+            "translation",
+            Some(this.translation),
+        ));
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "transformHitTests",
+            Some(this.transform_hit_tests),
+        ));
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
     }
@@ -7187,6 +7490,17 @@ impl RenderProxyBoxMixin for RenderIgnorePointer {}
 impl RenderObject for RenderIgnorePointer {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "ignoring",
+            Some(self.get(app).ignoring),
+        ));
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
     }
@@ -7358,6 +7672,37 @@ impl RenderProxyBoxMixin for RenderOffstage {}
 
 impl RenderObject for RenderOffstage {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "offstage",
+            Some(self.get(app).offstage),
+        ));
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn waft_foundation::DiagnosticsNode>> {
+        let Some(child) = self.child(app) else {
+            return Vec::new();
+        };
+        let style = if self.get(app).offstage {
+            waft_foundation::DiagnosticsTreeStyle::Offstage
+        } else {
+            waft_foundation::DiagnosticsTreeStyle::Sparse
+        };
+        vec![Rc::new(
+            child
+                .as_object()
+                .to_diagnostics_node(app, "child")
+                .with_style(style),
+        )]
+    }
 
     fn sized_by_parent(self: RenderHandle<Self>, app: &App) -> bool {
         self.get(app).offstage
@@ -7582,6 +7927,17 @@ impl RenderProxyBoxMixin for RenderAbsorbPointer {}
 impl RenderObject for RenderAbsorbPointer {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "absorbing",
+            Some(self.get(app).absorbing),
+        ));
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
     }
@@ -7775,6 +8131,14 @@ impl RenderProxyBoxWithHitTestBehavior for RenderColoredBox {
 
 impl RenderObject for RenderColoredBox {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
@@ -7973,6 +8337,19 @@ impl RenderProxyBoxWithHitTestBehavior for RenderMetaData {
 
 impl RenderObject for RenderMetaData {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderProxyBoxWithHitTestBehavior::debug_fill_properties(self, app, properties);
+        let meta_data = self.get(app).meta_data.clone();
+        properties.add(DiagnosticsProperty::<String>::new(
+            "metaData",
+            meta_data.map(|_| "Instance of 'Object'".to_string()),
+        ));
+    }
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderProxyBoxMixin::perform_layout(self, app);
@@ -9012,6 +9389,26 @@ impl RenderProxyBoxMixin for RenderBackdropFilter {}
 impl RenderObject for RenderBackdropFilter {
     crate::render_object_accessors!();
 
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = self.get(app);
+        properties.add(
+            DiagnosticsProperty::<ImageFilterConfig>::new(
+                "filterConfig",
+                Some(this.filter_config.clone()),
+            )
+            .default_value(None),
+        );
+        properties.add(EnumProperty::<BlendMode>::new(
+            "blendMode",
+            Some(this.blend_mode),
+        ));
+        properties.add(FlagProperty::new("enabled", Some(this.enabled)).if_true("enabled"));
+    }
+
     fn always_needs_compositing(self: RenderHandle<Self>, app: &App) -> bool {
         self.child(app).is_some()
     }
@@ -9360,37 +9757,16 @@ mod tests {
     use crate::layer::ErasedLayer;
     use crate::pipeline_owner::PipelineOwner;
     use crate::testing::{
-        CanvasMethod, EnginePhase, count_calls, layout_with, painted_ops, pump_frame,
-        test_render_root,
+        CanvasMethod, EnginePhase, count_calls, ignoring_hash_codes, layout_with, painted_ops,
+        pump_frame, test_render_root,
     };
     use crate::view::ViewConfiguration;
     use waft_embedder::SceneBuilder;
 
-    /// Dart's `equalsIgnoringHashCodes`: every `#` and five hex digits read as `#00000`.
-    fn ignoring_hash_codes(text: &str) -> String {
-        let mut out = String::with_capacity(text.len());
-        let mut rest = text;
-        while let Some(at) = rest.find('#') {
-            out.push_str(&rest[..at]);
-            let hash = &rest[at + 1..];
-            let digits = hash.chars().take_while(char::is_ascii_hexdigit).count();
-            if digits == 5 {
-                out.push_str("#00000");
-                rest = &hash[5..];
-            } else {
-                out.push('#');
-                rest = hash;
-            }
-        }
-        out.push_str(rest);
-        out
-    }
-
-    /// limited_box_test.dart's 'LimitedBox: parent max size is unconstrained', its base
-    /// classes' lines: each class's own properties come with its `debug_fill_properties`. The
-    /// root's parent data says `(can use size)` where Dart's does not: the test root here is a
-    /// repaint boundary, which lays its child out using its size, where Dart's is the render
-    /// view, which does not.
+    /// `limited_box_test.dart`'s 'LimitedBox: parent max size is unconstrained'. The root's
+    /// parent data says `(can use size)` where Dart's does not: the test root here is a repaint
+    /// boundary, which lays its child out using its size, where Dart's is the render view, which
+    /// does not.
     #[test]
     fn a_limited_box_dump_shows_each_objects_layout() {
         let cell = AppCell::new();
@@ -9425,16 +9801,25 @@ mod tests {
              \u{20}│ parentData: <none> (can use size)\n\
              \u{20}│ constraints: BoxConstraints(w=800.0, h=600.0)\n\
              \u{20}│ size: Size(800.0, 600.0)\n\
+             \u{20}│ alignment: Alignment.center\n\
+             \u{20}│ minWidth: 0.0\n\
+             \u{20}│ maxWidth: Infinity\n\
+             \u{20}│ minHeight: 0.0\n\
+             \u{20}│ maxHeight: Infinity\n\
+             \u{20}│ fit: max\n\
              \u{20}│\n\
              \u{20}└─child: RenderLimitedBox#00000 relayoutBoundary=up1 NEEDS-PAINT NEEDS-COMPOSITING-BITS-UPDATE\n\
              \u{20}  │ parentData: offset=Offset(350.0, 200.0) (can use size)\n\
              \u{20}  │ constraints: BoxConstraints(unconstrained)\n\
              \u{20}  │ size: Size(100.0, 200.0)\n\
+             \u{20}  │ maxWidth: 100.0\n\
+             \u{20}  │ maxHeight: 200.0\n\
              \u{20}  │\n\
              \u{20}  └─child: RenderConstrainedBox#00000 relayoutBoundary=up2 NEEDS-PAINT\n\
              \u{20}      parentData: <none> (can use size)\n\
              \u{20}      constraints: BoxConstraints(0.0<=w<=100.0, 0.0<=h<=200.0)\n\
-             \u{20}      size: Size(100.0, 200.0)\n"
+             \u{20}      size: Size(100.0, 200.0)\n\
+             \u{20}      additionalConstraints: BoxConstraints(w=300.0, h=400.0)\n"
         );
     }
 

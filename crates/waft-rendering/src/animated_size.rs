@@ -8,7 +8,7 @@ use waft_animation::{
     AnimationStatusListener, Curve, CurvedAnimation, SizeTween,
 };
 use waft_embedder::{Clip, Offset, Size, TextBaseline, TextDirection};
-use waft_foundation::{App, Handle, Listener};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle, Listener};
 use waft_painting::AlignmentGeometry;
 
 use crate::box_::{AnyRenderBox, BoxConstraints, BoxHitTestResult, RenderBox, RenderBoxData};
@@ -322,6 +322,14 @@ impl RenderAligningShiftedBox for RenderAnimatedSize {
 
 impl RenderObject for RenderAnimatedSize {
     crate::render_object_accessors!();
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderAligningShiftedBox::debug_fill_properties(self, app, properties);
+    }
 
     fn did_attach(self: RenderHandle<Self>, app: &mut App, owner: Handle<PipelineOwner>) {
         if let Some(child) = self.child(app) {
