@@ -9,7 +9,8 @@ use waft_foundation::{DiagnosticLevel, DiagnosticPropertiesBuilder};
 /// node.toString())`.
 ///
 /// ```ignore
-/// let description = describe_properties(|properties| widget.debug_fill_properties(properties));
+/// let description =
+///     describe_properties(|properties| widget.debug_fill_properties(&app, properties));
 /// assert_eq!(description, ["width: 10.0"]);
 /// ```
 pub fn describe_properties(fill: impl FnOnce(&mut DiagnosticPropertiesBuilder)) -> Vec<String> {
@@ -32,8 +33,10 @@ mod tests {
     #[test]
     fn only_the_properties_shown_at_the_info_level_are_described() {
         let sized = SizedBox::new().width(10.0);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         assert_eq!(
-            describe_properties(|properties| sized.debug_fill_properties(properties)),
+            describe_properties(|properties| sized.debug_fill_properties(&app, properties)),
             ["width: 10.0"]
         );
     }

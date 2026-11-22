@@ -133,7 +133,7 @@ impl<W: AnimatedWidget> StatefulWidget for Animated<W> {
         short_type_name::<W>()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.0.debug_fill_properties(properties);
     }
 
@@ -1070,7 +1070,7 @@ impl RenderObjectWidget for FadeTransition {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "opacity",
             Some(waft_foundation::describe_identity(

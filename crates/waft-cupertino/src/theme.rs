@@ -148,7 +148,7 @@ impl StatelessWidget for CupertinoTheme {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `CupertinoTheme.debugFillProperties`: `data.debugFillProperties(properties)`.
         Diagnosticable::debug_fill_properties(&self.data, properties);
     }

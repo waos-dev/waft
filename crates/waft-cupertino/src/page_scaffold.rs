@@ -453,7 +453,7 @@ impl CupertinoPageScaffoldBackgroundColor {
 }
 
 impl InheritedWidget for CupertinoPageScaffoldBackgroundColor {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(create_cupertino_color_property(
             "page scaffold background color",
             Some(self.color.clone()),

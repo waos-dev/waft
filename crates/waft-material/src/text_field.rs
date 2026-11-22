@@ -1141,7 +1141,7 @@ impl StatefulWidget for TextField {
     }
 
     #[allow(deprecated)]
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `selectionControls` line waits for `TextSelectionControls`' `Display`.
         properties.add(
             DiagnosticsProperty::<String>::new(
@@ -9586,9 +9586,11 @@ mod tests {
         use waft_foundation::DiagnosticPropertiesBuilder;
 
         let text_field = TextField::new();
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                text_field.debug_fill_properties(properties)
+                text_field.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(description, Vec::<String>::new());
@@ -9631,9 +9633,11 @@ mod tests {
             .scroll_physics(Rc::new(ClampingScrollPhysics::new()))
             .enable_interactive_selection(false)
             .hint_locales(vec![Locale::new("en"), Locale::new("fr")]);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                text_field.debug_fill_properties(properties)
+                text_field.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(

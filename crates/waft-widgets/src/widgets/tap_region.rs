@@ -863,7 +863,7 @@ impl RenderObjectWidget for TapRegion {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("enabled", Some(self.enabled))
                 .if_false("DISABLED")

@@ -667,7 +667,7 @@ impl StatefulWidget for SelectableText {
     }
 
     #[allow(deprecated)]
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `selectionControls` line waits for that type's `Display`.
         properties
             .add(DiagnosticsProperty::<String>::new("data", self.data.clone()).default_value(None));
@@ -4137,8 +4137,12 @@ mod tests {
         use waft_foundation::DiagnosticPropertiesBuilder;
 
         let text = SelectableText::new("something");
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
-            |properties: &mut DiagnosticPropertiesBuilder| text.debug_fill_properties(properties),
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                text.debug_fill_properties(&app, properties)
+            },
         );
         assert_eq!(description, ["data: something"]);
     }
@@ -4173,8 +4177,12 @@ mod tests {
             .scroll_behavior(ScrollBehaviorRef::plain())
             .semantics_label("something else")
             .enable_interactive_selection(false);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
-            |properties: &mut DiagnosticPropertiesBuilder| text.debug_fill_properties(properties),
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                text.debug_fill_properties(&app, properties)
+            },
         );
         assert_eq!(
             description,

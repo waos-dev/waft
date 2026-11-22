@@ -344,7 +344,7 @@ impl StatefulWidget for OutlinedButton {
         self.button_style_button.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.button_style_button.debug_fill_properties(properties);
     }
 

@@ -409,7 +409,7 @@ impl fmt::Debug for CupertinoButton {
 }
 
 impl StatefulWidget for CupertinoButton {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(FlagProperty::new("enabled", Some(self.enabled())).if_false("disabled"));
     }
 

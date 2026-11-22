@@ -329,7 +329,7 @@ impl Visibility {
 }
 
 impl StatelessWidget for Visibility {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("visible", Some(self.visible))
                 .if_false("hidden")

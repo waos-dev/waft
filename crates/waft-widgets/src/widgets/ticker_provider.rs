@@ -225,7 +225,7 @@ impl StatefulWidget for TickerMode {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("requested mode", Some(self.enabled))
                 .if_true("enabled")
@@ -368,7 +368,7 @@ impl EffectiveTickerMode {
 }
 
 impl InheritedWidget for EffectiveTickerMode {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("effective mode", Some(self.enabled))
                 .if_true("enabled")

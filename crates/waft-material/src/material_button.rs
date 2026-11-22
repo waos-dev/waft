@@ -355,7 +355,7 @@ impl StatelessWidget for MaterialButton {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `visualDensity` line waits for `VisualDensity`'s `Display` in `theme_data.rs`.
         properties.add(FlagProperty::new("enabled", Some(self.enabled())).if_false("disabled"));
         properties.add(

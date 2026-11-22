@@ -143,7 +143,7 @@ impl StatelessWidget for Placeholder {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             ColorProperty::new("color", self.color)
                 .default_value(Some(waft_embedder::Color::new(0xFF455A64))),

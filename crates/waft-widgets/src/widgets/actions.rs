@@ -1417,7 +1417,7 @@ impl StatefulWidget for Actions {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "dispatcher",
             self.dispatcher
@@ -3353,8 +3353,10 @@ mod diagnostics_tests {
     fn the_default_actions_describe_their_dispatcher_and_empty_map() {
         let actions = Actions::new(HashMap::new(), Container::new())
             .dispatcher(Rc::new(PlainActionDispatcher::new()));
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description =
-            describe_properties(|properties| actions.debug_fill_properties(properties));
+            describe_properties(|properties| actions.debug_fill_properties(&app, properties));
         assert_eq!(description.len(), 2);
         assert_eq!(
             ignoring_hash_codes(&description.join("\n")),

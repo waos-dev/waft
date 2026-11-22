@@ -117,7 +117,7 @@ impl CupertinoUserInterfaceLevel {
 }
 
 impl InheritedWidget for CupertinoUserInterfaceLevel {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::<CupertinoUserInterfaceLevelData>::new(
             "user interface level",
             Some(self.data),

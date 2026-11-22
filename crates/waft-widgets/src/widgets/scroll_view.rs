@@ -772,7 +772,7 @@ impl StatelessWidget for CustomScrollView {
         self.scroll_view.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.scroll_view.debug_fill_properties(properties);
     }
 
@@ -1238,7 +1238,7 @@ impl StatelessWidget for ListView {
         self.scroll_view.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.scroll_view.debug_fill_properties(properties);
         self.box_scroll_view.debug_fill_properties(properties);
         properties.add(DoubleProperty::new("itemExtent", self.item_extent).default_value(None));
@@ -1606,7 +1606,7 @@ impl StatelessWidget for GridView {
         self.scroll_view.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.scroll_view.debug_fill_properties(properties);
         self.box_scroll_view.debug_fill_properties(properties);
     }

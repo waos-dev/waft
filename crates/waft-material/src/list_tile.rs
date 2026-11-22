@@ -899,7 +899,7 @@ impl StatelessWidget for ListTile {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `visualDensity` line waits for `VisualDensity`'s `Display` in
         // `theme_data.rs`; `onTap` and `onLongPress` wait for a `Function` description.
         properties.add(
@@ -6052,9 +6052,11 @@ pub(crate) mod tests {
         use waft_foundation::DiagnosticPropertiesBuilder;
 
         let list_tile = ListTile::new();
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                list_tile.debug_fill_properties(properties)
+                list_tile.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(description, Vec::<String>::new());
@@ -6106,9 +6108,11 @@ pub(crate) mod tests {
             .min_vertical_padding(2.0)
             .min_leading_width(6.0)
             .title_alignment(ListTileTitleAlignment::Bottom);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                list_tile.debug_fill_properties(properties)
+                list_tile.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(

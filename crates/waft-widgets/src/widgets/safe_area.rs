@@ -131,7 +131,7 @@ impl StatelessWidget for SafeArea {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         safe_area_flags(self.left, self.top, self.right, self.bottom, properties);
     }
 
@@ -262,7 +262,7 @@ impl StatelessWidget for SliverSafeArea {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         safe_area_flags(self.left, self.top, self.right, self.bottom, properties);
     }
 

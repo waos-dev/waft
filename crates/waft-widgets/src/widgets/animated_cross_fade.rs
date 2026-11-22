@@ -329,7 +329,7 @@ impl StatefulWidget for AnimatedCrossFade {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("crossFadeState", self.cross_fade_state));
         properties.add(
             DiagnosticsProperty::<AlignmentGeometry>::new("alignment", Some(self.alignment))

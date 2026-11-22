@@ -511,7 +511,7 @@ impl StatefulWidget for RawMenuAnchor {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(ObjectFlagProperty::<String>::has(
             "focusNode",
             self.child_focus_node.as_ref().map(|_| String::new()),
@@ -1321,7 +1321,7 @@ impl StatefulWidget for RawMenuAnchorGroup {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(ObjectFlagProperty::<String>::has(
             "controller",
             Some(String::new()),

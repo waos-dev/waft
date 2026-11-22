@@ -519,7 +519,11 @@ impl InheritedWidget for DialogTheme {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(
+        &self,
+        _app: &App,
+        properties: &mut waft_foundation::DiagnosticPropertiesBuilder,
+    ) {
         self.data()
             .debug_fill_properties_without_constraints(properties);
     }

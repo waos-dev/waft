@@ -705,7 +705,7 @@ impl StatefulWidget for Slider {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DoubleProperty::new("value", self.value));
         properties.add(DoubleProperty::new(
             "secondaryTrackValue",
@@ -7398,8 +7398,12 @@ pub(crate) mod tests {
             .active_color(active)
             .inactive_color(inactive)
             .secondary_active_color(secondary);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
-            |properties: &mut DiagnosticPropertiesBuilder| slider.debug_fill_properties(properties),
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                slider.debug_fill_properties(&app, properties)
+            },
         );
         assert_eq!(
             description,

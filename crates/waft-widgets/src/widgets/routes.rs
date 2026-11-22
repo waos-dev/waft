@@ -1552,7 +1552,7 @@ impl InheritedWidget for ModalScopeStatus {
         &self.child
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("isCurrent", Some(self.is_current))
                 .if_true("active")

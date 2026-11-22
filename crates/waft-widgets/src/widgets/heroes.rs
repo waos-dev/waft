@@ -476,7 +476,7 @@ impl StatefulWidget for Hero {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "tag",
             Some(format!("{:?}", self.tag)),
@@ -1733,7 +1733,7 @@ impl StatelessWidget for HeroMode {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("mode", Some(self.enabled))
                 .if_true("enabled")

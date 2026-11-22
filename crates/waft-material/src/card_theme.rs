@@ -332,7 +332,11 @@ impl InheritedWidget for CardTheme {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(
+        &self,
+        _app: &App,
+        properties: &mut waft_foundation::DiagnosticPropertiesBuilder,
+    ) {
         // Dart repeats `CardThemeData.debugFillProperties` with `CardTheme`'s getters, which
         // answer this theme's `data()`.
         waft_foundation::Diagnosticable::debug_fill_properties(&self.data(), properties);

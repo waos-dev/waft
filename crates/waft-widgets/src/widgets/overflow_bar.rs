@@ -194,7 +194,7 @@ impl RenderObjectWidget for OverflowBar {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DoubleProperty::new("spacing", self.spacing).default_value(Some(0.0)));
         properties.add(
             EnumProperty::<MainAxisAlignment>::new("alignment", self.alignment).default_value(None),

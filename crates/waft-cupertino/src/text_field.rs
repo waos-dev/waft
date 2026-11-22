@@ -987,7 +987,7 @@ impl Debug for CupertinoTextField {
 }
 
 impl StatefulWidget for CupertinoTextField {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let controller = self.controller.as_ref().map(|controller| {
             DiagnosticsText(format!(
                 "TextEditingController#{}",

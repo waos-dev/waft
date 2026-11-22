@@ -542,7 +542,7 @@ impl StatefulWidget for Tooltip {
     }
 
     #[allow(deprecated)]
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         // Dart's `positionDelegate` line waits for that function type's `Display`.
         properties.add({
             let property = StringProperty::new("message", self.message.clone())
@@ -2250,9 +2250,11 @@ pub(crate) mod tests {
         use waft_foundation::DiagnosticPropertiesBuilder;
 
         let tooltip = Tooltip::new().message("message");
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                tooltip.debug_fill_properties(properties)
+                tooltip.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(description, ["\"message\""]);
@@ -2269,9 +2271,11 @@ pub(crate) mod tests {
             vec![Rc::new(TextSpan::new().text("richMessage")) as InlineSpanRef],
         ));
         let tooltip = Tooltip::new().rich_message(rich_message);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                tooltip.debug_fill_properties(properties)
+                tooltip.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(description, ["\"This is a richMessage\""]);
@@ -2301,9 +2305,11 @@ pub(crate) mod tests {
             .vertical_offset(50.0)
             .trigger_mode(TooltipTriggerMode::Manual)
             .enable_feedback(true);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                tooltip.debug_fill_properties(properties)
+                tooltip.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(

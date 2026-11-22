@@ -417,7 +417,7 @@ struct BadgeLayout {
 impl RenderObjectWidget for BadgeLayout {
     type RenderObject = RenderBadge;
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<AlignmentGeometry>::new(
             "alignment",
             self.alignment,

@@ -430,7 +430,7 @@ impl StatefulWidget for AnimatedSwitcher {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(IntProperty::new("duration", self.duration.as_millis() as i64).unit("ms"));
         properties.add(
             IntProperty::<i64>::new(

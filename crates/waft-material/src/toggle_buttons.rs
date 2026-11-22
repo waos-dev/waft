@@ -684,7 +684,7 @@ impl StatelessWidget for ToggleButtons {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             FlagProperty::new("disabled", Some(self.on_pressed.is_none()))
                 .if_true("Buttons are disabled")
@@ -3844,9 +3844,11 @@ pub(crate) mod tests {
         .disabled_color(blue)
         .disabled_border_color(yellow)
         .border_radius(BorderRadius::circular(7.0));
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                toggle_buttons.debug_fill_properties(properties)
+                toggle_buttons.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(

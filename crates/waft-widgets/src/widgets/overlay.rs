@@ -1156,7 +1156,7 @@ struct Theater {
 impl RenderObjectWidget for Theater {
     type RenderObject = RenderTheater;
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(IntProperty::<usize>::new(
             "skipCount",
             Some(self.skip_count),

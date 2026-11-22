@@ -333,7 +333,7 @@ impl InheritedWidget for DefaultTextStyle {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         Diagnosticable::debug_fill_properties(&self.style, properties);
         properties
             .add(EnumProperty::<TextAlign>::new("textAlign", self.text_align).default_value(None));
@@ -500,7 +500,7 @@ impl InheritedWidget for DefaultTextHeightBehavior {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "textHeightBehavior",
@@ -812,7 +812,7 @@ impl StatelessWidget for Text {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(StringProperty::new("data", self.data.clone()).with_show_name(false));
         if let Some(text_span) = &self.text_span {
             properties.add_rc(Rc::new(text_span.diagnostics_node(
@@ -2077,7 +2077,7 @@ impl RenderObjectWidget for RichText {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             EnumProperty::new("textAlign", self.text_align).default_value(Some(TextAlign::Start)),
         );

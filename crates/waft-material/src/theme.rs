@@ -246,7 +246,7 @@ impl StatelessWidget for Theme {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<Rc<ThemeData>>::new("data", Rc::clone(&self.data))
                 .with_show_name(false),

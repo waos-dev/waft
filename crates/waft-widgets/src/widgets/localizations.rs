@@ -705,7 +705,7 @@ impl Debug for Localizations {
 }
 
 impl StatefulWidget for Localizations {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("locale", self.locale.clone()));
         properties.add(IterableProperty::<String>::new(
             "delegates",

@@ -778,7 +778,7 @@ impl ParentDataWidget for TableCellParentDataWidget {
         &self.child
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::<TableCellVerticalAlignment>::new(
             "verticalAlignment",
             self.vertical_alignment,

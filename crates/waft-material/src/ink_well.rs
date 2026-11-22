@@ -1138,7 +1138,7 @@ struct InkResponseStateWidget {
 impl StatefulWidget for InkResponseStateWidget {
     type State = InkResponseState;
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let response = &self.response;
         let gestures: Vec<String> = [
             (response.on_tap.is_some(), "tap"),

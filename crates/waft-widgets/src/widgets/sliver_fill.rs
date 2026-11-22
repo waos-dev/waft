@@ -537,11 +537,13 @@ impl StatelessWidget for SliverFillRemaining {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         if let Some(child) = &self.child {
-            properties.add_rc(Rc::new(
-                child.to_diagnostics_node(Some("child".to_string()), None),
-            ));
+            properties.add_rc(Rc::new(child.to_diagnostics_node(
+                app,
+                Some("child".to_string()),
+                None,
+            )));
         } else {
             properties.add(DiagnosticsProperty::<String>::new("child", None::<String>));
         }

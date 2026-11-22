@@ -212,7 +212,7 @@ impl StatefulWidget for GlowingOverscrollIndicator {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("axisDirection", self.axis_direction));
         let show_description = match (self.show_leading, self.show_trailing) {
             (true, true) => "both sides",
@@ -1146,7 +1146,7 @@ impl StatefulWidget for StretchingOverscrollIndicator {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("axisDirection", self.axis_direction));
     }
 

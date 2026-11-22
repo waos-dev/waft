@@ -710,7 +710,7 @@ impl InheritedWidget for ScrollConfiguration {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "behavior",
             Some(format!("{:?}", self.behavior)),

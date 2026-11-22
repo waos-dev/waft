@@ -487,7 +487,7 @@ impl StatelessWidget for CheckedModeBanner {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let message = if cfg!(debug_assertions) {
             "\"DEBUG\""
         } else {

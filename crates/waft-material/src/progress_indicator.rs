@@ -758,7 +758,7 @@ impl StatefulWidget for LinearProgressIndicator {
         self.progress_indicator.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.progress_indicator_data()
             .debug_fill_properties(properties);
     }
@@ -1488,7 +1488,7 @@ impl StatefulWidget for CircularProgressIndicator {
         self.progress_indicator.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.progress_indicator_data()
             .debug_fill_properties(properties);
     }
@@ -2062,7 +2062,7 @@ impl StatefulWidget for RefreshProgressIndicator {
             .as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.progress_indicator_data()
             .debug_fill_properties(properties);
     }

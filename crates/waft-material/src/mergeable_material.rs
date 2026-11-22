@@ -270,7 +270,7 @@ impl StatefulWidget for MergeableMaterial {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("mainAxis", self.main_axis));
         properties.add(DoubleProperty::new("elevation", self.elevation));
     }

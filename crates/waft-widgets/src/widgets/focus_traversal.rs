@@ -2569,7 +2569,7 @@ impl InheritedWidget for FocusTraversalOrder {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "order",
             Some(self.order.diagnostic_string()),
@@ -2836,7 +2836,7 @@ impl StatefulWidget for FocusTraversalGroup {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "policy",
             self.policy.as_ref().map(|policy| policy.to_string_short()),

@@ -1341,7 +1341,7 @@ impl StatefulWidget for Shortcuts {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "manager",
@@ -2306,8 +2306,10 @@ mod diagnostics_tests {
             ),
         ];
         let widget = Shortcuts::new(shortcuts, SizedBox::shrink());
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description =
-            describe_properties(|properties| widget.debug_fill_properties(properties));
+            describe_properties(|properties| widget.debug_fill_properties(&app, properties));
         assert_eq!(
             ignoring_hash_codes(&description.join("\n")),
             "shortcuts: {{Shift + Key A}: ActivateIntent#00000, {Shift + Arrow Right}: DirectionalFocusIntent#00000(direction: right)}"
@@ -2327,8 +2329,10 @@ mod diagnostics_tests {
             Rc::new(ActivateIntent),
         )];
         let widget = Shortcuts::new(shortcuts, SizedBox::shrink()).debug_label("<Debug Label>");
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         assert_eq!(
-            describe_properties(|properties| widget.debug_fill_properties(properties)),
+            describe_properties(|properties| widget.debug_fill_properties(&app, properties)),
             ["shortcuts: <Debug Label>"]
         );
     }

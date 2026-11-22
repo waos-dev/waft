@@ -926,7 +926,7 @@ impl AnyElement {
                 .with_level(DiagnosticLevel::Hidden),
         );
         if let Some(widget) = &data.widget {
-            widget.debug_fill_properties(properties);
+            widget.debug_fill_properties(app, properties);
         }
         properties.add(FlagProperty::new("dirty", data.dirty).if_true("dirty"));
         if let Some(dependencies) = data.dependencies.as_ref().filter(|set| !set.is_empty()) {

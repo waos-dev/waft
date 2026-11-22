@@ -124,7 +124,7 @@ pub trait Widget: Any + Debug {
     /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
     /// order. Dart's `Widget` base only sets the dense tree style, which
     /// [`to_diagnostics_node`](<dyn Widget>::to_diagnostics_node) does before calling this.
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let _ = properties;
     }
 
@@ -217,12 +217,13 @@ impl dyn Widget {
     /// in the dense style unless `style` says otherwise.
     pub fn to_diagnostics_node(
         &self,
+        app: &App,
         name: impl IntoPropertyName,
         style: Option<DiagnosticsTreeStyle>,
     ) -> DiagnosticableNode {
         let mut properties = DiagnosticPropertiesBuilder::new();
         properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Dense;
-        self.debug_fill_properties(&mut properties);
+        self.debug_fill_properties(app, &mut properties);
         let node = DiagnosticableNode::from_parts(name, self.to_string_short(), properties);
         match style {
             Some(style) => node.with_style(style),
@@ -344,7 +345,7 @@ pub trait StatelessWidget: Debug + 'static {
 
     /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
     /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let _ = properties;
     }
 
@@ -392,8 +393,8 @@ impl<W: StatelessWidget> Widget for Stateless<W> {
         self.0.key()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        self.0.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(app, properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -463,7 +464,7 @@ pub trait StatefulWidget: Debug + 'static {
 
     /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
     /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let _ = properties;
     }
 
@@ -512,8 +513,8 @@ impl<W: StatefulWidget> Widget for Stateful<W> {
         self.0.key()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        self.0.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(app, properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -582,7 +583,7 @@ pub trait InheritedWidget: Debug + 'static {
 
     /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
     /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let _ = properties;
     }
 
@@ -631,8 +632,8 @@ impl<W: InheritedWidget> Widget for Inherited<W> {
         self.0.key()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        self.0.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(app, properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -708,7 +709,7 @@ pub trait ParentDataWidget: Debug + 'static {
 
     /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
     /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let _ = properties;
     }
 
@@ -773,8 +774,8 @@ impl<W: ParentDataWidget> Widget for ParentDataWrapper<W> {
         self.0.key()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        self.0.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(app, properties);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -858,7 +859,7 @@ pub trait RenderObjectWidget: Debug + 'static {
 
     /// Dart's `debugFillProperties`: the properties a dump shows for this widget, in Dart's
     /// order. Dart's `Widget` base only sets the dense tree style, which the framework does.
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let _ = properties;
     }
 
@@ -950,8 +951,8 @@ impl<W: LeafRenderObjectWidget> Widget for LeafRenderObject<W> {
         self.0.key()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        self.0.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(app, properties);
     }
 
     fn to_string_short(&self) -> String {
@@ -1042,8 +1043,8 @@ where
         self.0.key()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        self.0.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(app, properties);
     }
 
     fn to_string_short(&self) -> String {
@@ -1155,8 +1156,8 @@ where
         self.0.key()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        self.0.debug_fill_properties(properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.0.debug_fill_properties(app, properties);
     }
 
     fn to_string_short(&self) -> String {

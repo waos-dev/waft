@@ -243,7 +243,7 @@ impl Debug for CupertinoSlider {
 }
 
 impl StatefulWidget for CupertinoSlider {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DoubleProperty::new("value", self.value));
         properties.add(DoubleProperty::new("min", self.min));
         properties.add(DoubleProperty::new("max", self.max));

@@ -167,7 +167,7 @@ impl InheritedWidget for Directionality {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("textDirection", self.text_direction));
     }
 
@@ -529,7 +529,7 @@ impl RenderObjectWidget for Opacity {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DoubleProperty::new("opacity", self.opacity));
     }
 
@@ -861,7 +861,7 @@ impl RenderObjectWidget for ClipRect {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "clipper",
@@ -1019,7 +1019,7 @@ impl RenderObjectWidget for ClipRRect {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<BorderRadiusGeometry>::new("borderRadius", self.border_radius)
                 .with_show_name(false),
@@ -1186,7 +1186,7 @@ impl RenderObjectWidget for ClipRSuperellipse {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<BorderRadiusGeometry>::new("borderRadius", self.border_radius)
                 .with_show_name(false),
@@ -1328,7 +1328,7 @@ impl RenderObjectWidget for ClipOval {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "clipper",
@@ -1475,7 +1475,7 @@ impl RenderObjectWidget for ClipPath {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<String>::new(
                 "clipper",
@@ -1697,7 +1697,7 @@ impl RenderObjectWidget for PhysicalModel {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("shape", self.shape));
         properties.add(DiagnosticsProperty::<BorderRadius>::new(
             "borderRadius",
@@ -1851,7 +1851,7 @@ impl RenderObjectWidget for PhysicalShape {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "clipper",
             Some("Instance of 'CustomClipper<Path>'".to_string()),
@@ -2292,7 +2292,7 @@ impl RenderObjectWidget for FittedBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("fit", self.fit));
         properties.add(DiagnosticsProperty::new("alignment", self.alignment));
     }
@@ -2501,7 +2501,7 @@ impl RenderObjectWidget for Padding {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("padding", self.padding));
     }
 
@@ -2698,7 +2698,7 @@ impl RenderObjectWidget for Align {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         Align::fill_properties(
             self.alignment,
             self.width_factor,
@@ -2816,7 +2816,7 @@ impl RenderObjectWidget for Center {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         Align::fill_properties(
             self.alignment(),
             self.width_factor,
@@ -2973,7 +2973,7 @@ impl ParentDataWidget for LayoutId {
         Some(&self.key)
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::<String>::new(
             "id",
             Some(format!("{:?}", self.id)),
@@ -3238,7 +3238,7 @@ impl RenderObjectWidget for SizedBox {
         crate::describe_widget(type_name, self.key())
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let expanded_or_shrunk = matches!(
             (self.width, self.height),
             (Some(f64::INFINITY), Some(f64::INFINITY)) | (Some(0.0), Some(0.0))
@@ -3363,7 +3363,7 @@ impl RenderObjectWidget for ConstrainedBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties
             .add(DiagnosticsProperty::new("constraints", self.constraints).with_show_name(false));
     }
@@ -3619,7 +3619,7 @@ impl RenderObjectWidget for ConstraintsTransformBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("alignment", self.alignment));
         properties.add(
             EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
@@ -3793,7 +3793,7 @@ impl Default for UnconstrainedBox {
 }
 
 impl StatelessWidget for UnconstrainedBox {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("alignment", self.alignment));
         properties.add(
             EnumProperty::<Axis>::new("constrainedAxis", self.constrained_axis).default_value(None),
@@ -3929,7 +3929,7 @@ impl RenderObjectWidget for FractionallySizedBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("alignment", self.alignment));
         properties.add(DoubleProperty::new("widthFactor", self.width_factor).default_value(None));
         properties.add(DoubleProperty::new("heightFactor", self.height_factor).default_value(None));
@@ -4051,7 +4051,7 @@ impl RenderObjectWidget for LimitedBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DoubleProperty::new("maxWidth", self.max_width).default_value(Some(f64::INFINITY)),
         );
@@ -4213,7 +4213,7 @@ impl RenderObjectWidget for OverflowBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("alignment", self.alignment));
         properties.add(DoubleProperty::new("minWidth", self.min_width).default_value(None));
         properties.add(DoubleProperty::new("maxWidth", self.max_width).default_value(None));
@@ -4332,7 +4332,7 @@ impl RenderObjectWidget for SizedOverflowBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("alignment", self.alignment));
         properties.add(DiagnosticsProperty::<Size>::new("size", self.size).default_value(None));
     }
@@ -4450,7 +4450,7 @@ impl RenderObjectWidget for Offstage {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("offstage", self.offstage));
     }
 
@@ -4563,7 +4563,7 @@ impl RenderObjectWidget for AspectRatio {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DoubleProperty::new("aspectRatio", self.aspect_ratio));
     }
 
@@ -5001,7 +5001,7 @@ impl RenderObjectWidget for SliverPadding {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("padding", self.padding));
     }
 
@@ -5236,7 +5236,7 @@ impl RenderObjectWidget for Listener {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let mut listeners: Vec<String> = Vec::new();
         if self.on_pointer_down.is_some() {
             listeners.push("down".to_string());
@@ -5560,7 +5560,7 @@ impl RenderObjectWidget for MouseRegion {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let mut listeners: Vec<String> = Vec::new();
         if self.on_enter.is_some() {
             listeners.push("enter".to_string());
@@ -5782,7 +5782,7 @@ impl RenderObjectWidget for IgnorePointer {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("ignoring", self.ignoring));
     }
 
@@ -5877,7 +5877,7 @@ impl RenderObjectWidget for AbsorbPointer {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("absorbing", self.absorbing));
     }
 
@@ -5968,7 +5968,7 @@ impl RenderObjectWidget for MetaData {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("behavior", self.behavior));
         properties.add(DiagnosticsProperty::<String>::new(
             "metaData",
@@ -6159,7 +6159,7 @@ impl RenderObjectWidget for BackdropFilter {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<ImageFilterConfig>::new(
                 "filterConfig",
@@ -7604,7 +7604,7 @@ impl RenderObjectWidget for ColoredBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("color", self.color.color()));
         properties.add(
             DiagnosticsProperty::new("isAntiAlias", self.is_anti_alias).default_value(Some(true)),
@@ -7823,7 +7823,7 @@ impl RenderObjectWidget for Stack {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("alignment", self.alignment));
         properties.add(
             EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
@@ -8097,7 +8097,7 @@ impl ParentDataWidget for Positioned {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DoubleProperty::new("left", self.left).default_value(None));
         properties.add(DoubleProperty::new("top", self.top).default_value(None));
         properties.add(DoubleProperty::new("right", self.right).default_value(None));
@@ -8774,7 +8774,7 @@ impl RenderObjectWidget for Flex {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.configuration().debug_fill_properties(properties);
     }
 
@@ -8956,7 +8956,7 @@ impl RenderObjectWidget for Row {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.configuration().debug_fill_properties(properties);
     }
 
@@ -9139,7 +9139,7 @@ impl RenderObjectWidget for Column {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.configuration().debug_fill_properties(properties);
     }
 
@@ -9270,7 +9270,7 @@ impl ParentDataWidget for Flexible {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         Flexible::fill_properties(self.flex, properties);
     }
 
@@ -9349,7 +9349,7 @@ impl ParentDataWidget for Expanded {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         Flexible::fill_properties(self.flex, properties);
     }
 
@@ -9613,7 +9613,7 @@ impl RenderObjectWidget for Wrap {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("direction", self.direction));
         properties.add(EnumProperty::new("alignment", self.alignment));
         properties.add(DoubleProperty::new("spacing", self.spacing));
@@ -12893,7 +12893,9 @@ mod diagnostics_tests {
         let color = Color::new(0xFF00FF00);
         let colored = ColoredBox::new(color);
         let mut properties = DiagnosticPropertiesBuilder::new();
-        colored.debug_fill_properties(&mut properties);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        colored.debug_fill_properties(&app, &mut properties);
         let value = properties
             .properties
             .first()
@@ -12911,8 +12913,10 @@ mod diagnostics_tests {
             .run_spacing(4.0)
             .text_direction(TextDirection::Ltr)
             .vertical_direction(VerticalDirection::Up);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         assert_eq!(
-            describe_properties(|properties| wrap.debug_fill_properties(properties)),
+            describe_properties(|properties| wrap.debug_fill_properties(&app, properties)),
             [
                 "direction: horizontal",
                 "alignment: start",

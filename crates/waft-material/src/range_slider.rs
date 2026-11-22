@@ -508,7 +508,7 @@ impl StatefulWidget for RangeSlider {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DoubleProperty::new("valueStart", self.values.start));
         properties.add(DoubleProperty::new("valueEnd", self.values.end));
         properties.add(
@@ -7995,8 +7995,12 @@ mod tests {
             .divisions(4)
             .active_color(active)
             .inactive_color(inactive);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
-            |properties: &mut DiagnosticPropertiesBuilder| slider.debug_fill_properties(properties),
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                slider.debug_fill_properties(&app, properties)
+            },
         );
         assert_eq!(
             description,

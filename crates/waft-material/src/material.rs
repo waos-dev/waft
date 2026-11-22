@@ -650,7 +650,7 @@ impl StatefulWidget for Material {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(EnumProperty::new("type", self.r#type));
         properties.add(DoubleProperty::new("elevation", self.elevation).default_value(Some(0.0)));
         properties.add(ColorProperty::new("color", self.color).default_value(None));
@@ -1606,7 +1606,7 @@ impl StatefulWidget for MaterialInterior {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -3117,9 +3117,11 @@ mod tests {
         use waft_foundation::DiagnosticPropertiesBuilder;
 
         let material = Material::new();
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                material.debug_fill_properties(properties)
+                material.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(description, ["type: canvas"]);
@@ -3142,9 +3144,11 @@ mod tests {
             .surface_tint_color(blue)
             .text_style(TextStyle::new().color(green))
             .border_radius(BorderRadiusDirectional::all(Radius::circular(10.0)));
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         let description: Vec<String> = waft_widgets::testing::describe_properties(
             |properties: &mut DiagnosticPropertiesBuilder| {
-                material.debug_fill_properties(properties)
+                material.debug_fill_properties(&app, properties)
             },
         );
         assert_eq!(

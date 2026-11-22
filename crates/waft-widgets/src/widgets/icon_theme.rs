@@ -104,7 +104,7 @@ impl IconTheme {
 }
 
 impl InheritedWidget for IconTheme {
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         self.data.debug_fill_properties(properties);
     }
 

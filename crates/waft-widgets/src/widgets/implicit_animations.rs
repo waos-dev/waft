@@ -1494,7 +1494,7 @@ impl StatefulWidget for AnimatedContainer {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -1844,7 +1844,7 @@ impl StatefulWidget for AnimatedPadding {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -2058,7 +2058,7 @@ impl StatefulWidget for AnimatedAlign {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -2379,7 +2379,7 @@ impl StatefulWidget for AnimatedPositioned {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -2681,7 +2681,7 @@ impl StatefulWidget for AnimatedPositionedDirectional {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -2928,7 +2928,7 @@ impl StatefulWidget for AnimatedScale {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -3127,7 +3127,7 @@ impl StatefulWidget for AnimatedRotation {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -3305,7 +3305,7 @@ impl StatefulWidget for AnimatedSlide {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -3480,7 +3480,7 @@ impl StatefulWidget for AnimatedOpacity {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -3725,7 +3725,7 @@ impl StatefulWidget for AnimatedDefaultTextStyle {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -3989,7 +3989,7 @@ impl StatefulWidget for AnimatedPhysicalModel {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,
@@ -4241,7 +4241,7 @@ impl StatefulWidget for AnimatedFractionallySizedBox {
         self.implicitly_animated_widget.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         ImplicitlyAnimatedWidgetData::debug_fill_properties(
             &self.implicitly_animated_widget,
             properties,

@@ -106,7 +106,7 @@ impl RenderObjectWidget for DecoratedBox {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let label = match self.position {
             DecorationPosition::Background => "bg",
             DecorationPosition::Foreground => "fg",
@@ -547,7 +547,7 @@ impl StatelessWidget for Container {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(
             DiagnosticsProperty::<AlignmentGeometry>::new("alignment", self.alignment)
                 .with_show_name(false)

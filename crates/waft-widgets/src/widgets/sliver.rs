@@ -175,8 +175,8 @@ where
         RenderObjectWidget::to_string_short(&self.0)
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
-        RenderObjectWidget::debug_fill_properties(&self.0, properties);
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        RenderObjectWidget::debug_fill_properties(&self.0, app, properties);
     }
 }
 
@@ -283,7 +283,7 @@ impl RenderObjectWidget for SliverList {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
@@ -666,7 +666,7 @@ impl RenderObjectWidget for SliverFixedExtentList {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
@@ -863,7 +863,7 @@ impl RenderObjectWidget for SliverVariedExtentList {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
@@ -1111,7 +1111,7 @@ impl RenderObjectWidget for SliverGrid {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
@@ -2331,7 +2331,7 @@ impl ParentDataWidget for KeepAlive {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         properties.add(DiagnosticsProperty::new("keepAlive", self.keep_alive));
     }
 

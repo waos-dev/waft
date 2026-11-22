@@ -878,7 +878,7 @@ impl StatefulWidget for RawTooltip {
         self.key.as_ref()
     }
 
-    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
         let empty = self
             .semantics_tooltip
             .as_deref()
@@ -3988,8 +3988,10 @@ mod diagnostics_tests {
     /// `raw_tooltip_test.dart`, "default RawTooltip debugFillProperties".
     #[test]
     fn a_default_tooltip_describes_its_delays_and_trigger() {
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         assert_eq!(
-            describe_properties(|properties| tooltip().debug_fill_properties(properties)),
+            describe_properties(|properties| tooltip().debug_fill_properties(&app, properties)),
             [
                 "\"message\"",
                 "hover delay: 0:00:00.000000",
@@ -4008,8 +4010,10 @@ mod diagnostics_tests {
             .hover_delay(Duration::from_secs(1))
             .touch_delay(Duration::from_secs(2))
             .trigger_mode(TooltipTriggerMode::Manual);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
         assert_eq!(
-            describe_properties(|properties| tooltip.debug_fill_properties(properties)),
+            describe_properties(|properties| tooltip.debug_fill_properties(&app, properties)),
             [
                 "\"message\"",
                 "hover delay: 0:00:01.000000",
