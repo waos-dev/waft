@@ -1089,13 +1089,6 @@ impl Debug for TextStyle {
     }
 }
 
-/// Dart's `TextStyle.toString`, the same text as [`Debug`].
-impl fmt::Display for TextStyle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&Diagnosticable::to_string(self))
-    }
-}
-
 /// Dart `TextStyle.apply` named optionals.
 pub struct TextStyleApply {
     style: TextStyle,
