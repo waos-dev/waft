@@ -5,7 +5,9 @@ use std::fmt::{self, Debug, Display};
 use std::rc::Rc;
 
 use waft_embedder::{Matrix4, Offset};
-use waft_foundation::{App, Handle, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle, PRECISION_ERROR_TOLERANCE,
+};
 use waft_painting::axis_direction_is_reversed;
 
 use crate::box_::{AnyRenderBox, BoxConstraints};
@@ -769,6 +771,21 @@ impl RenderObject for RenderSliverGrid {
 
     fn paints_child(self: RenderHandle<Self>, app: &App, child: AnyRenderObject) -> bool {
         RenderSliverMultiBoxAdaptor::paints_child(self, app, child)
+    }
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderSliverMultiBoxAdaptor::debug_fill_properties(self, app, properties)
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        RenderSliverMultiBoxAdaptor::debug_describe_children(self, app)
     }
 
     fn paint(

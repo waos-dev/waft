@@ -1,6 +1,7 @@
 //! Flutter counterpart: `painting/matrix_utils.dart`.
 
 use waft_embedder::{Matrix4, Offset, Rect};
+use waft_foundation::debug_format_double;
 
 /// Returns the transform as an [`Offset`] if it is only a 2D translation.
 pub fn get_as_translation(transform: Matrix4) -> Option<Offset> {
@@ -100,6 +101,26 @@ pub fn inverse_transform_rect(transform: Matrix4, rect: Rect) -> Rect {
     transform_rect(&inverted, rect)
 }
 
+/// Flutter `debugDescribeTransform`: the transform's rows, one string each, for
+/// diagnostics such as Flutter's `TransformProperty`.
+///
+/// The matrix is column-major as Dart's `storage` is, so `entry(row, column)`
+/// reads index `column * 4 + row`.
+pub fn debug_describe_transform(transform: Option<Matrix4>) -> Vec<String> {
+    let Some(transform) = transform else {
+        return vec!["null".to_string()];
+    };
+    let storage = transform.to_flutter_array();
+    (0..4)
+        .map(|row| {
+            let entries: Vec<String> = (0..4)
+                .map(|column| debug_format_double(Some(storage[column * 4 + row] as f64)))
+                .collect();
+            format!("[{row}] {}", entries.join(","))
+        })
+        .collect()
+}
+
 /// Returns a matrix that transforms every point to `offset`.
 pub fn force_to_point(offset: Offset) -> Matrix4 {
     let mut storage = [0.0; 16];
@@ -159,6 +180,22 @@ mod tests {
         assert_eq!(transform_rect(&Matrix4::IDENTITY, rect), rect);
         assert_eq!(get_as_translation(Matrix4::IDENTITY), Some(Offset::ZERO));
         assert_eq!(get_as_scale(Matrix4::IDENTITY), Some(1.0));
+    }
+
+    /// `matrix_utils.dart`'s `debugDescribeTransform`: one string per row, and `null` for none.
+    #[test]
+    fn debug_describe_transform_lists_the_rows_of_the_matrix() {
+        let rows = debug_describe_transform(Some(Matrix4::IDENTITY));
+        assert_eq!(
+            rows,
+            [
+                "[0] 1.0,0.0,0.0,0.0",
+                "[1] 0.0,1.0,0.0,0.0",
+                "[2] 0.0,0.0,1.0,0.0",
+                "[3] 0.0,0.0,0.0,1.0",
+            ]
+        );
+        assert_eq!(debug_describe_transform(None), ["null"]);
     }
 
     #[test]

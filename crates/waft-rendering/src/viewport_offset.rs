@@ -8,7 +8,7 @@ use std::time::Duration;
 use waft_animation::{Curve, Curves};
 use waft_foundation::{
     App, ChangeNotifier, ChangeNotifierData, CompleterFuture, Handle, HandleId, ListenableHandle,
-    ListenableObject, Listener, Ref, Retained,
+    ListenableObject, Listener, Ref, Retained, describe_identity, short_type_name,
 };
 
 /// The direction of a scroll, relative to the positive scroll offset.
@@ -255,6 +255,9 @@ struct ViewportOffsetVTable {
     move_to: MoveToFn,
     user_scroll_direction: fn(&App, HandleId) -> ScrollDirection,
     allow_implicit_scrolling: fn(&App, HandleId) -> bool,
+    debug_fill_description: fn(&App, HandleId, &mut Vec<String>),
+    /// The Rust type's path, which diagnostics name the offset by, as Dart's `runtimeType`.
+    type_name: fn() -> &'static str,
 }
 
 /// The typed handle for an erased id. Free: nothing is looked up; `get` checks the slot.
@@ -289,6 +292,10 @@ impl ViewportOffsetVTable {
             },
             user_scroll_direction: |app, id| T::user_scroll_direction(resolve(id), app),
             allow_implicit_scrolling: |app, id| T::allow_implicit_scrolling(resolve(id), app),
+            debug_fill_description: |app, id, description| {
+                T::debug_fill_description(resolve(id), app, description)
+            },
+            type_name: std::any::type_name::<T>,
         }
     }
 }
@@ -303,6 +310,23 @@ pub struct AnyViewportOffset {
 }
 
 impl AnyViewportOffset {
+    /// Dart's `ViewportOffset.toString`'s first part, `describeIdentity(this)`: the type and
+    /// identity (`FixedViewportOffset#00012`).
+    pub fn to_string_short(self) -> String {
+        describe_identity(
+            short_type_name((self.vtable.type_name)()),
+            self.id.identity_hash(),
+        )
+    }
+
+    /// Dart's `ViewportOffset.toString`: `describeIdentity(this)` and the description its
+    /// [`ViewportOffset::debug_fill_description`] collects (`FixedViewportOffset#00012(offset: 0.0)`).
+    pub fn to_string_with_app(self, app: &App) -> String {
+        let mut description = Vec::new();
+        (self.vtable.debug_fill_description)(app, self.id, &mut description);
+        format!("{}({})", self.to_string_short(), description.join(", "))
+    }
+
     /// Dart's `addListener` on a `ViewportOffset`.
     pub fn add_listener(self, app: &mut App, listener: Listener) {
         (self.vtable.add_listener)(app, self.id, listener)

@@ -3,7 +3,9 @@
 use std::rc::Rc;
 
 use waft_embedder::{Matrix4, Offset};
-use waft_foundation::{App, Handle, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle, PRECISION_ERROR_TOLERANCE,
+};
 
 use crate::box_::AnyRenderBox;
 use crate::object::{
@@ -146,6 +148,21 @@ impl RenderObject for RenderSliverList {
 
     fn paints_child(self: RenderHandle<Self>, app: &App, child: AnyRenderObject) -> bool {
         RenderSliverMultiBoxAdaptor::paints_child(self, app, child)
+    }
+
+    fn debug_fill_properties(
+        self: RenderHandle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        RenderSliverMultiBoxAdaptor::debug_fill_properties(self, app, properties)
+    }
+
+    fn debug_describe_children(
+        self: RenderHandle<Self>,
+        app: &App,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        RenderSliverMultiBoxAdaptor::debug_describe_children(self, app)
     }
 
     fn paint(
@@ -691,5 +708,22 @@ mod tests {
 
         assert_eq!(list.keep_alive_children(&app), vec![first]);
         assert!(first.as_object().attached(&app));
+
+        // `keep_alive_test.dart`: live children are named by index, and a kept-alive child is
+        // named by index after them, marked with the offstage style (`╌`).
+        let dump = list
+            .as_object()
+            .to_string_deep_with(&app, waft_foundation::DiagnosticLevel::Info);
+        assert!(dump.contains("currently live children: "), "{dump}");
+        assert!(
+            dump.lines()
+                .any(|line| line.contains("child with index 24: TestChild#")),
+            "{dump}"
+        );
+        assert!(
+            dump.lines().any(|line| line
+                .contains("╌child with index 0 (kept alive but not laid out): TestChild#")),
+            "{dump}"
+        );
     }
 }

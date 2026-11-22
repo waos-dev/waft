@@ -1209,6 +1209,13 @@ impl Debug for Rect {
     }
 }
 
+/// Dart's `Rect.toString`, the same text as [`Debug`].
+impl fmt::Display for Rect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 /// A radius for either circular or elliptical shapes.
 #[derive(Clone, Copy, PartialEq)]
 pub struct Radius {

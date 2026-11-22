@@ -26,10 +26,11 @@ use waft_embedder::{
 use waft_embedder::{CompositionLayer, VideoFrameReader};
 use waft_foundation::{
     App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
-    DiagnosticsProperty, Handle, HandleId, IntoPropertyName, Ref, describe_identity,
-    short_type_name,
+    DiagnosticsProperty, EnumProperty, Handle, HandleId, IntProperty, IntoPropertyName, Ref,
+    describe_identity, short_type_name,
 };
 use waft_gestures::remove_perspective_transform;
+use waft_painting::debug_describe_transform;
 use waft_scheduler::{FrameCallback, SchedulerBinding};
 
 /// Information collected for an annotation that is found in the layer tree.
@@ -1223,6 +1224,29 @@ impl Layer for PictureLayer {
     ) -> bool {
         false
     }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let this = app.get(self);
+        properties.add(DiagnosticsProperty::new("paint bounds", this.canvas_bounds));
+        let picture = match &this.picture {
+            Some(picture) => {
+                describe_identity("Picture", Arc::as_ptr(picture) as usize as u64 >> 4)
+            }
+            None => describe_identity("Null", 0),
+        };
+        properties.add(DiagnosticsProperty::<String>::new("picture", Some(picture)));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "raster cache hints",
+            Some(format!(
+                "isComplex = {}, willChange = {}",
+                this.is_complex_hint, this.will_change_hint
+            )),
+        ));
+    }
 }
 
 /// A layer that places a composition layer the host composites: Flutter's `PlatformViewLayer`.
@@ -2123,6 +2147,28 @@ impl AnyOffsetLayer {
     }
 }
 
+/// Fills Dart's `OffsetLayer.debugFillProperties` line, which a class extending
+/// `OffsetLayer` adds at the `super.debugFillProperties` position.
+fn fill_offset_debug_properties<T: OffsetLayerMixin>(
+    this: Handle<T>,
+    app: &App,
+    properties: &mut DiagnosticPropertiesBuilder,
+) {
+    properties.add(DiagnosticsProperty::new("offset", this.offset(app)));
+}
+
+/// Dart's `TransformProperty`: a matrix shown as its rows, `null` when there is none.
+///
+/// The value is a [`String`] here because `Matrix4` is valo's, so a `Display` impl cannot be
+/// written for it; a single-line dump shows the rows newline-separated where Dart shows them
+/// semicolon-separated.
+fn transform_debug_property(name: &str, transform: Option<Matrix4>) -> DiagnosticsProperty<String> {
+    DiagnosticsProperty::<String>::new(
+        name,
+        transform.map(|transform| debug_describe_transform(Some(transform)).join("\n")),
+    )
+}
+
 /// Flutter's concrete `OffsetLayer`; the bodies are [`OffsetLayerMixin`].
 pub struct OffsetLayer {
     layer: LayerData,
@@ -2183,6 +2229,14 @@ impl Layer for OffsetLayer {
 
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
+    }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        fill_offset_debug_properties(self, app, properties);
     }
 }
 
@@ -2359,6 +2413,21 @@ impl Layer for ClipRectLayer {
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
     }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<Rect>::new(
+            "clipRect",
+            self.clip_rect(app),
+        ));
+        properties.add(DiagnosticsProperty::<Clip>::new(
+            "clipBehavior",
+            self.clip_behavior(app),
+        ));
+    }
 }
 
 impl ContainerLayer for ClipRectLayer {
@@ -2493,6 +2562,21 @@ impl Layer for ClipRRectLayer {
 
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
+    }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<RRect>::new(
+            "clipRRect",
+            self.clip_rrect(app),
+        ));
+        properties.add(DiagnosticsProperty::<Clip>::new(
+            "clipBehavior",
+            self.clip_behavior(app),
+        ));
     }
 }
 
@@ -2630,6 +2714,17 @@ impl Layer for ClipPathLayer {
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
     }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<Clip>::new(
+            "clipBehavior",
+            self.clip_behavior(app),
+        ));
+    }
 }
 
 impl ContainerLayer for ClipPathLayer {
@@ -2740,6 +2835,18 @@ impl Layer for ImageFilterLayer {
 
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
+    }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        fill_offset_debug_properties(self, app, properties);
+        properties.add(DiagnosticsProperty::<ImageFilter>::new(
+            "imageFilter",
+            self.image_filter(app).cloned(),
+        ));
     }
 }
 
@@ -2896,6 +3003,15 @@ impl Layer for TransformLayer {
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
     }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        fill_offset_debug_properties(self, app, properties);
+        properties.add(transform_debug_property("transform", self.transform(app)));
+    }
 }
 
 impl ContainerLayer for TransformLayer {
@@ -3041,6 +3157,15 @@ impl Layer for OpacityLayer {
 
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
+    }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        fill_offset_debug_properties(self, app, properties);
+        properties.add(IntProperty::<i32>::new("alpha", self.alpha(app)));
     }
 }
 
@@ -3193,6 +3318,22 @@ impl Layer for BackdropFilterLayer {
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
     }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<ImageFilter>::new(
+            "filter",
+            self.filter(app).cloned(),
+        ));
+        properties.add(EnumProperty::new("blendMode", self.blend_mode(app)));
+        properties.add(IntProperty::<i64>::new(
+            "backdropKey",
+            self.backdrop_key(app).map(|key| key.id() as i64),
+        ));
+    }
 }
 
 impl ContainerLayer for BackdropFilterLayer {
@@ -3236,6 +3377,20 @@ impl LayerLink {
     /// The [`LeaderLayer`] connected to this link.
     pub fn leader(self: Handle<Self>, app: &App) -> Option<Handle<LeaderLayer>> {
         app.get(self).leader
+    }
+
+    /// Dart's `LayerLink.toString`: the identity and whether a leader is registered
+    /// (`LayerLink#00012(<linked>)`).
+    pub fn to_string_with_app(self: Handle<Self>, app: &App) -> String {
+        let state = if self.leader(app).is_some() {
+            "<linked>"
+        } else {
+            "<dangling>"
+        };
+        format!(
+            "{}({state})",
+            describe_identity("LayerLink", self.id().identity_hash())
+        )
     }
 
     fn register_leader(self: Handle<Self>, app: &mut App, leader: Handle<LeaderLayer>) {
@@ -3422,6 +3577,18 @@ impl Layer for LeaderLayer {
 
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
+    }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::new("offset", self.offset(app)));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "link",
+            Some(self.link(app).to_string_with_app(app)),
+        ));
     }
 }
 
@@ -3850,6 +4017,20 @@ impl Layer for FollowerLayer {
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
     }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "link",
+            Some(self.link(app).to_string_with_app(app)),
+        ));
+        properties.add(
+            transform_debug_property("transform", self.get_last_transform(app)).default_value(None),
+        );
+    }
 }
 
 impl ContainerLayer for FollowerLayer {
@@ -4060,6 +4241,23 @@ impl Layer for AnnotatedRegionLayer {
     fn fire_composition_callbacks(self: Handle<Self>, app: &mut App, include_children: bool) {
         ContainerLayer::fire_composition_callbacks(self, app, include_children);
     }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        // `value` is `Rc<dyn Any>` here, which no `Display` can describe; Dart prints its
+        // `toString`.
+        properties
+            .add(DiagnosticsProperty::<Size>::new("size", self.size(app)).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Offset>::new("offset", self.offset(app)).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("opaque", self.opaque(app)).default_value(Some(false)),
+        );
+    }
 }
 
 impl ContainerLayer for AnnotatedRegionLayer {
@@ -4092,6 +4290,101 @@ mod tests {
         OffsetLayer::new(app, Offset::ZERO).as_layer()
     }
 
+    /// Dart's `getDebugInfo`: the layer's own properties at info level, as they print.
+    fn debug_info<T: Layer>(layer: Handle<T>, app: &App) -> Vec<String> {
+        let mut builder = DiagnosticPropertiesBuilder::new();
+        Layer::debug_fill_properties(layer, app, &mut builder);
+        builder
+            .properties
+            .iter()
+            .filter(|node| !node.is_filtered(DiagnosticLevel::Info))
+            .map(ToString::to_string)
+            .collect()
+    }
+
+    /// `layers_test.dart`: a clip rect layer prints its `clipBehavior`.
+    #[test]
+    fn a_clip_rect_layer_prints_its_clip_behavior_in_debug_info() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let layer = ClipRectLayer::new(&mut app);
+        assert!(debug_info(layer, &app).contains(&"clipBehavior: Clip.hardEdge".to_owned()));
+        layer.set_clip_behavior(&mut app, Clip::AntiAliasWithSaveLayer);
+        assert!(
+            debug_info(layer, &app)
+                .contains(&"clipBehavior: Clip.antiAliasWithSaveLayer".to_owned())
+        );
+    }
+
+    /// `layers_test.dart`: a clip rrect layer prints its `clipBehavior`.
+    #[test]
+    fn a_clip_rrect_layer_prints_its_clip_behavior_in_debug_info() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let layer = ClipRRectLayer::new(&mut app);
+        assert!(debug_info(layer, &app).contains(&"clipBehavior: Clip.antiAlias".to_owned()));
+        layer.set_clip_behavior(&mut app, Clip::AntiAliasWithSaveLayer);
+        assert!(
+            debug_info(layer, &app)
+                .contains(&"clipBehavior: Clip.antiAliasWithSaveLayer".to_owned())
+        );
+    }
+
+    /// `layers_test.dart`: a clip path layer prints its `clipBehavior`.
+    #[test]
+    fn a_clip_path_layer_prints_its_clip_behavior_in_debug_info() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let layer = ClipPathLayer::new(&mut app);
+        assert!(debug_info(layer, &app).contains(&"clipBehavior: Clip.antiAlias".to_owned()));
+        layer.set_clip_behavior(&mut app, Clip::AntiAliasWithSaveLayer);
+        assert!(
+            debug_info(layer, &app)
+                .contains(&"clipBehavior: Clip.antiAliasWithSaveLayer".to_owned())
+        );
+    }
+
+    /// `layers_test.dart`: a backdrop filter prints its filter and blend mode. Waft's blur has no
+    /// tile mode, so it prints `unspecified` where Dart prints the tile mode.
+    #[test]
+    fn a_backdrop_filter_layer_prints_its_filter_and_blend_mode_in_debug_info() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let layer = BackdropFilterLayer::new(&mut app);
+        layer.set_filter(
+            &mut app,
+            Some(ImageFilter::Blur {
+                sigma_x: 1.0,
+                sigma_y: 1.0,
+                bounds: None,
+            }),
+        );
+        layer.set_blend_mode(&mut app, BlendMode::Clear);
+        let info = debug_info(layer, &app);
+        assert!(info.contains(&"filter: ImageFilter.blur(1, 1, unspecified)".to_owned()));
+        assert!(info.contains(&"blendMode: clear".to_owned()));
+    }
+
+    /// `layers_test.dart`: a picture layer prints its picture and raster cache hints.
+    #[test]
+    fn a_picture_layer_prints_its_picture_and_raster_cache_hints_in_debug_info() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let layer = PictureLayer::new(&mut app, Rect::from_ltrb(0.0, 0.0, 1.0, 1.0));
+        let picture = Arc::new(Canvas::new().build());
+        layer.set_picture(&mut app, Some(Arc::clone(&picture)));
+        layer.set_is_complex_hint(&mut app, true);
+        layer.set_will_change_hint(&mut app, false);
+        let info = debug_info(layer, &app);
+        assert!(info.contains(&format!(
+            "picture: {}",
+            describe_identity("Picture", Arc::as_ptr(&picture) as usize as u64 >> 4)
+        )));
+        assert!(
+            info.contains(&"raster cache hints: isComplex = true, willChange = false".to_owned())
+        );
+    }
+
     #[test]
     fn a_layer_dump_shows_each_layers_handles_and_its_children_in_order() {
         let cell = AppCell::new();
@@ -4111,6 +4404,11 @@ mod tests {
         assert!(
             dump.contains(" │ handles: 0\n"),
             "the parent is kept by no handle:\n{dump}"
+        );
+        assert_eq!(
+            dump.matches("offset: Offset(0.0, 0.0)").count(),
+            3,
+            "each layer fills its own offset:\n{dump}"
         );
     }
 
@@ -4443,6 +4741,9 @@ mod tests {
                 offset: Offset::new(3.0, 4.0),
             }
         );
+        let info = debug_info(filtered, &app);
+        assert!(info.contains(&"offset: Offset(3.0, 4.0)".to_owned()));
+        assert!(info.contains(&"imageFilter: ImageFilter.blur(4, 4, unspecified)".to_owned()));
         filtered.set_image_filter(&mut app, ImageFilter::blur(4.0, 4.0));
         assert!(!filtered.as_layer().needs_add_to_scene(&app));
         filtered.set_image_filter(&mut app, ImageFilter::blur(5.0, 5.0));
@@ -4494,6 +4795,31 @@ mod tests {
 
     fn tag(app: &mut App, n: u32) -> Handle<AnnotatedRegionLayer> {
         AnnotatedRegionLayer::new(app, Rc::new(n))
+    }
+
+    /// `AnnotatedRegionLayer.debugFillProperties`: `size` and `offset` print when set, `opaque`
+    /// when true; the `value` line is omitted because the value is `Rc<dyn Any>`.
+    #[test]
+    fn an_annotated_region_layer_prints_its_size_offset_and_opaque() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let plain = tag(&mut app, 1);
+        let info = debug_info(plain, &app);
+        assert!(!info.iter().any(|property| property.starts_with("size")));
+        // Dart's `offset` is non-null and defaults to zero, so `defaultValue: null` never hides
+        // it and the zero offset always prints.
+        assert!(info.contains(&"offset: Offset(0.0, 0.0)".to_owned()));
+        assert!(!info.iter().any(|property| property.starts_with("opaque")));
+
+        let layer = tag(&mut app, 2);
+        layer.set_size(&mut app, Some(Size::new(20.0, 30.0)));
+        layer.set_offset(&mut app, Offset::new(4.0, 5.0));
+        layer.set_opaque(&mut app, true);
+        let info = debug_info(layer, &app);
+        assert!(info.contains(&"size: Size(20.0, 30.0)".to_owned()));
+        assert!(info.contains(&"offset: Offset(4.0, 5.0)".to_owned()));
+        assert!(info.contains(&"opaque: true".to_owned()));
+        assert!(!info.iter().any(|property| property.starts_with("value")));
     }
 
     #[test]
@@ -4697,6 +5023,17 @@ mod tests {
         assert_eq!(
             follower.get_last_transform(&app).unwrap(),
             Matrix4::translation(10.0, 20.0)
+        );
+        let info = debug_info(follower, &app);
+        assert!(
+            info.iter()
+                .any(|property| property.contains("link: LayerLink#")),
+            "{info:?}"
+        );
+        assert!(
+            info.iter()
+                .any(|property| property.contains("[0] 1.0,0.0,0.0,10.0")),
+            "{info:?}"
         );
     }
 

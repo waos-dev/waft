@@ -1005,9 +1005,10 @@ macro_rules! header_for_widgets_leaf {
 }
 
 /// The `RenderObject` and `RenderSliver` halves shared by every header leaf: the persistent
-/// header bodies, plus the `perform_layout` and `child_main_axis_position` of the variant.
+/// header bodies and its properties, plus the `perform_layout` and `child_main_axis_position` of
+/// the variant.
 macro_rules! header_protocol {
-    ($leaf:ident, $perform_layout:path, $child_position:path $(, $extra:item)*) => {
+    ($leaf:ident, $debug:path, $perform_layout:path, $child_position:path $(, $extra:item)*) => {
         impl RenderObject for $leaf {
             waft_rendering::render_object_accessors!();
 
@@ -1041,6 +1042,14 @@ macro_rules! header_protocol {
                 offset: Offset,
             ) {
                 RenderSliverPersistentHeader::paint(self, app, context, offset);
+            }
+
+            fn debug_fill_properties(
+                self: RenderHandle<Self>,
+                app: &App,
+                properties: &mut waft_foundation::DiagnosticPropertiesBuilder,
+            ) {
+                $debug(self, app, properties)
             }
 
             $($extra)*
@@ -1126,6 +1135,7 @@ impl RenderSliverScrollingPersistentHeader for RenderSliverScrollingPersistentHe
 
 header_protocol!(
     RenderSliverScrollingPersistentHeaderForWidgets,
+    RenderSliverPersistentHeader::debug_fill_properties,
     RenderSliverScrollingPersistentHeader::perform_layout,
     RenderSliverScrollingPersistentHeader::child_main_axis_position
 );
@@ -1180,6 +1190,7 @@ impl RenderSliverPinnedPersistentHeader for RenderSliverPinnedPersistentHeaderFo
 
 header_protocol!(
     RenderSliverPinnedPersistentHeaderForWidgets,
+    RenderSliverPersistentHeader::debug_fill_properties,
     RenderSliverPinnedPersistentHeader::perform_layout,
     RenderSliverPinnedPersistentHeader::child_main_axis_position,
     fn show_on_screen(
@@ -1253,6 +1264,7 @@ impl RenderSliverFloatingPersistentHeader for RenderSliverFloatingPersistentHead
 
 header_protocol!(
     RenderSliverFloatingPersistentHeaderForWidgets,
+    RenderSliverFloatingPersistentHeader::debug_fill_properties,
     RenderSliverFloatingPersistentHeader::perform_layout,
     RenderSliverFloatingPersistentHeader::child_main_axis_position,
     fn did_detach(self: RenderHandle<Self>, app: &mut App) {
@@ -1345,6 +1357,7 @@ impl RenderSliverFloatingPinnedPersistentHeader
 
 header_protocol!(
     RenderSliverFloatingPinnedPersistentHeaderForWidgets,
+    RenderSliverFloatingPersistentHeader::debug_fill_properties,
     RenderSliverFloatingPersistentHeader::perform_layout,
     RenderSliverFloatingPersistentHeader::child_main_axis_position,
     fn did_detach(self: RenderHandle<Self>, app: &mut App) {

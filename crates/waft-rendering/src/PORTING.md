@@ -317,3 +317,15 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - Change: a layer's `engine layer` line names the retained layer by its effect (`ClipRectEngineLayer#…`), and an offset as a transform (`TransformEngineLayer`).
   Reason: platform — Waft keeps one engine layer type whose effect says what it does, where dart:ui has one type per effect, and an offset is a transform.
   Affect: an offset layer's engine layer reads `TransformEngineLayer` where Dart's reads `OffsetEngineLayer`.
+
+- Change: `AnnotatedRegionLayer` leaves its `value` out of a dump.
+  Reason: language — the layer holds the annotation as `Rc<dyn Any>`, which has no `Display` to stand for the value's `toString()`.
+  Affect: a dump lacks the `value:` line; its `size`, `offset` and `opaque` lines are Dart's.
+
+- Change: `TransformLayer` and `FollowerLayer` print their transform as a string property, the matrix's rows joined by newlines.
+  Reason: language — `Matrix4` is valo's type, so an orphan-rule `Display` cannot print Dart's `TransformProperty`, whose single-line form joins the rows with `; `.
+  Affect: a deep dump shows the same rows as Dart; a tree rendered in the single-line style keeps them on separate lines.
+
+- Change: `RenderSliverPersistentHeader` reads its `maxExtent`, `child position` and `effective scroll offset` when a dump node is built, where Dart's `DoubleProperty.lazy` reads them when the property prints.
+  Reason: language — a lazy property's callback is `'static` and cannot capture the `&App` the getters need.
+  Affect: building a dump of a header that has not positioned its child panics at build time; the printed lines are Dart's.
