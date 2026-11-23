@@ -138,6 +138,21 @@ impl<S, C> Default for SlottedContainerRenderObjectData<S, C> {
     }
 }
 
+/// Dart's `debugNameForSlot` default: an enum's `.name`, anything else's `toString()`. An enum
+/// case's derived `Debug` is a bare name (`BottomRight`), which reads as Dart's `bottomRight`; any
+/// other `Debug` (`TestSlot(3)`) is taken as the slot's `toString()`.
+fn slot_name(slot: &impl Debug) -> String {
+    let description = format!("{slot:?}");
+    let is_bare_name = description
+        .chars()
+        .all(|character| character.is_alphanumeric() || character == '_');
+    if is_bare_name {
+        describe_enum(slot)
+    } else {
+        description
+    }
+}
+
 /// Mixin for a [`RenderObject`] configured by a [`SlottedMultiChildRenderObjectWidget`].
 ///
 /// The [`RenderObject`] child currently occupying a given slot can be obtained by calling
@@ -189,7 +204,7 @@ pub trait SlottedContainerRenderObjectMixin<S: SlotValue>: RenderObject {
     /// This method is called by `debugDescribeChildren` for each slot that is currently
     /// occupied by a child to obtain a name for that slot for debug outputs.
     fn debug_name_for_slot(&self, slot: &S) -> String {
-        describe_enum(slot)
+        slot_name(slot)
     }
 
     /// Dart's `attach` after `super.attach(owner)`.
@@ -947,7 +962,7 @@ mod tests {
 
     /// "nameForSlot".
     #[test]
-    fn a_slot_is_named_by_its_debug_form() {
+    fn an_enum_slot_is_named_as_darts_enum_name() {
         let cell = AppCell::new();
         let mut app = cell.borrow_mut();
         let render = RenderHandle::new_box(
@@ -961,11 +976,11 @@ mod tests {
         let render = render.get(&app);
         assert_eq!(
             render.debug_name_for_slot(&DiagonalSlot::BottomRight),
-            "BottomRight"
+            "bottomRight"
         );
         assert_eq!(
             render.debug_name_for_slot(&DiagonalSlot::TopLeft),
-            "TopLeft"
+            "topLeft"
         );
     }
 
@@ -992,12 +1007,12 @@ mod tests {
             .to_string_deep_with(&app, DiagnosticLevel::Info);
         assert!(
             dump.lines()
-                .any(|line| line.contains("TopLeft: RenderConstrainedBox#")),
+                .any(|line| line.contains("topLeft: RenderConstrainedBox#")),
             "{dump}"
         );
         assert!(
             dump.lines()
-                .any(|line| line.contains("BottomRight: RenderConstrainedBox#")),
+                .any(|line| line.contains("bottomRight: RenderConstrainedBox#")),
             "{dump}"
         );
         assert!(!dump.contains("child 1"), "{dump}");
