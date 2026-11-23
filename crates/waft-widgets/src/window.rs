@@ -162,7 +162,7 @@ mod tests {
         for view in views {
             platform = platform.with_view(Rc::clone(view) as ViewRef);
         }
-        let mut tester = WidgetTester::without_views(platform);
+        let mut tester = WidgetTester::for_app(platform);
         let read: Read = Rc::default();
         let kept = Rc::clone(&read);
         let content = Builder::new(move |app, context| {

@@ -7,7 +7,7 @@
 //! The defaults are flutter_test's: an 800x600 logical view at a device pixel ratio of 3.0, on
 //! Android, with every font family FlutterTest, whose glyphs are squares of the font size, driven
 //! through [`waft_shell::Shell`]. A multi-window or desktop app starts with
-//! [`WidgetTester::without_views`] and runs its own `run_app` / `run_widget` through
+//! [`WidgetTester::for_app`] and runs its own `run_app` / `run_widget` through
 //! [`WidgetTester::update`]; windows requested through `Platform::request_view` arrive at the next
 //! pump, and [`WidgetTester::shell`] sends host events directly. A case changes a view's metrics
 //! through [`WidgetTester::view`] (or a `TestView` from `give_view` / `TestWindows`), as Dart's

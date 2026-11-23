@@ -2312,14 +2312,13 @@ mod tests {
         to: Offset,
         time_stamp: Duration,
     ) {
-        let delta = to - finger.position;
         finger.position = to;
-        tester.send_at(finger, PointerChange::Move, delta, time_stamp);
+        tester.send_at(finger, PointerChange::Move, time_stamp);
     }
 
     /// Lifts `finger` where it is, stamped `time_stamp`.
     fn lift_finger(tester: &mut WidgetTester, finger: &TestPointer, time_stamp: Duration) {
-        tester.send_at(finger, PointerChange::Up, Offset::ZERO, time_stamp);
+        tester.send_at(finger, PointerChange::Up, time_stamp);
     }
 
     /// A vertical drag of `steps` moves of `step` each from `start`, one every 60 milliseconds

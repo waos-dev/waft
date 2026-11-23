@@ -21,7 +21,7 @@ use crate::{Center, Container, IntoWidget, RootWidget, Text, View, WidgetsBindin
 const PUMP_UNTIL_DEADLINE: Duration = Duration::from_secs(60);
 
 /// Dart's `WidgetTester`: an app driven through [`Shell`] over a [`TestPlatform`], with one
-/// implicit view by default or none ([`without_views`](Self::without_views)), and the frames,
+/// implicit view by default or none ([`for_app`](Self::for_app)), and the frames,
 /// windows, time and input a case gives it.
 ///
 /// Dropped after a case that did not panic, it disposes whatever root the app attached across
@@ -95,11 +95,13 @@ impl WidgetTester {
         tester
     }
 
-    /// A tester on `platform` with no implicit view and no pre-test tree, for an app that
-    /// bootstraps itself through [`update`](Self::update) (calling `run_app` or `run_widget` and
-    /// requesting its own windows through [`TestPlatform::with_windows`]) or receives views later
-    /// through [`give_view`](Self::give_view).
-    pub fn without_views(platform: TestPlatform) -> WidgetTester {
+    /// A tester of an app that sets itself up, as Flutter's integration tests run `app.main()`:
+    /// on `platform` with only the windows the platform has, or makes as the app asks for them
+    /// ([`TestPlatform::with_windows`]), and no view or pre-test tree of the tester's own. The
+    /// app's setup runs through [`update`](Self::update), calling `run_app` or `run_widget`; a
+    /// window the platform gives later ([`TestPlatform::give_view`]) reaches it at the next
+    /// [`pump`](Self::pump).
+    pub fn for_app(platform: TestPlatform) -> WidgetTester {
         Self::build(platform, None)
     }
 
@@ -120,15 +122,20 @@ impl WidgetTester {
             in_pump: false,
             next_pointer: std::cell::Cell::new(1),
         };
-        if let Some(view) = &tester.view {
-            tester.listen_to_view_metrics(view);
-        }
-        for &id in &tester.known_views {
-            if let Some(view) = tester.platform.test_view_of(id) {
-                tester.listen_to_view_metrics(&view);
+        tester.listen_to_metrics_of(&tester.known_views);
+        tester
+    }
+
+    /// Makes the metrics changes of each of the platform's [`TestView`]s numbered among `ids`
+    /// reach the framework, as a host hands its views' changes to its client.
+    fn listen_to_metrics_of(&self, ids: &[ViewId]) {
+        for view in self.platform.views() {
+            if ids.contains(&view.id())
+                && let Ok(view) = (view as Rc<dyn std::any::Any>).downcast::<TestView>()
+            {
+                self.listen_to_view_metrics(&view);
             }
         }
-        tester
     }
 
     /// Makes `view`'s metrics changes reach the framework as a host's do: dart:ui's
@@ -210,28 +217,13 @@ impl WidgetTester {
         &mut self.shell
     }
 
-    /// The ids of the views the platform currently has, in order: Flutter's
-    /// `tester.platformDispatcher.views`.
-    pub fn views(&self) -> Vec<ViewId> {
+    /// The ids of the views the platform has now, in order.
+    fn view_ids(&self) -> Vec<ViewId> {
         self.platform
             .views()
             .into_iter()
             .map(|view| view.id())
             .collect()
-    }
-
-    /// Gives the app `view` unasked (as a phone gives its screen, or an embedder adds a view)
-    /// and reports it through the shell's [`EmbedderClient::view_added`].
-    pub fn give_view(&mut self, view: TestView) -> Rc<TestView> {
-        let view = Rc::new(view);
-        let id = view.id();
-        self.listen_to_view_metrics(&view);
-        self.platform.give_view(Rc::clone(&view) as ViewRef);
-        if !self.known_views.contains(&id) {
-            self.known_views.push(id);
-        }
-        self.shell.view_added(id);
-        view
     }
 
     /// The view the tree is in, whose host records what the framework asks of it and whose
@@ -240,11 +232,11 @@ impl WidgetTester {
     ///
     /// # Panics
     ///
-    /// If the tester was constructed with [`without_views`](Self::without_views).
+    /// If the tester was made [`for_app`](Self::for_app).
     pub fn view(&self) -> &Rc<TestView> {
         self.view
             .as_ref()
-            .expect("WidgetTester has no default view (constructed with without_views)")
+            .expect("a tester made for_app has no view of its own")
     }
 
     /// The default view's id, or [`IMPLICIT_VIEW_ID`] when constructed without one.
@@ -428,7 +420,7 @@ impl WidgetTester {
     }
 
     fn has_pending_view_changes(&self) -> bool {
-        let current = self.views();
+        let current = self.view_ids();
         self.known_views.iter().any(|id| !current.contains(id))
             || current.iter().any(|id| !self.known_views.contains(id))
     }
@@ -440,7 +432,7 @@ impl WidgetTester {
         let mut removed_any = false;
         let mut rounds = 0usize;
         loop {
-            let current = self.views();
+            let current = self.view_ids();
             let removed: Vec<ViewId> = self
                 .known_views
                 .iter()
@@ -465,10 +457,8 @@ impl WidgetTester {
                 removed_any = true;
                 self.shell.view_removed(id);
             }
+            self.listen_to_metrics_of(&added);
             for id in added {
-                if let Some(view) = self.platform.test_view_of(id) {
-                    self.listen_to_view_metrics(&view);
-                }
                 self.shell.view_added(id);
             }
         }
@@ -536,7 +526,7 @@ impl Drop for WidgetTester {
             }
         };
         if has_root {
-            let views = self.views();
+            let views = self.view_ids();
             let elapsed = self.platform.elapsed();
             self.shell.frame(
                 &views,

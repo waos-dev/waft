@@ -2,7 +2,6 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -58,9 +57,6 @@ pub struct TestPlatform {
     screens: TestScreens,
     /// The views the platform gave the app, as a phone gives its screen.
     views: RefCell<Vec<ViewRef>>,
-    /// The [`TestView`]s among them that [`with_views`](Self::with_views) made, which
-    /// [`test_view`](Self::test_view) answers.
-    test_views: Vec<Rc<TestView>>,
     /// The number the next request for a view takes, a window's or one on a layer.
     next_request: Cell<u64>,
     /// The views the app added on layers and has not removed, in the order it added them.
@@ -119,7 +115,6 @@ impl TestPlatform {
             elapsed: Cell::new(Duration::ZERO),
             screens: TestScreens::default(),
             views: RefCell::default(),
-            test_views: Vec::new(),
             next_request: Cell::new(1),
             added_views: RefCell::default(),
             frame_requests: RefCell::default(),
@@ -174,46 +169,26 @@ impl TestPlatform {
 
     /// The same platform giving the app an 800 x 600 [`TestView`] numbered by each of `ids`, in
     /// that order, as a desktop gives one window to each.
-    pub fn with_views(mut self, ids: &[ViewId]) -> TestPlatform {
+    pub fn with_views(self, ids: &[ViewId]) -> TestPlatform {
         for &id in ids {
             let view = Rc::new(TestView::new(800.0, 600.0).with_id(id));
-            self.views.borrow_mut().push(Rc::clone(&view) as ViewRef);
-            self.test_views.push(view);
+            self.views.borrow_mut().push(view as ViewRef);
         }
         self
     }
 
-    /// The view numbered `id` that [`with_views`](Self::with_views) gave, to read what was
-    /// presented to it.
+    /// The [`TestView`] numbered `id` among the platform's views, however it came: given,
+    /// made for a window the app asked for, or added on a layer.
     ///
     /// # Panics
     ///
-    /// If `with_views` gave none numbered `id`.
+    /// If none of the platform's views numbered `id` is a [`TestView`].
     pub fn test_view(&self, id: ViewId) -> Rc<TestView> {
-        let view = self.test_views.iter().find(|view| view.id() == id);
-        Rc::clone(view.expect("a view with_views gave"))
-    }
-
-    /// The [`TestView`] numbered `id`, if one of the platform's views is one (given through
-    /// [`with_views`](Self::with_views), made by [`with_windows`](Self::with_windows), or added on
-    /// a layer).
-    pub fn test_view_of(&self, id: ViewId) -> Option<Rc<TestView>> {
-        if let Some(view) = self.test_views.iter().find(|view| view.id() == id) {
-            return Some(Rc::clone(view));
-        }
-        if let Some(windows) = &self.windows
-            && let Some(window) = windows
-                .made()
-                .into_iter()
-                .find(|window| window.closes() == 0 && window.test_view().id() == id)
-        {
-            return Some(Rc::clone(window.test_view()));
-        }
-        self.added_views
-            .borrow()
-            .iter()
+        self.views()
+            .into_iter()
             .find(|view| view.id() == id)
-            .cloned()
+            .and_then(|view| (view as Rc<dyn std::any::Any>).downcast::<TestView>().ok())
+            .unwrap_or_else(|| panic!("no TestView numbered {id:?} among the platform's views"))
     }
 
     /// How far the test has moved the platform's clock since it was made.
@@ -588,8 +563,9 @@ impl TestPlatform {
         self.dispatcher.wake_now_requests()
     }
 
-    /// Waits up to `timeout` for [`Dispatcher::wake_now`] to be called after `since` wake
-    /// requests have already been observed.
+    /// The host's event loop asleep: waits up to `timeout` until a ready task has asked to wake
+    /// the app more than `since` times ([`wake_now_requests`](Self::wake_now_requests)), as work
+    /// finishing on another thread does.
     pub fn wait_for_wake(&self, since: usize, timeout: Duration) {
         self.dispatcher.wait_for_wake(since, timeout);
     }
@@ -888,9 +864,10 @@ impl Screens for TestScreens {
 #[derive(Default)]
 pub struct TestDispatcher {
     timer_wakeups: Mutex<Vec<Option<Instant>>>,
-    wake_now_requests: AtomicUsize,
-    woke: Mutex<usize>,
-    woke_signal: Condvar,
+    /// How often a ready task has asked the host to wake the app.
+    wakes: Mutex<usize>,
+    /// Told at each wake.
+    woken: Condvar,
 }
 
 impl TestDispatcher {
@@ -905,21 +882,22 @@ impl TestDispatcher {
 
     /// How often a ready task has asked the host to wake the app.
     pub fn wake_now_requests(&self) -> usize {
-        self.wake_now_requests.load(Ordering::Acquire)
+        *self.wakes()
     }
 
-    /// Waits up to `timeout` until [`wake_now`](Dispatcher::wake_now) has run past `since`.
-    pub fn wait_for_wake(&self, since: usize, timeout: Duration) {
-        let guard = self
-            .woke
-            .lock()
-            .expect("the wake counter is never poisoned: nothing runs under its lock");
-        if *guard != since {
-            return;
-        }
+    /// Waits up to `timeout` until a ready task has asked to wake the app more than `since`
+    /// times.
+    pub(crate) fn wait_for_wake(&self, since: usize, timeout: Duration) {
+        let wakes = self.wakes();
         let _ = self
-            .woke_signal
-            .wait_timeout_while(guard, timeout, |count| *count == since);
+            .woken
+            .wait_timeout_while(wakes, timeout, |wakes| *wakes <= since);
+    }
+
+    fn wakes(&self) -> std::sync::MutexGuard<'_, usize> {
+        self.wakes
+            .lock()
+            .expect("the wake counter is never poisoned: nothing runs under its lock")
     }
 }
 
@@ -932,12 +910,8 @@ impl Dispatcher for TestDispatcher {
     }
 
     fn wake_now(&self) {
-        let next = self.wake_now_requests.fetch_add(1, Ordering::AcqRel) + 1;
-        *self
-            .woke
-            .lock()
-            .expect("the wake counter is never poisoned: nothing runs under its lock") = next;
-        self.woke_signal.notify_all();
+        *self.wakes() += 1;
+        self.woken.notify_all();
     }
 
     fn dispatch(&self, work: Box<dyn FnOnce() + Send>) {

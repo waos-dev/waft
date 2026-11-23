@@ -61,7 +61,7 @@ impl WidgetTester {
     /// Sends one report of `pointer` at its position, in logical coordinates, stamped
     /// `Duration.zero` as Dart's `TestPointer` stamps an event it is given no time stamp for.
     pub fn send(&mut self, pointer: &TestPointer, change: waft_embedder::PointerChange) {
-        self.send_at(pointer, change, waft_embedder::Offset::ZERO, Duration::ZERO);
+        self.send_at(pointer, change, Duration::ZERO);
     }
 
     /// [`send`](Self::send) stamped `time_stamp`, delivered through the shell's
@@ -71,7 +71,6 @@ impl WidgetTester {
         &mut self,
         pointer: &TestPointer,
         change: waft_embedder::PointerChange,
-        _delta: waft_embedder::Offset,
         time_stamp: Duration,
     ) {
         use waft_embedder::{
@@ -123,14 +122,13 @@ impl WidgetTester {
 
     /// Dart's `gesture.moveTo(at)`: a move while down, a hover while up, stamped `Duration.zero`.
     pub fn move_to(&mut self, pointer: &mut TestPointer, at: waft_embedder::Offset, down: bool) {
-        let delta = at - pointer.position;
         pointer.position = at;
         let change = if down {
             waft_embedder::PointerChange::Move
         } else {
             waft_embedder::PointerChange::Hover
         };
-        self.send_at(pointer, change, delta, Duration::ZERO);
+        self.send_at(pointer, change, Duration::ZERO);
     }
 
     /// Dart's `gesture.up()`.
@@ -293,20 +291,10 @@ impl WidgetTester {
         let mut time_stamp = 0.0_f64;
         let mut last_time_stamp = time_stamp;
         touch.position = start;
-        self.send_at(
-            &touch,
-            PointerChange::Down,
-            Offset::ZERO,
-            micros(time_stamp.round()),
-        );
+        self.send_at(&touch, PointerChange::Down, micros(time_stamp.round()));
         if initial_offset.distance() > 0.0 {
             touch.position = start + initial_offset;
-            self.send_at(
-                &touch,
-                PointerChange::Move,
-                initial_offset,
-                micros(time_stamp.round()),
-            );
+            self.send_at(&touch, PointerChange::Move, micros(time_stamp.round()));
             time_stamp += initial_offset_delay.as_micros() as f64;
             self.pump_by(initial_offset_delay);
         }
@@ -319,26 +307,15 @@ impl WidgetTester {
                     f64::from(i) / f64::from(K_MOVE_COUNT),
                 )
                 .expect("both ends are given");
-            let delta = location - touch.position;
             touch.position = location;
-            self.send_at(
-                &touch,
-                PointerChange::Move,
-                delta,
-                micros(time_stamp.round()),
-            );
+            self.send_at(&touch, PointerChange::Move, micros(time_stamp.round()));
             time_stamp += time_stamp_delta;
             if time_stamp - last_time_stamp > frame_interval {
                 self.pump_by(micros((time_stamp - last_time_stamp).trunc()));
                 last_time_stamp = time_stamp;
             }
         }
-        self.send_at(
-            &touch,
-            PointerChange::Up,
-            Offset::ZERO,
-            micros(time_stamp.round()),
-        );
+        self.send_at(&touch, PointerChange::Up, micros(time_stamp.round()));
     }
 
     /// Dart's `tester.drag(finder, offset)`: [`drag_from`](Self::drag_from) the centre of the

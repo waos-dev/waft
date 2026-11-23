@@ -1272,16 +1272,11 @@ mod tests {
             for t in 0..=intervals as usize {
                 self.before_record(start_time, time_stamps[t]);
                 pointer.position = offsets[t + 1];
-                self.tester.send_at(
-                    &pointer,
-                    PointerChange::Move,
-                    offsets[t + 1] - offsets[t],
-                    time_stamps[t],
-                );
+                self.tester
+                    .send_at(&pointer, PointerChange::Move, time_stamps[t]);
             }
             self.before_record(start_time, duration);
-            self.tester
-                .send_at(&pointer, PointerChange::Up, Offset::ZERO, duration);
+            self.tester.send_at(&pointer, PointerChange::Up, duration);
             self.tester.pump();
         }
 

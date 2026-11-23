@@ -228,7 +228,7 @@ mod tests {
         for view in views {
             platform = platform.with_view(Rc::clone(view) as ViewRef);
         }
-        let tester = WidgetTester::without_views(platform);
+        let tester = WidgetTester::for_app(platform);
         Harness {
             tester,
             windows,
@@ -322,8 +322,7 @@ mod tests {
     fn a_view_on_a_layer_of_the_apps_arrives_as_every_view_and_shows_what_its_data_says() {
         let compositor = Arc::new(MockCompositor::new());
         let layer = compositor.make_layer(false);
-        let mut tester =
-            WidgetTester::without_views(TestPlatform::new().with_compositor(compositor));
+        let mut tester = WidgetTester::for_app(TestPlatform::new().with_compositor(compositor));
         let shown: Rc<RefCell<Vec<Option<String>>>> = Rc::default();
         let seen = Rc::clone(&shown);
         mount(
@@ -510,12 +509,15 @@ mod tests {
 
     #[test]
     fn a_view_given_after_the_start_shows_the_content() {
-        let mut tester = WidgetTester::without_views(TestPlatform::new());
+        let mut tester = WidgetTester::for_app(TestPlatform::new());
         mount(
             &mut tester,
             MultiViewApp::new(|_app, _view| Some(SizedBox::new().into_widget())).into_widget(),
         );
-        let given = tester.give_view(TestView::new(300.0, 200.0).with_id(ViewId(1)));
+        let given = Rc::new(TestView::new(300.0, 200.0).with_id(ViewId(1)));
+        tester
+            .platform()
+            .give_view(Rc::clone(&given) as waft_embedder::ViewRef);
         tester.pump();
         assert_eq!(given.presented(), 1);
     }
@@ -523,9 +525,8 @@ mod tests {
     #[test]
     fn a_view_taken_back_is_no_longer_shown() {
         let given = view(1);
-        let mut tester = WidgetTester::without_views(
-            TestPlatform::new().with_view(Rc::clone(&given) as ViewRef),
-        );
+        let mut tester =
+            WidgetTester::for_app(TestPlatform::new().with_view(Rc::clone(&given) as ViewRef));
         mount(
             &mut tester,
             MultiViewApp::new(|_app, _view| Some(SizedBox::new().into_widget())).into_widget(),
@@ -541,7 +542,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "starts with MultiViewApp")]
     fn run_app_given_no_view_where_no_window_can_be_made_says_how_to_start() {
-        let tester = WidgetTester::without_views(TestPlatform::new());
+        let tester = WidgetTester::for_app(TestPlatform::new());
         tester.update(|app| run_app(app, SizedBox::new().into_widget()));
     }
 }

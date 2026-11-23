@@ -23,13 +23,20 @@ impl WidgetTester {
         target.find_one(self, "element")
     }
 
-    /// Dart's `tester.viewOf(finder)`: the id of the closest ancestor [`View`](crate::View) (or
-    /// [`RawView`](crate::RawView)) of the one widget `target` finds.
+    /// Dart's `tester.viewOf(finder)`: the view of the closest ancestor [`View`](crate::View)
+    /// (or [`RawView`](crate::RawView)) of the one widget `target` finds.
     ///
     /// # Panics
     ///
-    /// If `target` does not find exactly one widget, or that widget has no `View` ancestor.
-    pub fn view_of(&self, target: impl FindsOne) -> waft_embedder::ViewId {
+    /// If `target` does not find exactly one widget, that widget has no `View` ancestor, or its
+    /// view is not one of the platform's [`TestView`](waft_test::TestView)s.
+    pub fn view_of(&self, target: impl FindsOne) -> std::rc::Rc<waft_test::TestView> {
+        let id = self.view_id_of(target);
+        self.platform().test_view(id)
+    }
+
+    /// The id of the view the one widget `target` finds is in, as [`view_of`](Self::view_of).
+    pub(super) fn view_id_of(&self, target: impl FindsOne) -> waft_embedder::ViewId {
         let element = target.find_one(self, "viewOf");
         let app = self.cell.borrow();
         std::iter::successors(element.parent(&app), |parent| parent.parent(&app))
@@ -63,16 +70,7 @@ impl WidgetTester {
     /// Dart's `tester.getCenter(finder)`: the global position of the centre of the one render
     /// box `target` finds.
     pub fn get_center(&self, target: impl RenderTarget) -> waft_embedder::Offset {
-        self.center_for(target, "getCenter")
-    }
-
-    /// Dart's `getCenter(finder, callee: callee)`: the centre, a failure naming `callee`.
-    pub(super) fn center_for(
-        &self,
-        target: impl RenderTarget,
-        callee: &str,
-    ) -> waft_embedder::Offset {
-        self.global_point(target, callee, |size| {
+        self.global_point(target, "getCenter", |size| {
             size.center(waft_embedder::Offset::ZERO)
         })
     }

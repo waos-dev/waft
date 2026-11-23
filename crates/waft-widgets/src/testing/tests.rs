@@ -455,7 +455,7 @@ mod multi_window {
     use std::time::Duration;
 
     use waft_embedder::{
-        AppLifecycleState, EmbedderClient, Offset, Platform, Size, TextDirection,
+        AppLifecycleState, EmbedderClient, Offset, Platform, Size, TextDirection, View,
         ViewFocusDirection, ViewFocusEvent, ViewFocusState, ViewId, WindowConfig,
     };
     use waft_foundation::{App, Handle, Listener, Timer};
@@ -468,6 +468,16 @@ mod multi_window {
     use crate::widgets::gesture_detector::GestureDetector;
     use crate::widgets::text::Text;
     use crate::{MultiViewApp, WindowScope, run_app, run_widget, state_accessors};
+
+    /// The ids of the views the platform has now, in order: Flutter's `platformDispatcher.views`.
+    fn view_ids(tester: &WidgetTester) -> Vec<ViewId> {
+        tester
+            .platform()
+            .views()
+            .iter()
+            .map(|view| view.id())
+            .collect()
+    }
 
     /// A widget that calls `on_dispose` when its state is disposed, to verify teardown across
     /// every window.
@@ -520,14 +530,14 @@ mod multi_window {
     }
 
     // Modelled on flutter_test's multi_view_controller_test.dart and flutter's windowing_test.dart:
-    // an app starts with no view via `without_views`, asks for its first window, opens a second
+    // an app starts with no view via `for_app`, asks for its first window, opens a second
     // window on tap, receives taps in the second window, and closes it cleanly.
     #[test]
     fn desktop_app_opens_second_window_routes_taps_by_view_and_closes_it() {
         let windows = Rc::new(TestWindows::new());
         let platform = TestPlatform::new().with_windows(Rc::clone(&windows));
-        let mut tester = WidgetTester::without_views(platform);
-        assert!(tester.views().is_empty());
+        let mut tester = WidgetTester::for_app(platform);
+        assert!(view_ids(&tester).is_empty());
 
         let first_taps = Rc::new(Cell::new(0));
         let second_taps = Rc::new(Cell::new(0));
@@ -620,9 +630,9 @@ mod multi_window {
         });
         tester.pump_by(Duration::ZERO);
 
-        assert_eq!(tester.views().len(), 1);
-        let first_view = tester.views()[0];
-        assert_eq!(tester.view_of(find::text("Open Second")), first_view);
+        assert_eq!(view_ids(&tester).len(), 1);
+        let first_view = view_ids(&tester)[0];
+        assert_eq!(tester.view_of(find::text("Open Second")).id(), first_view);
         expect(&tester, &find::text("Inspect"), finds_nothing());
 
         // Tap in window 1 to request window 2; it arrives on the next pump.
@@ -630,11 +640,11 @@ mod multi_window {
         assert_eq!(first_taps.get(), 1);
         tester.pump();
 
-        assert_eq!(tester.views().len(), 2);
-        let second_view = tester.views()[1];
+        assert_eq!(view_ids(&tester).len(), 2);
+        let second_view = view_ids(&tester)[1];
         assert_ne!(first_view, second_view);
-        assert_eq!(tester.view_of(find::text("Open Second")), first_view);
-        assert_eq!(tester.view_of(find::text("Inspect")), second_view);
+        assert_eq!(tester.view_of(find::text("Open Second")).id(), first_view);
+        assert_eq!(tester.view_of(find::text("Inspect")).id(), second_view);
 
         // `tap(finder)` and `long_press(finder)` route to the second window automatically.
         tester.tap(find::text("Inspect"));
@@ -653,16 +663,16 @@ mod multi_window {
         // Closing the second window removes it at the next pump.
         tester.tap(find::text("Close"));
         tester.pump();
-        assert_eq!(tester.views(), [first_view]);
+        assert_eq!(view_ids(&tester), [first_view]);
         expect(&tester, &find::text("Inspect"), finds_nothing());
         expect(&tester, &find::text("Open Second"), finds_one_widget());
     }
 
     #[test]
-    fn without_views_runs_an_apps_own_run_app() {
+    fn for_app_runs_an_apps_own_run_app() {
         let windows = Rc::new(TestWindows::new());
         let platform = TestPlatform::new().with_windows(Rc::clone(&windows));
-        let mut tester = WidgetTester::without_views(platform);
+        let mut tester = WidgetTester::for_app(platform);
 
         tester.update(|app| {
             run_app(
@@ -676,15 +686,15 @@ mod multi_window {
         });
         tester.pump_by(Duration::ZERO);
 
-        assert_eq!(tester.views().len(), 1);
-        let view = tester.views()[0];
-        assert_eq!(tester.view_of(find::text("Hello desktop")), view);
+        assert_eq!(view_ids(&tester).len(), 1);
+        let view = view_ids(&tester)[0];
+        assert_eq!(tester.view_of(find::text("Hello desktop")).id(), view);
         assert!(windows.made()[0].test_view().presented() > 0);
     }
 
     #[test]
     fn give_view_adds_a_view_unasked_and_reports_metric_changes() {
-        let mut tester = WidgetTester::without_views(TestPlatform::new());
+        let mut tester = WidgetTester::for_app(TestPlatform::new());
         let seen_sizes: Rc<RefCell<Vec<Size>>> = Rc::default();
         let sizes = Rc::clone(&seen_sizes);
         tester.update(|app| {
@@ -706,13 +716,15 @@ mod multi_window {
             );
         });
         tester.pump_by(Duration::ZERO);
-        assert!(tester.views().is_empty());
+        assert!(view_ids(&tester).is_empty());
 
-        let given =
-            tester.give_view(TestView::with_pixel_ratio(800.0, 1200.0, 2.0).with_id(ViewId(7)));
+        let given = Rc::new(TestView::with_pixel_ratio(800.0, 1200.0, 2.0).with_id(ViewId(7)));
+        tester
+            .platform()
+            .give_view(Rc::clone(&given) as waft_embedder::ViewRef);
         tester.pump();
-        assert_eq!(tester.views(), [ViewId(7)]);
-        assert_eq!(tester.view_of(find::text("Phone screen")), ViewId(7));
+        assert_eq!(view_ids(&tester), [ViewId(7)]);
+        assert_eq!(tester.view_of(find::text("Phone screen")).id(), ViewId(7));
         assert_eq!(*seen_sizes.borrow(), [Size::new(400.0, 600.0)]);
 
         given.set_physical_size(Size::new(600.0, 1000.0));
@@ -727,7 +739,7 @@ mod multi_window {
     fn shell_delivers_back_focus_close_and_lifecycle_events() {
         let windows = Rc::new(TestWindows::new());
         let mut tester =
-            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
+            WidgetTester::for_app(TestPlatform::new().with_windows(Rc::clone(&windows)));
         let events: Rc<RefCell<Vec<String>>> = Rc::default();
         let log = Rc::clone(&events);
 
@@ -760,7 +772,7 @@ mod multi_window {
             run_app(app, SizedBox::new().into_widget());
         });
         tester.pump_by(Duration::ZERO);
-        let view = tester.views()[0];
+        let view = view_ids(&tester)[0];
 
         assert!(tester.shell().pop_route(view));
         tester.shell().view_focus_changed(ViewFocusEvent {
@@ -792,7 +804,7 @@ mod multi_window {
         {
             let windows = Rc::new(TestWindows::new());
             let mut tester =
-                WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
+                WidgetTester::for_app(TestPlatform::new().with_windows(Rc::clone(&windows)));
             let spy = Rc::clone(&disposed);
             tester.update(|app| {
                 app.platform()
@@ -824,7 +836,7 @@ mod multi_window {
                 );
             });
             tester.pump_by(Duration::ZERO);
-            assert_eq!(tester.views().len(), 2);
+            assert_eq!(view_ids(&tester).len(), 2);
             assert!(disposed.borrow().is_empty());
         }
         assert_eq!(*disposed.borrow(), ["win-1", "win-2"]);
@@ -835,7 +847,7 @@ mod multi_window {
     fn drop_catches_a_pending_timer_in_a_multi_window_test() {
         let windows = Rc::new(TestWindows::new());
         let mut tester =
-            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
+            WidgetTester::for_app(TestPlatform::new().with_windows(Rc::clone(&windows)));
         tester.update(|app| {
             run_app(app, SizedBox::new().into_widget());
             Timer::new(app, Duration::from_secs(5), Listener::new(|_| {}));
@@ -847,7 +859,7 @@ mod multi_window {
     fn closing_the_only_window_unmounts_its_tree_on_pump() {
         let windows = Rc::new(TestWindows::new());
         let mut tester =
-            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
+            WidgetTester::for_app(TestPlatform::new().with_windows(Rc::clone(&windows)));
         tester.update(|app| {
             app.platform()
                 .request_view(WindowConfig::default(), None)
@@ -874,7 +886,7 @@ mod multi_window {
 
         tester.tap(find::text("Close Only"));
         tester.pump();
-        assert!(tester.views().is_empty());
+        assert!(view_ids(&tester).is_empty());
         expect(&tester, &find::text("Close Only"), finds_nothing());
     }
 
@@ -900,7 +912,7 @@ mod multi_window {
         reason = "tests pump_until waiting for work on a real background thread"
     )]
     fn pump_until_waits_for_work_completing_on_another_thread() {
-        let mut tester = WidgetTester::without_views(TestPlatform::new());
+        let mut tester = WidgetTester::for_app(TestPlatform::new());
         let ready = Rc::new(Cell::new(false));
         let set_ready = Rc::clone(&ready);
         let (tx, rx) = std::sync::mpsc::channel::<()>();
@@ -948,7 +960,7 @@ mod multi_window {
     fn drag_in_second_window_moves_the_second_window_gesture() {
         let windows = Rc::new(TestWindows::new());
         let mut tester =
-            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
+            WidgetTester::for_app(TestPlatform::new().with_windows(Rc::clone(&windows)));
         let dragged = Rc::new(Cell::new(Offset::ZERO));
         let seen = Rc::clone(&dragged);
 

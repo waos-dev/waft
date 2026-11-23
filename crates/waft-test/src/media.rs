@@ -29,8 +29,8 @@ use crate::MockHardwareBuffer;
 use crate::hardware_buffers::SYSTEM_GIVEN;
 use crate::image_codecs::pixels_of;
 
-/// A compositor whose layers show nowhere, keep every [`present`](CompositionLayer::present)
-/// they were given, and are kept in the order made. Every clone is the same compositor.
+/// A compositor whose layers show nowhere and keep what they show now ([`MockLayer`]), kept in
+/// the order made. Every clone is the same compositor.
 #[derive(Clone, Default)]
 pub struct MockCompositor(Arc<Mutex<Vec<Arc<MockLayer>>>>);
 

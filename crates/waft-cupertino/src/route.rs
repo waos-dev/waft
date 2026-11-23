@@ -3057,12 +3057,7 @@ mod tests {
         tester.down(&mut finger, Offset::new(5.0, 150.0));
         for n in 1..=steps {
             finger.position = finger.position + Offset::new(step, 0.0);
-            tester.send_at(
-                &finger,
-                PointerChange::Move,
-                Offset::new(step, 0.0),
-                interval * n,
-            );
+            tester.send_at(&finger, PointerChange::Move, interval * n);
             tester.pump_by(interval);
         }
         finger
@@ -3370,12 +3365,7 @@ mod tests {
             let dragged = page_left(&page_key, tester);
             assert!(dragged > 0.0, "the drag moved the page right, to {dragged}");
 
-            tester.send_at(
-                &finger,
-                PointerChange::Up,
-                Offset::ZERO,
-                Duration::from_millis(48),
-            );
+            tester.send_at(&finger, PointerChange::Up, Duration::from_millis(48));
             tester.pump_and_settle();
             assert!(
                 !Route::is_active(pushed.handle(), &tester.cell.borrow()),
@@ -3395,12 +3385,7 @@ mod tests {
             let finger = drag_from_the_edge(tester, 5.0, 4, Duration::from_millis(60));
             let dragged = page_left(&page_key, tester);
             assert!(dragged > 0.0, "the drag moved the page right, to {dragged}");
-            tester.send_at(
-                &finger,
-                PointerChange::Up,
-                Offset::ZERO,
-                Duration::from_millis(240),
-            );
+            tester.send_at(&finger, PointerChange::Up, Duration::from_millis(240));
             tester.pump_and_settle();
 
             assert!(
