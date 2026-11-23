@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `carousel_theme.dart`.
 
 use waft_embedder::{Clip, Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{EdgeInsets, OutlinedBorderRef};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, EnumProperty};
+use waft_painting::{ColorProperty, EdgeInsets, EdgeInsetsGeometry, OutlinedBorderRef};
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
     WidgetStateProperty, WidgetStatePropertyRef,
@@ -246,10 +246,53 @@ impl InheritedWidget for CarouselViewTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for CarouselViewThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<OutlinedBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+                "padding",
+                self.padding.map(EdgeInsetsGeometry::from),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<Clip>::new("itemClipBehavior", self.item_clip_behavior)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for CarouselViewThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use waft_painting::EdgeInsetsGeometry;
-    use waft_painting::{BorderRadiusGeometry, RoundedRectangleBorder};
+    use std::rc::Rc;
+
+    use waft_painting::{
+        BorderRadiusGeometry, EdgeInsets, EdgeInsetsGeometry, RoundedRectangleBorder,
+        ShapeBorderRef,
+    };
+    use waft_widgets::WidgetStatePropertyAll;
     use waft_widgets::testing::{WidgetTester, expect, find, finds_one_widget, test_widgets};
     use waft_widgets::{Center, Padding, SizedBox, WidgetStates};
 
@@ -499,5 +542,52 @@ mod tests {
             assert_eq!(overlay_color, Some(Color::new(0xffffffff)));
             assert_eq!(clip_behavior, Clip::AntiAlias);
         });
+    }
+    // Flutter's "Default CarouselViewThemeData debugFillProperties".
+    #[test]
+    fn a_carousel_view_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &CarouselViewThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // carousel_theme_test.dart 'CarouselViewThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_carousel_theme_describes_every_property() {
+        let theme = CarouselViewThemeData::new()
+            .background_color(Color::new(0xffffffff))
+            .elevation(5.0)
+            .padding(EdgeInsets::default())
+            .shape(RoundedRectangleBorder::default())
+            .overlay_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xffff0000,
+            )))))
+            .item_clip_behavior(Clip::HardEdge);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xffffffff)),
+                "elevation: 5.0".to_string(),
+                format!(
+                    "shape: {}",
+                    ShapeBorderRef::from(RoundedRectangleBorder::default())
+                ),
+                format!(
+                    "overlayColor: WidgetStatePropertyAll({})",
+                    Color::new(0xffff0000)
+                ),
+                "padding: EdgeInsets.zero".to_string(),
+                "itemClipBehavior: hardEdge".to_string(),
+            ]
+        );
     }
 }

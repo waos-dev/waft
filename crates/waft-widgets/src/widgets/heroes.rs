@@ -16,7 +16,10 @@ use waft_animation::{
     ReverseAnimation, Tween, k_always_complete_animation,
 };
 use waft_embedder::{Offset, Rect, Size};
-use waft_foundation::{AnyEq, App, Handle, ListenableObject, Listener, OptionRetained, Retained};
+use waft_foundation::{
+    AnyEq, App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle,
+    ListenableObject, Listener, OptionRetained, Retained,
+};
 use waft_painting::transform_rect;
 use waft_scheduler::{FrameCallback, SchedulerBinding};
 
@@ -471,6 +474,13 @@ impl StatefulWidget for Hero {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "tag",
+            Some(format!("{:?}", self.tag)),
+        ));
     }
 
     fn create_state(&self) -> HeroState {
@@ -1721,6 +1731,15 @@ impl HeroMode {
 impl StatelessWidget for HeroMode {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("mode", Some(self.enabled))
+                .if_true("enabled")
+                .if_false("disabled")
+                .with_show_name(true),
+        );
     }
 
     fn build(&self, _app: &mut App, _context: BuildContext) -> WidgetRef {

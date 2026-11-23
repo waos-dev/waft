@@ -4,8 +4,10 @@ use std::fmt;
 use std::time::Duration;
 
 use waft_embedder::{Brightness, Clip, Color};
-use waft_foundation::{App, Listener, ValueChanged};
-use waft_painting::EdgeInsetsGeometry;
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Listener, ValueChanged,
+};
+use waft_painting::{ColorProperty, EdgeInsetsGeometry, ShapeBorderRef};
 use waft_services::MouseCursorRef;
 use waft_widgets::{BuildContext, FocusNodeRef, IntoWidget, KeyRef, StatelessWidget, WidgetRef};
 
@@ -351,6 +353,65 @@ impl fmt::Debug for MaterialButton {
 impl StatelessWidget for MaterialButton {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(FlagProperty::new("enabled", Some(self.enabled())).if_false("disabled"));
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ButtonTextTheme>>::new(
+                "textTheme",
+                self.text_theme.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(ColorProperty::new("textColor", self.text_color).default_value(None));
+        properties.add(
+            ColorProperty::new("disabledTextColor", self.disabled_text_color).default_value(None),
+        );
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties
+            .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
+        properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
+        properties.add(ColorProperty::new("hoverColor", self.hover_color).default_value(None));
+        properties
+            .add(ColorProperty::new("highlightColor", self.highlight_color).default_value(None));
+        properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Brightness>>::new(
+                "colorBrightness",
+                self.color_brightness.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::VisualDensity>::new(
+                "visualDensity",
+                self.visual_density,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MaterialTapTargetSize>>::new(
+                "materialTapTargetSize",
+                self.material_tap_target_size.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {

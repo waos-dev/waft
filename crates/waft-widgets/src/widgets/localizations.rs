@@ -8,7 +8,8 @@ use std::rc::Rc;
 
 use waft_embedder::{Locale, TextDirection};
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Completer, CompleterFuture, Handle, Ref, wait_all,
+    App, ChangeNotifier, ChangeNotifierData, Completer, CompleterFuture,
+    DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, IterableProperty, Ref, wait_all,
 };
 use waft_rendering::RendererBinding;
 
@@ -704,6 +705,17 @@ impl Debug for Localizations {
 }
 
 impl StatefulWidget for Localizations {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("locale", self.locale.clone()));
+        properties.add(IterableProperty::<String>::new(
+            "delegates",
+            self.delegates
+                .iter()
+                .map(|delegate| format!("{delegate:?}"))
+                .collect::<Vec<String>>(),
+        ));
+    }
+
     type State = LocalizationsState;
 
     fn key(&self) -> Option<&KeyRef> {

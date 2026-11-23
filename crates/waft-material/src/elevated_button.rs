@@ -13,7 +13,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use waft_embedder::{Clip, Color, Radius, Size, clamp_double, lerp_double};
-use waft_foundation::{App, K_IS_WEB, Listener};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, K_IS_WEB, Listener};
 use waft_painting::{
     AlignmentGeometry, BorderRadius, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef,
     RoundedRectangleBorder, TextStyle,
@@ -513,6 +513,11 @@ impl StatefulWidget for ElevatedButton {
 
     fn key(&self) -> Option<&KeyRef> {
         self.button_style_button.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.button_style_button
+            .debug_fill_properties(app, properties);
     }
 
     fn create_state(&self) -> ButtonStyleState<ElevatedButton> {

@@ -6,9 +6,12 @@ use std::fmt::{self, Debug};
 use std::ops::{BitAnd, BitOr, Deref, Not};
 use std::rc::Rc;
 
-use waft_embedder::{Canvas, Color, Offset, Paint, Path, Rect};
+use waft_embedder::{Canvas, Color, Offset, Paint, Path, Rect, Size};
 use waft_foundation::Ref;
-use waft_foundation::{App, ChangeNotifier, ChangeNotifierData, Handle, K_IS_WEB};
+use waft_foundation::{
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsProperty,
+    Handle, K_IS_WEB, describe_enum, describe_identity,
+};
 use waft_painting::{
     AnyBorderSide, AnyColor, AnyTextStyle, BorderSide, BorderSideExtension, ColorExtension,
     EdgeInsetsGeometry, OutlinedBorder, OutlinedBorderRef, RoundedRectangleBorder, ShapeBorder,
@@ -104,6 +107,30 @@ impl PartialEq for WidgetStatesConstraintRef {
 impl Debug for WidgetStatesConstraintRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl fmt::Display for WidgetStatesConstraintRef {
+    /// Dart's `toString` of the constraint classes: `WidgetState.hovered`,
+    /// `WidgetState.any`, `(a & b)`, `(a | b)` and `~a`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let constraint = self.as_any();
+        if let Some(state) = constraint.downcast_ref::<WidgetState>() {
+            return write!(f, "WidgetState.{}", describe_enum(state));
+        }
+        if constraint.is::<AnyWidgetStates>() {
+            return f.write_str("WidgetState.any");
+        }
+        if let Some(and) = constraint.downcast_ref::<WidgetStateAnd>() {
+            return write!(f, "({} & {})", and.first, and.second);
+        }
+        if let Some(or) = constraint.downcast_ref::<WidgetStateOr>() {
+            return write!(f, "({} | {})", or.first, or.second);
+        }
+        if let Some(not) = constraint.downcast_ref::<WidgetStateNot>() {
+            return write!(f, "~{}", not.value);
+        }
+        write!(f, "{self:?}")
     }
 }
 
@@ -345,6 +372,17 @@ impl WidgetState {
     pub fn any() -> WidgetStatesConstraintRef {
         WidgetStatesConstraintRef::new(AnyWidgetStates)
     }
+}
+
+/// Dart's `Set<WidgetState>.toString`, as `{WidgetState.disabled, WidgetState.hovered}`. A
+/// Rust set has no insertion order, so the states are sorted to keep a dump stable.
+pub fn widget_states(states: &WidgetStates) -> String {
+    let mut names: Vec<String> = states
+        .iter()
+        .map(|state| format!("WidgetState.{}", describe_enum(state)))
+        .collect();
+    names.sort();
+    format!("{{{}}}", names.join(", "))
 }
 
 impl WidgetStatesConstraint for WidgetState {
@@ -1433,6 +1471,12 @@ pub trait WidgetStateProperty<T>: Debug + 'static {
     /// Downcast support for Dart's `is` checks in `==`.
     fn as_any(&self) -> &dyn Any;
 
+    /// Dart's `WidgetStateProperty.debugFillProperties`, from `Diagnosticable`: a property
+    /// adds its own fields.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
     /// Dart's `other is WidgetStateMapper<T>`: the mapper this property is, if it is one,
     /// as the private mapper subclasses of `WidgetStateColor` and the rest are.
     fn as_mapper(&self) -> Option<&WidgetStateMapper<T>> {
@@ -1458,6 +1502,129 @@ impl<T: 'static> PartialEq for dyn WidgetStateProperty<T> {
 /// A shared, erased [`WidgetStateProperty`] (a Dart object reference).
 pub type WidgetStatePropertyRef<T> = Rc<dyn WidgetStateProperty<T>>;
 
+/// The value a [`WidgetStateProperty`] resolves to, printed as Dart's `toString` and named
+/// as Dart names it inside `_WidgetStatePropertyWith<T>`.
+pub trait WidgetStatePropertyValue {
+    /// The value's Dart `toString`.
+    fn state_property_value(&self) -> String;
+
+    /// The value's Dart type, as `_WidgetStatePropertyWith<T>` prints it.
+    const DART_TYPE: &'static str;
+}
+
+macro_rules! display_state_value {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl WidgetStatePropertyValue for Option<$t> {
+                const DART_TYPE: &'static str = concat!(stringify!($t), "?");
+
+                fn state_property_value(&self) -> String {
+                    match self {
+                        Some(value) => value.to_string(),
+                        None => "null".to_string(),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+display_state_value!(
+    Color,
+    Size,
+    EdgeInsetsGeometry,
+    BorderSide,
+    ShapeBorderRef,
+    TextStyle
+);
+
+impl WidgetStatePropertyValue for Option<bool> {
+    const DART_TYPE: &'static str = "bool?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => value.to_string(),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl WidgetStatePropertyValue for Option<f64> {
+    const DART_TYPE: &'static str = "double?";
+
+    fn state_property_value(&self) -> String {
+        waft_foundation::debug_format_double(*self)
+    }
+}
+
+impl WidgetStatePropertyValue for f64 {
+    const DART_TYPE: &'static str = "double";
+
+    fn state_property_value(&self) -> String {
+        waft_foundation::debug_format_double(Some(*self))
+    }
+}
+
+impl WidgetStatePropertyValue for Option<OutlinedBorderRef> {
+    const DART_TYPE: &'static str = "OutlinedBorder?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => format!("{value:?}"),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl WidgetStatePropertyValue for Option<MouseCursorRef> {
+    const DART_TYPE: &'static str = "MouseCursor?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => value.debug_description(),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl WidgetStatePropertyValue for Option<crate::WidgetRef> {
+    const DART_TYPE: &'static str = "Widget?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(widget) => widget.to_string_short(),
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl WidgetStatePropertyValue for Option<Rc<crate::Icon>> {
+    const DART_TYPE: &'static str = "Icon?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(icon) => match &icon.icon {
+                Some(icon_data) => {
+                    format!("Icon(IconData(U+{:05X}))", icon_data.code_point)
+                }
+                None => "Icon".to_string(),
+            },
+            None => "null".to_string(),
+        }
+    }
+}
+
+impl WidgetStatePropertyValue for Option<crate::IconThemeData> {
+    const DART_TYPE: &'static str = "IconThemeData?";
+
+    fn state_property_value(&self) -> String {
+        match self {
+            Some(value) => value.to_string(),
+            None => "null".to_string(),
+        }
+    }
+}
+
 /// A value that may be a [`WidgetStateProperty`] in disguise: Dart's
 /// `value is WidgetStateProperty<T>` in `<dyn WidgetStateProperty<T>>::resolve_as`.
 ///
@@ -1482,6 +1649,32 @@ impl<T, V: MaybeWidgetStateProperty<T>> MaybeWidgetStateProperty<T> for Option<V
 }
 
 impl<T: 'static> dyn WidgetStateProperty<T> {
+    /// Dart's `WidgetStateProperty.toString`: `WidgetStatePropertyAll(value)` for one, the
+    /// mapper's own text, `Instance of '_WidgetStatePropertyWith<T>'` for a `resolveWith`, and
+    /// the property's `Debug` for another implementation.
+    #[allow(
+        clippy::inherent_to_string,
+        reason = "Dart's toString needs a value bound Rust's Display cannot carry here"
+    )]
+    pub fn to_string(&self) -> String
+    where
+        T: WidgetStatePropertyValue + Debug,
+    {
+        if let Some(all) = self.as_any().downcast_ref::<WidgetStatePropertyAll<T>>() {
+            return format!(
+                "WidgetStatePropertyAll({})",
+                all.value.state_property_value()
+            );
+        }
+        if self.as_any().is::<WidgetStatePropertyWith<T>>() {
+            return format!("Instance of '_WidgetStatePropertyWith<{}>'", T::DART_TYPE);
+        }
+        if let Some(mapper) = self.as_mapper() {
+            return mapper.to_string();
+        }
+        format!("{self:?}")
+    }
+
     /// Creates a property that resolves using a [`WidgetStateMap`].
     ///
     /// This constructor's [`resolve`](WidgetStateProperty::resolve) method finds the first
@@ -1743,6 +1936,13 @@ impl<T> WidgetStateMapper<T> {
 }
 
 impl<T: Clone + Debug + PartialEq + 'static> WidgetStateProperty<T> for WidgetStateMapper<T> {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "map",
+            Some(format!("{:?}", self.map)),
+        ));
+    }
+
     fn resolve(&self, states: &WidgetStates) -> T {
         for (key, value) in &self.map {
             if key.is_satisfied_by(states) {
@@ -1785,6 +1985,26 @@ impl<T: PartialEq> PartialEq for WidgetStateMapper<T> {
                     .iter()
                     .any(|(other_key, other_value)| other_key == key && other_value == value)
             })
+    }
+}
+
+impl<T: WidgetStatePropertyValue + Debug> WidgetStateMapper<T> {
+    /// Dart's `WidgetStateMapper.toString`: the type and the map.
+    #[allow(
+        clippy::inherent_to_string,
+        reason = "Dart's toString needs Dart's value formatting, not Display"
+    )]
+    pub fn to_string(&self) -> String {
+        let entries: Vec<String> = self
+            .map
+            .iter()
+            .map(|(key, value)| format!("{key}: {}", value.state_property_value()))
+            .collect();
+        format!(
+            "WidgetStateMapper<{}>({{{}}})",
+            T::DART_TYPE,
+            entries.join(", ")
+        )
     }
 }
 
@@ -1914,6 +2134,16 @@ impl WidgetStatesController {
     /// Discards any resources used by the object; see [`ChangeNotifierData::dispose`].
     pub fn dispose(self: Handle<Self>, app: &mut App) {
         ChangeNotifierData::dispose(app, self);
+    }
+
+    /// Dart's `WidgetStatesController.toString`, which it inherits from
+    /// `ValueNotifier<Set<WidgetState>>`: the identity and the set.
+    pub fn to_string(self: Handle<Self>, app: &App) -> String {
+        format!(
+            "{}({})",
+            describe_identity("WidgetStatesController", self.id().identity_hash()),
+            widget_states(app.get(self).value())
+        )
     }
 
     /// Adds `state` to [`value`](Self::value) if `add` is true, and removes it otherwise,

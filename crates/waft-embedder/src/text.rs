@@ -356,6 +356,22 @@ pub struct TextHeightBehavior {
     pub leading_distribution: TextLeadingDistribution,
 }
 
+/// Dart's `TextHeightBehavior.toString`.
+impl Display for TextHeightBehavior {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let leading_distribution = match self.leading_distribution {
+            TextLeadingDistribution::Proportional => "proportional",
+            TextLeadingDistribution::Even => "even",
+        };
+        write!(
+            f,
+            "TextHeightBehavior(applyHeightToFirstAscent: {}, applyHeightToLastDescent: {}, \
+             leadingDistribution: TextLeadingDistribution.{leading_distribution})",
+            self.apply_height_to_first_ascent, self.apply_height_to_last_descent,
+        )
+    }
+}
+
 impl Default for TextHeightBehavior {
     fn default() -> TextHeightBehavior {
         TextHeightBehavior {

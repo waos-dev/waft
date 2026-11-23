@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `app_bar_theme.dart`.
 
 use waft_embedder::{Color, SystemUiOverlayStyle, lerp_double};
-use waft_foundation::App;
-use waft_painting::{EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
 use waft_widgets::{
     BuildContext, IconThemeData, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, SizedBox,
     WidgetRef,
@@ -954,10 +954,124 @@ impl AppBarThemeData {
     }
 }
 
+/// Dart's `SystemUiOverlayStyle` description in `AppBarThemeData.debugFillProperties`.
+fn system_overlay_style_description(style: &SystemUiOverlayStyle) -> String {
+    let mut properties = Vec::new();
+    if let Some(color) = style.system_navigation_bar_color {
+        properties.push(format!("systemNavigationBarColor: {color}"));
+    }
+    if let Some(color) = style.system_navigation_bar_divider_color {
+        properties.push(format!("systemNavigationBarDividerColor: {color}"));
+    }
+    if let Some(brightness) = style.system_navigation_bar_icon_brightness {
+        properties.push(format!(
+            "systemNavigationBarIconBrightness: {}",
+            waft_foundation::DartEnum(brightness)
+        ));
+    }
+    if let Some(color) = style.status_bar_color {
+        properties.push(format!("statusBarColor: {color}"));
+    }
+    if let Some(brightness) = style.status_bar_brightness {
+        properties.push(format!(
+            "statusBarBrightness: {}",
+            waft_foundation::DartEnum(brightness)
+        ));
+    }
+    if let Some(brightness) = style.status_bar_icon_brightness {
+        properties.push(format!(
+            "statusBarIconBrightness: {}",
+            waft_foundation::DartEnum(brightness)
+        ));
+    }
+    if let Some(enforced) = style.system_status_bar_contrast_enforced {
+        properties.push(format!("systemStatusBarContrastEnforced: {enforced}"));
+    }
+    if let Some(enforced) = style.system_navigation_bar_contrast_enforced {
+        properties.push(format!("systemNavigationBarContrastEnforced: {enforced}"));
+    }
+    format!("SystemUiOverlayStyle({})", properties.join(", "))
+}
+
+impl waft_foundation::Diagnosticable for AppBarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties
+            .add(ColorProperty::new("foregroundColor", self.foreground_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DoubleProperty::new("scrolledUnderElevation", self.scrolled_under_elevation)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
+                "iconTheme",
+                self.icon_theme.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
+                "actionsIconTheme",
+                self.actions_icon_theme.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("centerTitle", self.center_title).default_value(None),
+        );
+        properties.add(DoubleProperty::new("titleSpacing", self.title_spacing).default_value(None));
+        properties.add(DoubleProperty::new("leadingWidth", self.leading_width).default_value(None));
+        properties
+            .add(DoubleProperty::new("toolbarHeight", self.toolbar_height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "toolbarTextStyle",
+                self.toolbar_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("titleTextStyle", self.title_text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "systemOverlayStyle",
+                self.system_overlay_style
+                    .as_ref()
+                    .map(system_overlay_style_description),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("actionsPadding", self.actions_padding)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for AppBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_painting::ShapeBorder;
-    use waft_painting::{BorderRadiusGeometry, BorderSide, FontStyle, RoundedRectangleBorder};
+    use waft_painting::{
+        BorderRadiusGeometry, BorderSide, FontStyle, RoundedRectangleBorder, StadiumBorder,
+    };
 
     use waft_widgets::testing::test_widgets;
 
@@ -1351,5 +1465,87 @@ mod tests {
             assert_eq!(built.app_bar_theme, app_bar_theme_data());
             assert_eq!(copied.app_bar_theme, app_bar_theme_data());
         });
+    }
+    // Flutter's "Default AppBarThemeData debugFillProperties".
+    #[test]
+    fn a_app_bar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &AppBarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // app_bar_theme_test.dart 'AppBarThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_app_bar_theme_describes_every_property() {
+        let theme = AppBarThemeData::new()
+            .background_color(Color::new(0xff000000))
+            .foreground_color(Color::new(0xff000001))
+            .elevation(8.0)
+            .scrolled_under_elevation(3.0)
+            .shadow_color(Color::new(0xff000002))
+            .surface_tint_color(Color::new(0xff000003))
+            .shape(StadiumBorder::default())
+            .icon_theme(IconThemeData::new().color(Color::new(0xff000004)))
+            .actions_icon_theme(IconThemeData::new().color(Color::new(0xff000004)))
+            .center_title(true)
+            .title_spacing(40.0)
+            .leading_width(96.0)
+            .toolbar_height(96.0)
+            .toolbar_text_style(TextStyle::new().color(Color::new(0xff000005)))
+            .title_text_style(TextStyle::new().color(Color::new(0xff000006)))
+            .system_overlay_style(
+                SystemUiOverlayStyle::default().system_navigation_bar_color(Color::new(0xff000007)),
+            )
+            .actions_padding(EdgeInsetsGeometry::symmetric(0.0, 8.0));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xff000000)),
+                format!("foregroundColor: {}", Color::new(0xff000001)),
+                "elevation: 8.0".to_string(),
+                "scrolledUnderElevation: 3.0".to_string(),
+                format!("shadowColor: {}", Color::new(0xff000002)),
+                format!("surfaceTintColor: {}", Color::new(0xff000003)),
+                format!("shape: {}", ShapeBorderRef::from(StadiumBorder::default())),
+                format!(
+                    "iconTheme: IconThemeData#00000(color: {})",
+                    Color::new(0xff000004)
+                ),
+                format!(
+                    "actionsIconTheme: IconThemeData#00000(color: {})",
+                    Color::new(0xff000004)
+                ),
+                "centerTitle: true".to_string(),
+                "titleSpacing: 40.0".to_string(),
+                "leadingWidth: 96.0".to_string(),
+                "toolbarHeight: 96.0".to_string(),
+                format!(
+                    "toolbarTextStyle: {}",
+                    TextStyle::new().color(Color::new(0xff000005))
+                ),
+                format!(
+                    "titleTextStyle: {}",
+                    TextStyle::new().color(Color::new(0xff000006))
+                ),
+                format!(
+                    "systemOverlayStyle: SystemUiOverlayStyle(systemNavigationBarColor: {})",
+                    Color::new(0xff000007)
+                ),
+                "actionsPadding: EdgeInsets(8.0, 0.0, 8.0, 0.0)".to_string(),
+            ]
+        );
     }
 }

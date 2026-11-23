@@ -16,7 +16,10 @@ use waft_embedder::{
     RSuperellipse, Rect, SemanticsHitTestBehavior, SemanticsInputType, SemanticsRole,
     SemanticsValidationResult, Size, TextBaseline, TextDirection,
 };
-use waft_foundation::{App, Handle, Ref, ValueKey, VoidCallback};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty,
+    EnumProperty, FlagProperty, Handle, IntProperty, IterableProperty, Ref, ValueKey, VoidCallback,
+};
 use waft_gestures::{
     PointerCancelEventListener, PointerDownEventListener, PointerEnterEventListener,
     PointerExitEventListener, PointerHoverEventListener, PointerMoveEventListener,
@@ -25,8 +28,8 @@ use waft_gestures::{
 };
 use waft_painting::{
     Alignment, AlignmentGeometry, AnyColor, Axis, AxisDirection, BorderRadius,
-    BorderRadiusGeometry, BoxFit, BoxShape, EdgeInsetsGeometry, ShapeBorderRef, VerticalDirection,
-    flip_axis_direction, text_direction_to_axis_direction,
+    BorderRadiusGeometry, BoxFit, BoxShape, ColorProperty, EdgeInsetsGeometry, ShapeBorderRef,
+    VerticalDirection, flip_axis_direction, text_direction_to_axis_direction,
 };
 use waft_rendering::{
     AccessibilityFocusBlockType, AnyRenderObject, AttributedString, BackdropKey, BoxConstraints,
@@ -162,6 +165,10 @@ impl Directionality {
 impl InheritedWidget for Directionality {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("textDirection", self.text_direction));
     }
 
     fn child(&self) -> &WidgetRef {
@@ -522,6 +529,10 @@ impl RenderObjectWidget for Opacity {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("opacity", self.opacity));
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderOpacity::new(app, self.opacity, None).as_object()
     }
@@ -850,6 +861,18 @@ impl RenderObjectWidget for ClipRect {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "clipper",
+                self.clipper
+                    .as_ref()
+                    .map(|_| "Instance of 'CustomClipper<Rect>'".to_string()),
+            )
+            .default_value(None),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderClipRect::new(app, self.clipper.clone(), self.clip_behavior, None).as_object()
     }
@@ -994,6 +1017,22 @@ impl RenderObjectWidget for ClipRRect {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<BorderRadiusGeometry>::new("borderRadius", self.border_radius)
+                .with_show_name(false),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "clipper",
+                self.clipper
+                    .as_ref()
+                    .map(|_| "Instance of 'CustomClipper<RRect>'".to_string()),
+            )
+            .default_value(None),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -1147,6 +1186,22 @@ impl RenderObjectWidget for ClipRSuperellipse {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<BorderRadiusGeometry>::new("borderRadius", self.border_radius)
+                .with_show_name(false),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "clipper",
+                self.clipper
+                    .as_ref()
+                    .map(|_| "Instance of 'CustomClipper<RSuperellipse>'".to_string()),
+            )
+            .default_value(None),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = Directionality::maybe_of(app, context);
         RenderClipRSuperellipse::new(
@@ -1271,6 +1326,18 @@ impl RenderObjectWidget for ClipOval {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "clipper",
+                self.clipper
+                    .as_ref()
+                    .map(|_| "Instance of 'CustomClipper<Rect>'".to_string()),
+            )
+            .default_value(None),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -1406,6 +1473,18 @@ impl RenderObjectWidget for ClipPath {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "clipper",
+                self.clipper
+                    .as_ref()
+                    .map(|_| "Instance of 'CustomClipper<Path>'".to_string()),
+            )
+            .default_value(None),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -1618,6 +1697,17 @@ impl RenderObjectWidget for PhysicalModel {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("shape", self.shape));
+        properties.add(DiagnosticsProperty::<BorderRadius>::new(
+            "borderRadius",
+            self.border_radius,
+        ));
+        properties.add(DoubleProperty::new("elevation", self.elevation));
+        properties.add(ColorProperty::new("color", self.color.color()));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color.color()));
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderPhysicalModel::new(
             app,
@@ -1759,6 +1849,16 @@ impl RenderObjectWidget for PhysicalShape {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "clipper",
+            Some("Instance of 'CustomClipper<Path>'".to_string()),
+        ));
+        properties.add(DoubleProperty::new("elevation", self.elevation));
+        properties.add(ColorProperty::new("color", self.color.color()));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color.color()));
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -2192,6 +2292,11 @@ impl RenderObjectWidget for FittedBox {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("fit", self.fit));
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = Directionality::maybe_of(app, context);
         let render_object =
@@ -2396,6 +2501,10 @@ impl RenderObjectWidget for Padding {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("padding", self.padding));
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = Directionality::maybe_of(app, context);
         RenderPadding::new(app, self.padding, text_direction, None).as_object()
@@ -2521,6 +2630,18 @@ impl Align {
         self
     }
 
+    /// Dart's `Align.debugFillProperties`, which [`Center`] inherits.
+    fn fill_properties(
+        alignment: AlignmentGeometry,
+        width_factor: Option<f64>,
+        height_factor: Option<f64>,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::new("alignment", alignment));
+        properties.add(DoubleProperty::new("widthFactor", width_factor).default_value(None));
+        properties.add(DoubleProperty::new("heightFactor", height_factor).default_value(None));
+    }
+
     /// `Align.createRenderObject`'s body, shared with [`Center`].
     fn create_positioned_box(
         app: &mut App,
@@ -2575,6 +2696,15 @@ impl RenderObjectWidget for Align {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        Align::fill_properties(
+            self.alignment,
+            self.width_factor,
+            self.height_factor,
+            properties,
+        );
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -2684,6 +2814,15 @@ impl RenderObjectWidget for Center {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        Align::fill_properties(
+            self.alignment(),
+            self.width_factor,
+            self.height_factor,
+            properties,
+        );
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -2832,6 +2971,13 @@ impl ParentDataWidget for LayoutId {
 
     fn key(&self) -> Option<&KeyRef> {
         Some(&self.key)
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "id",
+            Some(format!("{:?}", self.id)),
+        ));
     }
 
     fn child(&self) -> &WidgetRef {
@@ -3081,6 +3227,39 @@ impl RenderObjectWidget for SizedBox {
         self.key.as_ref()
     }
 
+    /// Dart's `SizedBox.toStringShort`: `SizedBox.expand` and `SizedBox.shrink` by the sizes
+    /// those constructors give.
+    fn to_string_short(&self) -> String {
+        let type_name = match (self.width, self.height) {
+            (Some(f64::INFINITY), Some(f64::INFINITY)) => "SizedBox.expand",
+            (Some(0.0), Some(0.0)) => "SizedBox.shrink",
+            _ => "SizedBox",
+        };
+        crate::describe_widget(type_name, self.key())
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        let expanded_or_shrunk = matches!(
+            (self.width, self.height),
+            (Some(f64::INFINITY), Some(f64::INFINITY)) | (Some(0.0), Some(0.0))
+        );
+        let level = if expanded_or_shrunk {
+            DiagnosticLevel::Hidden
+        } else {
+            DiagnosticLevel::Info
+        };
+        properties.add(
+            DoubleProperty::new("width", self.width)
+                .default_value(None)
+                .with_level(level),
+        );
+        properties.add(
+            DoubleProperty::new("height", self.height)
+                .default_value(None)
+                .with_level(level),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderConstrainedBox::new(app, self.additional_constraints(), None).as_object()
     }
@@ -3184,6 +3363,11 @@ impl RenderObjectWidget for ConstrainedBox {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties
+            .add(DiagnosticsProperty::new("constraints", self.constraints).with_show_name(false));
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderConstrainedBox::new(app, self.constraints, None).as_object()
     }
@@ -3272,6 +3456,9 @@ pub struct ConstraintsTransformBox {
     ///
     /// Defaults to [`Clip::None`].
     pub clip_behavior: Clip,
+    /// A description of the transform to show in a dump, when it is not one of the predefined
+    /// transforms this widget knows.
+    pub debug_transform_type: String,
     pub child: Option<WidgetRef>,
 }
 
@@ -3285,8 +3472,18 @@ impl ConstraintsTransformBox {
             alignment: AlignmentGeometry::CENTER,
             constraints_transform,
             clip_behavior: Clip::None,
+            debug_transform_type: String::new(),
             child: None,
         }
+    }
+
+    /// Dart `ConstraintsTransformBox(debugTransformType:)`.
+    pub fn debug_transform_type(
+        mut self,
+        debug_transform_type: impl Into<String>,
+    ) -> ConstraintsTransformBox {
+        self.debug_transform_type = debug_transform_type.into();
+        self
     }
 
     /// Dart `ConstraintsTransformBox(key:)`.
@@ -3317,6 +3514,29 @@ impl ConstraintsTransformBox {
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ConstraintsTransformBox {
         self.child = Some(child.into_widget());
         self
+    }
+
+    /// The label `debugFillProperties` gives a transform, Dart's `_debugKnownTransforms`.
+    fn debug_transform_label(transform: BoxConstraintsTransform) -> Option<&'static str> {
+        let known: [(BoxConstraintsTransform, &'static str); 7] = [
+            (Self::unmodified, "unmodified"),
+            (Self::unconstrained, "unconstrained"),
+            (Self::width_unconstrained, "width constraints removed"),
+            (Self::height_unconstrained, "height constraints removed"),
+            (Self::max_width_unconstrained, "maxWidth constraint removed"),
+            (
+                Self::max_height_unconstrained,
+                "maxHeight constraint removed",
+            ),
+            (
+                Self::max_unconstrained,
+                "maxWidth & maxHeight constraints removed",
+            ),
+        ];
+        known
+            .into_iter()
+            .find(|(known, _)| std::ptr::fn_addr_eq(*known, transform))
+            .map(|(_, label)| label)
     }
 
     /// A [`BoxConstraintsTransform`] that always returns its argument as-is (i.e.,
@@ -3397,6 +3617,25 @@ impl RenderObjectWidget for ConstraintsTransformBox {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        let debug_transform_label = if !self.debug_transform_type.is_empty() {
+            Some(self.debug_transform_type.as_str())
+        } else {
+            ConstraintsTransformBox::debug_transform_label(self.constraints_transform)
+        };
+        if let Some(debug_transform_label) = debug_transform_label {
+            properties.add(DiagnosticsProperty::<String>::new(
+                "constraints transform",
+                debug_transform_label.to_string(),
+            ));
+        }
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -3554,6 +3793,17 @@ impl Default for UnconstrainedBox {
 }
 
 impl StatelessWidget for UnconstrainedBox {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+        properties.add(
+            EnumProperty::<Axis>::new("constrainedAxis", self.constrained_axis).default_value(None),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+    }
+
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
     }
@@ -3679,6 +3929,12 @@ impl RenderObjectWidget for FractionallySizedBox {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+        properties.add(DoubleProperty::new("widthFactor", self.width_factor).default_value(None));
+        properties.add(DoubleProperty::new("heightFactor", self.height_factor).default_value(None));
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = Directionality::maybe_of(app, context);
         let render_object =
@@ -3793,6 +4049,15 @@ impl RenderObjectWidget for LimitedBox {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DoubleProperty::new("maxWidth", self.max_width).default_value(Some(f64::INFINITY)),
+        );
+        properties.add(
+            DoubleProperty::new("maxHeight", self.max_height).default_value(Some(f64::INFINITY)),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -3948,6 +4213,15 @@ impl RenderObjectWidget for OverflowBox {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+        properties.add(DoubleProperty::new("minWidth", self.min_width).default_value(None));
+        properties.add(DoubleProperty::new("maxWidth", self.max_width).default_value(None));
+        properties.add(DoubleProperty::new("minHeight", self.min_height).default_value(None));
+        properties.add(DoubleProperty::new("maxHeight", self.max_height).default_value(None));
+        properties.add(EnumProperty::new("fit", self.fit));
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = Directionality::maybe_of(app, context);
         RenderConstrainedOverflowBox::new(
@@ -4056,6 +4330,11 @@ impl RenderObjectWidget for SizedOverflowBox {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+        properties.add(DiagnosticsProperty::<Size>::new("size", self.size).default_value(None));
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -4171,6 +4450,10 @@ impl RenderObjectWidget for Offstage {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("offstage", self.offstage));
+    }
+
     /// Dart's `_OffstageElement.debugVisitOnstageChildren`: no child while offstage.
     fn debug_visit_onstage_children(
         &self,
@@ -4278,6 +4561,10 @@ impl RenderObjectWidget for AspectRatio {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("aspectRatio", self.aspect_ratio));
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -4714,6 +5001,10 @@ impl RenderObjectWidget for SliverPadding {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("padding", self.padding));
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = Directionality::of(app, context);
         RenderSliverPadding::new(app, self.padding, Some(text_direction), None).as_object()
@@ -4943,6 +5234,39 @@ impl RenderObjectWidget for Listener {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        let mut listeners: Vec<String> = Vec::new();
+        if self.on_pointer_down.is_some() {
+            listeners.push("down".to_string());
+        }
+        if self.on_pointer_move.is_some() {
+            listeners.push("move".to_string());
+        }
+        if self.on_pointer_up.is_some() {
+            listeners.push("up".to_string());
+        }
+        if self.on_pointer_hover.is_some() {
+            listeners.push("hover".to_string());
+        }
+        if self.on_pointer_cancel.is_some() {
+            listeners.push("cancel".to_string());
+        }
+        if self.on_pointer_pan_zoom_start.is_some() {
+            listeners.push("panZoomStart".to_string());
+        }
+        if self.on_pointer_pan_zoom_update.is_some() {
+            listeners.push("panZoomUpdate".to_string());
+        }
+        if self.on_pointer_pan_zoom_end.is_some() {
+            listeners.push("panZoomEnd".to_string());
+        }
+        if self.on_pointer_signal.is_some() {
+            listeners.push("signal".to_string());
+        }
+        properties.add(IterableProperty::<String>::new("listeners", listeners).if_empty("<none>"));
+        properties.add(EnumProperty::new("behavior", self.behavior));
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -5236,6 +5560,27 @@ impl RenderObjectWidget for MouseRegion {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        let mut listeners: Vec<String> = Vec::new();
+        if self.on_enter.is_some() {
+            listeners.push("enter".to_string());
+        }
+        if self.on_exit.is_some() {
+            listeners.push("exit".to_string());
+        }
+        if self.on_hover.is_some() {
+            listeners.push("hover".to_string());
+        }
+        properties.add(IterableProperty::<String>::new("listeners", listeners).if_empty("<none>"));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "cursor",
+            Some(self.cursor.debug_description()),
+        ));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("opaque", Some(self.opaque)).default_value(Some(true)),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         let render_object = RenderMouseRegion::new(app, true, None);
         self.apply_configuration(app, render_object);
@@ -5437,6 +5782,10 @@ impl RenderObjectWidget for IgnorePointer {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("ignoring", self.ignoring));
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderIgnorePointer::new(app, self.ignoring, None).as_object()
     }
@@ -5528,6 +5877,10 @@ impl RenderObjectWidget for AbsorbPointer {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("absorbing", self.absorbing));
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderAbsorbPointer::new(app, self.absorbing, None).as_object()
     }
@@ -5613,6 +5966,16 @@ impl RenderObjectWidget for MetaData {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("behavior", self.behavior));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "metaData",
+            self.meta_data
+                .as_ref()
+                .map(|_| "Instance of 'Object'".to_string()),
+        ));
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
@@ -5794,6 +6157,18 @@ impl RenderObjectWidget for BackdropFilter {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<ImageFilterConfig>::new(
+                "filterConfig",
+                Some(self.filter_config.clone()),
+            )
+            .default_value(None),
+        );
+        properties.add(EnumProperty::new("blendMode", self.blend_mode));
+        properties.add(FlagProperty::new("enabled", Some(self.enabled)).if_true("enabled"));
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -7229,6 +7604,13 @@ impl RenderObjectWidget for ColoredBox {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("color", self.color.color()));
+        properties.add(
+            DiagnosticsProperty::new("isAntiAlias", self.is_anti_alias).default_value(Some(true)),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {
         RenderColoredBox::new(app, self.color.color(), self.is_anti_alias, None).as_object()
     }
@@ -7439,6 +7821,19 @@ impl RenderObjectWidget for Stack {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(EnumProperty::new("fit", self.fit));
+        properties.add(
+            EnumProperty::new("clipBehavior", self.clip_behavior)
+                .default_value(Some(Clip::HardEdge)),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -7702,6 +8097,15 @@ impl ParentDataWidget for Positioned {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("left", self.left).default_value(None));
+        properties.add(DoubleProperty::new("top", self.top).default_value(None));
+        properties.add(DoubleProperty::new("right", self.right).default_value(None));
+        properties.add(DoubleProperty::new("bottom", self.bottom).default_value(None));
+        properties.add(DoubleProperty::new("width", self.width).default_value(None));
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+    }
+
     fn child(&self) -> &WidgetRef {
         &self.child
     }
@@ -7775,6 +8179,39 @@ struct FlexConfiguration {
 }
 
 impl FlexConfiguration {
+    /// Dart's `Flex.debugFillProperties`, which `Row` and `Column` inherit.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("direction", self.direction));
+        properties.add(EnumProperty::new(
+            "mainAxisAlignment",
+            self.main_axis_alignment,
+        ));
+        properties.add(
+            EnumProperty::new("mainAxisSize", self.main_axis_size)
+                .default_value(Some(MainAxisSize::Max)),
+        );
+        properties.add(EnumProperty::new(
+            "crossAxisAlignment",
+            self.cross_axis_alignment,
+        ));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::new("verticalDirection", self.vertical_direction)
+                .default_value(Some(VerticalDirection::Down)),
+        );
+        properties.add(
+            EnumProperty::<TextBaseline>::new("textBaseline", self.text_baseline)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::new("clipBehavior", self.clip_behavior).default_value(Some(Clip::None)),
+        );
+        properties.add(DoubleProperty::new("spacing", self.spacing).default_value(Some(0.0)));
+    }
+
     /// A flex laid out along `direction`, with every other field at Dart's default.
     fn new(direction: Axis) -> FlexConfiguration {
         FlexConfiguration {
@@ -8337,6 +8774,10 @@ impl RenderObjectWidget for Flex {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.configuration().debug_fill_properties(properties);
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         self.configuration().create_render_object(app, context)
     }
@@ -8513,6 +8954,10 @@ impl RenderObjectWidget for Row {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.configuration().debug_fill_properties(properties);
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -8694,6 +9139,10 @@ impl RenderObjectWidget for Column {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.configuration().debug_fill_properties(properties);
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         self.configuration().create_render_object(app, context)
     }
@@ -8782,6 +9231,11 @@ impl Flexible {
         self
     }
 
+    /// Dart's `Flexible.debugFillProperties`, which [`Expanded`] inherits.
+    fn fill_properties(flex: i32, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(IntProperty::new("flex", flex));
+    }
+
     /// `Flexible.applyParentData`'s body, shared with [`Expanded`].
     fn apply_flex_parent_data(
         app: &mut App,
@@ -8814,6 +9268,10 @@ impl ParentDataWidget for Flexible {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        Flexible::fill_properties(self.flex, properties);
     }
 
     fn child(&self) -> &WidgetRef {
@@ -8889,6 +9347,10 @@ impl ParentDataWidget for Expanded {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        Flexible::fill_properties(self.flex, properties);
     }
 
     fn child(&self) -> &WidgetRef {
@@ -9149,6 +9611,26 @@ impl RenderObjectWidget for Wrap {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("direction", self.direction));
+        properties.add(EnumProperty::new("alignment", self.alignment));
+        properties.add(DoubleProperty::new("spacing", self.spacing));
+        properties.add(EnumProperty::new("runAlignment", self.run_alignment));
+        properties.add(DoubleProperty::new("runSpacing", self.run_spacing));
+        properties.add(EnumProperty::new(
+            "crossAxisAlignment",
+            self.cross_axis_alignment,
+        ));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::new("verticalDirection", self.vertical_direction)
+                .default_value(Some(VerticalDirection::Down)),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -12395,5 +12877,56 @@ mod tests {
         );
         harness.pump(&mut app);
         let _ = render_object_under_root::<RenderMergeSemantics>(&harness, &app);
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use waft_foundation::DiagnosticPropertiesBuilder;
+
+    use super::*;
+    use crate::testing::describe_properties;
+
+    /// `basic_test.dart`, "ColoredBox - debugFillProperties".
+    #[test]
+    fn a_colored_box_puts_its_color_first() {
+        let color = Color::new(0xFF00FF00);
+        let colored = ColoredBox::new(color);
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        colored.debug_fill_properties(&app, &mut properties);
+        let value = properties
+            .properties
+            .first()
+            .expect("a property")
+            .value()
+            .expect("a value");
+        assert_eq!(value.downcast_ref::<Color>(), Some(&color));
+    }
+
+    /// `basic_test.dart`, "Wrap implements debugFillProperties".
+    #[test]
+    fn a_wrap_describes_its_layout() {
+        let wrap = Wrap::new()
+            .spacing(8.0)
+            .run_spacing(4.0)
+            .text_direction(TextDirection::Ltr)
+            .vertical_direction(VerticalDirection::Up);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        assert_eq!(
+            describe_properties(|properties| wrap.debug_fill_properties(&app, properties)),
+            [
+                "direction: horizontal",
+                "alignment: start",
+                "spacing: 8.0",
+                "runAlignment: start",
+                "runSpacing: 4.0",
+                "crossAxisAlignment: start",
+                "textDirection: ltr",
+                "verticalDirection: up",
+            ]
+        );
     }
 }

@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `floating_action_button_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
 use waft_rendering::BoxConstraints;
 use waft_services::MouseCursorRef;
 use waft_widgets::{
@@ -544,13 +544,107 @@ impl InheritedWidget for FloatingActionButtonTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for FloatingActionButtonThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("foregroundColor", self.foreground_color).default_value(None));
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
+        properties.add(ColorProperty::new("hoverColor", self.hover_color).default_value(None));
+        properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties
+            .add(DoubleProperty::new("focusElevation", self.focus_elevation).default_value(None));
+        properties
+            .add(DoubleProperty::new("hoverElevation", self.hover_elevation).default_value(None));
+        properties.add(
+            DoubleProperty::new("disabledElevation", self.disabled_elevation).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("highlightElevation", self.highlight_elevation).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableFeedback", self.enable_feedback)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("iconSize", self.icon_size).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("sizeConstraints", self.size_constraints)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new(
+                "smallSizeConstraints",
+                self.small_size_constraints,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new(
+                "largeSizeConstraints",
+                self.large_size_constraints,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new(
+                "extendedSizeConstraints",
+                self.extended_size_constraints,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("extendedIconLabelSpacing", self.extended_icon_label_spacing)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+                "extendedPadding",
+                self.extended_padding,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "extendedTextStyle",
+                self.extended_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for FloatingActionButtonThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
     use waft_painting::ShapeBorder;
 
     use waft_embedder::Size;
-    use waft_painting::{BorderRadiusGeometry, BorderSide, RoundedRectangleBorder};
+    use waft_painting::{
+        BeveledRectangleBorder, BorderRadiusGeometry, BorderSide, EdgeInsetsDirectional,
+        RoundedRectangleBorder, ShapeBorderRef, TextStyle,
+    };
+    use waft_rendering::BoxConstraints;
     use waft_services::SystemMouseCursors;
     use waft_widgets::{SizedBox, WidgetStatePropertyAll};
 
@@ -843,5 +937,80 @@ mod tests {
                 Some(4.0)
             );
         });
+    }
+    // Flutter's "Default FloatingActionButtonThemeData debugFillProperties".
+    #[test]
+    fn a_floating_action_button_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &FloatingActionButtonThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // floating_action_button_theme_test.dart 'FloatingActionButtonThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_floating_action_button_theme_describes_every_property() {
+        let mouse_cursor: WidgetStatePropertyRef<Option<MouseCursorRef>> = Rc::new(
+            WidgetStatePropertyAll::new(Some(SystemMouseCursors::CLICK.into())),
+        );
+        let theme = FloatingActionButtonThemeData::new()
+            .foreground_color(Color::new(0xfeedfeed))
+            .background_color(Color::new(0xcafecafe))
+            .focus_color(Color::new(0xfeedfee1))
+            .hover_color(Color::new(0xfeedfee2))
+            .splash_color(Color::new(0xfeedfee3))
+            .elevation(23.0)
+            .focus_elevation(9.0)
+            .hover_elevation(10.0)
+            .disabled_elevation(11.0)
+            .highlight_elevation(43.0)
+            .shape(BeveledRectangleBorder::default())
+            .enable_feedback(true)
+            .icon_size(42.0)
+            .size_constraints(BoxConstraints::tight(Size::new(100.0, 100.0)))
+            .small_size_constraints(BoxConstraints::tight(Size::new(101.0, 101.0)))
+            .large_size_constraints(BoxConstraints::tight(Size::new(102.0, 102.0)))
+            .extended_size_constraints(BoxConstraints::new().min_height(103.0).max_height(103.0))
+            .extended_icon_label_spacing(12.0)
+            .extended_padding(EdgeInsetsDirectional::from_steb(7.0, 0.0, 8.0, 0.0))
+            .extended_text_style(TextStyle::new().letter_spacing(2.0))
+            .mouse_cursor(mouse_cursor);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        assert_eq!(
+            description,
+            [
+                format!("foregroundColor: {}", Color::new(0xfeedfeed)),
+                format!("backgroundColor: {}", Color::new(0xcafecafe)),
+                format!("focusColor: {}", Color::new(0xfeedfee1)),
+                format!("hoverColor: {}", Color::new(0xfeedfee2)),
+                format!("splashColor: {}", Color::new(0xfeedfee3)),
+                "elevation: 23.0".to_string(),
+                "focusElevation: 9.0".to_string(),
+                "hoverElevation: 10.0".to_string(),
+                "disabledElevation: 11.0".to_string(),
+                "highlightElevation: 43.0".to_string(),
+                format!(
+                    "shape: {}",
+                    ShapeBorderRef::from(BeveledRectangleBorder::default())
+                ),
+                "enableFeedback: true".to_string(),
+                "iconSize: 42.0".to_string(),
+                "sizeConstraints: BoxConstraints(w=100.0, h=100.0)".to_string(),
+                "smallSizeConstraints: BoxConstraints(w=101.0, h=101.0)".to_string(),
+                "largeSizeConstraints: BoxConstraints(w=102.0, h=102.0)".to_string(),
+                "extendedSizeConstraints: BoxConstraints(0.0<=w<=Infinity, h=103.0)".to_string(),
+                "extendedIconLabelSpacing: 12.0".to_string(),
+                "extendedPadding: EdgeInsetsDirectional(7.0, 0.0, 8.0, 0.0)".to_string(),
+                "extendedTextStyle: TextStyle(inherit: true, letterSpacing: 2.0)".to_string(),
+                "mouseCursor: WidgetStatePropertyAll(SystemMouseCursor(click))".to_string(),
+            ]
+        );
     }
 }

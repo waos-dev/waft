@@ -17,16 +17,18 @@ use waft_animation::{
     AnimationWithParent, ColorTween, Curve, CurvedAnimation, Curves, Drive, Tween,
 };
 use waft_embedder::{
-    Brightness, Canvas, Color, Matrix4, Offset, Paint, PaintStyle, Size, TextBaseline, lerp_double,
+    Brightness, Canvas, Color, Matrix4, Offset, Paint, PaintStyle, SignedDuration, Size,
+    TextBaseline, lerp_double,
 };
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, DiagnosticsNode, Handle, Listenable, Listener,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, Diagnosticable,
+    DiagnosticsNode, DiagnosticsProperty, Handle, IntProperty, Listenable, Listener,
     MergingListenable, OptionRetained, Ref,
 };
 use waft_painting::{
-    AnyBorderSide, AnyColor, AnyTextStyle, BorderSide, EdgeInsets, EdgeInsetsDirectional,
-    EdgeInsetsGeometry, ShapeBorderRef, TextAlign, TextAlignVertical, TextDirection, TextOverflow,
-    TextStyle,
+    AnyBorderSide, AnyColor, AnyTextStyle, BorderSide, ColorProperty, EdgeInsets,
+    EdgeInsetsDirectional, EdgeInsetsGeometry, ShapeBorderRef, TextAlign, TextAlignVertical,
+    TextDirection, TextOverflow, TextStyle,
 };
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult, BoxParentData,
@@ -2868,6 +2870,25 @@ impl StatefulWidget for InputDecorator {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<InputDecoration>::new(
+            "decoration",
+            Some(self.decoration.clone()),
+        ));
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("baseStyle", self.base_style.clone())
+                .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "isFocused",
+            self.is_focused,
+        ));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("expands", self.expands).default_value(Some(false)),
+        );
+        properties.add(DiagnosticsProperty::<bool>::new("isEmpty", self.is_empty));
     }
 
     fn debug_check_constructor(&self) {
@@ -6011,7 +6032,7 @@ impl Debug for InputDecoration {
             description.push(format!("constraints: {:?}", constraints));
         }
         if let Some(visual_density) = &self.visual_density {
-            description.push(format!("visualDensity: {:?}", visual_density));
+            description.push(format!("visualDensity: {visual_density}"));
         }
         if let Some(supporting_text_padding) = &self.supporting_text_padding {
             description.push(format!(
@@ -6020,6 +6041,13 @@ impl Debug for InputDecoration {
             ));
         }
         write!(f, "InputDecoration({})", description.join(", "))
+    }
+}
+
+/// Dart's `InputDecoration.toString`, which [`Debug`] already renders.
+impl fmt::Display for InputDecoration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
     }
 }
 
@@ -8344,6 +8372,274 @@ impl Debug for InputDecorationThemeData {
             properties.push(format!("visualDensity: {:?}", visual_density));
         }
         write!(f, "InputDecorationThemeData({})", properties.join(", "))
+    }
+}
+
+impl Diagnosticable for InputDecorationThemeData {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let default_theme = InputDecorationThemeData::new();
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new("labelStyle", self.label_style.clone())
+                .default_value(default_theme.label_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new(
+                "floatingLabelStyle",
+                self.floating_label_style.clone(),
+            )
+            .default_value(default_theme.floating_label_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new("helperStyle", self.helper_style.clone())
+                .default_value(default_theme.helper_style.clone()),
+        );
+        properties.add(
+            IntProperty::<i32>::new("helperMaxLines", self.helper_max_lines)
+                .default_value(default_theme.helper_max_lines),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new("hintStyle", self.hint_style.clone())
+                .default_value(default_theme.hint_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<SignedDuration>::new(
+                "hintFadeDuration",
+                self.hint_fade_duration.map(SignedDuration::from),
+            )
+            .default_value(default_theme.hint_fade_duration.map(SignedDuration::from)),
+        );
+        properties.add(
+            IntProperty::<i32>::new("hintMaxLines", self.hint_max_lines)
+                .default_value(default_theme.hint_max_lines),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new("errorStyle", self.error_style.clone())
+                .default_value(default_theme.error_style.clone()),
+        );
+        properties.add(
+            IntProperty::<i32>::new("errorMaxLines", self.error_max_lines)
+                .default_value(default_theme.error_max_lines),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<FloatingLabelBehavior>>::new(
+                "floatingLabelBehavior",
+                Some(waft_foundation::DartEnum(self.floating_label_behavior)),
+            )
+            .default_value(Some(waft_foundation::DartEnum(
+                default_theme.floating_label_behavior,
+            ))),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "floatingLabelAlignment",
+                Some(format!("{:?}", self.floating_label_alignment)),
+            )
+            .default_value(Some(format!(
+                "{:?}",
+                default_theme.floating_label_alignment
+            ))),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("isDense", Some(self.is_dense))
+                .default_value(Some(default_theme.is_dense)),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("contentPadding", self.content_padding)
+                .default_value(default_theme.content_padding),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("isCollapsed", Some(self.is_collapsed))
+                .default_value(Some(default_theme.is_collapsed)),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("iconColor", self.icon_color.clone())
+                .default_value(default_theme.icon_color.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("prefixIconColor", self.prefix_icon_color.clone())
+                .default_value(default_theme.prefix_icon_color.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new(
+                "prefixIconConstraints",
+                self.prefix_icon_constraints,
+            )
+            .default_value(default_theme.prefix_icon_constraints),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new("prefixStyle", self.prefix_style.clone())
+                .default_value(default_theme.prefix_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("suffixIconColor", self.suffix_icon_color.clone())
+                .default_value(default_theme.suffix_icon_color.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new(
+                "suffixIconConstraints",
+                self.suffix_icon_constraints,
+            )
+            .default_value(default_theme.suffix_icon_constraints),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new("suffixStyle", self.suffix_style.clone())
+                .default_value(default_theme.suffix_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyTextStyle>::new("counterStyle", self.counter_style.clone())
+                .default_value(default_theme.counter_style.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("filled", Some(self.filled))
+                .default_value(Some(default_theme.filled)),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("fillColor", self.fill_color.clone())
+                .default_value(default_theme.fill_color.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "activeIndicatorBorder",
+                self.active_indicator_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .active_indicator_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "outlineBorder",
+                self.outline_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .outline_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            ColorProperty::new("focusColor", self.focus_color)
+                .default_value(default_theme.focus_color),
+        );
+        properties.add(
+            ColorProperty::new("hoverColor", self.hover_color)
+                .default_value(default_theme.hover_color),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "errorBorder",
+                self.error_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .error_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusedBorder",
+                self.focused_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .focused_error_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusedErrorBorder",
+                self.focused_error_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .focused_error_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "disabledBorder",
+                self.disabled_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .disabled_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "enabledBorder",
+                self.enabled_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .enabled_border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "border",
+                self.border.as_ref().map(|border| format!("{border:?}")),
+            )
+            .default_value(
+                default_theme
+                    .border
+                    .as_ref()
+                    .map(|border| format!("{border:?}")),
+            ),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "alignLabelWithHint",
+                Some(self.align_label_with_hint),
+            )
+            .default_value(Some(default_theme.align_label_with_hint)),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(default_theme.constraints),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::VisualDensity>::new(
+                "visualDensity",
+                self.visual_density,
+            )
+            .default_value(default_theme.visual_density),
+        );
+    }
+}
+
+/// Dart's `InputDecorationThemeData.toString`, through its diagnostics.
+impl fmt::Display for InputDecorationThemeData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 
@@ -21396,5 +21692,104 @@ pub(crate) mod tests {
                 );
             });
         }
+    }
+    /// `input_decorator_test.dart`, "InputDecorationThemeData implements
+    /// debugFillDescription". Colors print as the `Color` the port stores, not as Dart's
+    /// `MaterialColor`.
+    #[test]
+    fn an_input_decoration_theme_data_describes_its_properties() {
+        use waft_embedder::Color;
+        use waft_foundation::{DiagnosticPropertiesBuilder, Diagnosticable};
+        use waft_painting::{BorderSide, EdgeInsetsDirectional, TextStyle};
+        use waft_rendering::BoxConstraints;
+
+        use crate::input_border::UnderlineInputBorder;
+        use crate::{FloatingLabelAlignment, FloatingLabelBehavior, InputDecorationThemeData};
+
+        let red = Color::new(0xfff44336);
+        let blue = Color::new(0xff2196f3);
+        let green = Color::new(0xff4caf50);
+        let constraints = BoxConstraints::new()
+            .min_width(10.0)
+            .max_width(10.0)
+            .min_height(30.0)
+            .max_height(30.0);
+        let theme = InputDecorationThemeData::new()
+            .label_style(TextStyle::new())
+            .floating_label_style(TextStyle::new())
+            .helper_style(TextStyle::new())
+            .helper_max_lines(6)
+            .hint_style(TextStyle::new())
+            .error_style(TextStyle::new())
+            .error_max_lines(5)
+            .floating_label_behavior(FloatingLabelBehavior::Never)
+            .floating_label_alignment(FloatingLabelAlignment::CENTER)
+            .is_dense(true)
+            .content_padding(EdgeInsetsDirectional::only(40.0, 12.0, 0.0, 12.0))
+            .is_collapsed(true)
+            .icon_color(red)
+            .prefix_icon_color(blue)
+            .prefix_icon_constraints(constraints)
+            .prefix_style(TextStyle::new())
+            .suffix_icon_color(blue)
+            .suffix_icon_constraints(constraints)
+            .suffix_style(TextStyle::new())
+            .counter_style(TextStyle::new())
+            .filled(true)
+            .fill_color(red)
+            .active_indicator_border(BorderSide::default())
+            .outline_border(BorderSide::default())
+            .focus_color(blue)
+            .hover_color(green)
+            .error_border(UnderlineInputBorder::new())
+            .focused_border(UnderlineInputBorder::new())
+            .focused_error_border(UnderlineInputBorder::new())
+            .disabled_border(UnderlineInputBorder::new())
+            .enabled_border(UnderlineInputBorder::new())
+            .border(UnderlineInputBorder::new())
+            .align_label_with_hint(true)
+            .constraints(constraints);
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| theme.debug_fill_properties(properties),
+        );
+        assert_eq!(
+            description,
+            [
+                "labelStyle: TextStyle(<all styles inherited>)".to_string(),
+                "floatingLabelStyle: TextStyle(<all styles inherited>)".to_string(),
+                "helperStyle: TextStyle(<all styles inherited>)".to_string(),
+                "helperMaxLines: 6".to_string(),
+                "hintStyle: TextStyle(<all styles inherited>)".to_string(),
+                "errorStyle: TextStyle(<all styles inherited>)".to_string(),
+                "errorMaxLines: 5".to_string(),
+                "floatingLabelBehavior: FloatingLabelBehavior.never".to_string(),
+                "floatingLabelAlignment: FloatingLabelAlignment.center".to_string(),
+                "isDense: true".to_string(),
+                "contentPadding: EdgeInsetsDirectional(40.0, 12.0, 0.0, 12.0)".to_string(),
+                "isCollapsed: true".to_string(),
+                format!("iconColor: {red}"),
+                format!("prefixIconColor: {blue}"),
+                "prefixIconConstraints: BoxConstraints(w=10.0, h=30.0)".to_string(),
+                "prefixStyle: TextStyle(<all styles inherited>)".to_string(),
+                format!("suffixIconColor: {blue}"),
+                "suffixIconConstraints: BoxConstraints(w=10.0, h=30.0)".to_string(),
+                "suffixStyle: TextStyle(<all styles inherited>)".to_string(),
+                "counterStyle: TextStyle(<all styles inherited>)".to_string(),
+                "filled: true".to_string(),
+                format!("fillColor: {red}"),
+                "activeIndicatorBorder: BorderSide".to_string(),
+                "outlineBorder: BorderSide".to_string(),
+                format!("focusColor: {blue}"),
+                format!("hoverColor: {green}"),
+                "errorBorder: UnderlineInputBorder()".to_string(),
+                "focusedBorder: UnderlineInputBorder()".to_string(),
+                "focusedErrorBorder: UnderlineInputBorder()".to_string(),
+                "disabledBorder: UnderlineInputBorder()".to_string(),
+                "enabledBorder: UnderlineInputBorder()".to_string(),
+                "border: UnderlineInputBorder()".to_string(),
+                "alignLabelWithHint: true".to_string(),
+                "constraints: BoxConstraints(w=10.0, h=30.0)".to_string(),
+            ]
+        );
     }
 }

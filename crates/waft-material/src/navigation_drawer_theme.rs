@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `navigation_drawer_theme.dart`.
 
 use waft_embedder::{Color, Size, lerp_double};
-use waft_foundation::App;
-use waft_painting::{ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, ShapeBorderRef, TextStyle};
 use waft_widgets::{
     BuildContext, IconThemeData, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
     WidgetStateProperty, WidgetStatePropertyRef,
@@ -344,5 +344,123 @@ impl InheritedWidget for NavigationDrawerTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for NavigationDrawerThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("tileHeight", self.tile_height).default_value(None));
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties
+            .add(ColorProperty::new("indicatorColor", self.indicator_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new(
+                "indicatorShape",
+                self.indicator_shape.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Size>::new("indicatorSize", self.indicator_size)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "labelTextStyle",
+                self.label_text_style
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "iconTheme",
+                self.icon_theme
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for NavigationDrawerThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::rc::Rc;
+
+    use waft_embedder::Size;
+    use waft_painting::{
+        BorderRadiusGeometry, BorderSide, RoundedRectangleBorder, ShapeBorderRef, TextStyle,
+    };
+    use waft_widgets::{IconThemeData, WidgetStatePropertyAll};
+
+    use super::*;
+
+    // navigation_drawer_theme_test.dart 'NavigationDrawerThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_navigation_drawer_theme_describes_every_property() {
+        let theme = NavigationDrawerThemeData::new()
+            .tile_height(50.0)
+            .background_color(Color::new(0x00000099))
+            .elevation(5.0)
+            .shadow_color(Color::new(0x00000098))
+            .surface_tint_color(Color::new(0x00000097))
+            .indicator_color(Color::new(0x00000096))
+            .indicator_shape(RoundedRectangleBorder::new(
+                BorderSide::NONE,
+                BorderRadiusGeometry::circular(2.0),
+            ))
+            .indicator_size(Size::new(10.0, 10.0))
+            .label_text_style(Rc::new(WidgetStatePropertyAll::new(Some(
+                TextStyle::new().font_size(7.0),
+            ))))
+            .icon_theme(Rc::new(WidgetStatePropertyAll::new(Some(
+                IconThemeData::new().color(Color::new(0x00000095)),
+            ))));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                "tileHeight: 50.0".to_string(),
+                format!("backgroundColor: {}", Color::new(0x00000099)),
+                "elevation: 5.0".to_string(),
+                format!("shadowColor: {}", Color::new(0x00000098)),
+                format!("surfaceTintColor: {}", Color::new(0x00000097)),
+                format!("indicatorColor: {}", Color::new(0x00000096)),
+                format!(
+                    "indicatorShape: {}",
+                    ShapeBorderRef::from(RoundedRectangleBorder::new(
+                        BorderSide::NONE,
+                        BorderRadiusGeometry::circular(2.0)
+                    ))
+                ),
+                "indicatorSize: Size(10.0, 10.0)".to_string(),
+                "labelTextStyle: WidgetStatePropertyAll(TextStyle(inherit: true, size: 7.0))"
+                    .to_string(),
+                format!(
+                    "iconTheme: WidgetStatePropertyAll(IconThemeData#00000(color: {}))",
+                    Color::new(0x00000095)
+                ),
+            ]
+        );
     }
 }

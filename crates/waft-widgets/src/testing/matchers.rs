@@ -4,6 +4,11 @@
 
 use super::{Finder, WidgetTester};
 
+/// Dart's `hasOneLineDescription`: the value's `toString` (its `Debug` here) has no newline.
+pub fn has_one_line_description<T: std::fmt::Debug>(value: &T) -> bool {
+    !format!("{value:?}").contains('\n')
+}
+
 /// How many elements a [`Finder`] is expected to find: Dart's `_FindsCountMatcher`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FinderMatcher {

@@ -6,7 +6,7 @@ use std::time::Duration;
 use waft_animation::Animatable;
 use waft_cupertino::{CupertinoTheme, CupertinoThemeData, InheritedCupertinoTheme};
 use waft_embedder::Brightness;
-use waft_foundation::{App, Handle, Ref};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, Ref};
 use waft_painting::AnyColor;
 use waft_scheduler::{Ticker, TickerCallback, TickerProviderObject};
 use waft_widgets::{
@@ -244,6 +244,13 @@ impl Theme {
 impl StatelessWidget for Theme {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<Rc<ThemeData>>::new("data", Rc::clone(&self.data))
+                .with_show_name(false),
+        );
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
@@ -486,6 +493,28 @@ impl State for AnimatedThemeState {
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         AnimatedWidgetBaseState::init_state(self, app);
+    }
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.widget(app).implicitly_animated_widget,
+            properties,
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "data",
+                app.get(self)
+                    .data
+                    .as_ref()
+                    .map(|_| "Instance of 'ThemeDataTween'".to_string()),
+            )
+            .with_show_name(false)
+            .default_value(None),
+        );
     }
 
     fn activate(self: Handle<Self>, app: &mut App) {

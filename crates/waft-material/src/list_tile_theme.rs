@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `list_tile_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{AnyColor, EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, EnumProperty};
+use waft_painting::{AnyColor, ColorProperty, EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
 use waft_services::MouseCursorRef;
 use waft_widgets::{
     BuildContext, Builder, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
@@ -801,6 +801,106 @@ impl InheritedWidget for ListTileTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for ListTileThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<bool>::new("dense", self.dense).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(EnumProperty::<ListTileStyle>::new("style", self.style).default_value(None));
+        properties
+            .add(ColorProperty::new("selectedColor", self.selected_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("iconColor", self.icon_color.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("textColor", self.text_color.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("titleTextStyle", self.title_text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "subtitleTextStyle",
+                self.subtitle_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "leadingAndTrailingTextStyle",
+                self.leading_and_trailing_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("contentPadding", self.content_padding)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("tileColor", self.tile_color).default_value(None));
+        properties.add(
+            ColorProperty::new("selectedTileColor", self.selected_tile_color).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("horizontalTitleGap", self.horizontal_title_gap)
+                .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("minVerticalPadding", self.min_vertical_padding)
+                .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("minLeadingWidth", self.min_leading_width).default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("minTileHeight", self.min_tile_height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableFeedback", self.enable_feedback)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<VisualDensity>::new("visualDensity", self.visual_density)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ListTileTitleAlignment>>::new(
+                "titleAlignment",
+                self.title_alignment.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<ListTileControlAffinity>>::new(
+                "controlAffinity",
+                self.control_affinity.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("isThreeLine", self.is_three_line).default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for ListTileThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::{Cell, RefCell};
@@ -831,6 +931,7 @@ mod tests {
     use crate::scaffold::{Scaffold, ScaffoldState};
     use crate::test_support::material_app;
     use crate::theme_data::ThemeData;
+    use waft_widgets::WidgetStatePropertyAll;
 
     /// Dart's `WidgetStateMouseCursor.clickable` as a `WidgetStateProperty<MouseCursor?>`.
     fn clickable() -> WidgetStatePropertyRef<Option<MouseCursorRef>> {
@@ -1920,5 +2021,91 @@ mod tests {
             // THREE-LINE
             assert_eq!(rects(tester, None, Some(true)), three_line());
         });
+    }
+    // Flutter's "Default ListTileThemeData debugFillProperties".
+    #[test]
+    fn a_list_tile_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ListTileThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // list_tile_theme_test.dart 'ListTileThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_list_tile_theme_describes_every_property() {
+        let mouse_cursor: WidgetStatePropertyRef<Option<MouseCursorRef>> = Rc::new(
+            WidgetStatePropertyAll::new(Some(SystemMouseCursors::CLICK.into())),
+        );
+        let theme = ListTileThemeData::new()
+            .dense(true)
+            .shape(StadiumBorder::default())
+            .style(ListTileStyle::Drawer)
+            .selected_color(Color::new(0x00000001))
+            .icon_color(AnyColor::new(Color::new(0x00000002)))
+            .text_color(AnyColor::new(Color::new(0x00000003)))
+            .title_text_style(TextStyle::new().color(Color::new(0x00000004)))
+            .subtitle_text_style(TextStyle::new().color(Color::new(0x00000005)))
+            .leading_and_trailing_text_style(TextStyle::new().color(Color::new(0x00000006)))
+            .content_padding(EdgeInsetsGeometry::all(100.0))
+            .tile_color(Color::new(0x00000007))
+            .selected_tile_color(Color::new(0x00000008))
+            .horizontal_title_gap(200.0)
+            .min_vertical_padding(300.0)
+            .min_leading_width(400.0)
+            .min_tile_height(30.0)
+            .enable_feedback(true)
+            .mouse_cursor(mouse_cursor)
+            .visual_density(VisualDensity::COMFORTABLE)
+            .title_alignment(ListTileTitleAlignment::Top)
+            .is_three_line(true);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                "dense: true".to_string(),
+                format!("shape: {}", ShapeBorderRef::from(StadiumBorder::default())),
+                "style: drawer".to_string(),
+                format!("selectedColor: {}", Color::new(0x00000001)),
+                format!("iconColor: {}", Color::new(0x00000002)),
+                format!("textColor: {}", Color::new(0x00000003)),
+                format!(
+                    "titleTextStyle: {}",
+                    TextStyle::new().color(Color::new(0x00000004))
+                ),
+                format!(
+                    "subtitleTextStyle: {}",
+                    TextStyle::new().color(Color::new(0x00000005))
+                ),
+                format!(
+                    "leadingAndTrailingTextStyle: {}",
+                    TextStyle::new().color(Color::new(0x00000006))
+                ),
+                "contentPadding: EdgeInsets.all(100.0)".to_string(),
+                format!("tileColor: {}", Color::new(0x00000007)),
+                format!("selectedTileColor: {}", Color::new(0x00000008)),
+                "horizontalTitleGap: 200.0".to_string(),
+                "minVerticalPadding: 300.0".to_string(),
+                "minLeadingWidth: 400.0".to_string(),
+                "minTileHeight: 30.0".to_string(),
+                "enableFeedback: true".to_string(),
+                "mouseCursor: WidgetStatePropertyAll(SystemMouseCursor(click))".to_string(),
+                "visualDensity: VisualDensity#00000(h: -1.0, v: -1.0)(horizontal: -1.0, vertical: -1.0)"
+                    .to_string(),
+                "titleAlignment: ListTileTitleAlignment.top".to_string(),
+                "isThreeLine: true".to_string(),
+            ]
+        );
     }
 }

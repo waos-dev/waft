@@ -2,7 +2,7 @@
 
 use std::fmt::{self, Debug};
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
     WidgetStatePropertyRef,
@@ -196,6 +196,29 @@ impl InheritedWidget for MenuTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for MenuThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<MenuStyle>::new("style", self.style.clone()).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "submenuIcon",
+                self.submenu_icon
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for MenuThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -685,5 +708,18 @@ pub(crate) mod tests {
             tester.pump();
             expect(tester, &find::by_icon(&disabled_icon), finds_one_widget());
         });
+    }
+    // Flutter's "Default MenuThemeData debugFillProperties".
+    #[test]
+    fn a_menu_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &MenuThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

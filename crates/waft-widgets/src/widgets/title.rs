@@ -1,7 +1,8 @@
 //! Flutter `widgets/title.dart`.
 
 use waft_embedder::{ApplicationSwitcherDescription, Color};
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle, StringProperty};
+use waft_painting::ColorProperty;
 use waft_services::SystemChrome;
 
 use crate::framework::{
@@ -85,6 +86,19 @@ impl TitleState {
 }
 
 impl State for TitleState {
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let widget = self.widget(app);
+        properties.add(
+            StringProperty::new("title", Some(widget.title.clone()))
+                .default_value(Some(String::new())),
+        );
+        properties.add(ColorProperty::new("color", widget.color).default_value(None));
+    }
+
     type Widget = Title;
     crate::state_accessors!();
 

@@ -208,6 +208,14 @@ impl<W: InheritedModel> Widget for InheritedModelWrapper<W> {
         self.0.key()
     }
 
+    fn debug_fill_properties(
+        &self,
+        app: &App,
+        properties: &mut waft_foundation::DiagnosticPropertiesBuilder,
+    ) {
+        InheritedWidget::debug_fill_properties(&self.0, app, properties);
+    }
+
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
         InheritedModelElement::<W>::new(app, this).as_element()
     }

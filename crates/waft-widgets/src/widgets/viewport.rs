@@ -6,7 +6,9 @@
 use std::fmt::Debug;
 
 use waft_embedder::Clip;
-use waft_foundation::{App, Handle};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty, Handle,
+};
 use waft_painting::{AxisDirection, text_direction_to_axis_direction};
 use waft_rendering::{
     AnyRenderObject, AnyRenderSliver, CacheExtentStyle, ErasedRenderObject, RenderBox,
@@ -276,6 +278,36 @@ impl RenderObjectWidget for Viewport {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("axisDirection", self.axis_direction));
+        properties.add(
+            EnumProperty::<AxisDirection>::new("crossAxisDirection", self.cross_axis_direction)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("anchor", self.anchor));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "offset",
+            Some(self.offset.to_string_with_app(app)),
+        ));
+        if let Some(center) = &self.center {
+            properties.add(DiagnosticsProperty::<String>::new(
+                "center",
+                Some(format!("{center:?}")),
+            ));
+        } else if let Some(first) = self.slivers.first()
+            && let Some(key) = first.key()
+        {
+            properties.add(
+                DiagnosticsProperty::<String>::new("center", Some(format!("{key:?}")))
+                    .tooltip("implicit"),
+            );
+        }
+        properties.add(DiagnosticsProperty::<ScrollCacheExtent>::new(
+            "scrollCacheExtent",
+            self.scroll_cache_extent,
+        ));
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -747,6 +779,25 @@ impl RenderObjectWidget for ShrinkWrappingViewport {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("axisDirection", self.axis_direction));
+        properties.add(
+            EnumProperty::<AxisDirection>::new("crossAxisDirection", self.cross_axis_direction)
+                .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<String>::new(
+            "offset",
+            Some(self.offset.to_string_with_app(app)),
+        ));
+        properties.add(
+            DiagnosticsProperty::<ScrollCacheExtent>::new(
+                "scrollCacheExtent",
+                self.scroll_cache_extent,
+            )
+            .default_value(None),
+        );
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {

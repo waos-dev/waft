@@ -65,6 +65,18 @@ pub enum ScrollCacheExtent {
     Viewport(f64),
 }
 
+/// Dart's `ScrollCacheExtent.toString`, which a scroll view's dump prints.
+impl std::fmt::Display for ScrollCacheExtent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScrollCacheExtent::Pixels(pixels) => write!(f, "ScrollCacheExtent.pixels({pixels})"),
+            ScrollCacheExtent::Viewport(viewports) => {
+                write!(f, "ScrollCacheExtent.viewport({viewports})")
+            }
+        }
+    }
+}
+
 impl ScrollCacheExtent {
     /// Returns the cache extent in logical pixels for a given `main_axis_extent`.
     fn calculate_cache_offset(self, main_axis_extent: f64) -> f64 {

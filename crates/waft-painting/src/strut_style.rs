@@ -483,6 +483,12 @@ impl Debug for StrutStyle {
     }
 }
 
+impl fmt::Display for StrutStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
+    }
+}
+
 /// Builds a [`StrutStyle`] from a [`TextStyle`]'s equivalent fields, with Dart's named
 /// overrides.
 pub struct FromTextStyle<'a> {

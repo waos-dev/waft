@@ -11,11 +11,14 @@ use waft_embedder::{
     TextAlign, TextDirection, TextEditingValue, TextHeightBehavior, TextSelection,
 };
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, Listenable, ListenableObject, Listener,
-    OptionRetained, Ref,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsProperty,
+    DoubleProperty, EnumProperty, FlagProperty, Handle, IntProperty, Listenable, ListenableObject,
+    Listener, OptionRetained, Ref,
 };
 use waft_gestures::{DragStartBehavior, GestureTapCallback, TapDragUpDetails};
-use waft_painting::{InlineSpan, StrutStyle, TextScaler, TextSpan, TextStyle, TextWidthBasis};
+use waft_painting::{
+    ColorProperty, InlineSpan, StrutStyle, TextScaler, TextSpan, TextStyle, TextWidthBasis,
+};
 use waft_rendering::HitTestBehavior;
 use waft_scheduler::SchedulerBinding;
 use waft_services::SelectionChangedCause;
@@ -661,6 +664,92 @@ impl StatefulWidget for SelectableText {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    #[allow(deprecated)]
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `selectionControls` line waits for that type's `Display`.
+        properties
+            .add(DiagnosticsProperty::<String>::new("data", self.data.clone()).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<String>::new("semanticsLabel", self.semantics_label.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("style", self.style.clone()).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("autofocus", self.autofocus)
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("showCursor", self.show_cursor)
+                .default_value(Some(false)),
+        );
+        properties.add(IntProperty::<i32>::new("minLines", self.min_lines).default_value(None));
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).default_value(None));
+        properties
+            .add(EnumProperty::<TextAlign>::new("textAlign", self.text_align).default_value(None));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("textScaleFactor", self.text_scale_factor).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextScaler>::new("textScaler", self.text_scaler.clone())
+                .default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("cursorWidth", self.cursor_width).default_value(Some(2.0)));
+        properties.add(DoubleProperty::new("cursorHeight", self.cursor_height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Radius>::new("cursorRadius", self.cursor_radius)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("cursorColor", self.cursor_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Color>::new("selectionColor", self.selection_color)
+                .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("selectionEnabled", Some(self.selection_enabled()))
+                .default_value(Some(true))
+                .if_false("selection disabled"),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "scrollPhysics",
+                self.scroll_physics
+                    .as_ref()
+                    .map(|physics| format!("{physics:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "scrollBehavior",
+                self.scroll_behavior
+                    .as_ref()
+                    .map(|behavior| format!("{behavior:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextHeightBehavior>::new(
+                "textHeightBehavior",
+                self.text_height_behavior,
+            )
+            .default_value(None),
+        );
     }
 
     fn debug_check_constructor(&self) {
@@ -4039,5 +4128,81 @@ mod tests {
             };
             assert_eq!(caret_at(tester, 2).dx(), 399.0);
         });
+    }
+    /// `selectable_text_test.dart`, "default SelectableText debugFillProperties".
+    #[test]
+    fn a_default_selectable_text_describes_its_data() {
+        use waft_foundation::DiagnosticPropertiesBuilder;
+
+        let text = SelectableText::new("something");
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                text.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(description, ["data: something"]);
+    }
+
+    /// `selectable_text_test.dart`, "SelectableText implements debugFillProperties". The
+    /// `selectionControls` line is left out until that type has a `Display`.
+    #[test]
+    fn a_selectable_text_describes_its_properties() {
+        use std::rc::Rc;
+
+        use waft_embedder::{Color, Radius, TextDirection};
+        use waft_foundation::DiagnosticPropertiesBuilder;
+        use waft_painting::{TextAlign, TextScaler};
+        use waft_widgets::ClampingScrollPhysics;
+        use waft_widgets::ScrollBehaviorRef;
+
+        let green = Color::new(0xff00ff00);
+        let text = SelectableText::new("something")
+            .style(TextStyle::new().color(green))
+            .text_align(TextAlign::End)
+            .text_direction(TextDirection::Ltr)
+            .text_scaler(TextScaler::NO_SCALING)
+            .autofocus(true)
+            .show_cursor(true)
+            .min_lines(2)
+            .max_lines(Some(10))
+            .cursor_width(1.0)
+            .cursor_height(1.0)
+            .cursor_radius(Radius::ZERO)
+            .cursor_color(green)
+            .scroll_physics(Rc::new(ClampingScrollPhysics::new()))
+            .scroll_behavior(ScrollBehaviorRef::plain())
+            .semantics_label("something else")
+            .enable_interactive_selection(false);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                text.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(
+            description,
+            [
+                "data: something".to_string(),
+                "semanticsLabel: something else".to_string(),
+                format!("style: TextStyle(inherit: true, color: {green})"),
+                "autofocus: true".to_string(),
+                "showCursor: true".to_string(),
+                "minLines: 2".to_string(),
+                "maxLines: 10".to_string(),
+                "textAlign: end".to_string(),
+                "textDirection: ltr".to_string(),
+                "textScaler: no scaling".to_string(),
+                "cursorWidth: 1.0".to_string(),
+                "cursorHeight: 1.0".to_string(),
+                "cursorRadius: Radius.circular(0.0)".to_string(),
+                format!("cursorColor: {green}"),
+                "selection disabled".to_string(),
+                "scrollPhysics: ClampingScrollPhysics".to_string(),
+                "scrollBehavior: ScrollBehavior".to_string(),
+            ]
+        );
     }
 }

@@ -8,8 +8,9 @@ use std::time::Duration;
 use waft_animation::Curve;
 use waft_embedder::{Clip, Offset, Rect};
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, CompleterFuture, Handle, HandleId, Listenable,
-    Listener, OptionRetained, PRECISION_ERROR_TOLERANCE, Ref, wait_all,
+    App, ChangeNotifier, ChangeNotifierData, CompleterFuture, DiagnosticPropertiesBuilder,
+    DiagnosticsProperty, EnumProperty, Handle, HandleId, Listenable, Listener, OptionRetained,
+    PRECISION_ERROR_TOLERANCE, Ref, StringProperty, wait_all,
 };
 use waft_gestures::{
     DeviceGestureSettings, Drag, DragDownDetails, DragEndDetails, DragGestureRecognizer,
@@ -453,6 +454,21 @@ impl StatefulWidget for Scrollable {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("axisDirection", self.axis_direction));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "physics",
+                self.physics.as_ref().map(|physics| format!("{physics:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(StringProperty::new(
+            "restorationId",
+            self.restoration_id.clone(),
+        ));
     }
 
     fn create_state(&self) -> ScrollableState {
@@ -1140,6 +1156,26 @@ impl ScrollContext for Handle<ScrollableState> {
 impl State for ScrollableState {
     type Widget = Scrollable;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        TickerProviderStateMixin::debug_fill_properties(self, app, properties);
+        let state = app.get(self);
+        properties.add(DiagnosticsProperty::<String>::new(
+            "position",
+            state
+                .position
+                .as_ref()
+                .map(|position| position.to_string(app)),
+        ));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "effective physics",
+            state.physics.as_ref().map(|physics| format!("{physics:?}")),
+        ));
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         app.get_mut(self).scroll_context = Some(Rc::new(self));

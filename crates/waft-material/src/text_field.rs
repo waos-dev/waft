@@ -22,12 +22,14 @@ use waft_embedder::{
     TextDecorationStyle, TextEditingValue, TextInputAction, TextInputType, TextSelection,
 };
 use waft_foundation::{
-    App, Handle, Listenable, ListenableObject, Listener, MergingListenable, OptionRetained, Ref,
-    VoidCallback,
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    FlagProperty, Handle, IntProperty, IterableProperty, Listenable, ListenableObject, Listener,
+    MergingListenable, OptionRetained, Ref, VoidCallback,
 };
 use waft_gestures::{DragStartBehavior, GestureTapCallback, PointerDownEvent, PointerUpEvent};
 use waft_painting::{
-    AnyTextStyle, EdgeInsets, StrutStyle, TextAlign, TextAlignVertical, TextDirection, TextStyle,
+    AnyTextStyle, ColorProperty, EdgeInsets, EdgeInsetsGeometry, StrutStyle, TextAlign,
+    TextAlignVertical, TextDirection, TextStyle,
 };
 use waft_rendering::HitTestBehavior;
 use waft_services::{
@@ -37,13 +39,13 @@ use waft_services::{
 use waft_widgets::{
     AnimatedBuilder, AppPrivateCommandCallback, BuildContext, ContentInsertionConfiguration,
     DefaultSelectionStyle, EditableText, EditableTextContextMenuBuilder, EditableTextState,
-    FocusNode, FocusNodeLeaf, FocusNodeRef, GlobalKey, IgnorePointer, IntoWidget, KeyRef,
-    MediaQuery, MouseRegion, NavigationMode, RepaintBoundary, RestorableListenable,
-    RestorableProperty, RestorableTextEditingController, RestorationMixin, RestorationMixinData,
-    ScrollControllerRef, ScrollPhysicsRef, Semantics, SpellCheckConfiguration, State, StateData,
-    StatefulWidget, SystemContextMenu, TapRegionCallback, TapRegionUpCallback,
-    TextEditingControllerRef, TextFieldTapRegion, TextMagnifierConfiguration,
-    TextSelectionControls, TextSelectionGestureDetectorBuilder,
+    FocusNode, FocusNodeLeaf, FocusNodeRef, GlobalKey, IgnorePointer, IntoWidget,
+    K_DEFAULT_CONTENT_INSERTION_MIME_TYPES, KeyRef, MediaQuery, MouseRegion, NavigationMode,
+    RepaintBoundary, RestorableListenable, RestorableProperty, RestorableTextEditingController,
+    RestorationMixin, RestorationMixinData, ScrollControllerRef, ScrollPhysicsRef, Semantics,
+    SpellCheckConfiguration, State, StateData, StatefulWidget, SystemContextMenu,
+    TapRegionCallback, TapRegionUpCallback, TextEditingControllerRef, TextFieldTapRegion,
+    TextMagnifierConfiguration, TextSelectionControls, TextSelectionGestureDetectorBuilder,
     TextSelectionGestureDetectorBuilderBase, TextSelectionGestureDetectorBuilderData,
     TextSelectionGestureDetectorBuilderDelegate, ToolbarOptions, UndoHistoryController,
     UnmanagedRestorationScope, WidgetRef, WidgetState, WidgetStateMouseCursor, WidgetStateProperty,
@@ -1136,6 +1138,273 @@ impl StatefulWidget for TextField {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    #[allow(deprecated)]
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `selectionControls` line waits for `TextSelectionControls`' `Display`.
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "controller",
+                self.controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "undoController",
+                self.undo_controller
+                    .as_ref()
+                    .map(|controller| controller.handle().to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties
+            .add(DiagnosticsProperty::<bool>::new("enabled", self.enabled).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<InputDecoration>::new("decoration", self.decoration.clone())
+                .default_value(Some(InputDecoration::new())),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextInputType>::new(
+                "keyboardType",
+                Some(self.keyboard_type.unwrap_or(TextInputType::TEXT)),
+            )
+            .default_value(Some(TextInputType::TEXT)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "style",
+                self.style.as_ref().map(|style| format!("{style:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("autofocus", self.autofocus)
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "obscuringCharacter",
+                Some(self.obscuring_character.clone()),
+            )
+            .default_value(Some("•".to_string())),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("obscureText", self.obscure_text)
+                .default_value(Some(false)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("autocorrect", self.autocorrect).default_value(None),
+        );
+        properties.add(
+            EnumProperty::<SmartDashesType>::new(
+                "smartDashesType",
+                Some(self.smart_dashes_type.unwrap_or(if self.obscure_text {
+                    SmartDashesType::Disabled
+                } else {
+                    SmartDashesType::Enabled
+                })),
+            )
+            .default_value(Some(if self.obscure_text {
+                SmartDashesType::Disabled
+            } else {
+                SmartDashesType::Enabled
+            })),
+        );
+        properties.add(
+            EnumProperty::<SmartQuotesType>::new(
+                "smartQuotesType",
+                Some(self.smart_quotes_type.unwrap_or(if self.obscure_text {
+                    SmartQuotesType::Disabled
+                } else {
+                    SmartQuotesType::Enabled
+                })),
+            )
+            .default_value(Some(if self.obscure_text {
+                SmartQuotesType::Disabled
+            } else {
+                SmartQuotesType::Enabled
+            })),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableSuggestions", self.enable_suggestions)
+                .default_value(Some(true)),
+        );
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).default_value(Some(1)));
+        properties.add(IntProperty::<i32>::new("minLines", self.min_lines).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("expands", self.expands).default_value(Some(false)),
+        );
+        properties.add(IntProperty::<i32>::new("maxLength", self.max_length).default_value(None));
+        properties.add(
+            EnumProperty::<MaxLengthEnforcement>::new(
+                "maxLengthEnforcement",
+                self.max_length_enforcement,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<TextInputAction>::new("textInputAction", self.text_input_action)
+                .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<TextCapitalization>::new(
+                "textCapitalization",
+                Some(self.text_capitalization),
+            )
+            .default_value(Some(TextCapitalization::None)),
+        );
+        properties.add(
+            EnumProperty::<TextAlign>::new("textAlign", Some(self.text_align))
+                .default_value(Some(TextAlign::Start)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textAlignVertical",
+                self.text_align_vertical
+                    .map(|vertical| format!("{vertical}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("cursorWidth", self.cursor_width).default_value(Some(2.0)));
+        properties.add(DoubleProperty::new("cursorHeight", self.cursor_height).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<Radius>::new("cursorRadius", self.cursor_radius)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("cursorOpacityAnimates", self.cursor_opacity_animates)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("cursorColor", self.cursor_color).default_value(None));
+        properties.add(
+            ColorProperty::new("cursorErrorColor", self.cursor_error_color).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Brightness>>::new(
+                "keyboardAppearance",
+                self.keyboard_appearance.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+                "scrollPadding",
+                Some(self.scroll_padding.into()),
+            )
+            .default_value(Some(EdgeInsets::all(20.0).into())),
+        );
+        properties.add(
+            FlagProperty::new("selectionEnabled", Some(self.selection_enabled()))
+                .default_value(Some(true))
+                .if_false("selection disabled"),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "scrollController",
+                self.scroll_controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "scrollPhysics",
+                self.scroll_physics
+                    .as_ref()
+                    .map(|physics| format!("{physics:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Clip>::new("clipBehavior", Some(self.clip_behavior))
+                .default_value(Some(Clip::HardEdge)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("scribbleEnabled", self.scribble_enabled)
+                .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "stylusHandwritingEnabled",
+                self.stylus_handwriting_enabled,
+            )
+            .default_value(Some(EditableText::DEFAULT_STYLUS_HANDWRITING_ENABLED)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "enableIMEPersonalizedLearning",
+                self.enable_ime_personalized_learning,
+            )
+            .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new(
+                "enableInlinePrediction",
+                self.enable_inline_prediction,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "spellCheckConfiguration",
+                self.spell_check_configuration
+                    .as_ref()
+                    .map(|configuration| format!("{configuration:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            IterableProperty::<String>::new(
+                "contentCommitMimeTypes",
+                Some(
+                    self.content_insertion_configuration
+                        .as_ref()
+                        .map(|configuration| configuration.allowed_mime_types.clone())
+                        .unwrap_or_default(),
+                ),
+            )
+            .default_value(Some(if self.content_insertion_configuration.is_some() {
+                K_DEFAULT_CONTENT_INSERTION_MIME_TYPES
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect()
+            } else {
+                Vec::new()
+            })),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "hintLocales",
+                self.hint_locales.as_ref().map(|locales| {
+                    format!(
+                        "[{}]",
+                        locales
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }),
+            )
+            .default_value(None),
+        );
     }
 
     fn debug_check_constructor(&self) {
@@ -9298,5 +9567,93 @@ mod tests {
                 expect(tester, &find::text("Copy"), finds_nothing());
             });
         }
+    }
+    /// `text_field_test.dart`, "default TextField debugFillProperties".
+    #[test]
+    fn a_default_text_field_describes_no_properties() {
+        use waft_foundation::DiagnosticPropertiesBuilder;
+
+        let text_field = TextField::new();
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                text_field.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(description, Vec::<String>::new());
+    }
+
+    /// `text_field_test.dart`, "TextField implements debugFillProperties". The
+    /// `selectionControls` line is left out until that type has a `Display`.
+    #[test]
+    fn a_text_field_describes_its_properties() {
+        use std::rc::Rc;
+
+        use waft_embedder::{Brightness, Color, Locale, Radius, TextDirection};
+        use waft_foundation::DiagnosticPropertiesBuilder;
+        use waft_painting::{EdgeInsets, TextAlign};
+        use waft_services::{MaxLengthEnforcement, TextInputAction, TextInputType};
+        use waft_widgets::ClampingScrollPhysics;
+
+        let green = Color::new(0xff00ff00);
+        let text_field = TextField::new()
+            .decoration(Some(InputDecoration::new().label_text("foo")))
+            .keyboard_type(TextInputType::TEXT)
+            .text_input_action(TextInputAction::Done)
+            .style(TextStyle::new().color(green))
+            .text_align(TextAlign::End)
+            .text_direction(TextDirection::Ltr)
+            .autofocus(true)
+            .autocorrect(false)
+            .max_lines(Some(10))
+            .max_length(100)
+            .max_length_enforcement(MaxLengthEnforcement::None)
+            .smart_dashes_type(SmartDashesType::Disabled)
+            .smart_quotes_type(SmartQuotesType::Disabled)
+            .enabled(false)
+            .cursor_width(1.0)
+            .cursor_height(1.0)
+            .cursor_radius(Radius::ZERO)
+            .cursor_color(green)
+            .keyboard_appearance(Brightness::Dark)
+            .scroll_padding(EdgeInsets::ZERO)
+            .scroll_physics(Rc::new(ClampingScrollPhysics::new()))
+            .enable_interactive_selection(false)
+            .hint_locales(vec![Locale::new("en"), Locale::new("fr")]);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                text_field.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(
+            description,
+            [
+                "enabled: false".to_string(),
+                "decoration: InputDecoration(labelText: \"foo\")".to_string(),
+                format!("style: TextStyle(inherit: true, color: {green})"),
+                "autofocus: true".to_string(),
+                "autocorrect: false".to_string(),
+                "smartDashesType: disabled".to_string(),
+                "smartQuotesType: disabled".to_string(),
+                "maxLines: 10".to_string(),
+                "maxLength: 100".to_string(),
+                "maxLengthEnforcement: none".to_string(),
+                "textInputAction: done".to_string(),
+                "textAlign: end".to_string(),
+                "textDirection: ltr".to_string(),
+                "cursorWidth: 1.0".to_string(),
+                "cursorHeight: 1.0".to_string(),
+                "cursorRadius: Radius.circular(0.0)".to_string(),
+                format!("cursorColor: {green}"),
+                "keyboardAppearance: Brightness.dark".to_string(),
+                "scrollPadding: EdgeInsets.zero".to_string(),
+                "selection disabled".to_string(),
+                "scrollPhysics: ClampingScrollPhysics".to_string(),
+                "hintLocales: [en, fr]".to_string(),
+            ]
+        );
     }
 }

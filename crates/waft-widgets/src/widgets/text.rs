@@ -6,9 +6,14 @@
 //! wait; see `PORTING.md`.
 
 use std::cmp::Ordering;
+use std::rc::Rc;
 
 use waft_embedder::{Color, FontWeight, TextAlign, TextDirection, TextHeightBehavior};
-use waft_foundation::{App, ChangeNotifier, ChangeNotifierData, Handle, Ref};
+use waft_foundation::{
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, Diagnosticable,
+    DiagnosticsProperty, DiagnosticsTreeStyle, EnumProperty, FlagProperty, Handle, IntProperty,
+    Ref, StringProperty,
+};
 use waft_painting::{
     InlineSpanRef, StrutStyle, TextOverflow, TextScaler, TextSpan, TextStyle, TextWidthBasis,
     transform_rect,
@@ -328,6 +333,33 @@ impl InheritedWidget for DefaultTextStyle {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        Diagnosticable::debug_fill_properties(&self.style, properties);
+        properties
+            .add(EnumProperty::<TextAlign>::new("textAlign", self.text_align).default_value(None));
+        properties.add(
+            FlagProperty::new("softWrap", Some(self.soft_wrap))
+                .if_true("wrapping at box width")
+                .if_false("no wrapping except at line break characters")
+                .with_show_name(true),
+        );
+        properties
+            .add(EnumProperty::<TextOverflow>::new("overflow", self.overflow).default_value(None));
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).default_value(None));
+        properties.add(
+            EnumProperty::new("textWidthBasis", self.text_width_basis)
+                .default_value(Some(TextWidthBasis::Parent)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textHeightBehavior",
+                self.text_height_behavior
+                    .map(|behavior| behavior.to_string()),
+            )
+            .default_value(None),
+        );
+    }
+
     fn child(&self) -> &WidgetRef {
         &self.child
     }
@@ -466,6 +498,16 @@ impl DefaultTextHeightBehavior {
 impl InheritedWidget for DefaultTextHeightBehavior {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textHeightBehavior",
+                Some(self.text_height_behavior.to_string()),
+            )
+            .default_value(None),
+        );
     }
 
     fn child(&self) -> &WidgetRef {
@@ -768,6 +810,50 @@ impl Text {
 impl StatelessWidget for Text {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(StringProperty::new("data", self.data.clone()).with_show_name(false));
+        if let Some(text_span) = &self.text_span {
+            properties.add_rc(Rc::new(text_span.diagnostics_node(
+                Some("textSpan".to_string()),
+                Some(DiagnosticsTreeStyle::Transition),
+            )));
+        }
+        if let Some(style) = &self.style {
+            Diagnosticable::debug_fill_properties(style, properties);
+        }
+        properties
+            .add(EnumProperty::<TextAlign>::new("textAlign", self.text_align).default_value(None));
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("softWrap", self.soft_wrap)
+                .if_true("wrapping at box width")
+                .if_false("no wrapping except at line break characters")
+                .with_show_name(true),
+        );
+        properties
+            .add(EnumProperty::<TextOverflow>::new("overflow", self.overflow).default_value(None));
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).default_value(None));
+        properties.add(
+            EnumProperty::<TextWidthBasis>::new("textWidthBasis", self.text_width_basis)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<StrutStyle>::new("strutStyle", self.strut_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textHeightBehavior",
+                self.text_height_behavior
+                    .map(|behavior| behavior.to_string()),
+            )
+            .default_value(None),
+        );
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
@@ -1989,6 +2075,50 @@ impl RenderObjectWidget for RichText {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            EnumProperty::new("textAlign", self.text_align).default_value(Some(TextAlign::Start)),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("softWrap", Some(self.soft_wrap))
+                .if_true("wrapping at box width")
+                .if_false("no wrapping except at line break characters")
+                .with_show_name(true),
+        );
+        properties.add(
+            EnumProperty::new("overflow", self.overflow).default_value(Some(TextOverflow::Clip)),
+        );
+        properties.add(
+            DiagnosticsProperty::new("textScaler", self.text_scaler.clone())
+                .default_value(Some(TextScaler::NO_SCALING)),
+        );
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).if_null("unlimited"));
+        properties.add(
+            EnumProperty::new("textWidthBasis", self.text_width_basis)
+                .default_value(Some(TextWidthBasis::Parent)),
+        );
+        properties.add(StringProperty::new(
+            "text",
+            Some(self.text.to_plain_text(true, true)),
+        ));
+        properties.add(
+            DiagnosticsProperty::<StrutStyle>::new("strutStyle", self.strut_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textHeightBehavior",
+                self.text_height_behavior
+                    .map(|behavior| behavior.to_string()),
+            )
+            .default_value(None),
+        );
     }
 
     fn debug_check_constructor(&self) {

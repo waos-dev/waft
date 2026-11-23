@@ -2,8 +2,8 @@
 
 use waft_animation::AnimationStyle;
 use waft_embedder::{Clip, Color};
-use waft_foundation::App;
-use waft_painting::{AlignmentGeometry, EdgeInsetsGeometry, ShapeBorderRef};
+use waft_foundation::{App, DiagnosticsProperty};
+use waft_painting::{AlignmentGeometry, ColorProperty, EdgeInsetsGeometry, ShapeBorderRef};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::theme::Theme;
@@ -392,8 +392,111 @@ impl InheritedWidget for ExpansionTileTheme {
     }
 }
 
+/// Dart's `AnimationStyle.toString`: its `debugFillProperties` properties, at the info level.
+fn expansion_animation_style(value: &AnimationStyle) -> String {
+    let mut properties = Vec::new();
+    if let Some(curve) = &value.curve {
+        properties.push(format!("curve: {curve:?}"));
+    }
+    if let Some(duration) = &value.duration {
+        properties.push(format!(
+            "duration: {}",
+            waft_embedder::SignedDuration::from(*duration)
+        ));
+    }
+    if let Some(curve) = &value.reverse_curve {
+        properties.push(format!("reverseCurve: {curve:?}"));
+    }
+    if let Some(duration) = &value.reverse_duration {
+        properties.push(format!(
+            "reverseDuration: {}",
+            waft_embedder::SignedDuration::from(*duration)
+        ));
+    }
+    let identity = waft_foundation::describe_identity(
+        "AnimationStyle",
+        value as *const AnimationStyle as *const () as usize as u64,
+    );
+    if properties.is_empty() {
+        identity
+    } else {
+        format!("{identity}({})", properties.join(", "))
+    }
+}
+
+impl waft_foundation::Diagnosticable for ExpansionTileThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(
+            ColorProperty::new("collapsedBackgroundColor", self.collapsed_background_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("tilePadding", self.tile_padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new(
+                "expandedAlignment",
+                self.expanded_alignment,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+                "childrenPadding",
+                self.children_padding,
+            )
+            .default_value(None),
+        );
+        properties.add(ColorProperty::new("iconColor", self.icon_color).default_value(None));
+        properties.add(
+            ColorProperty::new("collapsedIconColor", self.collapsed_icon_color).default_value(None),
+        );
+        properties.add(ColorProperty::new("textColor", self.text_color).default_value(None));
+        properties.add(
+            ColorProperty::new("collapsedTextColor", self.collapsed_text_color).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new(
+                "collapsedShape",
+                self.collapsed_shape.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Clip>>::new(
+                "clipBehavior",
+                self.clip_behavior.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "expansionAnimationStyle",
+                self.expansion_animation_style
+                    .as_ref()
+                    .map(expansion_animation_style),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for ExpansionTileThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use waft_animation::Curves;
     use waft_embedder::Color;
     use waft_painting::{Alignment, Border, BorderSide, EdgeInsets};
     use waft_widgets::{Center, GlobalKey, Text};
@@ -657,5 +760,71 @@ mod tests {
                 false,
             );
         });
+    }
+    // Flutter's "Default ExpansionTileThemeData debugFillProperties".
+    #[test]
+    fn a_expansion_tile_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ExpansionTileThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // expansion_tile_theme_test.dart 'ExpansionTileThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_expansion_tile_theme_describes_every_property() {
+        let theme = ExpansionTileThemeData::new()
+            .background_color(Color::new(0xff000000))
+            .collapsed_background_color(Color::new(0xff6f83fc))
+            .tile_padding(EdgeInsetsGeometry::all(20.0))
+            .expanded_alignment(AlignmentGeometry::BOTTOM_CENTER)
+            .children_padding(EdgeInsetsGeometry::all(10.0))
+            .icon_color(Color::new(0xffa7c61c))
+            .collapsed_icon_color(Color::new(0xffdd0b1f))
+            .text_color(Color::new(0xffffffff))
+            .collapsed_text_color(Color::new(0xff522bab))
+            .shape(Border::default())
+            .collapsed_shape(Border::default())
+            .clip_behavior(Clip::AntiAlias)
+            .expansion_animation_style(AnimationStyle::new(
+                Some(Curves::ease_in_out()),
+                None,
+                None,
+                None,
+            ));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xff000000)),
+                format!(
+                    "collapsedBackgroundColor: {}",
+                    Color::new(0xff6f83fc)
+                ),
+                "tilePadding: EdgeInsets.all(20.0)".to_string(),
+                "expandedAlignment: Alignment.bottomCenter".to_string(),
+                "childrenPadding: EdgeInsets.all(10.0)".to_string(),
+                format!("iconColor: {}", Color::new(0xffa7c61c)),
+                format!("collapsedIconColor: {}", Color::new(0xffdd0b1f)),
+                format!("textColor: {}", Color::new(0xffffffff)),
+                format!("collapsedTextColor: {}", Color::new(0xff522bab)),
+                "shape: Border.all(BorderSide(width: 0.0, style: none))".to_string(),
+                "collapsedShape: Border.all(BorderSide(width: 0.0, style: none))".to_string(),
+                "clipBehavior: Clip.antiAlias".to_string(),
+                "expansionAnimationStyle: AnimationStyle#00000(curve: Cubic(0.42, 0.00, 0.58, 1.00))"
+                    .to_string(),
+            ]
+        );
     }
 }

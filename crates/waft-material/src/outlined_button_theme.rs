@@ -1,6 +1,6 @@
 //! Flutter counterpart: material_ui's `outlined_button_theme.dart`.
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::button_style::ButtonStyle;
@@ -148,6 +148,24 @@ impl InheritedWidget for OutlinedButtonTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for OutlinedButtonThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::button_style::ButtonStyle>::new(
+                "style",
+                self.style.clone(),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for OutlinedButtonThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -667,5 +685,18 @@ mod tests {
                 Some(foreground_color)
             );
         });
+    }
+    // Flutter's "Default OutlinedButtonThemeData debugFillProperties".
+    #[test]
+    fn a_outlined_button_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &OutlinedButtonThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

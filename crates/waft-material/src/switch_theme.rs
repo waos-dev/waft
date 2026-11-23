@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
 use waft_painting::EdgeInsetsGeometry;
 use waft_services::MouseCursorRef;
 use waft_widgets::{
@@ -367,13 +367,102 @@ impl InheritedWidget for SwitchTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for SwitchThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "thumbColor",
+                self.thumb_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "trackColor",
+                self.track_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "trackOutlineColor",
+                self.track_outline_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "trackOutlineWidth",
+                self.track_outline_width
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MaterialTapTargetSize>>::new(
+                "materialTapTargetSize",
+                self.material_tap_target_size.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(DoubleProperty::new("splashRadius", self.splash_radius).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "thumbIcon",
+                self.thumb_icon
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for SwitchThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! Ported from `test/switch_theme_test.dart`.
 
     use waft_embedder::Size;
     use waft_services::SystemMouseCursors;
-    use waft_widgets::{Center, FocusHighlightStrategy, WidgetState, WidgetStates};
+    use waft_widgets::{
+        Center, FocusHighlightStrategy, Icon, IconData, WidgetState, WidgetStatePropertyAll,
+        WidgetStates,
+    };
 
     use waft_widgets::testing::{WidgetTester, test_widgets};
 
@@ -888,5 +977,77 @@ mod tests {
                 assert_eq!(switch_rect(tester).size(), expected, "{padding:?}");
             }
         });
+    }
+    // Flutter's "Default SwitchThemeData debugFillProperties".
+    #[test]
+    fn a_switch_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &SwitchThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // switch_theme_test.dart 'SwitchThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_switch_theme_describes_every_property() {
+        let mouse_cursor: WidgetStatePropertyRef<Option<MouseCursorRef>> = Rc::new(
+            WidgetStatePropertyAll::new(Some(SystemMouseCursors::CLICK.into())),
+        );
+        let theme = SwitchThemeData::new()
+            .thumb_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff0,
+            )))))
+            .track_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff1,
+            )))))
+            .track_outline_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff3,
+            )))))
+            .track_outline_width(Rc::new(WidgetStatePropertyAll::new(Some(6.0))))
+            .mouse_cursor(mouse_cursor)
+            .material_tap_target_size(MaterialTapTargetSize::ShrinkWrap)
+            .overlay_color(Rc::new(WidgetStatePropertyAll::new(Some(Color::new(
+                0xfffffff2,
+            )))))
+            .splash_radius(1.0)
+            .thumb_icon(Rc::new(WidgetStatePropertyAll::new(Some(Rc::new(
+                Icon::new(Some(IconData::new(123))),
+            )))))
+            .padding(EdgeInsetsGeometry::all(4.0));
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        assert_eq!(
+            description,
+            [
+                format!(
+                    "thumbColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff0)
+                ),
+                format!(
+                    "trackColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff1)
+                ),
+                format!(
+                    "trackOutlineColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff3)
+                ),
+                "trackOutlineWidth: WidgetStatePropertyAll(6.0)".to_string(),
+                "materialTapTargetSize: MaterialTapTargetSize.shrinkWrap".to_string(),
+                "mouseCursor: WidgetStatePropertyAll(SystemMouseCursor(click))".to_string(),
+                format!(
+                    "overlayColor: WidgetStatePropertyAll({})",
+                    Color::new(0xfffffff2)
+                ),
+                "splashRadius: 1.0".to_string(),
+                "thumbIcon: WidgetStatePropertyAll(Icon(IconData(U+0007B)))".to_string(),
+                "padding: EdgeInsets.all(4.0)".to_string(),
+            ]
+        );
     }
 }

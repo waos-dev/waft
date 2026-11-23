@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use waft_embedder::{Clip, Color, Offset, Size, TextBaseline};
-use waft_foundation::{App, Handle, Listener, ValueChanged};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle, Listener, ValueChanged};
 use waft_painting::{
     Alignment, EdgeInsets, EdgeInsetsGeometry, OutlinedBorderRef, RoundedRectangleBorder,
     ShapeBorderRef, TextStyle, force_to_point,
@@ -585,6 +585,15 @@ impl MaterialStateMixin for RawMaterialButtonState {
 impl State for RawMaterialButtonState {
     type Widget = RawMaterialButton;
     waft_widgets::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        self.material_state_data(app)
+            .debug_fill_properties(properties);
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         let enabled = self.widget(app).enabled();

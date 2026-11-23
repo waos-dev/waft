@@ -4,7 +4,7 @@ use std::any::Any;
 use std::rc::Rc;
 
 use waft_embedder::{Matrix4, Offset};
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle};
 use waft_painting::Axis;
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, ContainerRenderObjectData, ContainerRenderObjectMixin,
@@ -123,6 +123,10 @@ impl RenderObjectWidget for SliverPrototypeExtentList {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {

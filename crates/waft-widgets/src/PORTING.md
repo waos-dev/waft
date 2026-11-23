@@ -106,7 +106,21 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — no subtyping between parent-data types, so Dart's `is StackParentData` test cannot pass for a subclass.
   Affect: a `ParentDataWidget` over a render object whose Dart parent data is a subclass of the expected one is rejected unless the widget names that type too.
 
+- Change: a widget's `debug_fill_properties` is a method of each widget kind (`StatelessWidget`, `StatefulWidget`, `InheritedWidget`, `ParentDataWidget`, `RenderObjectWidget`) and of `Widget`, which an element's dump calls; `to_string_short` is overridable on a render object widget and on a widget implementing `Widget` itself, the two kinds whose Dart classes override it (`SizedBox`, `RootWidget`).
+  Reason: language — a user's widget implements a kind, which its erased wrapper forwards; no `super.debugFillProperties` call, so the framework sets `Widget`'s dense style first.
+  Affect: none in a dump; a stateless or stateful widget cannot rename itself in one.
+
+- Deferred: `Widget.debugDescribeChildren` and a widget's own `toStringDeep`. Trigger: a dump of a widget rather than an element, or a leaf render object widget that describes children (none in Flutter's libraries).
+
+- Change: an element's and a state's diagnostics are added in Dart's order by the framework: `Element`'s, its widget's among them, then `RenderObjectElement`'s render object, then the element class's own `debug_fill_properties` (`StatefulElement` adds its state); a state's `debug_fill_properties` comes after `State`'s lifecycle and mounting lines.
+  Reason: language — no `super` call from a trait default.
+  Affect: none.
+
 ## binding.rs → binding.dart
+
+- Change: `debug_dump_app(app)` answers the text Dart's `debugDumpApp` prints, headed `WidgetsBinding - DEBUG MODE` (or `RELEASE MODE`).
+  Reason: platform — there is no `debugPrint` to throttle, one binding type stands for Dart's `WidgetsFlutterBinding`, and Rust builds have no profile mode.
+  Affect: the caller prints or compares it.
 
 - Change: `WidgetsBinding`'s lifecycle, exit and back-gesture handlers do not catch a panicking observer.
   Reason: language — no `FlutterError.reportError` hook to catch and continue.
@@ -798,19 +812,43 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
   Reason: language — a tag is only compared with `==` and hashed, so one erased trait in `waft-foundation` serves it where Dart's `Object` needs no declaration.
   Affect: a tag is a shared trait object; two tags of different types never match, as two Dart objects of different classes do not.
 
+## Widget, state and element diagnostics
+
+- Change: each class's own `debugFillProperties` is a method on its kind trait, and a superclass body that is not `Widget`/`State`/`Element` is one shared function or bag method the subclass calls at Dart's position: `Align::fill_properties` (`Center`), `FlexConfiguration` (`Row`, `Column`), `ImplicitlyAnimatedWidgetData` (every implicit animation widget), `Flexible::fill_properties` (`Expanded`), `ScrollViewData` and `BoxScrollViewData` (`ListView`, `GridView`, `CustomScrollView`), `IconThemeData` (`IconTheme`), `PlatformMenuItemBase` (`PlatformMenu`, `PlatformMenuItemGroup`, `PlatformProvidedMenuItem`), `FocusOrder`, and the ticker-provider mixin bodies.
+  Reason: language — Rust has no `super` call, and a trait default cannot call the body an implementor overrides.
+  Affect: none; a dump's properties and their order are Dart's.
+
+- Change: `AnimatedWidget.listenable` prints the kind and a hash (`Listenable#00012`) where Dart prints the object's own `toString`.
+  Reason: language — the listenable is an `Rc<dyn Listenable>`, which carries no runtime class name or kind.
+  Affect: a transition's `listenable` line names no value, where Dart shows the animation's status and value.
+
+- Change: a widget held in a property is added as a diagnostics node: `SliverFillRemaining.child` is the child widget's own node.
+  Reason: language — Rust has no `Widget.toString` that collects a widget's properties without minting a node.
+  Affect: the child's properties show, where Dart's `DiagnosticsProperty<Widget>` prints the same node in one line.
+
+- Change: `Actions`'s map prints each key as its `TypeId` and the default dispatcher as `ActionDispatcher#…`.
+  Reason: language — a Rust `TypeId` carries no name, and a zero-sized `PlainActionDispatcher` has no identity.
+  Affect: a non-empty actions map's keys are not intent class names; the default dispatcher's hash names no object.
+
+- Change: a `CustomClipper`, a `LayoutId.id`, a `Hero.tag` and a `MetaData.metaData` print their `Debug` form, or `Instance of '…'` for a value with no `Display`.
+  Reason: language — an erased Rust value has no runtime class name.
+  Affect: `clipper: Instance of 'CustomClipper<Rect>'`, `id: [<1>]`, `tag: "photo"` and `metaData: Instance of 'Object'`, where Dart prints the object's own `toString`.
+
+- Change: a ticker-provider mixin's `ticker`/`tickers` line is added only by a state whose own body calls the mixin body; `ScrollableState` does.
+  Reason: language — no mixin linearization: the framework adds `State`'s lines, not a mixin's.
+  Affect: a state that mixes in a ticker provider but does not call the body shows no ticker line.
+
 ## Deferred
 
 - platform_selectable_region_context_menu_web.dart: the web context menu, a registered platform view over a DOM element. Trigger: a web host.
 - scrollable.rs: scrollable_selection_test.dart's horizontal and reversed variants, double- and triple-click drags, handle-drag scrolls, the two padding cases and the 'Complex cases' after 'selection starts outside of the scrollable'. Trigger: the next edit of the scrollable's selection delegate.
 - selectable_region.rs: selectable_region_test.dart's cases beyond the mouse, spy, keyboard-granular and handle-drag ones ported (double- and triple-click drags, shift-click, directional extension, the toolbar and magnifier cases, onSelectionChanged, SelectionListener). Trigger: the next edit of `SelectableRegion`'s gestures or actions; `SelectionListener`.
-- page_view.rs, sliver_fill.rs: `PageView`'s and `SliverFillRemaining`'s `debugFillProperties`. Trigger: diagnostics.
 - raw_tooltip.rs: the `SemanticsService.tooltip` announcement. Trigger: the semantics tree.
 - form.rs: `Form.onWillPop`, the `WillPopScope` it builds, and the deprecated `Form.onPopInvoked`. Trigger: `WillPopScope` (deferred; Flutter deprecates both).
 - form.rs: the error announcement `FormState._validate` sends through `SemanticsService`. Trigger: the semantics tree.
 - stretch_effect.rs: the shader stretch (`_StretchOverscrollEffect`, `_StretchEffectPainter`, `_StretchEffectShader` and the `ImageFilter.isShaderFilterSupported` branch), so the stretch is always the matrix scale Flutter uses where shader filters are unsupported. Trigger: the next edit of stretch_effect.rs (embedder's `FragmentProgram` and `ImageFilter::shader` exist).
 - snapshot_widget.rs: `SnapshotWidget`'s raster path (`_paintAndDetachToImage`: painting into an `OffsetLayer`, the `supportsRasterization` platform-view check with its `SnapshotMode` branches, `toImageSync`, and `paintSnapshot` with that raster). Trigger: `OffsetLayer.toImageSync`.
 - snapshot_widget.rs: `SnapshotPainter`'s memory-allocation events (`kFlutterMemoryAllocationsEnabled`). Trigger: leak tracking.
-- animated_switcher.rs, animated_cross_fade.rs, dual_transition_builder.rs: diagnostics. Trigger: diagnostics.
 - media/subtitle_painter.rs: Media3's `BidiUtils` wrapping of each right-to-left line of a cue before it is laid out. Trigger: the first right-to-left subtitles.
 - image.rs: `Image.network` and `Image.file`. Trigger: an HTTP client; a file system.
 - image.rs: `Image.asset`'s bundle lookup, and the bundle `createLocalImageConfiguration` would carry, without which `AssetImage` cannot resolve from a widget. Trigger: `DefaultAssetBundle`.
@@ -819,9 +857,12 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - image.rs: `color` / `colorBlendMode`, `centerSlice` and `filterQuality`. Trigger: painting's colour filters; an image drawn as a resizable frame; a caller that needs to choose how an image is sampled.
 - focus_manager.rs: `FocusNode.onKey` and the Android IME key check. Trigger: services' raw key path.
 - focus_manager.rs, focus_scope.rs: `FocusManager`'s semantics action listener (`handleSemanticsAction`). Trigger: the semantics tree.
-- focus_manager.rs, focus_scope.rs: focus-tree diagnostics and the debug focus border. Trigger: diagnostics.
+- focus_manager.rs, focus_scope.rs: the `debugDumpFocusTree` helpers and the debug focus border. Trigger: a focus-tree dump; the debug focus border.
 - focus_scope.rs: `_FocusInheritedScope` keeps the copy of the inherited-notifier element it grew before inherited_notifier.rs was ported. Trigger: the next change to that element.
 - framework/: `ErrorWidget` with its exception reporting, and the build-time diagnostics and duplicate-key checks, `Table`'s checks for duplicate row and cell keys among them. Trigger: diagnostics.
+- platform_menu_bar.rs: `PlatformMenuBar.debugDescribeChildren`, the menu items under a menu bar's dump. Trigger: a widget-level `debugDescribeChildren` (deferred in `framework/`).
+- ticker_provider.rs: the ticker-provider mixins' `ticker`/`tickers` lines on states whose own `debugFillProperties` does not call the mixin body; the mixin bodies exist (`SingleTickerProviderStateMixin::debug_fill_properties`, `TickerProviderStateMixin::debug_fill_properties`). Trigger: each such state's next diagnostics edit.
+- image.rs: `_ImageState`'s `loadingProgress`, `frameNumber` and `wasSynchronouslyLoaded` lines, with the frame and loading builders. Trigger: those builders.
 - framework/: `reassemble`. Trigger: hot reload.
 - binding.rs: the observer callbacks no host reports (memory pressure, pushed routes and route information, the text scale, accessibility features), `scheduleWarmUpFrame`. Trigger: a host that reports those events.
 - binding.rs: the host callback that reports a predictive back gesture to `WidgetsBinding::handle_start_back_gesture`, `handle_update_back_gesture_progress`, `handle_commit_back_gesture` and `handle_cancel_back_gesture` (Flutter's `SystemChannels.backGesture`). Trigger: a host that reports back gestures.
@@ -834,17 +875,14 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - selectable_region.rs: `SelectionListener`, `SelectionDetails`, `SelectionListenerNotifier`, the deprecated `TextSelectionDelegate` members and the iOS-web double-tap quirks. Trigger: the first caller of a selection listener; a web host.
 - text.rs: `locale`, `hyphens`, and the deprecated `textScaleFactor`; `Text`'s selection container and `_RichText` carry none of them either. Trigger: `Locale` (the embedder's exists); `Hyphens`.
 - basic.rs: `Flow`, `RotatedBox`, `IgnoreBaseline`, `ShaderMask`, `RawImage`, `WidgetToRenderBoxAdapter`. Trigger: each one's render object.
-- basic.rs, implicit_animations.rs: the `PhysicalModel`, `PhysicalShape` and `AnimatedPhysicalModel` diagnostics. Trigger: diagnostics.
 - basic.rs: `RepaintBoundary.wrap` and `wrapAll`, `DefaultAssetBundle`. Trigger: the sliver child delegates that call them; asset bundles.
 - basic.rs: `SliverSemantics`, which waits on `RenderSliverSemanticsAnnotations`, and the semantics flags on the pointer and opacity widgets, which only feed `visitChildrenForSemantics`. Trigger: a `SliverSemantics` caller; the semantics tree.
 - basic.rs: the inspector-only transform labels. Trigger: diagnostics.
-- icon.rs: icon diagnostics. Trigger: diagnostics.
 - visibility.rs: `SliverVisibility`. Trigger: `SliverOpacity`, `SliverIgnorePointer` and `SliverOffstage`.
 - visibility.rs: what `Visibility.maintainSemantics` controls. Trigger: the semantics tree.
-- visibility.rs: `Visibility` diagnostics. Trigger: diagnostics.
 - ticker_provider.rs: `TickerMode.merge`. Trigger: the next edit of ticker_provider.rs (`Builder` exists).
 - transitions.rs: `SliverFadeTransition`, and with it implicit_animations.rs's `SliverAnimatedOpacity`. Trigger: `SliverOpacity`'s render sliver.
-- transitions.rs, implicit_animations.rs: diagnostics. Trigger: diagnostics.
+- transitions.rs, implicit_animations.rs: `SliverFadeTransition`'s and `SliverAnimatedOpacity`'s diagnostics, with those slivers. Trigger: `SliverOpacity`'s render sliver.
 - icon_theme: `IconThemeData.hashCode` (no `Hash` over `f64`). Trigger: a map keyed by `IconThemeData`.
 - gesture_detector.rs: the semantics gesture handling (`excludeFromSemantics`, `semantics`, `_GestureSemantics`), and the double-tap and force-press callbacks. Trigger: the semantics tree; `DoubleTapGestureRecognizer`; a caller of the force-press callbacks.
 - media_query.rs: `DisplayFeature`, `SystemTextScaler`, the platform sources for the accessibility flags, 24-hour format, text style overrides and corner radii, and the media-query debug checks. Trigger: observers in binding.rs; those members on `Platform` / `ViewMetrics`; diagnostics.
@@ -857,28 +895,23 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - default_text_editing_shortcuts.rs: the Control-key editing bindings macOS supplies from its own key tables (Control-A, Control-E, Control-K, Control-D), which Dart's macOS map leaves to the host. Trigger: nothing else supplies them over a host that reports plain key presses.
 - editable_text.rs: scribble and stylus support but the selection rects (`_ScribbleFocusable`, `_ScribblePlaceholder`, and `_ScribbleCacheKey`'s strut style and placeholder), the spell-check fetch, the magnifier overlay, the floating cursor and `insertContent`; the scroll notification's `_handleContextMenuOnScroll`. Trigger: `UndoManagerClient`; `RenderEditable.setFloatingCursor`; Scribble on the iOS host.
 - editable_text.rs: `Semantics(inputType:, onCopy:, onCut:, onPaste:)`. Trigger: the next edit of editable_text.rs.
-- app_lifecycle_listener.rs: diagnostics. Trigger: diagnostics.
 - text_selection.rs: `EmptyTextSelectionControls`. Trigger: its first caller.
 - text_selection.rs: the outer `TapRegion(groupId: SelectableRegion)` around the toolbar wrapper and around each selection handle. Trigger: `SelectableRegion`.
 - feedback.rs: the system sound in `for_tap` and iOS `for_long_press`, and the semantic events they send. Trigger: services' `SystemSound`; the semantics tree.
 - text_selection.rs: the Android stylus path and the `Scribe` availability check in `onTapDown`. Trigger: host `Scribe`.
 - tap_region.rs: the surface's semantics listeners and semantics action handling. Trigger: the semantics tree.
-- automatic_keep_alive.rs: diagnostics. Trigger: diagnostics.
 - layout_builder.rs: `SliverLayoutBuilder` with the abstract generic builders, and the error widget on a builder panic. Trigger: the next edit of layout_builder.rs (slivers exist); diagnostics.
 - sliver.rs: `SliverOpacity`, `SliverIgnorePointer`, `SliverOffstage`, `SliverConstrainedCrossAxis`, `SliverCrossAxisExpanded`, `SliverCrossAxisGroup` and `SliverMainAxisGroup`. Trigger: each one's render sliver.
 - sliver.rs: `SliverEnsureSemantics`. Trigger: the semantics tree.
 - Two-dimensional scrolling: the two-dimensional viewport, its scrollable and scopes, its child delegates, `DiagonalDragBehavior`, and sliver.rs's `KeepAlive` under such a viewport. Trigger: `two_dimensional_viewport.dart`.
 - scroll_delegate.rs: the delegate description's exception branch. Trigger: diagnostics.
-- viewport.rs: the viewport diagnostics. Trigger: diagnostics.
 - Scroll semantics: `ScrollContext.setSemanticsActions`, scrollable.rs's semantics widget and its render object with `excludeFromSemantics` and `semanticChildCount`, and scroll_position.rs's semantic action bookkeeping. Trigger: the semantics tree.
-- scrollable.rs, scroll_configuration.rs, primary_scroll_controller.rs: diagnostics, and `ScrollableDetails.hashCode` (no `Hash` over an erased physics). Trigger: diagnostics; a map keyed by scrollable details.
-- scroll_view.rs: the scroll view diagnostics. Trigger: diagnostics.
+- scrollable.rs: `ScrollableDetails.hashCode` (no `Hash` over an erased physics). Trigger: a map keyed by scrollable details.
 - single_child_scroll_view.rs: the semantics clip and the approximate paint clip (deferred crate-wide in rendering's PORTING.md). Trigger: the semantics tree; the inspector.
 - scrollbar.rs: the painter's semantics and the structured error reports, which are plain assert messages here. Trigger: the semantics tree; diagnostics.
 - toggleable.rs: the tap's `TapSemanticEvent`. Trigger: the semantics tree.
 - radio_group.rs: the post-frame check that at most one radio carries the group value. Trigger: diagnostics, and a post-frame callback usable from a state that may run without a binding.
 - shortcuts.rs: the deprecated `isActivatedBy` and the duplicate-shortcut check. Trigger: content equality on `ShortcutActivator`; diagnostics.
-- actions.rs, shortcuts.rs, focus_traversal.rs: diagnostics on the actions, intents, activators, managers, policies and orders. Trigger: diagnostics.
 - navigator.rs, routes.rs, pop_scope.rs: the members Dart deprecates in favour of the pop-with-result and mark-for-complete ones. Trigger: never — port them only if Flutter un-deprecates them.
 - navigator.rs: restoring the focused semantic node after a pop. Trigger: the semantics tree.
 - navigator.rs: the navigator diagnostics and the error reports around route generation. Trigger: diagnostics.
@@ -888,11 +921,11 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - modal_barrier.rs: the barrier's `_SemanticsClipper`. Trigger: the semantics tree.
 - modal_barrier.rs: the alert sound when a non-dismissible barrier is tapped. Trigger: services' `SystemSound`.
 - overlay.rs: the theater's intrinsics, dry layout and baselines, and the deferred layout box's dry baseline. Trigger: intrinsics and baselines through a theater child.
-- overlay.rs: the overlay widgets' diagnostics (the entries, the theater's `skipCount`, the entry state's children and location), and the stack trace an invalidated entry location records (a flag stands in). Trigger: diagnostics.
+- overlay.rs: the stack trace an invalidated entry location records (a flag stands in). Trigger: diagnostics.
 - overlay.rs: the overlay's semantics wrappers with their `traversalParentIdentifier` child identifiers, and its semantics updates. Trigger: the next edit of overlay.rs (the semantics widgets exist); the semantics tree.
 - overlay.rs: the theater's clip layer handle and the entry location's compositing-bits update. Trigger: layer handles and compositing bits in `waft-rendering`.
 - overlay.rs: the deferred-child gates on the theater's `markNeedsLayout` and the layout box's dirty flag. Trigger: a public `RenderBox` super-hook for `markNeedsLayout` and a readable dirty flag in `waft-rendering`.
-- heroes.rs: the hero diagnostics and the structured report behind the duplicate-tag check (a `debug_assert!` carrying Dart's message meanwhile). Trigger: diagnostics.
+- heroes.rs: the structured report behind the duplicate-tag check (a `debug_assert!` carrying Dart's message meanwhile). Trigger: diagnostics.
 - reorderable_list.rs: 'SliverReorderableList item has correct semantics' and 'SliverReorderableList custom semantics action has correct label'. Trigger: the semantics tree.
 - reorderable_list.rs: 'When creating a new item, be in the correct position'. Trigger: `Finder.hitTestable(at:)` in `waft_widgets::testing`.
 - reorderable_list.rs: 'Tests the correctness of the drop animation in various scenarios'. Trigger: `WidgetTester.timedDrag` in `waft_widgets::testing`.

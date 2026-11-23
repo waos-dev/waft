@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Debug};
 use std::rc::Rc;
 
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle};
 use waft_rendering::{
     AnyRenderBox, AnyRenderObject, ItemExtentBuilder, KeepAliveParentData, RenderHandle,
     RenderSliver, RenderSliverBoxChildManager, RenderSliverFixedExtentList, RenderSliverGrid,
@@ -73,6 +73,15 @@ where
     /// whole scroll view, as it uses the currently built children to estimate the remaining
     /// children's extent.
     fn delegate(&self) -> &SliverChildDelegateRef;
+
+    /// Dart's `SliverMultiBoxAdaptorWidget.debugFillProperties`, which a subclass's own body
+    /// calls where Dart writes `super`.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "delegate",
+            Some(format!("{:?}", self.delegate())),
+        ));
+    }
 
     /// Creates the element that lazily builds this widget's children.
     ///
@@ -160,6 +169,14 @@ where
 
     fn kind(&self) -> WidgetKind {
         WidgetKind::Other
+    }
+
+    fn to_string_short(&self) -> String {
+        RenderObjectWidget::to_string_short(&self.0)
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        RenderObjectWidget::debug_fill_properties(&self.0, app, properties);
     }
 }
 
@@ -264,6 +281,10 @@ impl RenderObjectWidget for SliverList {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -645,6 +666,10 @@ impl RenderObjectWidget for SliverFixedExtentList {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         RenderSliverFixedExtentList::new(
             app,
@@ -836,6 +861,10 @@ impl RenderObjectWidget for SliverVariedExtentList {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -1080,6 +1109,10 @@ impl RenderObjectWidget for SliverGrid {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        SliverMultiBoxAdaptorWidget::debug_fill_properties(self, properties);
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -2296,6 +2329,10 @@ impl ParentDataWidget for KeepAlive {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new("keepAlive", self.keep_alive));
     }
 
     fn child(&self) -> &WidgetRef {

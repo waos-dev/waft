@@ -10,7 +10,7 @@ use std::time::Duration;
 use waft_embedder::TargetPlatform;
 use waft_foundation::{
     App, ChangeNotifier, ChangeNotifierData, Handle, Listener, OptionRetained, Timer,
-    ValueListenable, ValueNotifier,
+    ValueListenable, ValueNotifier, describe_identity,
 };
 use waft_services::{UndoDirection, UndoManager, UndoManagerClient};
 
@@ -580,6 +580,17 @@ impl Default for UndoHistoryValue {
     }
 }
 
+impl fmt::Display for UndoHistoryValue {
+    /// Dart's `UndoHistoryValue.toString`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "UndoHistoryValue(canUndo: {}, canRedo: {})",
+            self.can_undo, self.can_redo
+        )
+    }
+}
+
 /// A controller for the undo history, for example for an editable text field.
 ///
 /// Whenever a change happens to the underlying value that the `UndoHistory` widget tracks,
@@ -677,6 +688,18 @@ impl UndoHistoryController {
         ChangeNotifierData::dispose(app, on_undo);
         ChangeNotifierData::dispose(app, on_redo);
         ChangeNotifierData::dispose(app, self);
+    }
+}
+
+impl UndoHistoryController {
+    /// Dart's `UndoHistoryController.toString`, which it inherits from
+    /// `ValueNotifier<UndoHistoryValue>`: the identity and the value.
+    pub fn to_string(self: Handle<Self>, app: &App) -> String {
+        format!(
+            "{}({})",
+            describe_identity("UndoHistoryController", self.id().identity_hash()),
+            self.value(app)
+        )
     }
 }
 

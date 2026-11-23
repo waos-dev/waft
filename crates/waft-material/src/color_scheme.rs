@@ -9,12 +9,13 @@
 use std::rc::Rc;
 
 use waft_embedder::{Brightness, Color};
-use waft_foundation::{App, PRECISION_ERROR_TOLERANCE};
+use waft_foundation::{App, DiagnosticsProperty, PRECISION_ERROR_TOLERANCE};
 use waft_material_color_utilities::{
     DynamicColor, DynamicScheme, Hct, MaterialDynamicColors, SchemeContent, SchemeExpressive,
     SchemeFidelity, SchemeFruitSalad, SchemeMonochrome, SchemeNeutral, SchemeRainbow,
     SchemeTonalSpot, SchemeVibrant,
 };
+use waft_painting::ColorProperty;
 use waft_widgets::BuildContext;
 
 use crate::colors::{Colors, MaterialColor};
@@ -1944,6 +1945,92 @@ impl ColorSchemeFromSwatchBuilder {
         } else {
             Colors::BLACK
         })
+    }
+}
+
+impl waft_foundation::Diagnosticable for ColorScheme {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        let default_scheme = ColorScheme::light();
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Brightness>>::new(
+                "brightness",
+                waft_foundation::DartEnum(self.brightness()),
+            )
+            .default_value(Some(waft_foundation::DartEnum(default_scheme.brightness()))),
+        );
+        macro_rules! color_property {
+            ($($name:literal => $field:ident),* $(,)?) => {
+                $(
+                    properties.add(
+                        ColorProperty::new($name, self.$field())
+                            .default_value(Some(default_scheme.$field())),
+                    );
+                )*
+            };
+        }
+        color_property!(
+            "primary" => primary,
+            "onPrimary" => on_primary,
+            "primaryContainer" => primary_container,
+            "onPrimaryContainer" => on_primary_container,
+            "primaryFixed" => primary_fixed,
+            "primaryFixedDim" => primary_fixed_dim,
+            "onPrimaryFixed" => on_primary_fixed,
+            "onPrimaryFixedVariant" => on_primary_fixed_variant,
+            "secondary" => secondary,
+            "onSecondary" => on_secondary,
+            "secondaryContainer" => secondary_container,
+            "onSecondaryContainer" => on_secondary_container,
+            "secondaryFixed" => secondary_fixed,
+            "secondaryFixedDim" => secondary_fixed_dim,
+            "onSecondaryFixed" => on_secondary_fixed,
+            "onSecondaryFixedVariant" => on_secondary_fixed_variant,
+            "tertiary" => tertiary,
+            "onTertiary" => on_tertiary,
+            "tertiaryContainer" => tertiary_container,
+            "onTertiaryContainer" => on_tertiary_container,
+            "tertiaryFixed" => tertiary_fixed,
+            "tertiaryFixedDim" => tertiary_fixed_dim,
+            "onTertiaryFixed" => on_tertiary_fixed,
+            "onTertiaryFixedVariant" => on_tertiary_fixed_variant,
+            "error" => error,
+            "onError" => on_error,
+            "errorContainer" => error_container,
+            "onErrorContainer" => on_error_container,
+            "surface" => surface,
+            "onSurface" => on_surface,
+            "surfaceDim" => surface_dim,
+            "surfaceBright" => surface_bright,
+            "surfaceContainerLowest" => surface_container_lowest,
+            "surfaceContainerLow" => surface_container_low,
+            "surfaceContainer" => surface_container,
+            "surfaceContainerHigh" => surface_container_high,
+            "surfaceContainerHighest" => surface_container_highest,
+            "onSurfaceVariant" => on_surface_variant,
+            "outline" => outline,
+            "outlineVariant" => outline_variant,
+            "shadow" => shadow,
+            "scrim" => scrim,
+            "inverseSurface" => inverse_surface,
+            "onInverseSurface" => on_inverse_surface,
+            "inversePrimary" => inverse_primary,
+            "surfaceTint" => surface_tint,
+        );
+        // DEPRECATED (newest deprecations at the bottom)
+        #[allow(deprecated)]
+        {
+            color_property!(
+                "background" => background,
+                "onBackground" => on_background,
+                "surfaceVariant" => surface_variant,
+            );
+        }
+    }
+}
+
+impl std::fmt::Display for ColorScheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 

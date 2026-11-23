@@ -6,10 +6,10 @@ use std::fmt::{self, Debug, Formatter};
 use std::rc::Rc;
 
 use waft_embedder::{Brightness, Color, Locale, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
 use waft_painting::{
-    BorderRadiusGeometry, BorderSide, CircleBorder, OutlinedBorderRef, RoundedRectangleBorder,
-    ShapeBorderRef, StadiumBorder, TextStyle,
+    BorderRadiusGeometry, BorderSide, CircleBorder, ColorProperty, OutlinedBorderRef,
+    RoundedRectangleBorder, ShapeBorderRef, StadiumBorder, TextStyle,
 };
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef, WidgetState,
@@ -1360,6 +1360,265 @@ impl DatePickerThemeDataGetters for DatePickerDefaultsM2 {
                 None
             },
         ))
+    }
+}
+
+impl waft_foundation::Diagnosticable for DatePickerThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("headerBackgroundColor", self.header_background_color)
+                .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("headerForegroundColor", self.header_foreground_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "headerHeadlineStyle",
+                self.header_headline_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "headerHelpStyle",
+                self.header_help_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("weekDayStyle", self.weekday_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("dayStyle", self.day_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "dayForegroundColor",
+                self.day_foreground_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "dayBackgroundColor",
+                self.day_background_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "dayOverlayColor",
+                self.day_overlay_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "dayShape",
+                self.day_shape
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "todayForegroundColor",
+                self.today_foreground_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "todayBackgroundColor",
+                self.today_background_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderSide>::new("todayBorder", self.today_border)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("yearStyle", self.year_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "yearForegroundColor",
+                self.year_foreground_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "yearBackgroundColor",
+                self.year_background_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "yearOverlayColor",
+                self.year_overlay_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "yearShape",
+                self.year_shape
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new(
+                "rangePickerBackgroundColor",
+                self.range_picker_background_color,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("rangePickerElevation", self.range_picker_elevation)
+                .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("rangePickerShadowColor", self.range_picker_shadow_color)
+                .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new(
+                "rangePickerSurfaceTintColor",
+                self.range_picker_surface_tint_color,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new(
+                "rangePickerShape",
+                self.range_picker_shape.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new(
+                "rangePickerHeaderBackgroundColor",
+                self.range_picker_header_background_color,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new(
+                "rangePickerHeaderForegroundColor",
+                self.range_picker_header_foreground_color,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "rangePickerHeaderHeadlineStyle",
+                self.range_picker_header_headline_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "rangePickerHeaderHelpStyle",
+                self.range_picker_header_help_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new(
+                "rangeSelectionBackgroundColor",
+                self.range_selection_background_color,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "rangeSelectionOverlayColor",
+                self.range_selection_overlay_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(ColorProperty::new("dividerColor", self.divider_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<InputDecorationThemeData>::new(
+                "inputDecorationTheme",
+                self.input_decoration_theme.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ButtonStyle>::new(
+                "cancelButtonStyle",
+                self.cancel_button_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ButtonStyle>::new(
+                "confirmButtonStyle",
+                self.confirm_button_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Locale>::new("locale", self.locale.clone()).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "toggleButtonTextStyle",
+                self.toggle_button_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("subHeaderForegroundColor", self.sub_header_foreground_color)
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for DatePickerThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -2942,5 +3201,18 @@ mod tests {
                 Some(sub_header_foreground_color)
             );
         });
+    }
+    // Flutter's "Default DatePickerThemeData debugFillProperties".
+    #[test]
+    fn a_date_picker_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &DatePickerThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

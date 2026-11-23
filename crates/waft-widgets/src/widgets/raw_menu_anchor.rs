@@ -13,7 +13,8 @@ use std::rc::Rc;
 
 use waft_embedder::{Offset, Rect, Size};
 use waft_foundation::{
-    App, Handle, HandleId, ListenableObject, Listener, OptionRetained, Ref, Retained, VoidCallback,
+    App, DiagnosticPropertiesBuilder, FlagProperty, Handle, HandleId, ListenableObject, Listener,
+    ObjectFlagProperty, OptionRetained, Ref, Retained, VoidCallback,
 };
 use waft_gestures::PointerDownEvent;
 use waft_painting::transform_rect;
@@ -508,6 +509,18 @@ impl StatefulWidget for RawMenuAnchor {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(ObjectFlagProperty::<String>::has(
+            "focusNode",
+            self.child_focus_node.as_ref().map(|_| String::new()),
+        ));
+        properties.add(
+            FlagProperty::new("useRootOverlay", Some(self.use_root_overlay))
+                .if_false("use nearest overlay")
+                .if_true("use root overlay"),
+        );
     }
 
     fn create_state(&self) -> RawMenuAnchorState {
@@ -1306,6 +1319,13 @@ impl StatefulWidget for RawMenuAnchorGroup {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(ObjectFlagProperty::<String>::has(
+            "controller",
+            Some(String::new()),
+        ));
     }
 
     fn create_state(&self) -> RawMenuAnchorGroupState {

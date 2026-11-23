@@ -7,9 +7,12 @@
 use std::fmt::{self, Debug};
 
 use waft_embedder::{Brightness, Clip, Color, Size};
-use waft_foundation::{App, Handle, Listener, Ref, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, Listener, ObjectFlagProperty,
+    Ref, StringProperty, ValueChanged,
+};
 use waft_painting::{
-    Alignment, AlignmentGeometry, EdgeInsets, EdgeInsetsGeometry, OutlinedBorderRef,
+    Alignment, AlignmentGeometry, ColorProperty, EdgeInsets, EdgeInsetsGeometry, OutlinedBorderRef,
 };
 use waft_rendering::BoxConstraints;
 use waft_services::{MouseCursorRef, SystemMouseCursors};
@@ -633,6 +636,54 @@ impl IconButton {
 impl StatelessWidget for IconButton {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            StringProperty::new("tooltip", self.tooltip.clone())
+                .default_value(None)
+                .quoted(false),
+        );
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onPressed",
+                self.on_pressed.as_ref().map(|_| String::new()),
+            )
+            .if_null("disabled"),
+        );
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onHover",
+                self.on_hover.as_ref().map(|_| String::new()),
+            )
+            .if_null("disabled"),
+        );
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onLongPress",
+                self.on_long_press.as_ref().map(|_| String::new()),
+            )
+            .if_null("disabled"),
+        );
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties
+            .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
+        properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
+        properties.add(ColorProperty::new("hoverColor", self.hover_color).default_value(None));
+        properties
+            .add(ColorProperty::new("highlightColor", self.highlight_color).default_value(None));
+        properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
+            )
+            .default_value(None),
+        );
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {

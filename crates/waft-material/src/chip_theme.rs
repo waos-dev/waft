@@ -1,10 +1,10 @@
 //! Flutter counterpart: material_ui's `chip_theme.dart`.
 
 use waft_embedder::{Brightness, Color, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, EnumProperty};
 use waft_painting::{
-    AnyBorderSide, AnyColor, BorderSide, EdgeInsets, EdgeInsetsGeometry, OutlinedBorderRef,
-    TextStyle,
+    AnyBorderSide, AnyColor, BorderSide, ColorProperty, EdgeInsets, EdgeInsetsGeometry,
+    OutlinedBorderRef, TextStyle,
 };
 use waft_rendering::BoxConstraints;
 use waft_widgets::{
@@ -700,6 +700,106 @@ impl PartialEq for ChipThemeData {
             && other.icon_theme == self.icon_theme
             && other.avatar_box_constraints == self.avatar_box_constraints
             && other.delete_icon_box_constraints == self.delete_icon_box_constraints
+    }
+}
+
+impl waft_foundation::Diagnosticable for ChipThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "color",
+                self.color.as_deref().map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("deleteIconColor", self.delete_icon_color.clone())
+                .default_value(None),
+        );
+        properties
+            .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
+        properties
+            .add(ColorProperty::new("selectedColor", self.selected_color).default_value(None));
+        properties.add(
+            ColorProperty::new("secondarySelectedColor", self.secondary_selected_color)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("selectedShadowColor", self.selected_shadow_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("showCheckmark", self.show_checkmark)
+                .default_value(None),
+        );
+        properties
+            .add(ColorProperty::new("checkMarkColor", self.checkmark_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("labelPadding", self.label_padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyBorderSide>::new("side", self.side.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<OutlinedBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("labelStyle", self.label_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "secondaryLabelStyle",
+                self.secondary_label_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<Brightness>::new("brightness", self.brightness).default_value(None),
+        );
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties
+            .add(DoubleProperty::new("pressElevation", self.press_elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
+                "iconTheme",
+                self.icon_theme.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new(
+                "avatarBoxConstraints",
+                self.avatar_box_constraints,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new(
+                "deleteIconBoxConstraints",
+                self.delete_icon_box_constraints,
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for ChipThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -2257,5 +2357,18 @@ mod tests {
                 &[PaintCall::drrect(Some(primary.get()))],
             );
         });
+    }
+    // Flutter's "Default ChipThemeData debugFillProperties".
+    #[test]
+    fn a_chip_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ChipThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

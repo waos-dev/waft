@@ -1,6 +1,6 @@
 //! Flutter counterpart: material_ui's `icon_button_theme.dart`.
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_widgets::{
     AnyElement, BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
     downcast_widget,
@@ -243,6 +243,24 @@ impl InheritedWidget for IconButtonTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for IconButtonThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<crate::button_style::ButtonStyle>::new(
+                "style",
+                self.style.clone(),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for IconButtonThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -1043,5 +1061,18 @@ mod tests {
             tester.pump_widget(widget);
             assert!(is_rounded_rectangle(tester));
         });
+    }
+    // Flutter's "Default IconButtonThemeData debugFillProperties".
+    #[test]
+    fn a_icon_button_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &IconButtonThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

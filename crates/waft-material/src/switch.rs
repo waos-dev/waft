@@ -21,7 +21,8 @@ use waft_embedder::{
     Stroke, TargetPlatform, TextDirection, lerp_double, rrect_radii_elliptical,
 };
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, K_IS_WEB, OptionRetained, Ref, ValueChanged,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, FlagProperty, Handle,
+    K_IS_WEB, ObjectFlagProperty, OptionRetained, Ref, ValueChanged,
 };
 use waft_gestures::{DragEndDetails, DragStartBehavior, DragStartDetails, DragUpdateDetails};
 use waft_painting::{
@@ -643,6 +644,22 @@ impl Debug for Switch {
 impl StatelessWidget for Switch {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("value", Some(self.value))
+                .if_true("on")
+                .if_false("off")
+                .with_show_name(true),
+        );
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onChanged",
+                self.on_changed.as_ref().map(|_| String::new()),
+            )
+            .if_null("disabled"),
+        );
     }
 
     #[allow(deprecated)]

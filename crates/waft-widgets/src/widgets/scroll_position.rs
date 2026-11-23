@@ -212,7 +212,7 @@ pub trait ScrollPosition: ViewportOffset {
         self.scroll_position_data(app).keep_scroll_offset
     }
 
-    /// A label that is used in the [`describe`](Self::describe) output.
+    /// A label that is used in the [`to_string`](Self::to_string) output.
     ///
     /// Intended to aid with identifying scroll position instances in debug
     /// output.
@@ -722,7 +722,7 @@ pub trait ScrollPosition: ViewportOffset {
     }
 
     /// Add additional information to the given `description` for use by
-    /// [`describe`](Self::describe).
+    /// [`to_string`](Self::to_string).
     ///
     /// An override calls [`ScrollPositionBase::debug_fill_description`] where Dart writes
     /// `super.debugFillDescription(description)`.
@@ -731,7 +731,7 @@ pub trait ScrollPosition: ViewportOffset {
     }
 
     /// Dart's `toString`, which reads the arena and so cannot be [`Debug`].
-    fn describe(self: Handle<Self>, app: &App) -> String {
+    fn to_string(self: Handle<Self>, app: &App) -> String {
         let mut description = Vec::new();
         ScrollPosition::debug_fill_description(self, app, &mut description);
         format!(
@@ -1482,7 +1482,7 @@ struct ScrollPositionVTable {
     did_update_scroll_metrics: fn(&mut App, HandleId),
     recommend_deferred_loading: fn(&mut App, HandleId, BuildContext) -> bool,
     dispose: fn(&mut App, HandleId),
-    describe: fn(&App, HandleId) -> String,
+    to_string: fn(&App, HandleId) -> String,
 }
 
 impl ScrollPositionVTable {
@@ -1576,7 +1576,7 @@ impl ScrollPositionVTable {
                 P::recommend_deferred_loading(resolve(id), app, context)
             },
             dispose: |app, id| P::dispose(resolve(id), app),
-            describe: |app, id| P::describe(resolve(id), app),
+            to_string: |app, id| P::to_string(resolve(id), app),
         }
     }
 }
@@ -1606,6 +1606,12 @@ impl From<AnyScrollPosition> for AnyViewportOffset {
 
 impl AnyScrollPosition {
     /// Dart's `position.runtimeType`.
+    /// The identity a dump shows, Dart's `describeIdentity(position)` without the description
+    /// Dart's `toString` collects.
+    pub fn identity_hash(self) -> u64 {
+        self.id.identity_hash()
+    }
+
     pub fn type_id(self) -> TypeId {
         (self.vtable.type_id)()
     }
@@ -1930,9 +1936,9 @@ impl AnyScrollPosition {
         (self.vtable.dispose)(app, self.id);
     }
 
-    /// See [`ScrollPosition::describe`].
-    pub fn describe(self, app: &App) -> String {
-        (self.vtable.describe)(app, self.id)
+    /// See [`ScrollPosition::to_string`].
+    pub fn to_string(self, app: &App) -> String {
+        (self.vtable.to_string)(app, self.id)
     }
 }
 

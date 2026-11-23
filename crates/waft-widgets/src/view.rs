@@ -11,7 +11,10 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::{ViewFocusDirection, ViewFocusEvent, ViewFocusState, ViewId, ViewRef};
-use waft_foundation::{App, Handle, ListenableObject, Listener, OptionRetained, ValueKey};
+use waft_foundation::{
+    App, DiagnosticsNode, DiagnosticsTreeStyle, Handle, ListenableObject, Listener, OptionRetained,
+    ValueKey,
+};
 use waft_rendering::{AnyRenderObject, PipelineOwner, RenderHandle, RenderView, RendererBinding};
 use waft_scheduler::{FrameTarget, SchedulerBinding};
 
@@ -1068,6 +1071,27 @@ impl MultiChildComponentElement {
 
 impl Element for MultiChildComponentElement {
     crate::element_accessors!();
+
+    /// Dart's `_MultiChildComponentElement.debugDescribeChildren`: the child, then each view
+    /// named `view 1`, `view 2`, … offstage.
+    fn debug_describe_children(
+        self: Handle<Self>,
+        app: &App,
+    ) -> Vec<std::rc::Rc<dyn DiagnosticsNode>> {
+        let this = app.get(self);
+        let mut children: Vec<std::rc::Rc<dyn DiagnosticsNode>> = Vec::new();
+        if let Some(child) = this.child_element {
+            children.push(std::rc::Rc::new(child.to_diagnostics_node(app, None)));
+        }
+        for (index, element) in this.view_elements.iter().enumerate() {
+            children.push(std::rc::Rc::new(
+                element
+                    .to_diagnostics_node(app, Some(format!("view {}", index + 1)))
+                    .with_style(DiagnosticsTreeStyle::Offstage),
+            ));
+        }
+        children
+    }
 
     fn attach_render_object(self: Handle<Self>, app: &mut App, new_slot: Option<Slot>) {
         ElementBase::attach_render_object(self, app, new_slot.clone());

@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `tab_bar_theme.dart`.
 
 use waft_embedder::Color;
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty};
 use waft_painting::{
     AnyColor, BorderRadius, DecorationRef, EdgeInsetsGeometry, TextScaler, TextStyle,
 };
@@ -949,6 +949,107 @@ impl PartialEq for TabBarThemeData {
             && other.text_scaler == self.text_scaler
             && other.indicator_animation == self.indicator_animation
             && other.splash_border_radius == self.splash_border_radius
+    }
+}
+
+impl waft_foundation::Diagnosticable for TabBarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<DecorationRef>::new("indicator", self.indicator.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Color>::new("indicatorColor", self.indicator_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TabBarIndicatorSize>>::new(
+                "indicatorSize",
+                self.indicator_size.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Color>::new("dividerColor", self.divider_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<f64>::new("dividerHeight", self.divider_height)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("labelColor", self.label_color.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("labelPadding", self.label_padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("labelStyle", self.label_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Color>::new("unselectedLabelColor", self.unselected_label_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "unselectedLabelStyle",
+                self.unselected_label_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "overlayColor",
+                self.overlay_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<waft_foundation::InstanceOf<InteractiveInkFeatureFactoryRef>>::new("splashFactory", self.splash_factory.clone().map(waft_foundation::InstanceOf)).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TabAlignment>>::new(
+                "tabAlignment",
+                self.tab_alignment.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextScaler>::new("textScaler", self.text_scaler.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TabIndicatorAnimation>>::new(
+                "indicatorAnimation",
+                self.indicator_animation.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderRadius>::new(
+                "splashBorderRadius",
+                self.splash_border_radius,
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for TabBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -3117,5 +3218,18 @@ mod tests {
                 assert!(painted);
             });
         }
+    }
+    // Flutter's "Default TabBarThemeData debugFillProperties".
+    #[test]
+    fn a_tab_bar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &TabBarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

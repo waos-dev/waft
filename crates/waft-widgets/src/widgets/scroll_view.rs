@@ -8,7 +8,10 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use waft_embedder::Clip;
-use waft_foundation::App;
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    FlagProperty,
+};
 use waft_gestures::DragStartBehavior;
 use waft_painting::{Axis, AxisDirection, EdgeInsetsGeometry};
 use waft_rendering::{
@@ -224,6 +227,52 @@ pub struct ScrollViewData {
 }
 
 impl ScrollViewData {
+    /// Dart's `ScrollView.debugFillProperties`, which every scroll view's own body calls where
+    /// Dart writes `super`.
+    pub fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("scrollDirection", self.scroll_direction));
+        properties.add(
+            FlagProperty::new("reverse", Some(self.reverse))
+                .if_true("reversed")
+                .with_show_name(true),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "controller",
+                self.controller
+                    .as_ref()
+                    .map(|controller| controller.to_string(app)),
+            )
+            .with_show_name(false)
+            .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("primary", self.primary)
+                .if_true("using primary controller")
+                .with_show_name(true),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "physics",
+                self.physics.as_ref().map(|physics| format!("{physics:?}")),
+            )
+            .with_show_name(false)
+            .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("shrinkWrap", Some(self.shrink_wrap))
+                .if_true("shrink-wrapping")
+                .with_show_name(true),
+        );
+        properties.add(
+            DiagnosticsProperty::<ScrollCacheExtent>::new(
+                "scrollCacheExtent",
+                self.scroll_cache_extent,
+            )
+            .default_value(None),
+        );
+    }
+
     /// Dart's `ScrollView` constructor defaults.
     pub fn new() -> ScrollViewData {
         #[allow(deprecated)]
@@ -723,6 +772,10 @@ impl StatelessWidget for CustomScrollView {
         self.scroll_view.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.scroll_view.debug_fill_properties(app, properties);
+    }
+
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
         ScrollViewBase::build(self, app, context)
     }
@@ -736,6 +789,15 @@ pub struct BoxScrollViewData {
 }
 
 impl BoxScrollViewData {
+    /// Dart's `BoxScrollView.debugFillProperties`, which an implementor's own body calls where
+    /// Dart writes `super`.
+    pub fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+    }
+
     /// Dart's `BoxScrollView` constructor defaults.
     pub fn new() -> BoxScrollViewData {
         BoxScrollViewData { padding: None }
@@ -1176,6 +1238,12 @@ impl StatelessWidget for ListView {
         self.scroll_view.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.scroll_view.debug_fill_properties(app, properties);
+        self.box_scroll_view.debug_fill_properties(properties);
+        properties.add(DoubleProperty::new("itemExtent", self.item_extent).default_value(None));
+    }
+
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
         ScrollViewBase::build(self, app, context)
     }
@@ -1536,6 +1604,11 @@ impl BoxScrollView for GridView {
 impl StatelessWidget for GridView {
     fn key(&self) -> Option<&KeyRef> {
         self.scroll_view.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        self.scroll_view.debug_fill_properties(app, properties);
+        self.box_scroll_view.debug_fill_properties(properties);
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {

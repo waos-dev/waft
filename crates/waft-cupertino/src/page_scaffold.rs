@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use waft_animation::Curves;
 use waft_embedder::Offset;
-use waft_foundation::{App, Handle};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle};
 use waft_gestures::{GestureBinding, HitTestResult};
 use waft_painting::{AnyColor, BoxDecoration, EdgeInsetsGeometry};
 use waft_rendering::{BoxHitTestEntry, HitTestBehavior};
@@ -18,7 +18,7 @@ use waft_widgets::{
     WidgetsBinding, WidgetsBindingObserverObject, WidgetsBindingObserverRef, downcast_widget,
 };
 
-use crate::colors::CupertinoDynamicColor;
+use crate::colors::{CupertinoDynamicColor, create_cupertino_color_property};
 use crate::theme::CupertinoTheme;
 
 /// A widget that has a preferred size and reports whether it fully obstructs
@@ -453,6 +453,13 @@ impl CupertinoPageScaffoldBackgroundColor {
 }
 
 impl InheritedWidget for CupertinoPageScaffoldBackgroundColor {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(create_cupertino_color_property(
+            "page scaffold background color",
+            Some(self.color.clone()),
+        ));
+    }
+
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
     }

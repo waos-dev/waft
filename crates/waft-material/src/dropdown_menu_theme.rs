@@ -3,8 +3,8 @@
 use std::fmt::{self, Debug};
 
 use waft_embedder::Color;
-use waft_foundation::App;
-use waft_painting::TextStyle;
+use waft_foundation::{App, DiagnosticsProperty};
+use waft_painting::{ColorProperty, TextStyle};
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
 use crate::input_decorator::InputDecorationThemeData;
@@ -253,6 +253,34 @@ impl InheritedWidget for DropdownMenuTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for DropdownMenuThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("textStyle", self.text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<InputDecorationThemeData>::new(
+                "inputDecorationThemeData",
+                self.input_decoration_theme.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<MenuStyle>::new("menuStyle", self.menu_style.clone())
+                .default_value(None),
+        );
+        properties
+            .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
+    }
+}
+
+impl std::fmt::Display for DropdownMenuThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -715,5 +743,18 @@ mod tests {
                 assert_eq!(editable.style.color, Some(Colors::GREY.primary().into()));
             });
         });
+    }
+    // Flutter's "Default DropdownMenuThemeData debugFillProperties".
+    #[test]
+    fn a_dropdown_menu_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &DropdownMenuThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

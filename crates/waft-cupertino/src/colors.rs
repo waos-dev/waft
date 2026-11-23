@@ -9,7 +9,9 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_embedder::{Brightness, Color};
-use waft_foundation::App;
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty, MessageProperty,
+};
 use waft_painting::{AnyColor, ColorExtension};
 use waft_widgets::{BuildContext, MediaQuery};
 
@@ -962,6 +964,11 @@ impl CupertinoDynamicColor {
     ///
     /// Defaults to [`color`](Self::color) if this [`CupertinoDynamicColor`] has never been
     /// resolved.
+    /// Dart's private `_debugLabel`: the name diagnostics print for this color.
+    pub const fn debug_label_value(&self) -> Option<&'static str> {
+        self.debug_label
+    }
+
     pub const fn effective_color(&self) -> Color {
         self.effective_color
     }
@@ -1203,6 +1210,97 @@ impl Debug for CupertinoDynamicColor {
 impl From<CupertinoDynamicColor> for AnyColor {
     fn from(color: CupertinoDynamicColor) -> AnyColor {
         color.into_any()
+    }
+}
+
+/// A color as [`create_cupertino_color_property`] prints it: a dynamic color's debug label
+/// when it has one, its `CupertinoDynamicColor.toString` otherwise, and a plain `Color`'s.
+#[derive(Clone, PartialEq)]
+pub(crate) struct CupertinoColorValue(pub AnyColor);
+
+impl fmt::Display for CupertinoColorValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(dynamic) = self.0.extension::<CupertinoDynamicColor>() {
+            if let Some(label) = dynamic.debug_label_value() {
+                return f.write_str(label);
+            }
+            return write!(f, "{dynamic:?}");
+        }
+        write!(f, "{:?}", self.0)
+    }
+}
+
+/// Dart's `createCupertinoColorProperty`: a dynamic color keeps its label as the description,
+/// a plain color prints its `Color.toString`.
+pub(crate) fn create_cupertino_color_property(
+    name: &str,
+    value: Option<AnyColor>,
+) -> DiagnosticsProperty<CupertinoColorValue> {
+    DiagnosticsProperty::<CupertinoColorValue>::new(name, value.map(CupertinoColorValue))
+}
+
+impl Diagnosticable for CupertinoDynamicColor {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        if let Some(debug_label) = self.debug_label {
+            properties.add(MessageProperty::new("debugLabel", debug_label));
+        }
+        properties.add(create_cupertino_color_property(
+            "color",
+            Some(AnyColor::new(self.color)),
+        ));
+        if self.is_platform_brightness_dependent() {
+            properties.add(create_cupertino_color_property(
+                "darkColor",
+                Some(AnyColor::new(self.dark_color)),
+            ));
+        }
+        if self.is_high_contrast_dependent() {
+            properties.add(create_cupertino_color_property(
+                "highContrastColor",
+                Some(AnyColor::new(self.high_contrast_color)),
+            ));
+        }
+        if self.is_platform_brightness_dependent() && self.is_high_contrast_dependent() {
+            properties.add(create_cupertino_color_property(
+                "darkHighContrastColor",
+                Some(AnyColor::new(self.dark_high_contrast_color)),
+            ));
+        }
+        if self.is_interface_elevation_dependent() {
+            properties.add(create_cupertino_color_property(
+                "elevatedColor",
+                Some(AnyColor::new(self.elevated_color)),
+            ));
+        }
+        if self.is_platform_brightness_dependent() && self.is_interface_elevation_dependent() {
+            properties.add(create_cupertino_color_property(
+                "darkElevatedColor",
+                Some(AnyColor::new(self.dark_elevated_color)),
+            ));
+        }
+        if self.is_high_contrast_dependent() && self.is_interface_elevation_dependent() {
+            properties.add(create_cupertino_color_property(
+                "highContrastElevatedColor",
+                Some(AnyColor::new(self.high_contrast_elevated_color)),
+            ));
+        }
+        if self.is_platform_brightness_dependent()
+            && self.is_high_contrast_dependent()
+            && self.is_interface_elevation_dependent()
+        {
+            properties.add(create_cupertino_color_property(
+                "darkHighContrastElevatedColor",
+                Some(AnyColor::new(self.dark_high_contrast_elevated_color)),
+            ));
+        }
+        // Dart adds `DiagnosticsProperty<Element>('last resolved', _debugResolveContext)`;
+        // Waft keeps no resolving element (deferred, see this folder's PORTING.md).
+    }
+}
+
+impl fmt::Display for CupertinoDynamicColor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 

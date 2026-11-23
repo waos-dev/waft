@@ -11,7 +11,8 @@ use std::fmt::{self, Debug};
 use std::rc::Rc;
 
 use waft_foundation::{
-    App, Handle, HandleId, Listener, OptionRetained, Ref, Retained, ValueChanged,
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, HandleId, Listener,
+    OptionRetained, Ref, Retained, ValueChanged, describe_identity,
 };
 use waft_scheduler::{FrameCallback, SchedulerBinding, SchedulerPhase};
 use waft_services::{MouseCursor, MouseCursorRef};
@@ -73,6 +74,35 @@ pub trait Intent: Debug + 'static {
     /// Dart's `intent.runtimeType`: the key an [`Actions`] map is looked up with.
     fn intent_type(&self) -> TypeId {
         self.as_any().type_id()
+    }
+
+    /// Dart's `Intent.debugFillProperties`, from `Diagnosticable`: an intent adds its own
+    /// fields.
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
+    /// Dart's `Intent.toStringShort`: the type and the identity.
+    fn to_string_short(&self) -> String {
+        describe_identity(
+            waft_foundation::bare_type_name(std::any::type_name::<Self>()),
+            self as *const Self as *const () as usize as u64,
+        )
+    }
+
+    /// Dart's `Intent.toDiagnosticsNode(name:)`, from `Diagnosticable`.
+    fn diagnostics_node(&self, name: Option<String>) -> waft_foundation::DiagnosticableNode {
+        let mut builder = DiagnosticPropertiesBuilder::new();
+        self.debug_fill_properties(&mut builder);
+        waft_foundation::DiagnosticableNode::from_parts(name, self.to_string_short(), builder)
+    }
+
+    /// Dart's `Diagnosticable.toString`, which a property holding an intent prints.
+    fn diagnostic_string(&self) -> String {
+        use waft_foundation::{DiagnosticLevel, DiagnosticsNode, DiagnosticsTreeStyle};
+        self.diagnostics_node(None)
+            .with_style(DiagnosticsTreeStyle::SingleLine)
+            .to_string_with(None, DiagnosticLevel::Info)
     }
 }
 
@@ -252,6 +282,16 @@ pub trait Action: Sized + 'static {
 
     /// See [`action_data`](Self::action_data).
     fn action_data_mut(self: Handle<Self>, app: &mut App) -> &mut ActionData;
+
+    /// Dart's `Action.debugFillProperties`, from `Diagnosticable`: an action adds its own
+    /// fields.
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let _ = (self, app, properties);
+    }
 
     /// This action as the erased [`AnyAction`] — what to pass where a Dart API takes an
     /// `Action<Intent>`.
@@ -516,6 +556,7 @@ struct ActionVTable {
     remove_action_listener: fn(&mut App, HandleId, &ActionListenerCallback),
     notify_action_listeners: fn(&mut App, HandleId),
     make_overridable_action: fn(&mut App, HandleId, BuildContext) -> ActionRef,
+    debug_fill_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
 }
 
 /// The typed handle for an erased id. Free: nothing is looked up; `get` checks the slot.
@@ -570,6 +611,9 @@ impl ActionVTable {
             make_overridable_action: |app, id, context| {
                 L::make_overridable_action(resolve(id), app, context)
             },
+            debug_fill_properties: |app, id, properties| {
+                L::debug_fill_properties(resolve(id), app, properties)
+            },
         }
     }
 
@@ -614,6 +658,19 @@ impl fmt::Debug for AnyAction {
 }
 
 impl AnyAction {
+    /// Dart's `Action.toStringShort`: the type and the identity.
+    pub fn to_string_short(self) -> String {
+        describe_identity(
+            waft_foundation::bare_type_name((self.vtable.type_name)()),
+            self.id.identity_hash(),
+        )
+    }
+
+    /// Dart's `action.debugFillProperties`.
+    pub fn debug_fill_properties(self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        (self.vtable.debug_fill_properties)(app, self.id, properties);
+    }
+
     /// The type-erased handle of a plain [`Action`] leaf; [`Action::as_action`] calls this.
     pub fn of<L: Action>(action: Handle<L>) -> AnyAction {
         AnyAction {
@@ -934,6 +991,15 @@ pub type ActionDispatcherRef = Rc<dyn ActionDispatcher>;
 ///  * `Shortcuts`, which defines key mappings to [`Intent`]s.
 ///  * [`Actions`], which defines a mapping between an [`Intent`] type and an [`Action`].
 pub trait ActionDispatcher: Debug {
+    /// Dart's `ActionDispatcher.toStringShort`, which a dump of an [`Actions`] widget prints:
+    /// the type and the identity.
+    fn to_string_short(&self) -> String {
+        describe_identity(
+            waft_foundation::bare_type_name(std::any::type_name::<Self>()),
+            self as *const Self as *const () as usize as u64,
+        )
+    }
+
     /// Invokes the given `action`, passing it the given `intent`.
     ///
     /// The action will be invoked with the given `context`, if given, but only if the action is
@@ -1004,7 +1070,16 @@ impl PlainActionDispatcher {
     }
 }
 
-impl ActionDispatcher for PlainActionDispatcher {}
+impl ActionDispatcher for PlainActionDispatcher {
+    /// Dart's `const ActionDispatcher()` names itself `ActionDispatcher`, whatever the Rust
+    /// leaf is called.
+    fn to_string_short(&self) -> String {
+        describe_identity(
+            "ActionDispatcher",
+            self as *const Self as *const () as usize as u64,
+        )
+    }
+}
 
 // ---------------------------------------------------------------------------------------------
 // Actions
@@ -1340,6 +1415,30 @@ impl StatefulWidget for Actions {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "dispatcher",
+            self.dispatcher
+                .as_ref()
+                .map(|dispatcher| dispatcher.to_string_short()),
+        ));
+        let mut entries: Vec<(String, String)> = self
+            .actions
+            .iter()
+            .map(|(intent_type, action)| (format!("{intent_type:?}"), action.to_string_short()))
+            .collect();
+        entries.sort();
+        let actions = entries
+            .into_iter()
+            .map(|(intent_type, action)| format!("{intent_type}: {action}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        properties.add(DiagnosticsProperty::<String>::new(
+            "actions",
+            Some(format!("{{{actions}}}")),
+        ));
     }
 
     fn create_state(&self) -> ActionsState {
@@ -2581,6 +2680,17 @@ impl<T: ActionIntent + ?Sized> Action for OverridableAction<T> {
     type Intent = T;
     crate::action_accessors!();
 
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "defaultAction",
+            Some(app.get(self).overridable.default_action.to_string_short()),
+        ));
+    }
+
     fn as_action(self: Handle<Self>) -> AnyAction {
         AnyAction::of_context::<Self>(self)
     }
@@ -3215,5 +3325,42 @@ mod tests {
             assert!(node.has_primary_focus(&app));
             assert_eq!(*focus_highlights.borrow(), [true]);
         });
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use std::collections::HashMap;
+
+    use waft_rendering::testing::ignoring_hash_codes;
+
+    use super::*;
+    use crate::Container;
+    use crate::testing::describe_properties;
+
+    /// `actions_test.dart`, "default Intent debugFillProperties".
+    #[test]
+    fn a_default_intent_adds_no_properties() {
+        let intent = ActivateIntent;
+        assert_eq!(
+            describe_properties(|properties| intent.debug_fill_properties(properties)),
+            Vec::<String>::new()
+        );
+    }
+
+    /// `actions_test.dart`, "default Actions debugFillProperties".
+    #[test]
+    fn the_default_actions_describe_their_dispatcher_and_empty_map() {
+        let actions = Actions::new(HashMap::new(), Container::new())
+            .dispatcher(Rc::new(PlainActionDispatcher::new()));
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description =
+            describe_properties(|properties| actions.debug_fill_properties(&app, properties));
+        assert_eq!(description.len(), 2);
+        assert_eq!(
+            ignoring_hash_codes(&description.join("\n")),
+            "dispatcher: ActionDispatcher#00000\nactions: {}"
+        );
     }
 }

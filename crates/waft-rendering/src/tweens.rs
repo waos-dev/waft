@@ -149,6 +149,21 @@ impl AlignmentGeometryTween {
     }
 }
 
+/// Dart's `Tween.toString`, which an implicit animation's state dump prints.
+impl std::fmt::Display for AlignmentGeometryTween {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let begin = self
+            .begin
+            .as_ref()
+            .map_or_else(|| "null".to_string(), |value| value.to_string());
+        let end = self
+            .end
+            .as_ref()
+            .map_or_else(|| "null".to_string(), |value| value.to_string());
+        write!(f, "AlignmentGeometryTween(begin: {begin}, end: {end})")
+    }
+}
+
 impl Animatable<Option<AlignmentGeometry>> for AlignmentGeometryTween {
     fn transform(&self, _app: &App, t: f64) -> Option<AlignmentGeometry> {
         if t == 0.0 {

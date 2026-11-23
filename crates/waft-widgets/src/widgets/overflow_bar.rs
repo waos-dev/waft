@@ -194,6 +194,28 @@ impl RenderObjectWidget for OverflowBar {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("spacing", self.spacing).default_value(Some(0.0)));
+        properties.add(
+            EnumProperty::<MainAxisAlignment>::new("alignment", self.alignment).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("overflowSpacing", self.overflow_spacing).default_value(Some(0.0)),
+        );
+        properties.add(
+            EnumProperty::new("overflowAlignment", self.overflow_alignment)
+                .default_value(Some(OverflowBarAlignment::Start)),
+        );
+        properties.add(
+            EnumProperty::new("overflowDirection", self.overflow_direction)
+                .default_value(Some(VerticalDirection::Down)),
+        );
+        properties.add(
+            EnumProperty::<TextDirection>::new("textDirection", self.text_direction)
+                .default_value(None),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let text_direction = self
             .text_direction

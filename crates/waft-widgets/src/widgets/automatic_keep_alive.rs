@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use std::fmt::{self, Debug};
 
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, Listenable, ListenableObject, Listener,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsProperty,
+    FlagProperty, Handle, Listenable, ListenableObject, Listener,
 };
 use waft_scheduler::{FrameCallback, SchedulerBinding, SchedulerPhase};
 
@@ -304,6 +305,31 @@ impl AutomaticKeepAliveState {
 impl State for AutomaticKeepAliveState {
     type Widget = AutomaticKeepAlive;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(
+            FlagProperty::new("_keepingAlive", Some(state.keeping_alive))
+                .if_true("keeping subtree alive"),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "handles",
+                state.handles.as_ref().map(|handles| {
+                    format!(
+                        "{} active client{}",
+                        handles.len(),
+                        if handles.len() == 1 { "" } else { "s" }
+                    )
+                }),
+            )
+            .if_null("no notifications ever received"),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         self.update_child(app);

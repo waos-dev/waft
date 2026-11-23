@@ -5,7 +5,8 @@ use std::fmt::{self, Debug};
 
 use waft_embedder::valo::FillRule;
 use waft_embedder::{Canvas, Color, Offset, Paint, PaintStyle, PathBuilder, Size, Stroke};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DoubleProperty};
+use waft_painting::ColorProperty;
 use waft_rendering::CustomPainter;
 
 use crate::framework::{BuildContext, IntoWidget, KeyRef, StatelessWidget, WidgetRef};
@@ -140,6 +141,21 @@ impl Default for Placeholder {
 impl StatelessWidget for Placeholder {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            ColorProperty::new("color", self.color)
+                .default_value(Some(waft_embedder::Color::new(0xFF455A64))),
+        );
+        properties
+            .add(DoubleProperty::new("strokeWidth", self.stroke_width).default_value(Some(2.0)));
+        properties.add(
+            DoubleProperty::new("fallbackWidth", self.fallback_width).default_value(Some(400.0)),
+        );
+        properties.add(
+            DoubleProperty::new("fallbackHeight", self.fallback_height).default_value(Some(400.0)),
+        );
     }
 
     fn build(&self, _app: &mut App, _context: BuildContext) -> WidgetRef {

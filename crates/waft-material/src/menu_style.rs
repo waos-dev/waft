@@ -6,6 +6,7 @@
 use std::fmt::{self, Debug};
 
 use waft_embedder::{Color, Size, lerp_double};
+use waft_foundation::{DiagnosticPropertiesBuilder, Diagnosticable, DiagnosticsProperty};
 use waft_painting::{AlignmentGeometry, BorderSide, EdgeInsetsGeometry, OutlinedBorderRef};
 use waft_services::MouseCursorRef;
 use waft_widgets::{WidgetStateBorderSide, WidgetStateProperty, WidgetStatePropertyRef};
@@ -405,6 +406,69 @@ impl Debug for MenuStyle {
     }
 }
 
+impl Diagnosticable for MenuStyle {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        macro_rules! property {
+            ($(($field:ident, $name:literal)),* $(,)?) => {
+                $(
+                    properties.add(
+                        DiagnosticsProperty::<String>::new(
+                            $name,
+                            self.$field.as_ref().map(|property| property.to_string()),
+                        )
+                        .default_value(None),
+                    );
+                )*
+            };
+        }
+        property!(
+            (background_color, "backgroundColor"),
+            (shadow_color, "shadowColor"),
+            (surface_tint_color, "surfaceTintColor"),
+            (elevation, "elevation"),
+            (padding, "padding"),
+            (minimum_size, "minimumSize"),
+            (fixed_size, "fixedSize"),
+            (maximum_size, "maximumSize"),
+            (side, "side"),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "shape",
+                self.shape.as_ref().map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_ref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<crate::theme_data::VisualDensity>::new(
+                "visualDensity",
+                self.visual_density,
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", self.alignment)
+                .default_value(None),
+        );
+    }
+}
+
+/// Dart's `MenuStyle.toString`, through its diagnostics.
+impl fmt::Display for MenuStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
@@ -670,5 +734,24 @@ mod tests {
                 Rect::from_ltrb(352.0, 48.0, 585.0, 190.0)
             );
         });
+    }
+    /// `menu_anchor_test.dart`, "MenuBar's MenuStyle is used": a `MenuStyle` prints its
+    /// diagnostics with the hash ignored; the color is the `Color` the port stores, not
+    /// Dart's `MaterialColor` swatch wrapper.
+    #[test]
+    fn a_menu_style_describes_its_properties() {
+        use waft_embedder::Color;
+        use waft_rendering::testing::ignoring_hash_codes;
+
+        let red = Color::new(0xfff44336);
+        let style = MenuStyle::new()
+            .background_color(all(red))
+            .elevation(all(10.0));
+        assert_eq!(
+            ignoring_hash_codes(&format!("{style}")),
+            format!(
+                "MenuStyle#00000(backgroundColor: WidgetStatePropertyAll({red}), elevation: WidgetStatePropertyAll(10.0))"
+            )
+        );
     }
 }

@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `card_theme.dart`.
 
 use waft_embedder::{Clip, Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{EdgeInsetsGeometry, ShapeBorderRef};
+use waft_foundation::{App, DiagnosticsProperty};
+use waft_painting::{ColorProperty, EdgeInsetsGeometry, ShapeBorderRef};
 use waft_widgets::{BuildContext, InheritedWidget, IntoWidget, KeyRef, SizedBox, WidgetRef};
 
 use crate::theme::Theme;
@@ -332,6 +332,16 @@ impl InheritedWidget for CardTheme {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(
+        &self,
+        _app: &App,
+        properties: &mut waft_foundation::DiagnosticPropertiesBuilder,
+    ) {
+        // Dart repeats `CardThemeData.debugFillProperties` with `CardTheme`'s getters, which
+        // answer this theme's `data()`.
+        waft_foundation::Diagnosticable::debug_fill_properties(&self.data(), properties);
+    }
+
     fn child(&self) -> &WidgetRef {
         &self.child
     }
@@ -493,6 +503,39 @@ impl CardThemeData {
                 t,
             ),
         }
+    }
+}
+
+impl waft_foundation::Diagnosticable for CardThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<Clip>>::new(
+                "clipBehavior",
+                self.clip_behavior.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties
+            .add(DiagnosticsProperty::<f64>::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("margin", self.margin)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for CardThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 

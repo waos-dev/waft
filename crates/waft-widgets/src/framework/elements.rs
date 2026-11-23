@@ -10,7 +10,7 @@ use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use waft_foundation::{App, Handle, HandleId};
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, HandleId};
 use waft_rendering::{AnyRenderObject, RenderHandle};
 
 use super::element::{
@@ -320,6 +320,21 @@ impl ComponentElement for StatefulElement {
 impl Element for StatefulElement {
     crate::element_accessors!();
     component_element_overrides!();
+
+    /// Dart's `StatefulElement.debugFillProperties`: the state, with its own properties.
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "state",
+                app.get(self).state.map(|state| state.to_string(app)),
+            )
+            .default_value(None),
+        );
+    }
 
     #[inline(always)]
     fn mount(

@@ -863,6 +863,29 @@ impl RenderObjectWidget for TapRegion {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("enabled", Some(self.enabled))
+                .if_false("DISABLED")
+                .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::new("behavior", self.behavior)
+                .default_value(Some(HitTestBehavior::DeferToChild)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new("debugLabel", self.debug_label.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "groupId",
+                self.group_id.map(|group_id| group_id.to_string()),
+            )
+            .default_value(None),
+        );
+    }
+
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
         let is_current = AnyModalRoute::is_current_of(app, context).unwrap_or(true);
         let render_object = RenderTapRegion::new(

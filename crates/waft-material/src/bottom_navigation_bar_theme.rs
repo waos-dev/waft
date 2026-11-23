@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `bottom_navigation_bar_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::TextStyle;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{ColorProperty, TextStyle};
 use waft_services::MouseCursorRef;
 use waft_widgets::{
     BuildContext, IconThemeData, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
@@ -415,9 +415,95 @@ impl InheritedWidget for BottomNavigationBarTheme {
     }
 }
 
+impl waft_foundation::Diagnosticable for BottomNavigationBarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties
+            .add(ColorProperty::new("backgroundColor", self.background_color).default_value(None));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
+                "selectedIconTheme",
+                self.selected_icon_theme.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_widgets::IconThemeData>::new(
+                "unselectedIconTheme",
+                self.unselected_icon_theme.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("selectedItemColor", self.selected_item_color).default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("unselectedItemColor", self.unselected_item_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "selectedLabelStyle",
+                self.selected_label_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "unselectedLabelStyle",
+                self.unselected_label_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("showSelectedLabels", self.show_selected_labels)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("showUnselectedLabels", self.show_unselected_labels)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<BottomNavigationBarType>>::new(
+                "type",
+                self.r#type.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableFeedback", self.enable_feedback)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<BottomNavigationBarLandscapeLayout>>::new(
+                "landscapeLayout",
+                self.landscape_layout.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for BottomNavigationBarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! The cases of `test/bottom_navigation_bar_theme_test.dart`.
+
+    use std::rc::Rc;
 
     use waft_embedder::{Color, Offset};
     use waft_services::SystemMouseCursors;
@@ -425,6 +511,7 @@ mod tests {
         FadeTransition, Opacity, SizedBox, Visibility, WidgetState, WidgetStateMouseCursor,
         WidgetStateProperty,
     };
+    use waft_widgets::{IconThemeData, WidgetStatePropertyAll};
 
     use waft_widgets::testing::{TestPointer, WidgetTester, find, test_widgets};
 
@@ -814,6 +901,64 @@ mod tests {
         assert_eq!(
             halfway.selected_icon_theme,
             Some(IconThemeData::lerp(None, None, 0.5))
+        );
+    }
+    // Flutter's "Default BottomNavigationBarThemeData debugFillProperties".
+    #[test]
+    fn a_bottom_navigation_bar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &BottomNavigationBarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // bottom_navigation_bar_theme_test.dart 'BottomNavigationBarThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_bottom_navigation_bar_theme_describes_every_property() {
+        let mouse_cursor: WidgetStatePropertyRef<Option<MouseCursorRef>> = Rc::new(
+            WidgetStatePropertyAll::new(Some(SystemMouseCursors::CLICK.into())),
+        );
+        let theme = BottomNavigationBarThemeData::new()
+            .background_color(Color::new(0xfffffff0))
+            .elevation(10.0)
+            .selected_icon_theme(IconThemeData::new().size(1.0))
+            .unselected_icon_theme(IconThemeData::new().size(2.0))
+            .selected_item_color(Color::new(0xfffffff1))
+            .unselected_item_color(Color::new(0xfffffff2))
+            .selected_label_style(TextStyle::new().font_size(3.0))
+            .unselected_label_style(TextStyle::new().font_size(4.0))
+            .show_selected_labels(true)
+            .show_unselected_labels(true)
+            .r#type(BottomNavigationBarType::Fixed)
+            .mouse_cursor(mouse_cursor);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        let description: Vec<String> = description
+            .iter()
+            .map(|line| waft_rendering::testing::ignoring_hash_codes(line))
+            .collect();
+        assert_eq!(
+            description,
+            [
+                format!("backgroundColor: {}", Color::new(0xfffffff0)),
+                "elevation: 10.0".to_string(),
+                "selectedIconTheme: IconThemeData#00000(size: 1.0)".to_string(),
+                "unselectedIconTheme: IconThemeData#00000(size: 2.0)".to_string(),
+                format!("selectedItemColor: {}", Color::new(0xfffffff1)),
+                format!("unselectedItemColor: {}", Color::new(0xfffffff2)),
+                "selectedLabelStyle: TextStyle(inherit: true, size: 3.0)".to_string(),
+                "unselectedLabelStyle: TextStyle(inherit: true, size: 4.0)".to_string(),
+                "showSelectedLabels: true".to_string(),
+                "showUnselectedLabels: true".to_string(),
+                "type: BottomNavigationBarType.fixed".to_string(),
+                "mouseCursor: WidgetStatePropertyAll(SystemMouseCursor(click))".to_string(),
+            ]
         );
     }
 }

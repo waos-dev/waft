@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `toggle_buttons_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{AnyColor, BorderRadius, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
+use waft_painting::{AnyColor, BorderRadius, ColorProperty, TextStyle};
 use waft_rendering::BoxConstraints;
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
@@ -349,6 +349,52 @@ impl InheritedWidget for ToggleButtonsTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for ToggleButtonsThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        if let Some(text_style) = &self.text_style {
+            text_style.debug_fill_properties_with_prefix(properties, "textStyle.");
+        }
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties
+            .add(ColorProperty::new("selectedColor", self.selected_color).default_value(None));
+        properties
+            .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<AnyColor>::new("fillColor", self.fill_color.clone())
+                .default_value(None),
+        );
+        properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
+        properties
+            .add(ColorProperty::new("highlightColor", self.highlight_color).default_value(None));
+        properties.add(ColorProperty::new("hoverColor", self.hover_color).default_value(None));
+        properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
+        properties.add(ColorProperty::new("borderColor", self.border_color).default_value(None));
+        properties.add(
+            ColorProperty::new("selectedBorderColor", self.selected_border_color)
+                .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("disabledBorderColor", self.disabled_border_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderRadius>::new("borderRadius", self.border_radius)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("borderWidth", self.border_width).default_value(None));
+    }
+}
+
+impl std::fmt::Display for ToggleButtonsThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -710,5 +756,63 @@ mod tests {
                 &[(disabled_border_color, CUSTOM_WIDTH)]
             ));
         });
+    }
+    // Flutter's "Default ToggleButtonsThemeData debugFillProperties".
+    #[test]
+    fn a_toggle_buttons_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ToggleButtonsThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
+    }
+
+    // toggle_buttons_theme_test.dart 'ToggleButtonsThemeData implements debugFillProperties'.
+    #[test]
+    fn an_assigned_toggle_buttons_theme_describes_every_property() {
+        let theme = ToggleButtonsThemeData::new()
+            .text_style(TextStyle::new().font_size(10.0))
+            .constraints(BoxConstraints::new().min_height(10.0).max_height(20.0))
+            .color(Color::new(0xfffffff0))
+            .selected_color(Color::new(0xfffffff1))
+            .disabled_color(Color::new(0xfffffff2))
+            .fill_color(Color::new(0xfffffff3))
+            .focus_color(Color::new(0xfffffff4))
+            .highlight_color(Color::new(0xfffffff5))
+            .hover_color(Color::new(0xfffffff6))
+            .splash_color(Color::new(0xfffffff7))
+            .border_color(Color::new(0xfffffff8))
+            .selected_border_color(Color::new(0xfffffff9))
+            .disabled_border_color(Color::new(0xfffffffa))
+            .border_radius(BorderRadius::circular(4.0))
+            .border_width(2.0);
+        let description = waft_widgets::testing::describe_properties(|properties| {
+            waft_foundation::Diagnosticable::debug_fill_properties(&theme, properties)
+        });
+        assert_eq!(
+            description,
+            [
+                "textStyle.inherit: true".to_string(),
+                "textStyle.size: 10.0".to_string(),
+                "constraints: BoxConstraints(0.0<=w<=Infinity, 10.0<=h<=20.0)".to_string(),
+                format!("color: {}", Color::new(0xfffffff0)),
+                format!("selectedColor: {}", Color::new(0xfffffff1)),
+                format!("disabledColor: {}", Color::new(0xfffffff2)),
+                format!("fillColor: {}", Color::new(0xfffffff3)),
+                format!("focusColor: {}", Color::new(0xfffffff4)),
+                format!("highlightColor: {}", Color::new(0xfffffff5)),
+                format!("hoverColor: {}", Color::new(0xfffffff6)),
+                format!("splashColor: {}", Color::new(0xfffffff7)),
+                format!("borderColor: {}", Color::new(0xfffffff8)),
+                format!("selectedBorderColor: {}", Color::new(0xfffffff9)),
+                format!("disabledBorderColor: {}", Color::new(0xfffffffa)),
+                "borderRadius: BorderRadius.circular(4.0)".to_string(),
+                "borderWidth: 2.0".to_string(),
+            ]
+        );
     }
 }

@@ -75,6 +75,13 @@ pub struct WidgetsBinding {
 /// What hears a tray icon's events (`WidgetsBinding::add_tray_icon_listener`).
 pub type TrayIconListener = Rc<dyn Fn(&mut App, TrayIconEvent)>;
 
+impl std::fmt::Display for WidgetsBinding {
+    /// Dart's `BindingBase.toString`: `<WidgetsBinding>`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<WidgetsBinding>")
+    }
+}
+
 /// Interface for classes that register with the Widgets layer binding.
 ///
 /// This can be used by any class, not just widgets. It provides an interface which is used
@@ -1367,6 +1374,22 @@ fn run_widget_internal(app: &mut App, binding: Handle<WidgetsBinding>, widget: W
     SchedulerBinding::schedule_warm_up_frame(app);
 }
 
+/// Dart's `debugDumpApp`, answering its text where Dart prints it: the binding and build mode,
+/// then the element tree from the root as `toStringDeep` shows it, each element on one line
+/// with its widget's properties.
+pub fn debug_dump_app(app: &mut App) -> String {
+    let mode = if cfg!(debug_assertions) {
+        "DEBUG MODE"
+    } else {
+        "RELEASE MODE"
+    };
+    let tree = match WidgetsBinding::instance(app).root_element(app) {
+        Some(root) => root.to_string_deep(app),
+        None => "<no tree currently mounted>\n".to_owned(),
+    };
+    format!("WidgetsBinding - {mode}\n{tree}\n")
+}
+
 /// A wrapper widget that will be used as the root of the widget tree.
 ///
 /// An instance of this widget is created by [`WidgetsBinding::attach_root_widget`].
@@ -1454,6 +1477,12 @@ impl RootWidget {
 impl Widget for RootWidget {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn to_string_short(&self) -> String {
+        self.debug_short_description
+            .clone()
+            .unwrap_or_else(|| crate::describe_widget(self.type_name(), self.key()))
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {

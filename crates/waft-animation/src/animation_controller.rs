@@ -9,7 +9,9 @@ use waft_foundation::{App, Handle, ListenableObject, Listener, OptionRetained, R
 use waft_physics::{Simulation, SpringDescription, SpringSimulation, SpringType, Tolerance};
 use waft_scheduler::{FrameCallback, Ticker, TickerFuture, TickerProvider};
 
-use crate::animation::{Animation, AnimationStatus, AnimationStatusListener, AnyAnimation};
+use crate::animation::{
+    Animation, AnimationStatus, AnimationStatusListener, AnyAnimation, animation_status_symbol,
+};
 use crate::curves::{Curve, Curves};
 use crate::listener_helpers::{
     AnimationEagerListenerMixin, AnimationLocalListenersData, AnimationLocalListenersMixin,
@@ -126,6 +128,11 @@ pub struct AnimationController {
 }
 
 impl AnimationController {
+    /// Dart's `AnimationController.toString`, which it inherits from `Animation`.
+    pub fn to_string(self: Handle<Self>, app: &App) -> String {
+        Animation::<f64>::to_string(self, app)
+    }
+
     /// Creates an animation controller.
     ///
     /// `value` is the initial value of the animation; `None` means
@@ -504,6 +511,24 @@ impl Animation<f64> for AnimationController {
 
     fn value(self: Handle<Self>, app: &App) -> f64 {
         app.get(self).value
+    }
+
+    fn to_string_details(self: Handle<Self>, app: &App) -> String {
+        let paused = if Animation::<f64>::is_animating(self, app) {
+            ""
+        } else {
+            "; paused"
+        };
+        let ticker = match app.get(self).ticker.handle() {
+            None => "; DISPOSED",
+            Some(ticker) if ticker.muted(app) => "; silenced",
+            Some(_) => "",
+        };
+        format!(
+            "{} {:.3}{paused}{ticker}",
+            animation_status_symbol(Animation::<f64>::status(self, app)),
+            self.value(app)
+        )
     }
 
     // Dart overrides `isAnimating` away from the status-derived default

@@ -1,7 +1,7 @@
 //! Flutter counterpart: material_ui's `scrollbar_theme.dart`.
 
 use waft_embedder::{Color, Radius, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty};
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
     WidgetStateProperty, WidgetStatePropertyRef,
@@ -378,6 +378,85 @@ impl InheritedWidget for ScrollbarTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for ScrollbarThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "thumbVisibility",
+                self.thumb_visibility
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "thickness",
+                self.thickness
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "trackVisibility",
+                self.track_visibility
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("interactive", self.interactive).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_embedder::Radius>::new("radius", self.radius)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "thumbColor",
+                self.thumb_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "trackColor",
+                self.track_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "trackBorderColor",
+                self.track_border_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("crossAxisMargin", self.cross_axis_margin).default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("mainAxisMargin", self.main_axis_margin).default_value(None));
+        properties
+            .add(DoubleProperty::new("minThumbLength", self.min_thumb_length).default_value(None));
+    }
+}
+
+impl std::fmt::Display for ScrollbarThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -972,5 +1051,18 @@ mod tests {
             return Some(YELLOW);
         }
         None
+    }
+    // Flutter's "Default ScrollbarThemeData debugFillProperties".
+    #[test]
+    fn a_scrollbar_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ScrollbarThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

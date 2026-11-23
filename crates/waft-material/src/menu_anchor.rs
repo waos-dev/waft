@@ -23,7 +23,8 @@ use waft_embedder::{
     Clip, Color, Offset, Rect, Size, TargetPlatform, TextDecoration, TextDirection, lerp_double,
 };
 use waft_foundation::{
-    App, Handle, HandleId, Listener, OptionRetained, Ref, Timer, ValueChanged, VoidCallback,
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, EnumProperty, FlagProperty, Handle,
+    HandleId, Listener, OptionRetained, Ref, StringProperty, Timer, ValueChanged, VoidCallback,
 };
 use waft_gestures::{PointerDownEvent, PointerExitEvent, PointerHoverEvent};
 use waft_painting::{
@@ -689,6 +690,33 @@ impl StatefulWidget for MenuAnchor {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `debugDescribeChildren` has no widget-level hook in this port; the element
+        // tree dump shows the built children instead of `menuChildren`.
+        properties.add(
+            FlagProperty::new("anchorTapClosesMenu", Some(self.anchor_tap_closes_menu))
+                .if_true("AUTO-CLOSE"),
+        );
+        properties.add(DiagnosticsProperty::<String>::new(
+            "focusNode",
+            self.child_focus_node
+                .as_ref()
+                .map(|node| node.to_string(app)),
+        ));
+        properties.add(DiagnosticsProperty::<MenuStyle>::new(
+            "style",
+            self.style.clone(),
+        ));
+        properties.add(EnumProperty::<Clip>::new(
+            "clipBehavior",
+            Some(self.clip_behavior),
+        ));
+        properties.add(DiagnosticsProperty::<Offset>::new(
+            "alignmentOffset",
+            self.alignment_offset,
+        ));
     }
 
     fn create_state(&self) -> MenuAnchorState {
@@ -1556,6 +1584,17 @@ impl StatelessWidget for MenuBar {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, __app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `debugDescribeChildren` has no widget-level hook in this port.
+        properties.add(
+            DiagnosticsProperty::<MenuStyle>::new("style", self.style.clone()).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<Clip>::new("clipBehavior", Some(self.clip_behavior))
+                .default_value(None),
+        );
+    }
+
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
         debug_assert!(debug_check_has_overlay(app, context));
         let mut menu_anchor =
@@ -1933,6 +1972,41 @@ impl StatefulWidget for MenuItemButton {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("enabled", Some(self.on_pressed.is_some())).if_false("DISABLED"),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "shortcut",
+                self.shortcut
+                    .as_ref()
+                    .map(|shortcut| format!("{shortcut:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "focusNode",
+                self.focus_node.as_ref().map(|node| node.to_string(app)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<Clip>::new("clipBehavior", Some(self.clip_behavior))
+                .default_value(Some(Clip::None)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "statesController",
+                self.states_controller
+                    .as_ref()
+                    .map(|controller| controller.handle().to_string(app)),
+            )
+            .default_value(None),
+        );
     }
 
     fn create_state(&self) -> MenuItemButtonState {
@@ -3267,6 +3341,26 @@ impl StatefulWidget for SubmenuButton {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        // Dart's `debugDescribeChildren` has no widget-level hook in this port.
+        properties.add(DiagnosticsProperty::<String>::new(
+            "focusNode",
+            self.focus_node.as_ref().map(|node| node.to_string(app)),
+        ));
+        properties.add(
+            DiagnosticsProperty::<MenuStyle>::new("menuStyle", self.menu_style.clone())
+                .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<Offset>::new(
+            "alignmentOffset",
+            self.alignment_offset,
+        ));
+        properties.add(EnumProperty::<Clip>::new(
+            "clipBehavior",
+            Some(self.clip_behavior),
+        ));
     }
 
     fn create_state(&self) -> SubmenuButtonState {
@@ -4836,6 +4930,10 @@ impl StatefulWidget for MenuAcceleratorLabel {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, __app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(StringProperty::new("label", Some(self.label.clone())));
+    }
+
     fn create_state(&self) -> MenuAcceleratorLabelState {
         MenuAcceleratorLabelState {
             state: StateData::new(),
@@ -5098,6 +5196,26 @@ impl Debug for MenuItemLabel {
 }
 
 impl StatelessWidget for MenuItemLabel {
+    fn debug_fill_properties(&self, __app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "shortcut",
+                self.shortcut
+                    .as_ref()
+                    .map(|shortcut| format!("{shortcut:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "hasSubmenu",
+            self.has_submenu,
+        ));
+        properties.add(DiagnosticsProperty::<bool>::new(
+            "showDecoration",
+            self.show_decoration,
+        ));
+    }
+
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
         let density = Theme::of(app, context).visual_density;
         let horizontal_padding =
@@ -13215,5 +13333,73 @@ mod tests {
                 assert!(!shows(tester, "Dialog Title"));
             });
         }
+    }
+    /// `menu_anchor_test.dart`, "MenuBar's MenuStyle is used": the menu bar describes its
+    /// style and clip behavior.
+    #[test]
+    fn a_menu_bar_describes_its_style() {
+        use std::rc::Rc;
+
+        use waft_embedder::Color;
+        use waft_foundation::DiagnosticPropertiesBuilder;
+        use waft_rendering::testing::ignoring_hash_codes;
+        use waft_widgets::WidgetStatePropertyAll;
+
+        let red = Color::new(0xfff44336);
+        let menu_bar = MenuBar::new(Vec::new()).style(
+            MenuStyle::new()
+                .background_color(Rc::new(WidgetStatePropertyAll::new(Some(red))))
+                .elevation(Rc::new(WidgetStatePropertyAll::new(Some(10.0)))),
+        );
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                menu_bar.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(
+            ignoring_hash_codes(&description.join("\n")),
+            format!(
+                "style: MenuStyle#00000(backgroundColor: WidgetStatePropertyAll({red}), elevation: WidgetStatePropertyAll(10.0))\nclipBehavior: Clip.none"
+            )
+        );
+    }
+
+    /// `menu_anchor_test.dart`, "SubmenuButton's MenuStyle is used": the submenu button
+    /// describes its focus node, menu style, offset and clip behavior.
+    #[test]
+    fn a_submenu_button_describes_its_menu_style() {
+        use std::rc::Rc;
+
+        use waft_embedder::Color;
+        use waft_foundation::DiagnosticPropertiesBuilder;
+        use waft_painting::{BorderRadiusGeometry, BorderSide, RoundedRectangleBorder};
+        use waft_rendering::testing::ignoring_hash_codes;
+        use waft_widgets::WidgetStatePropertyAll;
+
+        let green = Color::new(0xff4caf50);
+        let submenu = SubmenuButton::new(Vec::new(), Some(Text::new("Menu 0"))).menu_style(
+            MenuStyle::new()
+                .background_color(Rc::new(WidgetStatePropertyAll::new(Some(green))))
+                .elevation(Rc::new(WidgetStatePropertyAll::new(Some(20.0))))
+                .shape(Rc::new(WidgetStatePropertyAll::new(Some(
+                    RoundedRectangleBorder::new(BorderSide::NONE, BorderRadiusGeometry::ZERO)
+                        .into(),
+                )))),
+        );
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                submenu.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(
+            ignoring_hash_codes(&description.join("\n")),
+            format!(
+                "focusNode: null\nmenuStyle: MenuStyle#00000(backgroundColor: WidgetStatePropertyAll({green}), elevation: WidgetStatePropertyAll(20.0), shape: WidgetStatePropertyAll(RoundedRectangleBorder(BorderSide(width: 0.0, style: none), BorderRadius.zero)))\nalignmentOffset: null\nclipBehavior: hardEdge"
+            )
+        );
     }
 }

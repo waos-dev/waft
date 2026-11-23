@@ -18,8 +18,8 @@ use waft_embedder::{
 };
 use waft_foundation::{
     App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticsNode, Handle,
-    K_IS_WEB, Listenable, ListenableObject, Listener, MergingListenable, OptionRetained, Ref, Task,
-    ValueChanged,
+    K_IS_WEB, Listenable, ListenableObject, Listener, MergingListenable, OptionRetained, Ref,
+    StringProperty, Task, ValueChanged,
 };
 use waft_gestures::DragStartBehavior;
 use waft_painting::{
@@ -261,6 +261,10 @@ impl Tab {
 impl StatelessWidget for Tab {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(StringProperty::new("text", self.text.clone()).default_value(None));
     }
 
     fn debug_check_constructor(&self) {

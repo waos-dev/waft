@@ -1,11 +1,25 @@
 //! Flutter counterpart: `widgets/safe_area.dart`.
 
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, FlagProperty};
 use waft_painting::{EdgeInsets, EdgeInsetsGeometry};
 
 use crate::framework::{BuildContext, IntoWidget, KeyRef, StatelessWidget, WidgetRef};
 use crate::widgets::basic::{Padding, SliverPadding};
 use crate::widgets::media_query::MediaQuery;
+
+/// Dart's `SafeArea.debugFillProperties`, which a sliver safe area prints too.
+fn safe_area_flags(
+    left: bool,
+    top: bool,
+    right: bool,
+    bottom: bool,
+    properties: &mut DiagnosticPropertiesBuilder,
+) {
+    properties.add(FlagProperty::new("left", Some(left)).if_true("avoid left padding"));
+    properties.add(FlagProperty::new("top", Some(top)).if_true("avoid top padding"));
+    properties.add(FlagProperty::new("right", Some(right)).if_true("avoid right padding"));
+    properties.add(FlagProperty::new("bottom", Some(bottom)).if_true("avoid bottom padding"));
+}
 
 /// A widget that insets its child by sufficient padding to avoid intrusions by the operating
 /// system.
@@ -115,6 +129,10 @@ impl SafeArea {
 impl StatelessWidget for SafeArea {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        safe_area_flags(self.left, self.top, self.right, self.bottom, properties);
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
@@ -242,6 +260,10 @@ impl SliverSafeArea {
 impl StatelessWidget for SliverSafeArea {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        safe_area_flags(self.left, self.top, self.right, self.bottom, properties);
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {

@@ -21,7 +21,10 @@ use waft_animation::{
 use waft_embedder::{
     Color, Offset, Rect, Size, TargetPlatform, TextDirection, clamp_double, lerp_double,
 };
-use waft_foundation::{App, Handle, Listener, OptionRetained, Ref, Timer, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DoubleProperty, Handle, IntProperty, Listener,
+    ObjectFlagProperty, OptionRetained, Ref, StringProperty, Timer, ValueChanged,
+};
 use waft_gestures::{
     DeviceGestureSettings, DragEndDetails, DragGestureRecognizer, DragStartDetails,
     DragUpdateDetails, GestureArenaTeam, HorizontalDragGestureRecognizer, PointerEnterEvent,
@@ -29,8 +32,8 @@ use waft_gestures::{
     TapUpDetails,
 };
 use waft_painting::{
-    EdgeInsetsGeometry, K_DEFAULT_FONT_SIZE, PaintingBinding, TextPainter, TextScaler, TextSpan,
-    TextStyle,
+    ColorProperty, EdgeInsetsGeometry, K_DEFAULT_FONT_SIZE, PaintingBinding, TextPainter,
+    TextScaler, TextSpan, TextStyle,
 };
 use waft_rendering::{
     AnyRenderObject, BoxConstraints, BoxHitTestEntry, LayerLink, PaintingContext, PipelineOwner,
@@ -503,6 +506,45 @@ impl StatefulWidget for RangeSlider {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("valueStart", self.values.start));
+        properties.add(DoubleProperty::new("valueEnd", self.values.end));
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onChanged",
+                self.on_changed.as_ref().map(|_| String::new()),
+            )
+            .if_null("disabled"),
+        );
+        properties.add(ObjectFlagProperty::<String>::has(
+            "onChangeStart",
+            self.on_change_start.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "onChangeEnd",
+            self.on_change_end.as_ref().map(|_| String::new()),
+        ));
+        properties.add(DoubleProperty::new("min", self.min));
+        properties.add(DoubleProperty::new("max", self.max));
+        properties.add(IntProperty::<i32>::new("divisions", self.divisions));
+        properties.add(StringProperty::new(
+            "labelStart",
+            self.labels.as_ref().map(|labels| labels.start.clone()),
+        ));
+        properties.add(StringProperty::new(
+            "labelEnd",
+            self.labels.as_ref().map(|labels| labels.end.clone()),
+        ));
+        properties.add(ColorProperty::new("activeColor", self.active_color));
+        properties.add(ColorProperty::new("inactiveColor", self.inactive_color));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "semanticFormatterCallback",
+            self.semantic_formatter_callback
+                .as_ref()
+                .map(|_| String::new()),
+        ));
     }
 
     fn debug_check_constructor(&self) {
@@ -7937,5 +7979,43 @@ mod tests {
             expected.push(active(222.0, 578.0));
             assert!(range_paints(tester, &expected));
         });
+    }
+    /// `range_slider_test.dart`, "RangeSlider implements debugFillProperties". The colors
+    /// print as the `Color` the port stores, not as Dart's `MaterialColor` swatch wrapper.
+    #[test]
+    fn a_range_slider_describes_its_properties() {
+        use waft_embedder::Color;
+        use waft_foundation::DiagnosticPropertiesBuilder;
+
+        let active = Color::new(0xff2196f3);
+        let inactive = Color::new(0xff9e9e9e);
+        let slider = RangeSlider::new(RangeValues::new(25.0, 75.0), None)
+            .labels(RangeLabels::new("lowerValue", "upperValue"))
+            .max(100.0)
+            .divisions(4)
+            .active_color(active)
+            .inactive_color(inactive);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                slider.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(
+            description,
+            [
+                "valueStart: 25.0".to_string(),
+                "valueEnd: 75.0".to_string(),
+                "disabled".to_string(),
+                "min: 0.0".to_string(),
+                "max: 100.0".to_string(),
+                "divisions: 4".to_string(),
+                "labelStart: \"lowerValue\"".to_string(),
+                "labelEnd: \"upperValue\"".to_string(),
+                format!("activeColor: {active}"),
+                format!("inactiveColor: {inactive}"),
+            ]
+        );
     }
 }

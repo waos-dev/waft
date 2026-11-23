@@ -928,3 +928,131 @@ fn a_kept_build_context_reads_unmounted_once_its_element_is_freed() {
     assert!(!context.mounted(&app));
     assert_eq!(context.lifecycle(&app), ElementLifecycle::Defunct);
 }
+
+/// `framework_test.dart`, "Element diagnostics".
+#[test]
+fn an_element_dump_shows_each_widget_with_its_properties_and_render_object() {
+    use waft_foundation::DiagnosticLevel;
+    use waft_rendering::testing::ignoring_hash_codes;
+
+    use crate::testing::WidgetTester;
+    use crate::{ColoredBox, Column, Container};
+
+    let green = waft_embedder::Color::new(0xFF00FF00);
+    let column_key = GlobalKey::new();
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(Column::new().key(column_key.clone().into()).children([
+        Container::new().into_widget(),
+        Container::new().key(GlobalKey::new().into()).into_widget(),
+        ColoredBox::new(green).child(Container::new()).into_widget(),
+        Container::new().key(GlobalKey::new().into()).into_widget(),
+        Container::new().into_widget(),
+    ]));
+    let dump = tester.update(|app| {
+        let column = column_key
+            .current_context(app)
+            .expect("the column is mounted");
+        column.to_string_deep_with(app, DiagnosticLevel::Debug, 200)
+    });
+    assert_eq!(
+        ignoring_hash_codes(&dump),
+        format!(
+            "Column-[GlobalKey#00000](direction: vertical, mainAxisAlignment: start, crossAxisAlignment: center, renderObject: RenderFlex#00000)\n\
+             ├Container\n\
+             │└LimitedBox(maxWidth: 0.0, maxHeight: 0.0, renderObject: RenderLimitedBox#00000 relayoutBoundary=up1)\n\
+             │ └ConstrainedBox(BoxConstraints(biggest), renderObject: RenderConstrainedBox#00000 relayoutBoundary=up2)\n\
+             ├Container-[GlobalKey#00000]\n\
+             │└LimitedBox(maxWidth: 0.0, maxHeight: 0.0, renderObject: RenderLimitedBox#00000 relayoutBoundary=up1)\n\
+             │ └ConstrainedBox(BoxConstraints(biggest), renderObject: RenderConstrainedBox#00000 relayoutBoundary=up2)\n\
+             ├ColoredBox(color: {green}, renderObject: RenderColoredBox#00000 relayoutBoundary=up1)\n\
+             │└Container\n\
+             │ └LimitedBox(maxWidth: 0.0, maxHeight: 0.0, renderObject: RenderLimitedBox#00000 relayoutBoundary=up2)\n\
+             │  └ConstrainedBox(BoxConstraints(biggest), renderObject: RenderConstrainedBox#00000 relayoutBoundary=up3)\n\
+             ├Container-[GlobalKey#00000]\n\
+             │└LimitedBox(maxWidth: 0.0, maxHeight: 0.0, renderObject: RenderLimitedBox#00000 relayoutBoundary=up1)\n\
+             │ └ConstrainedBox(BoxConstraints(biggest), renderObject: RenderConstrainedBox#00000 relayoutBoundary=up2)\n\
+             └Container\n\
+             \u{20}└LimitedBox(maxWidth: 0.0, maxHeight: 0.0, renderObject: RenderLimitedBox#00000 relayoutBoundary=up1)\n\
+             \u{20} └ConstrainedBox(BoxConstraints(biggest), renderObject: RenderConstrainedBox#00000 relayoutBoundary=up2)\n"
+        )
+    );
+}
+
+/// `inherited_dependencies_test.dart`, "InheritedWidget dependencies show up in diagnostic
+/// properties".
+#[test]
+fn an_element_dump_names_the_inherited_widgets_it_depends_on() {
+    use waft_foundation::DiagnosticLevel;
+    use waft_painting::TextDirection;
+    use waft_rendering::testing::ignoring_hash_codes;
+
+    use crate::testing::WidgetTester;
+    use crate::{Builder, Directionality, SizedBox};
+
+    let key = GlobalKey::new();
+    let directionality = |direction| {
+        Directionality::new(
+            direction,
+            Builder::new(|app, context| {
+                Directionality::of(app, context);
+                SizedBox::new().into_widget()
+            }),
+        )
+        .key(key.clone().into())
+    };
+    let mut tester = WidgetTester::new();
+    let dump = |tester: &WidgetTester| {
+        tester.update(|app| {
+            let element = key
+                .current_context(app)
+                .expect("the directionality is mounted");
+            ignoring_hash_codes(&element.to_string_deep_with(app, DiagnosticLevel::Info, 65))
+        })
+    };
+    tester.pump_widget(directionality(TextDirection::Ltr));
+    assert_eq!(
+        dump(&tester),
+        "Directionality-[GlobalKey#00000](textDirection: ltr)\n\
+         └Builder(dependencies: [Directionality-[GlobalKey#00000]])\n\
+         \u{20}└SizedBox(renderObject: RenderConstrainedBox#00000)\n"
+    );
+    tester.pump_widget(directionality(TextDirection::Rtl));
+    assert_eq!(
+        dump(&tester),
+        "Directionality-[GlobalKey#00000](textDirection: rtl)\n\
+         └Builder(dependencies: [Directionality-[GlobalKey#00000]])\n\
+         \u{20}└SizedBox(renderObject: RenderConstrainedBox#00000)\n"
+    );
+}
+
+/// Dart's `debugDumpApp`: the binding and mode, then the tree from the root.
+#[test]
+fn the_app_dump_shows_the_whole_tree_from_the_root() {
+    use waft_rendering::testing::ignoring_hash_codes;
+
+    use crate::SizedBox;
+    use crate::testing::WidgetTester;
+
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(SizedBox::new().width(10.0));
+    let dump = tester.update(crate::debug_dump_app);
+    assert_eq!(
+        ignoring_hash_codes(&dump),
+        "WidgetsBinding - DEBUG MODE\n\
+         [root]\n\
+         └View(state: ViewState#00000)\n\
+         \u{20}└RawView\n\
+         \u{20} └RawViewInternal-[<0>](renderObject: RenderView#00000)\n\
+         \u{20}  └ViewScope\n\
+         \u{20}   └PipelineOwnerScope\n\
+         \u{20}    └MediaQueryFromView(state: MediaQueryFromViewState#00000)\n\
+         \u{20}     └MediaQuery(MediaQueryData(size: Size(800.0, 600.0), devicePixelRatio: 3.0, textScaler: no scaling, platformBrightness: Brightness.light, padding: EdgeInsets.zero, viewPadding: EdgeInsets.zero, viewInsets: EdgeInsets.zero, systemGestureInsets: EdgeInsets.zero, alwaysUse24HourFormat: false, accessibleNavigation: false, highContrast: false, onOffSwitchLabels: false, disableAnimations: false, reduceMotion: false, invertColors: false, boldText: false, navigationMode: traditional, gestureSettings: DeviceGestureSettings(touchSlop: null), supportsShowingSystemContextMenu: false, lineHeightScaleFactorOverride: null, letterSpacingOverride: null, wordSpacingOverride: null, paragraphSpacingOverride: null, displayCornerRadii: null))\n\
+         \u{20}      └FocusTraversalGroup(policy: ReadingOrderTraversalPolicy#00000, state: FocusTraversalGroupState#00000)\n\
+         \u{20}       └Focus(debugLabel: \"FocusTraversalGroup\", focusNode: FocusTraversalGroupNode#00000(FocusTraversalGroup)(context: Focus, NOT FOCUSABLE), state: FocusState#00000)\n\
+         \u{20}        └FocusInheritedScope\n\
+         \u{20}         └FocusScope(dependencies: [FocusInheritedScope], state: FocusScopeState#00000)\n\
+         \u{20}          └FocusInheritedScope\n\
+         \u{20}           └SizedBox(width: 10.0, renderObject: RenderConstrainedBox#00000)\n\
+         \n"
+    );
+}

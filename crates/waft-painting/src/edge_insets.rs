@@ -1008,6 +1008,13 @@ impl Debug for EdgeInsets {
     }
 }
 
+/// Dart's `EdgeInsets.toString`, which a dump prints.
+impl fmt::Display for EdgeInsets {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&EdgeInsetsGeometry::from(*self), f)
+    }
+}
+
 /// An immutable set of offsets in each of the four cardinal directions, but
 /// whose horizontal components are dependent on the writing direction.
 ///

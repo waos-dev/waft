@@ -13,7 +13,9 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use waft_embedder::{Offset, PointerDeviceKind};
-use waft_foundation::{App, Handle, Ref};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, EnumProperty, Handle, IterableProperty, Ref,
+};
 use waft_gestures::{
     AnyGestureRecognizer, DeviceGestureSettings, DoubleTapGestureRecognizer, DragGestureRecognizer,
     DragStartBehavior, GestureDoubleTapCallback, GestureDragCancelCallback,
@@ -1837,6 +1839,10 @@ impl StatelessWidget for GestureDetector {
         self.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("startBehavior", self.drag_start_behavior));
+    }
+
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {
         let mut gestures: GestureRecognizerFactories = Vec::new();
         let gesture_settings = MediaQuery::maybe_gesture_settings_of(app, context);
@@ -2146,6 +2152,37 @@ impl RawGestureDetectorState {
 impl State for RawGestureDetectorState {
     type Widget = RawGestureDetector;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        if let Some(recognizers) = app.get(self).recognizers.as_ref() {
+            let gestures: Vec<String> = recognizers
+                .iter()
+                .map(|(_, recognizer)| recognizer.debug_description().to_string())
+                .collect();
+            properties
+                .add(IterableProperty::<String>::new("gestures", gestures).if_empty("<none>"));
+            properties.add(
+                IterableProperty::<String>::new(
+                    "recognizers",
+                    recognizers
+                        .iter()
+                        .map(|(_, recognizer)| format!("{recognizer:?}"))
+                        .collect::<Vec<String>>(),
+                )
+                .with_level(DiagnosticLevel::Fine),
+            );
+        } else {
+            properties.add(waft_foundation::MessageProperty::new("", "DISPOSED"));
+        }
+        properties.add(
+            EnumProperty::<HitTestBehavior>::new("behavior", self.widget(app).behavior)
+                .default_value(None),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         let gestures = self.widget(app).gestures.clone();
@@ -3286,5 +3323,40 @@ mod tests {
         let last = *reported.last().expect("the pinch updated");
         assert!((last - 2.0).abs() < 1e-9, "{reported:?}");
         assert!(ended.get());
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use waft_foundation::AppCell;
+
+    use super::*;
+    use crate::framework::GlobalKey;
+    use crate::test_harness::Harness;
+    use crate::testing::describe_properties;
+
+    /// `gesture_detector_test.dart`, "RawGestureDetectorState's debugFillProperties" when
+    /// default: no gestures, and the default behavior is not shown.
+    #[test]
+    fn a_raw_gesture_detector_describes_its_gestures() {
+        let cell = AppCell::new();
+        let key = GlobalKey::new();
+        let state = {
+            let mut app = cell.borrow_mut();
+            let harness = Harness::mount(
+                &mut app,
+                RawGestureDetector::new()
+                    .key(key.clone().into())
+                    .into_widget(),
+            );
+            harness.pump(&mut app);
+            key.current_state::<RawGestureDetectorState>(&app)
+                .expect("the detector is mounted")
+        };
+        let app = cell.borrow();
+        assert_eq!(
+            describe_properties(|properties| state.debug_fill_properties(&app, properties)),
+            ["gestures: <none>"]
+        );
     }
 }

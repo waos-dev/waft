@@ -173,7 +173,7 @@ pub trait ScrollControllerLeaf: ChangeNotifier + Sized + 'static {
     }
 
     /// Add additional information to the given `description` for use by
-    /// [`describe`](Self::describe).
+    /// [`to_string`](Self::to_string).
     ///
     /// An override starts with a call to [`ScrollController::debug_fill_description`], where
     /// Dart writes `super.debugFillDescription(description)`.
@@ -251,9 +251,9 @@ pub trait ScrollControllerLeaf: ChangeNotifier + Sized + 'static {
         self.as_controller().jump_to(app, value);
     }
 
-    /// See [`AnyScrollController::describe`].
-    fn describe(self: Handle<Self>, app: &App) -> String {
-        self.as_controller().describe(app)
+    /// See [`AnyScrollController::to_string`].
+    fn to_string(self: Handle<Self>, app: &App) -> String {
+        self.as_controller().to_string(app)
     }
 
     /// This controller as the erased [`AnyScrollController`] — what to pass where a Dart API
@@ -648,6 +648,12 @@ impl AnyScrollController {
         (self.vtable.dispose_change_notifier)(app, self.id);
     }
 
+    /// The identity a dump shows, Dart's `describeIdentity(controller)` without the description
+    /// its `toString` adds: a widget's properties are filled without an `App`.
+    pub fn identity_hash(self) -> u64 {
+        self.id.identity_hash()
+    }
+
     /// Dart's `controller.runtimeType`, for the identity checks a `Scrollable` makes.
     pub fn type_id(self) -> TypeId {
         (self.vtable.type_id)()
@@ -690,7 +696,7 @@ impl AnyScrollController {
         self.data(app).on_detach.clone()
     }
 
-    /// A label that is used in the [`describe`](Self::describe) output. Intended to aid with
+    /// A label that is used in the [`to_string`](Self::to_string) output. Intended to aid with
     /// identifying scroll controller instances in debug output.
     pub fn debug_label(self, app: &App) -> Option<String> {
         self.data(app).debug_label.clone()
@@ -839,7 +845,7 @@ impl AnyScrollController {
     }
 
     /// Dart's `toString`, which reads the arena and so cannot be [`std::fmt::Debug`].
-    pub fn describe(self, app: &App) -> String {
+    pub fn to_string(self, app: &App) -> String {
         let mut description = Vec::new();
         self.debug_fill_description(app, &mut description);
         let name = (self.vtable.type_name)();
@@ -912,13 +918,13 @@ mod tests {
         assert_eq!(controller.positions(&app), vec![position.handle()]);
         assert!(
             controller
-                .describe(&app)
+                .to_string(&app)
                 .contains("one client, offset 25.0")
         );
 
         controller.detach(&mut app, position.handle());
         assert!(!controller.has_clients(&app));
-        assert!(controller.describe(&app).contains("no clients"));
+        assert!(controller.to_string(&app).contains("no clients"));
     }
 
     #[test]

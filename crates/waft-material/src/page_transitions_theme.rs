@@ -19,7 +19,8 @@ use waft_cupertino::CupertinoPageTransitionsBuilder;
 use waft_embedder::valo::Sampling;
 use waft_embedder::{Color, Image, Matrix4, Offset, Paint, Rect, Size, TargetPlatform};
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, K_IS_WEB, Listener, OptionRetained, Ref,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, Diagnosticable,
+    DiagnosticsProperty, Handle, K_IS_WEB, Listener, OptionRetained, Ref,
 };
 use waft_painting::ClipContext;
 use waft_rendering::{LayerHandle, OpacityLayer, PaintingContext, TransformLayer};
@@ -1884,6 +1885,40 @@ impl SnapshotPainter for ZoomExitTransitionPainter {
         old_delegate.reverse != this.reverse
             || old_delegate.fade.value(app) != this.fade.value(app)
             || old_delegate.scale.value(app) != this.scale.value(app)
+    }
+}
+
+/// Dart's `Map<TargetPlatform, PageTransitionsBuilder>.toString`.
+fn builders_description(builders: &IndexMap<TargetPlatform, PageTransitionsBuilderRef>) -> String {
+    let entries: Vec<String> = builders
+        .iter()
+        .map(|(platform, builder)| {
+            format!(
+                "{}: {}",
+                waft_foundation::DartEnum(*platform),
+                waft_foundation::InstanceOf(&**builder)
+            )
+        })
+        .collect();
+    format!("{{{}}}", entries.join(", "))
+}
+
+impl Diagnosticable for PageTransitionsTheme {
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let default_builders = PageTransitionsTheme::new().builders;
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "builders",
+                Some(builders_description(&self.builders)),
+            )
+            .default_value(Some(builders_description(&default_builders))),
+        );
+    }
+}
+
+impl fmt::Display for PageTransitionsTheme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Diagnosticable::to_string(self))
     }
 }
 

@@ -31,7 +31,12 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use waft_embedder::Size;
-use waft_foundation::{App, EntityId, Handle, HandleId, Subscription, TrackedSet};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableTreeNode, DiagnosticsNode,
+    DiagnosticsProperty, DiagnosticsTreeStyle, EntityId, FlagProperty, Handle, HandleId,
+    IntoPropertyName, ObjectFlagProperty, Subscription, TrackedSet, bare_type_name,
+    describe_identity,
+};
 use waft_rendering::{AnyRenderObject, RenderHandle, RenderObject};
 
 use super::build_owner::{BuildOwner, BuildScope};
@@ -585,10 +590,34 @@ pub trait Element: Sized + 'static {
         let _ = (self, app);
         None
     }
+
+    /// Dart's `debugFillProperties` as an element class overrides it: the properties it adds
+    /// after `Element`'s, and `RenderObjectElement`'s for a render object element, which the
+    /// framework adds first since a trait default cannot call `super`.
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let _ = (self, app, properties);
+    }
+
+    /// Dart's `debugDescribeChildren`: the children a dump shows under this element, by
+    /// default every child [`visit_children`](Self::visit_children) visits.
+    fn debug_describe_children(self: Handle<Self>, app: &App) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let mut children: Vec<Rc<dyn DiagnosticsNode>> = Vec::new();
+        Self::visit_children(self, app, &mut |child| {
+            children.push(Rc::new(child.to_diagnostics_node(app, None)));
+        });
+        children
+    }
 }
 
 /// The vtable of an erased [`AnyElement`]: one `&'static` table per element type.
 pub(crate) struct ElementVTable {
+    pub type_name: fn() -> &'static str,
+    pub debug_fill_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
+    pub debug_describe_children: fn(&App, HandleId) -> Vec<Rc<dyn DiagnosticsNode>>,
     pub element_data: fn(&App, HandleId) -> &ElementData,
     pub element_data_mut: fn(&mut App, HandleId) -> &mut ElementData,
     pub visit_children: fn(&App, HandleId, &mut dyn FnMut(AnyElement)),
@@ -636,6 +665,11 @@ fn resolve<T: 'static>(id: HandleId) -> Handle<T> {
 impl ElementVTable {
     pub(crate) const fn of<T: Element>() -> ElementVTable {
         ElementVTable {
+            type_name: std::any::type_name::<T>,
+            debug_fill_properties: |app, id, properties| {
+                T::debug_fill_properties(resolve(id), app, properties)
+            },
+            debug_describe_children: |app, id| T::debug_describe_children(resolve(id), app),
             element_data: |app, id| T::element_data(resolve(id), app),
             element_data_mut: |app, id| T::element_data_mut(resolve(id), app),
             visit_children: |app, id, visitor| T::visit_children(resolve(id), app, visitor),
@@ -816,6 +850,106 @@ impl AnyElement {
             return ElementLifecycle::Defunct;
         }
         self.data(app).lifecycle
+    }
+
+    /// Dart's `toStringShort`: the widget's, or the element's identity once it has none.
+    pub fn to_string_short(self, app: &App) -> String {
+        match &self.data(app).widget {
+            Some(widget) => widget.to_string_short(),
+            None => format!(
+                "{}(DEFUNCT)",
+                describe_identity(
+                    bare_type_name((self.vtable.type_name)()),
+                    self.id.identity_hash()
+                )
+            ),
+        }
+    }
+
+    /// Dart's `toDiagnosticsNode(name:)`: a snapshot of this element and its descendants as a
+    /// dump shows them, one line each in the dense style.
+    pub fn to_diagnostics_node(
+        self,
+        app: &App,
+        name: impl IntoPropertyName,
+    ) -> DiagnosticableTreeNode {
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        self.fill_base_properties(app, &mut properties);
+        (self.vtable.debug_fill_properties)(app, self.id, &mut properties);
+        let children = (self.vtable.debug_describe_children)(app, self.id);
+        DiagnosticableTreeNode::from_parts(name, self.to_string_short(app), properties, children)
+    }
+
+    /// Dart's `Element.toStringDeep`: this element and its descendants, at Dart's default level
+    /// (debug) and width.
+    pub fn to_string_deep(self, app: &App) -> String {
+        self.to_string_deep_with(app, DiagnosticLevel::Debug, 65)
+    }
+
+    /// [`to_string_deep`](Self::to_string_deep) showing only properties at `min_level` or
+    /// above, wrapping a line at `wrap_width` characters.
+    pub fn to_string_deep_with(
+        self,
+        app: &App,
+        min_level: DiagnosticLevel,
+        wrap_width: usize,
+    ) -> String {
+        self.to_diagnostics_node(app, None).to_string_deep_with(
+            "",
+            Some(""),
+            None,
+            min_level,
+            wrap_width,
+        )
+    }
+
+    /// The properties `Element.debugFillProperties` adds, with its widget's among them, then
+    /// `RenderObjectElement`'s render object.
+    fn fill_base_properties(self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.default_diagnostics_tree_style = DiagnosticsTreeStyle::Dense;
+        let data = self.data(app);
+        if data.lifecycle != ElementLifecycle::Initial {
+            properties.add(ObjectFlagProperty::<u32>::new("depth", data.depth).if_null("no depth"));
+        }
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "widget",
+                data.widget.as_ref().map(|widget| widget.to_string_short()),
+            )
+            .if_null("no widget"),
+        );
+        let key = data.widget.as_ref().and_then(|widget| widget.key());
+        properties.add(
+            DiagnosticsProperty::<String>::new("key", key.map(|key| format!("{key:?}")))
+                .with_show_name(false)
+                .default_value(None)
+                .with_level(DiagnosticLevel::Hidden),
+        );
+        if let Some(widget) = &data.widget {
+            widget.debug_fill_properties(app, properties);
+        }
+        properties.add(FlagProperty::new("dirty", data.dirty).if_true("dirty"));
+        if let Some(dependencies) = data.dependencies.as_ref().filter(|set| !set.is_empty()) {
+            let mut names: Vec<String> = dependencies
+                .iter()
+                .map(|dependency| dependency.to_string_short(app))
+                .collect();
+            names.sort();
+            properties.add(DiagnosticsProperty::<String>::new(
+                "dependencies",
+                format!("[{}]", names.join(", ")),
+            ));
+        }
+        if self.is_render_object_element() {
+            properties.add(
+                DiagnosticsProperty::<String>::new(
+                    "renderObject",
+                    self.render_object(app)
+                        .map(|render_object| render_object.to_string_short(app)),
+                )
+                .default_value(None),
+            );
+        }
     }
 
     /// Whether the element is active (in the tree).

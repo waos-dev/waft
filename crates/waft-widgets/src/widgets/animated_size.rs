@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use waft_animation::{Curve, Curves};
 use waft_embedder::Clip;
-use waft_foundation::{App, Handle, Listener};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, IntProperty, Listener,
+};
 use waft_painting::AlignmentGeometry;
 use waft_rendering::{
     AnyRenderObject, RenderAligningShiftedBox, RenderAnimatedSize, RenderBox, RenderHandle,
@@ -117,6 +119,23 @@ impl StatefulWidget for AnimatedSize {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", Some(self.alignment))
+                .default_value(Some(AlignmentGeometry::TOP_CENTER)),
+        );
+        properties.add(IntProperty::new("duration", self.duration.as_millis() as i64).unit("ms"));
+        properties.add(
+            IntProperty::<i64>::new(
+                "reverseDuration",
+                self.reverse_duration
+                    .map(|duration| duration.as_millis() as i64),
+            )
+            .unit("ms")
+            .default_value(None),
+        );
     }
 
     fn create_state(&self) -> AnimatedSizeState {

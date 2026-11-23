@@ -19,6 +19,7 @@ use waft_embedder::{
 use waft_foundation::{
     App, ChangeNotifier, ChangeNotifierData, Handle, K_IS_WEB, OptionRetained, Ref, ValueChanged,
 };
+use waft_foundation::{DiagnosticPropertiesBuilder, FlagProperty, ObjectFlagProperty};
 use waft_gestures::{
     DragEndDetails, DragStartBehavior, DragStartDetails, DragUpdateDetails, TapDownDetails,
 };
@@ -463,6 +464,24 @@ impl Debug for CupertinoSwitch {
 }
 
 impl StatefulWidget for CupertinoSwitch {
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("value", Some(self.value))
+                .if_true("on")
+                .if_false("off")
+                .with_show_name(true),
+        );
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onChanged",
+                self.on_changed
+                    .as_ref()
+                    .map(|_| "Closure: (bool) => void".to_string()),
+            )
+            .if_null("disabled"),
+        );
+    }
+
     type State = CupertinoSwitchState;
 
     fn key(&self) -> Option<&KeyRef> {

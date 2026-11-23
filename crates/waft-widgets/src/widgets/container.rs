@@ -5,7 +5,10 @@
 use std::any::Any;
 use std::rc::Rc;
 use waft_embedder::{Clip, Matrix4, Offset, Path, Size, TextDirection};
-use waft_foundation::App;
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticsProperty, EnumProperty,
+    ObjectFlagProperty,
+};
 use waft_painting::{AlignmentGeometry, AnyColor, DecorationRef, EdgeInsetsGeometry};
 use waft_rendering::{
     AnyRenderObject, BoxConstraints, Constraints, CustomClipper, DecorationPosition, RenderBox,
@@ -101,6 +104,19 @@ impl RenderObjectWidget for DecoratedBox {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        let label = match self.position {
+            DecorationPosition::Background => "bg",
+            DecorationPosition::Foreground => "fg",
+        };
+        properties
+            .add(EnumProperty::new("position", self.position).with_level(DiagnosticLevel::Hidden));
+        properties.add(DiagnosticsProperty::<String>::new(
+            label,
+            Some(format!("{:?}", self.decoration)),
+        ));
     }
 
     fn create_render_object(&self, app: &mut App, context: BuildContext) -> AnyRenderObject {
@@ -529,6 +545,59 @@ impl CustomClipper<Path> for DecorationClipper {
 impl StatelessWidget for Container {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", self.alignment)
+                .with_show_name(false)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::new("clipBehavior", self.clip_behavior)
+                .default_value(Some(Clip::None)),
+        );
+        if self.color.is_some() {
+            properties.add(DiagnosticsProperty::<waft_embedder::Color>::new(
+                "bg",
+                self.color.as_ref().map(|color| color.color()),
+            ));
+        } else {
+            properties.add(
+                DiagnosticsProperty::<String>::new(
+                    "bg",
+                    self.decoration
+                        .as_ref()
+                        .map(|decoration| format!("{decoration:?}")),
+                )
+                .default_value(None),
+            );
+        }
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "fg",
+                self.foreground_decoration
+                    .as_ref()
+                    .map(|decoration| format!("{decoration:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("margin", self.margin)
+                .default_value(None),
+        );
+        properties.add(ObjectFlagProperty::<String>::has(
+            "transform",
+            self.transform.as_ref().map(|_| String::new()),
+        ));
     }
 
     fn build(&self, app: &mut App, context: BuildContext) -> WidgetRef {

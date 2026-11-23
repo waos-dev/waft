@@ -13,8 +13,9 @@ use std::time::Duration;
 
 use waft_embedder::{Canvas, Color, Matrix4, Offset, Paint, RRect, Rect, TextDirection};
 use waft_foundation::{
-    App, Handle, HandleId, Listenable, ListenableObject, Listener, OptionRetained, Ref, Retained,
-    Timer, ValueChanged,
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, HandleId,
+    IterableProperty, Listenable, ListenableObject, Listener, OptionRetained, Ref, Retained, Timer,
+    ValueChanged,
 };
 use waft_gestures::{
     GestureLongPressCallback, GestureLongPressUpCallback, GestureTapCallback,
@@ -1136,6 +1137,59 @@ struct InkResponseStateWidget {
 
 impl StatefulWidget for InkResponseStateWidget {
     type State = InkResponseState;
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        let response = &self.response;
+        let gestures: Vec<String> = [
+            (response.on_tap.is_some(), "tap"),
+            (response.on_double_tap.is_some(), "double tap"),
+            (response.on_long_press.is_some(), "long press"),
+            (response.on_long_press_up.is_some(), "long press up"),
+            (response.on_tap_down.is_some(), "tap down"),
+            (response.on_tap_up.is_some(), "tap up"),
+            (response.on_tap_cancel.is_some(), "tap cancel"),
+            (response.on_secondary_tap.is_some(), "secondary tap"),
+            (response.on_secondary_tap_up.is_some(), "secondary tap up"),
+            (
+                response.on_secondary_tap_down.is_some(),
+                "secondary tap down",
+            ),
+            (
+                response.on_secondary_tap_cancel.is_some(),
+                "secondary tap cancel",
+            ),
+        ]
+        .into_iter()
+        .filter(|(present, _)| *present)
+        .map(|(_, name)| name.to_string())
+        .collect();
+        properties
+            .add(IterableProperty::<String>::new("gestures", Some(gestures)).if_empty("<none>"));
+        properties.add(DiagnosticsProperty::<String>::new(
+            "mouseCursor",
+            response
+                .mouse_cursor
+                .as_ref()
+                .map(|cursor| cursor.debug_description()),
+        ));
+        properties.add(
+            DiagnosticsProperty::<bool>::new("containedInkWell", response.contained_ink_well)
+                .with_level(DiagnosticLevel::Fine),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxShape>::new("highlightShape", Some(response.highlight_shape))
+                .description(format!(
+                    "{}{}",
+                    if response.contained_ink_well {
+                        "clipped to "
+                    } else {
+                        ""
+                    },
+                    response.highlight_shape
+                ))
+                .with_show_name(false),
+        );
+    }
 
     fn create_state(&self) -> InkResponseState {
         InkResponseState {

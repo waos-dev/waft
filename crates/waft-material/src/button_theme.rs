@@ -4,9 +4,10 @@ use std::fmt::{self, Debug};
 use std::time::Duration;
 
 use waft_embedder::{Brightness, Color, Radius};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, EnumProperty, FlagProperty};
 use waft_painting::{
-    BorderRadiusGeometry, BorderSide, EdgeInsetsGeometry, RoundedRectangleBorder, ShapeBorderRef,
+    BorderRadiusGeometry, BorderSide, ColorProperty, EdgeInsetsGeometry, RoundedRectangleBorder,
+    ShapeBorderRef,
 };
 use waft_rendering::BoxConstraints;
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
@@ -815,6 +816,61 @@ impl Debug for ButtonThemeData {
             properties.field("materialTapTargetSize", material_tap_target_size);
         }
         properties.finish()
+    }
+}
+
+impl waft_foundation::Diagnosticable for ButtonThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        let default_theme = ButtonThemeData::default();
+        properties.add(
+            EnumProperty::<ButtonTextTheme>::new("textTheme", Some(self.text_theme))
+                .default_value(Some(default_theme.text_theme)),
+        );
+        properties.add(
+            DoubleProperty::new("minWidth", self.min_width)
+                .default_value(Some(default_theme.min_width)),
+        );
+        properties.add(
+            DoubleProperty::new("height", self.height).default_value(Some(default_theme.height)),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", Some(self.padding()))
+                .default_value(Some(default_theme.padding())),
+        );
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", Some(self.shape()))
+                .default_value(Some(default_theme.shape())),
+        );
+        properties.add(
+            FlagProperty::new("alignedDropdown", self.aligned_dropdown)
+                .default_value(Some(default_theme.aligned_dropdown))
+                .if_true("dropdown width matches button"),
+        );
+        properties.add(ColorProperty::new("buttonColor", self.button_color).default_value(None));
+        properties
+            .add(ColorProperty::new("disabledColor", self.disabled_color).default_value(None));
+        properties.add(ColorProperty::new("focusColor", self.focus_color).default_value(None));
+        properties.add(ColorProperty::new("hoverColor", self.hover_color).default_value(None));
+        properties
+            .add(ColorProperty::new("highlightColor", self.highlight_color).default_value(None));
+        properties.add(ColorProperty::new("splashColor", self.splash_color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<ColorScheme>::new("colorScheme", self.color_scheme.clone())
+                .default_value(default_theme.color_scheme.clone()),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<MaterialTapTargetSize>>::new(
+                "materialTapTargetSize",
+                self.material_tap_target_size.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for ButtonThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 

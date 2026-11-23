@@ -6,7 +6,9 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::{Canvas, Color, Matrix4, Offset};
-use waft_foundation::{App, Handle, Listener, OptionRetained, Ref};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle, Listener, OptionRetained, Ref,
+};
 use waft_painting::{
     BoxDecoration, BoxPainter, DecorationRef, EdgeInsets, EdgeInsetsGeometry, ImageConfiguration,
     get_as_translation,
@@ -212,6 +214,17 @@ impl StatefulWidget for Ink {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<DecorationRef>::new("bg", self.decoration.clone())
+                .default_value(None),
+        );
     }
 
     fn create_state(&self) -> InkState {

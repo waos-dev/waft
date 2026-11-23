@@ -1284,7 +1284,7 @@ mod tests {
         let position = kept.handle();
         lay_out(&mut app, position);
 
-        let description = position.describe(&app);
+        let description = position.to_string(&app);
         assert!(description.contains("offset: 0.0"), "{description}");
         assert!(description.contains("range: 0.0..400.0"), "{description}");
         assert!(description.contains("viewport: 100.0"), "{description}");

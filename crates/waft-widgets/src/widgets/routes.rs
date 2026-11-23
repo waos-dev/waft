@@ -16,8 +16,8 @@ use waft_animation::{
     k_always_dismissed_animation,
 };
 use waft_foundation::{
-    App, Completer, CompleterFuture, Handle, HandleId, Listener, MergingListenable, Retained,
-    ValueListenable,
+    App, Completer, CompleterFuture, DiagnosticPropertiesBuilder, FlagProperty, Handle, HandleId,
+    Listener, MergingListenable, Retained, ValueListenable,
 };
 use waft_painting::Color;
 use waft_physics::Simulation;
@@ -1550,6 +1550,22 @@ struct ModalScopeStatus {
 impl InheritedWidget for ModalScopeStatus {
     fn child(&self) -> &WidgetRef {
         &self.child
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            FlagProperty::new("isCurrent", Some(self.is_current))
+                .if_true("active")
+                .if_false("inactive"),
+        );
+        properties.add(FlagProperty::new("canPop", Some(self.can_pop)).if_true("can pop"));
+        properties.add(
+            FlagProperty::new(
+                "impliesAppBarDismissal",
+                Some(self.implies_app_bar_dismissal),
+            )
+            .if_true("implies app bar dismissal"),
+        );
     }
 
     fn update_should_notify(&self, old: &ModalScopeStatus) -> bool {

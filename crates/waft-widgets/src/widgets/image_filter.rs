@@ -3,7 +3,7 @@
 use std::fmt::{self, Debug};
 
 use waft_embedder::{ImageFilter, Matrix4, Offset, Size, TextBaseline};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty};
 use waft_rendering::{
     AnyOffsetLayer, AnyRenderBox, AnyRenderObject, BoxConstraints, BoxHitTestResult,
     ImageFilterLayer, OffsetLayerMixin, PaintingContext, RenderBox, RenderBoxData, RenderHandle,
@@ -82,6 +82,13 @@ impl RenderObjectWidget for ImageFiltered {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::new(
+            "imageFilter",
+            self.image_filter.clone(),
+        ));
     }
 
     fn create_render_object(&self, app: &mut App, _context: BuildContext) -> AnyRenderObject {

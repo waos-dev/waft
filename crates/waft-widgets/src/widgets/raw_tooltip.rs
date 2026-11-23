@@ -11,7 +11,10 @@ use waft_animation::{
     AnimationStatusListener, AnimationStyle, Curve, CurvedAnimation, Curves,
 };
 use waft_embedder::{Matrix4, Offset, PointerDeviceKind, Size, TextBaseline};
-use waft_foundation::{App, DiagnosticPropertiesBuilder, Handle, Listener, OptionRetained, Timer};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, FlagProperty, Handle, Listener,
+    OptionRetained, StringProperty, Timer,
+};
 use waft_gestures::{
     GestureBinding, LongPressGestureRecognizer, PointerDownEvent, PointerEnterEvent,
     PointerEnterEventListener, PointerEvent, PointerExitEvent, PointerExitEventListener,
@@ -45,6 +48,31 @@ use crate::widgets::ticker_provider::{
     SingleTickerProviderStateMixin, SingleTickerProviderStateMixinData,
 };
 use waft_foundation::Ref;
+
+/// Dart's `Duration.toString`, which a tooltip's dump prints (`0:00:01.500000`).
+fn describe_duration(duration: Duration) -> String {
+    let micros = duration.as_micros();
+    let hours = micros / 3_600_000_000;
+    let minutes = (micros / 60_000_000) % 60;
+    let seconds = (micros / 1_000_000) % 60;
+    let micros = micros % 1_000_000;
+    format!("{hours}:{minutes:02}:{seconds:02}.{micros:06}")
+}
+
+/// Dart's `Diagnosticable.toString` for an animation style, which a tooltip's dump prints.
+fn describe_animation_style(style: &AnimationStyle) -> String {
+    format!(
+        "AnimationStyle(curve: {:?}, duration: {}, reverseCurve: {:?}, reverseDuration: {})",
+        style.curve,
+        style
+            .duration
+            .map_or_else(|| "null".to_string(), describe_duration),
+        style.reverse_curve,
+        style
+            .reverse_duration
+            .map_or_else(|| "null".to_string(), describe_duration),
+    )
+}
 
 /// Dart's `_kDefaultAnimationStyle`; a function so its curve is the one shared
 /// `Curves::fast_out_slow_in()`, which `AnimationStyle`'s `==` compares by identity.
@@ -848,6 +876,67 @@ impl StatefulWidget for RawTooltip {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        let empty = self
+            .semantics_tooltip
+            .as_deref()
+            .is_none_or(|tooltip| tooltip.is_empty());
+        let mut semantics =
+            StringProperty::new("semantics", self.semantics_tooltip.clone()).with_show_name(empty);
+        if empty {
+            semantics = semantics.default_value(None);
+        }
+        properties.add(semantics);
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "hover delay",
+                Some(describe_duration(self.hover_delay)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "touch delay",
+                Some(describe_duration(self.touch_delay)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "dismiss delay",
+                Some(describe_duration(self.dismiss_delay)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<TooltipTriggerMode>>::new(
+                "triggerMode",
+                Some(waft_foundation::DartEnum(self.trigger_mode)),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            FlagProperty::new("enableFeedback", Some(self.enable_feedback))
+                .if_true("true")
+                .with_show_name(true),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "positionDelegate",
+                self.position_delegate
+                    .as_ref()
+                    .map(|_| "Instance of 'TooltipPositionDelegate'".to_string()),
+            )
+            .default_value(None),
+        );
+        if self.animation_style != default_animation_style() {
+            properties.add(DiagnosticsProperty::<String>::new(
+                "animationStyle",
+                Some(describe_animation_style(&self.animation_style)),
+            ));
+        }
     }
 
     fn create_state(&self) -> RawTooltipState {
@@ -3876,5 +3965,60 @@ mod tests {
             case.tester.pump_and_settle();
             expect(&case.tester, &case.tip(), finds_nothing());
         });
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use super::*;
+    use crate::testing::describe_properties;
+    use crate::widgets::basic::SizedBox;
+
+    fn tooltip() -> RawTooltip {
+        RawTooltip::new(
+            Some("message".to_string()),
+            |_app, _context, _animation| SizedBox::shrink().into_widget(),
+            SizedBox::shrink(),
+        )
+    }
+
+    /// `raw_tooltip_test.dart`, "default RawTooltip debugFillProperties".
+    #[test]
+    fn a_default_tooltip_describes_its_delays_and_trigger() {
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        assert_eq!(
+            describe_properties(|properties| tooltip().debug_fill_properties(&app, properties)),
+            [
+                "\"message\"",
+                "hover delay: 0:00:00.000000",
+                "touch delay: 0:00:01.500000",
+                "dismiss delay: 0:00:00.100000",
+                "triggerMode: TooltipTriggerMode.longPress",
+                "enableFeedback: true",
+            ]
+        );
+    }
+
+    /// `raw_tooltip_test.dart`, "RawTooltip implements debugFillProperties".
+    #[test]
+    fn a_tooltip_describes_the_values_it_is_given() {
+        let tooltip = tooltip()
+            .hover_delay(Duration::from_secs(1))
+            .touch_delay(Duration::from_secs(2))
+            .trigger_mode(TooltipTriggerMode::Manual);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        assert_eq!(
+            describe_properties(|properties| tooltip.debug_fill_properties(&app, properties)),
+            [
+                "\"message\"",
+                "hover delay: 0:00:01.000000",
+                "touch delay: 0:00:02.000000",
+                "dismiss delay: 0:00:00.100000",
+                "triggerMode: TooltipTriggerMode.manual",
+                "enableFeedback: true",
+            ]
+        );
     }
 }

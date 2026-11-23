@@ -32,15 +32,18 @@ use waft_cupertino::{CupertinoColors, CupertinoSlider};
 use waft_embedder::{
     Color, FontWeight, Offset, Rect, Size, TargetPlatform, TextDirection, clamp_double,
 };
-use waft_foundation::{App, Handle, Listener, OptionRetained, Ref, Timer, ValueChanged};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DoubleProperty, FlagProperty, Handle, IntProperty, Listener,
+    ObjectFlagProperty, OptionRetained, Ref, StringProperty, Timer, ValueChanged,
+};
 use waft_gestures::{
     DeviceGestureSettings, DragEndDetails, DragGestureRecognizer, DragStartDetails,
     DragUpdateDetails, GestureArenaTeam, HorizontalDragGestureRecognizer, PointerEvent,
     RecognizerLeaf, TapDownDetails, TapGestureRecognizer, TapUpDetails,
 };
 use waft_painting::{
-    EdgeInsetsGeometry, K_DEFAULT_FONT_SIZE, PaintingBinding, TextPainter, TextScaler, TextSpan,
-    TextStyle,
+    ColorProperty, EdgeInsetsGeometry, K_DEFAULT_FONT_SIZE, PaintingBinding, TextPainter,
+    TextScaler, TextSpan, TextStyle,
 };
 use waft_rendering::{
     AnyRenderObject, BoxConstraints, BoxHitTestEntry, LayerLink, PaintingContext, PipelineOwner,
@@ -700,6 +703,50 @@ impl StatefulWidget for Slider {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("value", self.value));
+        properties.add(DoubleProperty::new(
+            "secondaryTrackValue",
+            self.secondary_track_value,
+        ));
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "onChanged",
+                self.on_changed.as_ref().map(|_| String::new()),
+            )
+            .if_null("disabled"),
+        );
+        properties.add(ObjectFlagProperty::<String>::has(
+            "onChangeStart",
+            self.on_change_start.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "onChangeEnd",
+            self.on_change_end.as_ref().map(|_| String::new()),
+        ));
+        properties.add(DoubleProperty::new("min", self.min));
+        properties.add(DoubleProperty::new("max", self.max));
+        properties.add(IntProperty::<i32>::new("divisions", self.divisions));
+        properties.add(StringProperty::new("label", self.label.clone()));
+        properties.add(ColorProperty::new("activeColor", self.active_color));
+        properties.add(ColorProperty::new("inactiveColor", self.inactive_color));
+        properties.add(ColorProperty::new(
+            "secondaryActiveColor",
+            self.secondary_active_color,
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "semanticFormatterCallback",
+            self.semantic_formatter_callback
+                .as_ref()
+                .map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "focusNode",
+            self.focus_node.as_ref().map(|_| String::new()),
+        ));
+        properties.add(FlagProperty::new("autofocus", Some(self.autofocus)).if_true("autofocus"));
     }
 
     fn debug_check_constructor(&self) {
@@ -7332,5 +7379,46 @@ pub(crate) mod tests {
             tester.up(&gesture);
             tester.pump_and_settle();
         });
+    }
+    /// `slider_test.dart`, "Slider implements debugFillProperties". The colors print as the
+    /// `Color` the port stores, not as Dart's `MaterialColor` swatch wrapper.
+    #[test]
+    fn a_slider_describes_its_properties() {
+        use waft_embedder::Color;
+        use waft_foundation::DiagnosticPropertiesBuilder;
+
+        let active = Color::new(0xff2196f3);
+        let inactive = Color::new(0xff9e9e9e);
+        let secondary = Color::new(0xff607d8b);
+        let slider = Slider::new(50.0, None)
+            .secondary_track_value(75.0)
+            .max(100.0)
+            .divisions(10)
+            .label("Set a value")
+            .active_color(active)
+            .inactive_color(inactive)
+            .secondary_active_color(secondary);
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                slider.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(
+            description,
+            [
+                "value: 50.0".to_string(),
+                "secondaryTrackValue: 75.0".to_string(),
+                "disabled".to_string(),
+                "min: 0.0".to_string(),
+                "max: 100.0".to_string(),
+                "divisions: 10".to_string(),
+                "label: \"Set a value\"".to_string(),
+                format!("activeColor: {active}"),
+                format!("inactiveColor: {inactive}"),
+                format!("secondaryActiveColor: {secondary}"),
+            ]
+        );
     }
 }

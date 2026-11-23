@@ -10,9 +10,12 @@ use waft_animation::{Animatable, ColorTween, Curves, Tween};
 use waft_embedder::{
     Canvas, ClipOp, Color, Matrix4, Offset, Path, Radius, Rect, Size, TextBaseline, TextDirection,
 };
-use waft_foundation::{App, Handle, HandleId, Listener, Ref, Retained};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty, Handle,
+    HandleId, Listener, Ref, Retained,
+};
 use waft_painting::{
-    BorderRadius, BorderRadiusGeometry, BorderSide, CircleBorder, Clip, ClipContext,
+    BorderRadius, BorderRadiusGeometry, BorderSide, CircleBorder, Clip, ClipContext, ColorProperty,
     RoundedRectangleBorder, ShapeBorderRef, TextStyle,
 };
 use waft_rendering::{
@@ -645,6 +648,31 @@ impl StatefulWidget for Material {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("type", self.r#type));
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(Some(0.0)));
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        if let Some(text_style) = &self.text_style {
+            text_style.debug_fill_properties_with_prefix(properties, "textStyle.");
+        }
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("borderOnForeground", self.border_on_foreground)
+                .default_value(Some(true)),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderRadiusGeometry>::new("borderRadius", self.border_radius)
+                .default_value(None),
+        );
     }
 
     fn create_state(&self) -> MaterialWidgetState {
@@ -1576,6 +1604,20 @@ impl StatefulWidget for MaterialInterior {
 
     fn key(&self) -> Option<&KeyRef> {
         self.implicitly_animated_widget.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DiagnosticsProperty::<ShapeBorderRef>::new(
+            "shape",
+            self.shape.clone(),
+        ));
+        properties.add(DoubleProperty::new("elevation", self.elevation));
+        properties.add(ColorProperty::new("color", self.color));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color));
     }
 
     fn create_state(&self) -> MaterialInteriorState {
@@ -3067,6 +3109,60 @@ mod tests {
             assert!(tester.cell.borrow().get(state).surface_tint_color.is_none());
             assert!(!tester.cell.borrow().contains(tween));
         });
+    }
+
+    /// `material_test.dart`, "default Material debugFillProperties".
+    #[test]
+    fn a_default_material_describes_its_type() {
+        use waft_foundation::DiagnosticPropertiesBuilder;
+
+        let material = Material::new();
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                material.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(description, ["type: canvas"]);
+    }
+
+    /// `material_test.dart`, "Material implements debugFillProperties".
+    #[test]
+    fn a_material_describes_its_other_properties() {
+        use waft_embedder::Color;
+        use waft_foundation::DiagnosticPropertiesBuilder;
+        use waft_painting::BorderRadiusDirectional;
+
+        let white = Color::new(0xFFFFFFFF);
+        let red = Color::new(0xFFFF0000);
+        let blue = Color::new(0xFF0000FF);
+        let green = Color::new(0xFF00FF00);
+        let material = Material::new()
+            .color(white)
+            .shadow_color(red)
+            .surface_tint_color(blue)
+            .text_style(TextStyle::new().color(green))
+            .border_radius(BorderRadiusDirectional::all(Radius::circular(10.0)));
+        let cell = waft_foundation::AppCell::new();
+        let app = cell.borrow();
+        let description: Vec<String> = waft_widgets::testing::describe_properties(
+            |properties: &mut DiagnosticPropertiesBuilder| {
+                material.debug_fill_properties(&app, properties)
+            },
+        );
+        assert_eq!(
+            description,
+            [
+                "type: canvas".to_string(),
+                format!("color: {white}"),
+                format!("shadowColor: {red}"),
+                format!("surfaceTintColor: {blue}"),
+                "textStyle.inherit: true".to_string(),
+                format!("textStyle.color: {green}"),
+                "borderRadius: BorderRadiusDirectional.circular(10.0)".to_string(),
+            ]
+        );
     }
 
     #[test]

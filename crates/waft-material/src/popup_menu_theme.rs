@@ -1,8 +1,8 @@
 //! Flutter counterpart: material_ui's `popup_menu_theme.dart`.
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
-use waft_painting::{EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, EnumProperty};
+use waft_painting::{ColorProperty, EdgeInsetsGeometry, ShapeBorderRef, TextStyle};
 use waft_services::MouseCursorRef;
 use waft_widgets::{
     BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef,
@@ -383,6 +383,62 @@ impl InheritedWidget for PopupMenuTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+impl waft_foundation::Diagnosticable for PopupMenuThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<ShapeBorderRef>::new("shape", self.shape.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("menuPadding", self.menu_padding)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("elevation", self.elevation).default_value(None));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color).default_value(None));
+        properties.add(
+            ColorProperty::new("surfaceTintColor", self.surface_tint_color).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("text style", self.text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "labelTextStyle",
+                self.label_text_style
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<bool>::new("enableFeedback", self.enable_feedback)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "mouseCursor",
+                self.mouse_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<PopupMenuPosition>::new("position", self.position).default_value(None),
+        );
+        properties.add(ColorProperty::new("iconColor", self.icon_color).default_value(None));
+        properties.add(DoubleProperty::new("iconSize", self.icon_size).default_value(None));
+    }
+}
+
+impl std::fmt::Display for PopupMenuThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -1232,5 +1288,18 @@ mod tests {
         let old = theme(1.0);
         assert!(!theme(1.0).update_should_notify(&old));
         assert!(theme(2.0).update_should_notify(&old));
+    }
+    // Flutter's "Default PopupMenuThemeData debugFillProperties".
+    #[test]
+    fn a_popup_menu_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &PopupMenuThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

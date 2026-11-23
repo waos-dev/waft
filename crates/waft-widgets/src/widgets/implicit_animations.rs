@@ -3,6 +3,7 @@
 //! The interpolation objects come first, then [`ImplicitlyAnimatedWidget`] and the widgets
 //! built on it.
 
+use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -15,11 +16,14 @@ use waft_embedder::{
     Clip, Color, FilterQuality, Matrix4, Offset, Rect, TextAlign, TextHeightBehavior, compose,
     decompose,
 };
-use waft_foundation::{App, Handle, Listener, OptionRetained};
+use waft_foundation::{
+    App, DiagnosticPropertiesBuilder, DiagnosticsProperty, DoubleProperty, EnumProperty,
+    FlagProperty, Handle, IntProperty, Listener, ObjectFlagProperty, OptionRetained,
+};
 use waft_painting::{
     Alignment, AlignmentGeometry, AnyColor, Border, BorderRadius, BoxDecoration, BoxShape,
-    DecorationRef, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef, TextOverflow, TextStyle,
-    TextWidthBasis,
+    ColorProperty, DecorationRef, EdgeInsets, EdgeInsetsGeometry, ShapeBorderRef, TextOverflow,
+    TextStyle, TextWidthBasis,
 };
 use waft_rendering::{AlignmentGeometryTween, BoxConstraints, Constraints};
 use waft_scheduler::{Ticker, TickerCallback, TickerProviderObject};
@@ -39,6 +43,32 @@ use crate::widgets::transitions::{
     FadeTransition, RotationTransition, ScaleTransition, SlideTransition,
 };
 use waft_foundation::Ref;
+
+/// Dart's `$value` for a tween endpoint: the value's `toString`, or `null`.
+fn display_option<T: fmt::Display>(value: &Option<T>) -> String {
+    value
+        .as_ref()
+        .map_or_else(|| "null".to_string(), |value| value.to_string())
+}
+
+/// [`display_option`] for a value whose `toString` is its `Debug`.
+fn display_option_debug<T: fmt::Debug>(value: &Option<T>) -> String {
+    value
+        .as_ref()
+        .map_or_else(|| "null".to_string(), |value| format!("{value:?}"))
+}
+
+/// Dart's `Tween<double>.toString` for a state's tween field.
+fn describe_double_tween(tween: Option<&Ref<Tween<f64>>>, app: &App) -> Option<String> {
+    tween.map(|tween| {
+        let tween = app.get(tween);
+        format!(
+            "Tween<double>(begin: {}, end: {})",
+            display_option(&tween.begin),
+            display_option(&tween.end)
+        )
+    })
+}
 
 /// An interpolation between two [`BoxConstraints`].
 ///
@@ -73,6 +103,18 @@ impl BoxConstraintsTween {
     pub fn lerp(&self, t: f64) -> BoxConstraints {
         BoxConstraints::lerp(self.begin, self.end, t)
             .expect("BoxConstraintsTween.begin or end must be set before use")
+    }
+}
+
+/// Dart's `Tween.toString`, which an implicit animation's state dump prints.
+impl fmt::Display for BoxConstraintsTween {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "BoxConstraintsTween(begin: {}, end: {})",
+            display_option(&self.begin),
+            display_option(&self.end),
+        )
     }
 }
 
@@ -118,6 +160,18 @@ impl DecorationTween {
     pub fn lerp(&self, t: f64) -> DecorationRef {
         DecorationRef::lerp(self.begin.as_ref(), self.end.as_ref(), t)
             .expect("DecorationTween.begin or end must be set before use")
+    }
+}
+
+/// Dart's `Tween.toString`, which an implicit animation's state dump prints.
+impl fmt::Display for DecorationTween {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "DecorationTween(begin: {}, end: {})",
+            display_option_debug(&self.begin),
+            display_option_debug(&self.end),
+        )
     }
 }
 
@@ -230,6 +284,18 @@ impl EdgeInsetsGeometryTween {
     pub fn lerp(&self, t: f64) -> EdgeInsetsGeometry {
         EdgeInsetsGeometry::lerp(self.begin, self.end, t)
             .expect("EdgeInsetsGeometryTween.begin or end must be set before use")
+    }
+}
+
+/// Dart's `Tween.toString`, which an implicit animation's state dump prints.
+impl fmt::Display for EdgeInsetsGeometryTween {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "EdgeInsetsGeometryTween(begin: {}, end: {})",
+            display_option(&self.begin),
+            display_option(&self.end),
+        )
     }
 }
 
@@ -458,6 +524,12 @@ pub struct ImplicitlyAnimatedWidgetData {
 }
 
 impl ImplicitlyAnimatedWidgetData {
+    /// Dart's `ImplicitlyAnimatedWidget.debugFillProperties`, which every implicit animation
+    /// widget inherits and calls at the position of Dart's `super`.
+    pub fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(IntProperty::new("duration", self.duration.as_millis() as i64).unit("ms"));
+    }
+
     /// The base fields of a widget animating over `duration`, with Dart's defaults.
     pub fn new(duration: Duration) -> ImplicitlyAnimatedWidgetData {
         ImplicitlyAnimatedWidgetData {
@@ -1422,6 +1494,61 @@ impl StatefulWidget for AnimatedContainer {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new("alignment", self.alignment)
+                .with_show_name(false)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("padding", self.padding)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "bg",
+                self.decoration
+                    .as_ref()
+                    .map(|decoration| format!("{decoration:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "fg",
+                self.foreground_decoration
+                    .as_ref()
+                    .map(|decoration| format!("{decoration:?}")),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .with_show_name(false)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new("margin", self.margin)
+                .default_value(None),
+        );
+        properties.add(ObjectFlagProperty::<String>::has(
+            "transform",
+            self.transform.as_ref().map(|_| String::new()),
+        ));
+        properties.add(
+            DiagnosticsProperty::<AlignmentGeometry>::new(
+                "transformAlignment",
+                self.transform_alignment,
+            )
+            .default_value(None),
+        );
+        properties.add(DiagnosticsProperty::new("clipBehavior", self.clip_behavior));
+    }
+
     fn create_state(&self) -> AnimatedContainerState {
         AnimatedContainerState {
             state: StateData::new(),
@@ -1529,6 +1656,75 @@ impl AnimatedWidgetBaseState for AnimatedContainerState {}
 impl State for AnimatedContainerState {
     type Widget = AnimatedContainer;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "alignment",
+                state.alignment.as_ref().map(|tween| tween.to_string()),
+            )
+            .with_show_name(false)
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "padding",
+                state.padding.as_ref().map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "bg",
+                state.decoration.as_ref().map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "fg",
+                state
+                    .foreground_decoration
+                    .as_ref()
+                    .map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "constraints",
+                state.constraints.as_ref().map(|tween| tween.to_string()),
+            )
+            .with_show_name(false)
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "margin",
+                state.margin.as_ref().map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(ObjectFlagProperty::<String>::has(
+            "transform",
+            state.transform.as_ref().map(|_| String::new()),
+        ));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "transformAlignment",
+                state
+                    .transform_alignment
+                    .as_ref()
+                    .map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         AnimatedWidgetBaseState::init_state(self, app);
@@ -1648,6 +1844,14 @@ impl StatefulWidget for AnimatedPadding {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DiagnosticsProperty::new("padding", self.padding));
+    }
+
     fn create_state(&self) -> AnimatedPaddingState {
         AnimatedPaddingState {
             state: StateData::new(),
@@ -1705,6 +1909,21 @@ impl AnimatedWidgetBaseState for AnimatedPaddingState {}
 impl State for AnimatedPaddingState {
     type Widget = AnimatedPadding;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "padding",
+                state.padding.as_ref().map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         AnimatedWidgetBaseState::init_state(self, app);
@@ -1839,6 +2058,14 @@ impl StatefulWidget for AnimatedAlign {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+    }
+
     fn create_state(&self) -> AnimatedAlignState {
         AnimatedAlignState {
             state: StateData::new(),
@@ -1914,6 +2141,35 @@ impl AnimatedWidgetBaseState for AnimatedAlignState {}
 impl State for AnimatedAlignState {
     type Widget = AnimatedAlign;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "alignment",
+                state.alignment.as_ref().map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "widthFactor",
+                describe_double_tween(state.width_factor_tween.as_ref(), app),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "heightFactor",
+                describe_double_tween(state.height_factor_tween.as_ref(), app),
+            )
+            .default_value(None),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         AnimatedWidgetBaseState::init_state(self, app);
@@ -2123,6 +2379,19 @@ impl StatefulWidget for AnimatedPositioned {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DoubleProperty::new("left", self.left).default_value(None));
+        properties.add(DoubleProperty::new("top", self.top).default_value(None));
+        properties.add(DoubleProperty::new("right", self.right).default_value(None));
+        properties.add(DoubleProperty::new("bottom", self.bottom).default_value(None));
+        properties.add(DoubleProperty::new("width", self.width).default_value(None));
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+    }
+
     fn create_state(&self) -> AnimatedPositionedState {
         AnimatedPositionedState {
             state: StateData::new(),
@@ -2197,6 +2466,38 @@ impl AnimatedWidgetBaseState for AnimatedPositionedState {}
 impl State for AnimatedPositionedState {
     type Widget = AnimatedPositioned;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(ObjectFlagProperty::<String>::has(
+            "left",
+            state.left.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "top",
+            state.top.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "right",
+            state.right.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "bottom",
+            state.bottom.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "width",
+            state.width.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "height",
+            state.height.as_ref().map(|_| String::new()),
+        ));
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         AnimatedWidgetBaseState::init_state(self, app);
@@ -2380,6 +2681,19 @@ impl StatefulWidget for AnimatedPositionedDirectional {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DoubleProperty::new("start", self.start).default_value(None));
+        properties.add(DoubleProperty::new("top", self.top).default_value(None));
+        properties.add(DoubleProperty::new("end", self.end).default_value(None));
+        properties.add(DoubleProperty::new("bottom", self.bottom).default_value(None));
+        properties.add(DoubleProperty::new("width", self.width).default_value(None));
+        properties.add(DoubleProperty::new("height", self.height).default_value(None));
+    }
+
     fn create_state(&self) -> AnimatedPositionedDirectionalState {
         AnimatedPositionedDirectionalState {
             state: StateData::new(),
@@ -2454,6 +2768,38 @@ impl AnimatedWidgetBaseState for AnimatedPositionedDirectionalState {}
 impl State for AnimatedPositionedDirectionalState {
     type Widget = AnimatedPositionedDirectional;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(ObjectFlagProperty::<String>::has(
+            "start",
+            state.start.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "top",
+            state.top.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "end",
+            state.end.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "bottom",
+            state.bottom.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "width",
+            state.width.as_ref().map(|_| String::new()),
+        ));
+        properties.add(ObjectFlagProperty::<String>::has(
+            "height",
+            state.height.as_ref().map(|_| String::new()),
+        ));
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         AnimatedWidgetBaseState::init_state(self, app);
@@ -2580,6 +2926,22 @@ impl StatefulWidget for AnimatedScale {
 
     fn key(&self) -> Option<&KeyRef> {
         self.implicitly_animated_widget.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DoubleProperty::new("scale", self.scale));
+        properties.add(
+            DiagnosticsProperty::<Alignment>::new("alignment", Some(self.alignment))
+                .default_value(Some(Alignment::CENTER)),
+        );
+        properties.add(
+            EnumProperty::<FilterQuality>::new("filterQuality", self.filter_quality)
+                .default_value(None),
+        );
     }
 
     fn create_state(&self) -> AnimatedScaleState {
@@ -2765,6 +3127,22 @@ impl StatefulWidget for AnimatedRotation {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DoubleProperty::new("turns", self.turns));
+        properties.add(
+            DiagnosticsProperty::<Alignment>::new("alignment", Some(self.alignment))
+                .default_value(Some(Alignment::CENTER)),
+        );
+        properties.add(
+            EnumProperty::<FilterQuality>::new("filterQuality", self.filter_quality)
+                .default_value(None),
+        );
+    }
+
     fn create_state(&self) -> AnimatedRotationState {
         AnimatedRotationState {
             state: StateData::new(),
@@ -2925,6 +3303,14 @@ impl StatefulWidget for AnimatedSlide {
 
     fn key(&self) -> Option<&KeyRef> {
         self.implicitly_animated_widget.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DiagnosticsProperty::new("offset", self.offset));
     }
 
     fn create_state(&self) -> AnimatedSlideState {
@@ -3092,6 +3478,14 @@ impl StatefulWidget for AnimatedOpacity {
 
     fn key(&self) -> Option<&KeyRef> {
         self.implicitly_animated_widget.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DoubleProperty::new("opacity", self.opacity));
     }
 
     fn create_state(&self) -> AnimatedOpacityState {
@@ -3331,6 +3725,36 @@ impl StatefulWidget for AnimatedDefaultTextStyle {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        waft_foundation::Diagnosticable::debug_fill_properties(&self.style, properties);
+        properties
+            .add(EnumProperty::<TextAlign>::new("textAlign", self.text_align).default_value(None));
+        properties.add(
+            FlagProperty::new("softWrap", Some(self.soft_wrap))
+                .if_true("wrapping at box width")
+                .if_false("no wrapping except at line break characters")
+                .with_show_name(true),
+        );
+        properties.add(EnumProperty::new("overflow", self.overflow).default_value(None));
+        properties.add(IntProperty::<i32>::new("maxLines", self.max_lines).default_value(None));
+        properties.add(
+            EnumProperty::new("textWidthBasis", self.text_width_basis)
+                .default_value(Some(TextWidthBasis::Parent)),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "textHeightBehavior",
+                self.text_height_behavior
+                    .map(|behavior| behavior.to_string()),
+            )
+            .default_value(None),
+        );
+    }
+
     fn create_state(&self) -> AnimatedDefaultTextStyleState {
         AnimatedDefaultTextStyleState {
             state: StateData::new(),
@@ -3565,6 +3989,26 @@ impl StatefulWidget for AnimatedPhysicalModel {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(EnumProperty::new("shape", self.shape));
+        properties.add(DiagnosticsProperty::<BorderRadius>::new(
+            "borderRadius",
+            self.border_radius,
+        ));
+        properties.add(DoubleProperty::new("elevation", self.elevation));
+        properties.add(ColorProperty::new("color", self.color.color()));
+        properties.add(DiagnosticsProperty::new("animateColor", self.animate_color));
+        properties.add(ColorProperty::new("shadowColor", self.shadow_color.color()));
+        properties.add(DiagnosticsProperty::new(
+            "animateShadowColor",
+            self.animate_shadow_color,
+        ));
+    }
+
     fn create_state(&self) -> AnimatedPhysicalModelState {
         AnimatedPhysicalModelState {
             state: StateData::new(),
@@ -3797,6 +4241,22 @@ impl StatefulWidget for AnimatedFractionallySizedBox {
         self.implicitly_animated_widget.key.as_ref()
     }
 
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        ImplicitlyAnimatedWidgetData::debug_fill_properties(
+            &self.implicitly_animated_widget,
+            properties,
+        );
+        properties.add(DiagnosticsProperty::new("alignment", self.alignment));
+        properties.add(DiagnosticsProperty::<f64>::new(
+            "widthFactor",
+            self.width_factor,
+        ));
+        properties.add(DiagnosticsProperty::<f64>::new(
+            "heightFactor",
+            self.height_factor,
+        ));
+    }
+
     fn create_state(&self) -> AnimatedFractionallySizedBoxState {
         AnimatedFractionallySizedBoxState {
             state: StateData::new(),
@@ -3872,6 +4332,35 @@ impl AnimatedWidgetBaseState for AnimatedFractionallySizedBoxState {}
 impl State for AnimatedFractionallySizedBoxState {
     type Widget = AnimatedFractionallySizedBox;
     crate::state_accessors!();
+
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let state = app.get(self);
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "alignment",
+                state.alignment.as_ref().map(|tween| tween.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "widthFactor",
+                describe_double_tween(state.width_factor_tween.as_ref(), app),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "heightFactor",
+                describe_double_tween(state.height_factor_tween.as_ref(), app),
+            )
+            .default_value(None),
+        );
+    }
 
     fn init_state(self: Handle<Self>, app: &mut App) {
         AnimatedWidgetBaseState::init_state(self, app);
@@ -4728,5 +5217,41 @@ mod tests {
         );
         assert!(!rounded(2.0).same(&None));
         assert!(None::<ShapeBorderRef>.same(&None));
+    }
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use super::*;
+    use crate::testing::has_one_line_description;
+
+    /// `animated_container_test.dart`, "AnimatedContainer.debugFillProperties".
+    #[test]
+    fn an_animated_container_has_a_one_line_description() {
+        let container = AnimatedContainer::new(Duration::from_millis(200))
+            .constraints(BoxConstraints::tight_for(Some(17.0), Some(23.0)))
+            .decoration(BoxDecoration::new().color(Color::new(0xFF00FF00)))
+            .foreground_decoration(BoxDecoration::new().color(Color::new(0x7F0000FF)))
+            .margin(EdgeInsets::all(10.0))
+            .padding(EdgeInsets::all(7.0))
+            .transform(Matrix4::translation(4.0, 3.0))
+            .width(50.0)
+            .height(75.0)
+            .curve(Curves::ease());
+        assert!(has_one_line_description(&container));
+    }
+
+    /// `animated_padding_test.dart`, "AnimatedPadding.debugFillProperties".
+    #[test]
+    fn an_animated_padding_has_a_one_line_description() {
+        let padding = AnimatedPadding::new(EdgeInsets::all(10.0), Duration::from_millis(100));
+        assert!(has_one_line_description(&padding));
+    }
+
+    /// `animated_align_test.dart`, "AnimatedAlign.debugFillProperties".
+    #[test]
+    fn an_animated_align_has_a_one_line_description() {
+        let align = AnimatedAlign::new(AlignmentGeometry::TOP_LEFT, Duration::from_millis(100));
+        assert!(has_one_line_description(&align));
     }
 }

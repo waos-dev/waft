@@ -17,8 +17,10 @@ use std::time::Duration;
 use waft_animation::{Curve, Curves};
 use waft_embedder::{Offset, Rect, TextDirection};
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, Handle, HandleId, ListenableObject, Listener,
-    OptionRetained, Ref, Retained, ValueChanged,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticableNode,
+    DiagnosticsNode, DiagnosticsProperty, DoubleProperty, EnumProperty, Handle, HandleId,
+    ListenableObject, Listener, OptionRetained, Ref, Retained, StringProperty, ValueChanged,
+    describe_identity,
 };
 use waft_painting::Axis;
 
@@ -884,6 +886,14 @@ impl fmt::Debug for AnyFocusTraversalPolicy {
 }
 
 impl AnyFocusTraversalPolicy {
+    /// Dart's `toStringShort`: the type and the identity.
+    pub fn to_string_short(self) -> String {
+        describe_identity(
+            waft_foundation::bare_type_name((self.vtable.type_name)()),
+            self.id.identity_hash(),
+        )
+    }
+
     /// The arena id behind this handle.
     pub fn id(self) -> HandleId {
         self.id
@@ -2225,6 +2235,33 @@ pub trait FocusOrder: Debug {
     /// does.
     fn as_any(&self) -> &dyn Any;
 
+    /// Dart's `FocusOrder.debugFillProperties`, from `Diagnosticable`: a subclass adds its own.
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        let _ = properties;
+    }
+
+    /// Dart's `FocusOrder.toStringShort`: the type and the identity.
+    fn to_string_short(&self) -> String {
+        describe_identity(
+            waft_foundation::bare_type_name(std::any::type_name::<Self>()),
+            self as *const Self as *const () as usize as u64,
+        )
+    }
+
+    /// Dart's `FocusOrder.toDiagnosticsNode(name:)`, from `Diagnosticable`.
+    fn diagnostics_node(&self, name: Option<String>) -> DiagnosticableNode {
+        let mut builder = DiagnosticPropertiesBuilder::new();
+        self.debug_fill_properties(&mut builder);
+        DiagnosticableNode::from_parts(name, self.to_string_short(), builder)
+    }
+
+    /// Dart's `Diagnosticable.toString`, which a property holding an order prints.
+    fn diagnostic_string(&self) -> String {
+        self.diagnostics_node(None)
+            .with_style(waft_foundation::DiagnosticsTreeStyle::SingleLine)
+            .to_string_with(None, waft_foundation::DiagnosticLevel::Info)
+    }
+
     /// Compares this object to another [`FocusOrder`].
     ///
     /// When implementing [`FocusOrder`], implement [`do_compare`](Self::do_compare) instead of
@@ -2285,6 +2322,10 @@ impl FocusOrder for NumericFocusOrder {
         self
     }
 
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DoubleProperty::new("order", self.order));
+    }
+
     fn do_compare(&self, other: &dyn FocusOrder) -> Ordering {
         let other = other
             .as_any()
@@ -2325,6 +2366,10 @@ impl LexicalFocusOrder {
 impl FocusOrder for LexicalFocusOrder {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(StringProperty::new("order", self.order.clone()));
     }
 
     fn do_compare(&self, other: &dyn FocusOrder) -> Ordering {
@@ -2522,6 +2567,13 @@ impl FocusTraversalOrder {
 impl InheritedWidget for FocusTraversalOrder {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "order",
+            Some(self.order.diagnostic_string()),
+        ));
     }
 
     fn child(&self) -> &WidgetRef {
@@ -2782,6 +2834,13 @@ impl StatefulWidget for FocusTraversalGroup {
 
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn debug_fill_properties(&self, _app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(DiagnosticsProperty::<String>::new(
+            "policy",
+            self.policy.as_ref().map(|policy| policy.to_string_short()),
+        ));
     }
 
     fn create_state(&self) -> FocusTraversalGroupState {
@@ -3160,6 +3219,10 @@ impl DirectionalFocusIntent {
 impl Intent for DirectionalFocusIntent {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn debug_fill_properties(&self, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(EnumProperty::new("direction", self.direction));
     }
 }
 

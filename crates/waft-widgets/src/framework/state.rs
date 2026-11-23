@@ -7,9 +7,13 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 
-use waft_foundation::{App, Handle, HandleId};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticPropertiesBuilder, DiagnosticableNode, DiagnosticsNode,
+    DiagnosticsTreeStyle, EnumProperty, Handle, HandleId, ObjectFlagProperty, bare_type_name,
+    describe_identity,
+};
 
-use super::element::BuildContext;
+use super::element::{BuildContext, Element};
 use super::elements::StatefulElement;
 use super::widget::{StatefulWidget, WidgetRef, downcast_widget};
 
@@ -89,6 +93,8 @@ pub struct AnyState {
 /// The hooks of one [`State`] type that its element calls.
 struct StateVTable {
     type_id: TypeId,
+    type_name: fn() -> &'static str,
+    debug_fill_properties: fn(&App, HandleId, &mut DiagnosticPropertiesBuilder),
     build: fn(&mut App, HandleId, BuildContext) -> WidgetRef,
     init_state: fn(&mut App, HandleId),
     did_change_dependencies: fn(&mut App, HandleId),
@@ -110,6 +116,10 @@ impl StateVTable {
         }
         StateVTable {
             type_id: TypeId::of::<S>(),
+            type_name: std::any::type_name::<S>,
+            debug_fill_properties: |app, id, properties| {
+                typed::<S>(id).debug_fill_properties(app, properties)
+            },
             build: |app, id, context| typed::<S>(id).build(app, context),
             init_state: |app, id| typed::<S>(id).init_state(app),
             did_change_dependencies: |app, id| typed::<S>(id).did_change_dependencies(app),
@@ -188,6 +198,54 @@ impl AnyState {
 
     pub(crate) fn set_element(self, app: &mut App, element: Option<Handle<StatefulElement>>) {
         (self.vtable.set_element)(app, self.id, element);
+    }
+
+    /// Dart's `State.toStringShort`, from `Diagnosticable`: the state's type and identity.
+    pub fn to_string_short(self) -> String {
+        describe_identity(
+            bare_type_name((self.vtable.type_name)()),
+            self.id.identity_hash(),
+        )
+    }
+
+    /// Dart's `State.toString`: the short description, then the properties at the info level
+    /// or above on the same line, as `ScrollableState#1a2b3(position: …)`.
+    pub fn to_string(self, app: &App) -> String {
+        let mut properties = DiagnosticPropertiesBuilder::new();
+        self.fill_base_properties(app, &mut properties);
+        (self.vtable.debug_fill_properties)(app, self.id, &mut properties);
+        DiagnosticableNode::from_parts(None, self.to_string_short(), properties)
+            .with_style(DiagnosticsTreeStyle::SingleLine)
+            .to_string_with(None, DiagnosticLevel::Info)
+    }
+
+    /// The properties `State.debugFillProperties` adds before a state's own: the lifecycle
+    /// unless it is ready, and whether the state has its widget and element.
+    fn fill_base_properties(self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
+        properties.add(
+            EnumProperty::new("lifecycle state", self.debug_lifecycle_state(app))
+                .default_value(Some(StateLifecycle::Ready)),
+        );
+        properties.add(
+            ObjectFlagProperty::<String>::new("_widget", self.widget_description(app))
+                .if_null("no widget"),
+        );
+        properties.add(
+            ObjectFlagProperty::<String>::new(
+                "_element",
+                self.element(app)
+                    .map(|element| element.as_element().to_string_short(app)),
+            )
+            .if_null("not mounted"),
+        );
+    }
+
+    /// The state's widget as its element names it, while the state is attached to one.
+    fn widget_description(self, app: &App) -> Option<String> {
+        let element = self.element(app)?.as_element();
+        element
+            .mounted(app)
+            .then(|| element.widget(app).to_string_short())
     }
 
     pub(crate) fn debug_lifecycle_state(self, app: &App) -> StateLifecycle {
@@ -471,5 +529,16 @@ pub trait State: Sized + 'static {
     /// safe to call `BuildContext::depend_on_inherited_widget_of_exact_type` from this method.
     fn did_change_dependencies(self: Handle<Self>, app: &mut App) {
         let _ = (self, app);
+    }
+
+    /// Dart's `debugFillProperties`: the properties this state shows where its element's dump
+    /// names it (`state: ScrollableState#1a2b3(offset: 0.0)`), after the lifecycle and mounting
+    /// properties `State`'s base adds, which the framework adds first.
+    fn debug_fill_properties(
+        self: Handle<Self>,
+        app: &App,
+        properties: &mut DiagnosticPropertiesBuilder,
+    ) {
+        let _ = (self, app, properties);
     }
 }

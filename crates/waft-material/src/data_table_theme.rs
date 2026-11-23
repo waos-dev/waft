@@ -4,7 +4,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::App;
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, EnumProperty};
 use waft_painting::{DecorationRef, TextStyle};
 use waft_rendering::MainAxisAlignment;
 use waft_services::MouseCursorRef;
@@ -427,6 +427,96 @@ impl InheritedWidget for DataTableTheme {
 
     fn update_should_notify(&self, old_widget: &DataTableTheme) -> bool {
         self.data != old_widget.data
+    }
+}
+
+impl waft_foundation::Diagnosticable for DataTableThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(
+            DiagnosticsProperty::<DecorationRef>::new("decoration", self.decoration.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "dataRowColor",
+                self.data_row_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("dataRowMinHeight", self.data_row_min_height).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("dataRowMaxHeight", self.data_row_max_height).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new("dataTextStyle", self.data_text_style.clone())
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "headingRowColor",
+                self.heading_row_color
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("headingRowHeight", self.heading_row_height).default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<TextStyle>::new(
+                "headingTextStyle",
+                self.heading_text_style.clone(),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("horizontalMargin", self.horizontal_margin).default_value(None),
+        );
+        properties
+            .add(DoubleProperty::new("columnSpacing", self.column_spacing).default_value(None));
+        properties.add(
+            DoubleProperty::new("dividerThickness", self.divider_thickness).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("checkboxHorizontalMargin", self.checkbox_horizontal_margin)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "headingCellCursor",
+                self.heading_cell_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "dataRowCursor",
+                self.data_row_cursor
+                    .as_deref()
+                    .map(|property| property.to_string()),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            EnumProperty::<MainAxisAlignment>::new(
+                "headingRowAlignment",
+                self.heading_row_alignment,
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for DataTableThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -1056,5 +1146,18 @@ mod tests {
         assert_eq!(lerp.heading_row_alignment, Some(MainAxisAlignment::Start));
         let lerp = DataTableThemeData::lerp(&a, &b, 0.75);
         assert_eq!(lerp.heading_row_alignment, Some(MainAxisAlignment::End));
+    }
+    // Flutter's "Default DataTableThemeData debugFillProperties".
+    #[test]
+    fn a_data_table_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &DataTableThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }

@@ -168,9 +168,17 @@ impl<T: PartialEq + Hash + Debug + 'static> Key for ValueKey<T> {
 
 impl<T: PartialEq + Hash + Debug + 'static> LocalKey for ValueKey<T> {}
 
-impl<T: Debug> Debug for ValueKey<T> {
+/// Dart's `ValueKey.toString`: `[<'title'>]` for a string, `[<3>]` for anything else.
+impl<T: Debug + 'static> Debug for ValueKey<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[<{:?}>]", self.value)
+        let value = &self.value as &dyn Any;
+        if let Some(text) = value.downcast_ref::<String>() {
+            write!(f, "[<'{text}'>]")
+        } else if let Some(text) = value.downcast_ref::<&str>() {
+            write!(f, "[<'{text}'>]")
+        } else {
+            write!(f, "[<{:?}>]", self.value)
+        }
     }
 }
 
@@ -246,7 +254,8 @@ mod tests {
     #[test]
     fn debug_matches_flutter_to_string() {
         assert_eq!(format!("{:?}", ValueKey::new(3)), "[<3>]");
-        assert_eq!(format!("{:?}", ValueKey::new("a")), r#"[<"a">]"#);
+        assert_eq!(format!("{:?}", ValueKey::new("a")), "[<'a'>]");
+        assert_eq!(format!("{:?}", ValueKey::new("a".to_string())), "[<'a'>]");
         assert_eq!(format!("{:?}", UniqueKey { id: 0x1_2345 }), "[#12345]");
         assert_eq!(format!("{:?}", UniqueKey { id: 0x7 }), "[#00007]");
     }

@@ -3,8 +3,8 @@
 use waft_animation::AnimationController;
 use waft_embedder::StrokeCap;
 use waft_embedder::{Color, lerp_double};
-use waft_foundation::{App, Ref};
-use waft_painting::{BorderRadiusGeometry, EdgeInsetsGeometry};
+use waft_foundation::{App, DiagnosticsProperty, DoubleProperty, Ref};
+use waft_painting::{BorderRadiusGeometry, ColorProperty, EdgeInsetsGeometry};
 use waft_rendering::BoxConstraints;
 use waft_widgets::{BuildContext, InheritedTheme, InheritedWidget, IntoWidget, KeyRef, WidgetRef};
 
@@ -470,6 +470,78 @@ impl InheritedWidget for ProgressIndicatorTheme {
 
     fn as_inherited_theme(&self) -> Option<&dyn InheritedTheme> {
         Some(self)
+    }
+}
+
+#[allow(deprecated)]
+impl waft_foundation::Diagnosticable for ProgressIndicatorThemeData {
+    fn debug_fill_properties(&self, properties: &mut waft_foundation::DiagnosticPropertiesBuilder) {
+        properties.add(ColorProperty::new("color", self.color).default_value(None));
+        properties.add(
+            ColorProperty::new("linearTrackColor", self.linear_track_color).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("linearMinHeight", self.linear_min_height).default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("circularTrackColor", self.circular_track_color).default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("refreshBackgroundColor", self.refresh_background_color)
+                .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BorderRadiusGeometry>::new("borderRadius", self.border_radius)
+                .default_value(None),
+        );
+        properties.add(
+            ColorProperty::new("stopIndicatorColor", self.stop_indicator_color).default_value(None),
+        );
+        properties.add(
+            DoubleProperty::new("stopIndicatorRadius", self.stop_indicator_radius)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("strokeWidth", self.stroke_width).default_value(None));
+        properties.add(DoubleProperty::new("strokeAlign", self.stroke_align).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<waft_foundation::DartEnum<StrokeCap>>::new(
+                "strokeCap",
+                self.stroke_cap.map(waft_foundation::DartEnum),
+            )
+            .default_value(None),
+        );
+        properties.add(
+            DiagnosticsProperty::<BoxConstraints>::new("constraints", self.constraints)
+                .default_value(None),
+        );
+        properties.add(DoubleProperty::new("trackGap", self.track_gap).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<EdgeInsetsGeometry>::new(
+                "circularTrackPadding",
+                self.circular_track_padding,
+            )
+            .default_value(None),
+        );
+        properties
+            .add(DiagnosticsProperty::<bool>::new("year2023", self.year2023).default_value(None));
+        properties.add(
+            DiagnosticsProperty::<String>::new(
+                "controller",
+                self.controller.as_ref().map(|controller| {
+                    waft_foundation::describe_identity(
+                        "AnimationController",
+                        controller.handle().id().identity_hash(),
+                    )
+                }),
+            )
+            .default_value(None),
+        );
+    }
+}
+
+impl std::fmt::Display for ProgressIndicatorThemeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&waft_foundation::Diagnosticable::to_string(self))
     }
 }
 
@@ -1071,5 +1143,18 @@ mod tests {
             pump(tester, controllers.clone());
             expect_progress_at(tester, 2.520489337828999, 4.076855234710353);
         });
+    }
+    // Flutter's "Default ProgressIndicatorThemeData debugFillProperties".
+    #[test]
+    fn a_progress_indicator_theme_data_describes_nothing_by_default() {
+        assert_eq!(
+            waft_widgets::testing::describe_properties(|properties| {
+                waft_foundation::Diagnosticable::debug_fill_properties(
+                    &ProgressIndicatorThemeData::new(),
+                    properties,
+                )
+            }),
+            Vec::<String>::new()
+        );
     }
 }
