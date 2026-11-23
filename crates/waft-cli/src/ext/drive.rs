@@ -219,6 +219,17 @@ pub(super) fn scroll_until_visible(
     Ok(())
 }
 
+/// Prints where the point `offset_type` of the one widget `widget` names is on screen.
+pub(super) fn offset(app: Option<&str>, widget: &str, offset_type: &str) -> Result<()> {
+    let params = [("offsetType", offset_type.to_owned())];
+    let answer = Driver::to(app)?.command("get_offset", Some(widget), &params)?;
+    println!(
+        "({}, {}) in view {}",
+        answer["dx"], answer["dy"], answer["view"]
+    );
+    Ok(())
+}
+
 /// Waits until `widget` names a widget, or with `absent` none, for up to `timeout` milliseconds.
 pub(super) fn wait_for(app: Option<&str>, widget: &str, absent: bool, timeout: u64) -> Result<()> {
     let params = [

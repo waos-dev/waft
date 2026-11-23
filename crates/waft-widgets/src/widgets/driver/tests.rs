@@ -605,3 +605,62 @@ fn a_view_is_pictured_whole_and_the_app_answers_its_health() {
         matches!(unknown, Err(ServiceExtensionError::InvalidParams(why)) if why.contains("views are"))
     );
 }
+
+/// A widget's point on screen, as flutter_driver's `get_offset` answers it.
+#[test]
+fn a_widgets_offset_is_where_it_is_on_screen() {
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(
+        crate::Center::new().child(
+            SizedBox::new()
+                .width(40.0)
+                .height(20.0)
+                .key(ValueKey::new("box".to_owned()).into()),
+        ),
+    );
+    let center = driven(
+        &mut tester,
+        &[("command", "get_offset"), ("selector", "#box")],
+    );
+    let center = center.expect("answered");
+    assert_eq!(
+        (center["dx"].as_f64(), center["dy"].as_f64()),
+        (Some(400.0), Some(300.0))
+    );
+    let corner = driven(
+        &mut tester,
+        &[
+            ("command", "get_offset"),
+            ("selector", "#box"),
+            ("offsetType", "topLeft"),
+        ],
+    )
+    .expect("answered");
+    assert_eq!(
+        (corner["dx"].as_f64(), corner["dy"].as_f64()),
+        (Some(380.0), Some(290.0))
+    );
+}
+
+/// A widget built off screen is not seen, and the command says it is there, off screen, and how
+/// to bring a list's item on.
+#[test]
+fn a_widget_built_off_screen_is_named_as_off_screen() {
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(Directionality::new(
+        TextDirection::Ltr,
+        crate::Offstage::new()
+            .offstage(true)
+            .child(Text::new("Filled")),
+    ));
+    let missing = driven(
+        &mut tester,
+        &[("command", "get_text"), ("selector", r#"[text="Filled"]"#)],
+    );
+    let Err(ServiceExtensionError::Failed(why)) = missing else {
+        panic!("refused: {missing:?}");
+    };
+    assert!(why.contains("names no widget on screen"), "{why}");
+    assert!(why.contains("1 built off screen"), "{why}");
+    assert!(why.contains("scroll-until-visible"), "{why}");
+}

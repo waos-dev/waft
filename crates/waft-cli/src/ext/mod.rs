@@ -159,6 +159,15 @@ pub(crate) enum ExtCommand {
         #[arg(long, default_value_t = 10000)]
         timeout: u64,
     },
+    /// Where the one widget WIDGET names is on screen: a point of it, in its view's logical
+    /// pixels (flutter_driver's `get_offset`).
+    Offset {
+        /// A CSS selector, as `[text="Save"]`, or an id `tree` printed.
+        widget: String,
+        /// Which point of it.
+        #[arg(long, value_enum, default_value_t = Corner::Center)]
+        corner: Corner,
+    },
     /// Waits until WIDGET names a widget, or with `--absent` none, and prints what it names.
     WaitFor {
         /// A CSS selector, as `[text="Saved"]`, or an id `tree` printed.
@@ -193,6 +202,29 @@ pub(crate) enum ExtCommand {
         /// Its parameters, each `name=value`.
         params: Vec<String>,
     },
+}
+
+/// A point of a widget's box, as flutter_driver's `OffsetType` names it.
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum Corner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    Center,
+}
+
+impl Corner {
+    /// flutter_driver's name for it.
+    fn offset_type(self) -> &'static str {
+        match self {
+            Corner::TopLeft => "topLeft",
+            Corner::TopRight => "topRight",
+            Corner::BottomLeft => "bottomLeft",
+            Corner::BottomRight => "bottomRight",
+            Corner::Center => "center",
+        }
+    }
 }
 
 /// The trees `dump` prints.
@@ -261,6 +293,7 @@ pub(crate) fn run(app: Option<&str>, command: ExtCommand) -> Result<()> {
             timeout,
         } => drive::scroll_until_visible(app, &item, &scrollable, (dx, dy), alignment, timeout),
         ExtCommand::Layout { widget, json } => drive::layout(app, &widget, json),
+        ExtCommand::Offset { widget, corner } => drive::offset(app, &widget, corner.offset_type()),
         ExtCommand::Health => drive::health(app),
         ExtCommand::Find { widget } => drive::find(app, &widget),
         ExtCommand::Tap {

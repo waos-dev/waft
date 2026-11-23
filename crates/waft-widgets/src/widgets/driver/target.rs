@@ -75,11 +75,16 @@ impl Selection {
 
     /// The onstage widgets it names, in the tree's order.
     pub(super) fn named(&self, app: &mut App) -> Vec<AnyElement> {
+        self.named_where(app, true)
+    }
+
+    /// The widgets it names, onstage or not: with `onstage`, those on screen alone.
+    fn named_where(&self, app: &mut App, onstage: bool) -> Vec<AnyElement> {
         let Some(root) = WidgetsBinding::instance(app).root_element(app) else {
             return Vec::new();
         };
         match self {
-            Selection::Css(selector, _) => selector.select(app, root),
+            Selection::Css(selector, _) => selector.select(app, root, onstage),
             Selection::Id(id) => from_inspector_id(id)
                 .and_then(|id| element_named(app, root, id))
                 .into_iter()
@@ -126,10 +131,7 @@ fn the_one(
             let missed = named.first().copied();
             Err(ServiceExtensionError::Failed(match missed {
                 Some(element) if reach == Reach::Touch => missed_touch(app, naming, element),
-                _ => format!(
-                    "`{naming}` names no widget after {} seconds",
-                    WAIT_LIMIT.as_secs()
-                ),
+                _ => named_nothing(app, selection),
             }))
         }
         count => {
@@ -142,6 +144,23 @@ fn the_one(
                 lines.join("\n  ")
             )))
         }
+    }
+}
+
+/// Why `selection` names nothing on screen: nothing at all, or only widgets built off screen, a
+/// page behind the one showing or a list's item outside its view, which a command does not see,
+/// as flutter_driver's finders skip offstage widgets.
+fn named_nothing(app: &mut App, selection: &Selection) -> String {
+    let naming = selection.text();
+    let seconds = WAIT_LIMIT.as_secs();
+    match selection.named_where(app, false).len() {
+        0 => format!("`{naming}` names no widget after {seconds} seconds"),
+        offstage => format!(
+            "`{naming}` names no widget on screen after {seconds} seconds, though it names \
+             {offstage} built off screen, on a page behind this one or in a list outside its \
+             view; `cargo waft ext scroll-until-visible '{naming}' --in <list> --dy <step>` \
+             scrolls a list's item onto the screen"
+        ),
     }
 }
 

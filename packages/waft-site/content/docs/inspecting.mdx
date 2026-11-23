@@ -71,7 +71,7 @@ AppBar  800.0×56.0  BoxConstraints(w=800.0, 0.0<=h<=Infinity)  at (0.0, 0.0)  R
  Text  120.0×20.0  BoxConstraints(0.0<=w<=704.0, 0.0<=h<=56.0)  at (16.0, 18.0)  RenderParagraph#2b3c4  crates/notes/src/home.rs:19  inspector-4294967312
 ```
 
-A widget's size, the constraints its parent gave it, and where its parent placed it, or its flex factor and fit in a `Row` or `Column`, for it and its children: what DevTools' layout explorer shows, a line a widget, where `dump render` prints the whole render tree.
+A widget's size, the constraints its parent gave it, and where its parent placed it, or its flex factor and fit in a `Row` or `Column`, for it and its children: what DevTools' layout explorer shows, a line a widget, where `dump render` prints the whole render tree. Where a widget is on screen is `offset`, below.
 
 ## Driving the app
 
@@ -88,6 +88,8 @@ cargo waft ext wait-for '[text="Saved"]'                     # until something s
 cargo waft ext get-text 'AppBar Text'
 cargo waft ext tap inspector-4294967318                      # the id tree printed
 cargo waft ext scroll-until-visible '[text="Privacy"]' --in ListView --dy -300
+cargo waft ext offset '[text="Save"]'                       # where it is on screen: (x, y) in its view
+cargo waft ext tap 'Tooltip[message=Back]'                   # back to the page before, as Flutter's pageBack finds the back button
 cargo waft ext health                                        # whether the app answers
 ```
 

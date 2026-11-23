@@ -51,9 +51,10 @@ impl WidgetSelector {
             })
     }
 
-    /// The onstage elements under `root`, `root` included, that the selector matches, in the
-    /// tree's order: what a finder skipping offstage widgets finds.
-    pub(crate) fn select(&self, app: &App, root: AnyElement) -> Vec<AnyElement> {
+    /// The elements under `root`, `root` included, that the selector matches, in the tree's
+    /// order: with `onstage`, what a finder skipping offstage widgets finds, as the driver's
+    /// commands do; without, those offstage too, built but not on screen.
+    pub(crate) fn select(&self, app: &App, root: AnyElement, onstage: bool) -> Vec<AnyElement> {
         let mut caches = SelectorCaches::default();
         let mut context = MatchingContext::new(
             MatchingMode::Normal,
@@ -64,7 +65,7 @@ impl WidgetSelector {
             MatchingForInvalidation::No,
         );
         std::iter::once(root)
-            .chain(root.descendants(app, true))
+            .chain(root.descendants(app, onstage))
             .filter(|&element| {
                 let element = WidgetElement { app, element };
                 self.selectors.slice().iter().any(|selector| {

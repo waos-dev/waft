@@ -155,6 +155,42 @@ pub(super) async fn scroll_into_view(
     Ok(json!({ "shown": shown, "settled": settled }))
 }
 
+/// `get_offset`: where a point of the one widget the command names is on screen, in its view's
+/// logical pixels: `offsetType=` `topLeft`, `topRight`, `bottomLeft`, `bottomRight` or `center`
+/// (the centre when not given), as flutter_driver's `get_offset`. As `{"dx", "dy", "view"}`.
+pub(super) async fn get_offset(
+    cx: &mut AsyncApp,
+    params: &ServiceExtensionParams,
+) -> ServiceExtensionResult {
+    let corner = params.get("offsetType").unwrap_or("center").to_owned();
+    synchronize(cx, params).await?;
+    let Target { element, view, .. } = target(cx, params, Reach::Any).await?;
+    cx.update(|app| {
+        let render = element
+            .find_render_object(app)
+            .and_then(|render| render.as_box())
+            .ok_or_else(|| {
+                ServiceExtensionError::Failed(format!("{} renders no box", line_of(app, element)))
+            })?;
+        let size = render.size(app);
+        let local = match corner.as_str() {
+            "topLeft" => Offset::ZERO,
+            "topRight" => size.top_right(Offset::ZERO),
+            "bottomLeft" => size.bottom_left(Offset::ZERO),
+            "bottomRight" => size.bottom_right(Offset::ZERO),
+            "center" => size.center(Offset::ZERO),
+            other => {
+                return Err(ServiceExtensionError::InvalidParams(format!(
+                    "`{other}` is no offset type; they are topLeft, topRight, bottomLeft, \
+                     bottomRight, center"
+                )));
+            }
+        };
+        let at = render.local_to_global(app, local, None);
+        Ok(json!({ "dx": at.dx(), "dy": at.dy(), "view": view.0 }))
+    })
+}
+
 /// `wait_for`: waits until the command names a widget, or with `absent=true` none, for up to
 /// `timeout=` milliseconds (5000 when not given), looking after each frame, as flutter_driver's
 /// `waitFor` and `waitForAbsent`. As `{"found": [node, …]}`.

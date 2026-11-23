@@ -25,7 +25,7 @@ use waft_foundation::{App, ServiceExtensions, Task};
 
 /// The commands, as `command=` names them.
 const COMMANDS: &str = "get_health, find, tap, long_press, enter_text, send_text_input_action, \
-                        scroll, scroll_into_view, wait_for, get_text, screenshot";
+                        scroll, scroll_into_view, get_offset, wait_for, get_text, screenshot";
 
 /// Registers `ext.waft.driver`, beside the inspector's extensions.
 pub(crate) fn init_service_extensions(app: &mut App) {
@@ -52,6 +52,7 @@ fn driver_command(app: &mut App, params: ServiceExtensionParams) -> Task<Service
         "scroll_into_view" => {
             app.spawn(async move |cx| commands::scroll_into_view(cx, &params).await)
         }
+        "get_offset" => app.spawn(async move |cx| commands::get_offset(cx, &params).await),
         "wait_for" => app.spawn(async move |cx| commands::wait_for(cx, &params).await),
         "get_text" => app.spawn(async move |cx| commands::get_text(cx, &params).await),
         other => Task::ready(Err(ServiceExtensionError::InvalidParams(format!(
