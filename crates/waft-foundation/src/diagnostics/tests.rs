@@ -35,6 +35,393 @@ fn assert_deep(actual: &str, expected: &str) {
     );
 }
 
+/// Flutter's `simulateJsonSerialization`: encode and decode, so that every value in the map is one
+/// a client can receive.
+fn simulate_json_serialization(
+    node: &dyn DiagnosticsNode,
+    delegate: &dyn DiagnosticsSerializationDelegate,
+) -> DiagnosticsJsonMap {
+    let json = node.to_json_map(delegate);
+    let encoded = serde_json::to_string(&json).expect("a diagnostics node serializes to JSON");
+    serde_json::from_str(&encoded).expect("the encoded JSON reads back")
+}
+
+/// [`simulate_json_serialization`] with Dart's default delegate.
+fn serialize(node: &dyn DiagnosticsNode) -> DiagnosticsJsonMap {
+    simulate_json_serialization(
+        node,
+        &DefaultDiagnosticsSerializationDelegate::new(0, false),
+    )
+}
+
+fn json_str<'a>(json: &'a DiagnosticsJsonMap, key: &str) -> Option<&'a str> {
+    json.get(key).and_then(Value::as_str)
+}
+
+fn json_bool(json: &DiagnosticsJsonMap, key: &str) -> Option<bool> {
+    json.get(key).and_then(Value::as_bool)
+}
+
+fn json_len(json: &DiagnosticsJsonMap, key: &str) -> Option<usize> {
+    json.get(key).and_then(Value::as_array).map(Vec::len)
+}
+
+fn json_strings<'a>(json: &'a DiagnosticsJsonMap, key: &str) -> Option<Vec<&'a str>> {
+    json.get(key).and_then(Value::as_array).map(|values| {
+        values
+            .iter()
+            .map(|value| value.as_str().expect("a list of strings"))
+            .collect()
+    })
+}
+
+/// Flutter's `validateNodeJsonSerializationHelper`.
+fn validate_node_json_map(json: &DiagnosticsJsonMap, node: &dyn DiagnosticsNode) {
+    let description = node.to_description(None);
+    assert_eq!(json_str(json, "name"), node.name());
+    assert_eq!(
+        json_bool(json, "showSeparator").unwrap_or(true),
+        node.show_separator()
+    );
+    assert_eq!(json_str(json, "description"), Some(description.as_str()));
+    assert_eq!(
+        json_str(json, "level").unwrap_or("info"),
+        node.level().name()
+    );
+    assert_eq!(
+        json_bool(json, "showName").unwrap_or(true),
+        node.show_name()
+    );
+    assert_eq!(
+        json_str(json, "emptyBodyDescription"),
+        node.empty_body_description()
+    );
+    assert_eq!(
+        json_str(json, "style").unwrap_or("sparse"),
+        node.style().unwrap_or(DiagnosticsTreeStyle::Sparse).name()
+    );
+    assert_eq!(json_str(json, "type"), Some(node.type_name()));
+    assert_eq!(
+        json_bool(json, "hasChildren").unwrap_or(false),
+        !node.get_children().is_empty()
+    );
+}
+
+/// Flutter's `validateNodeJsonSerialization`.
+fn validate_node_json_serialization(node: &dyn DiagnosticsNode) {
+    let json = serialize(node);
+    validate_node_json_map(&json, node);
+}
+
+/// Flutter's `validatePropertyJsonSerializationHelper`.
+fn validate_property_json_map<T: Any>(
+    json: &DiagnosticsJsonMap,
+    node: &dyn DiagnosticsNode,
+    data: &PropertyData<T>,
+) {
+    validate_property_json_map_with_type(json, node, data, data.property_type());
+}
+
+fn validate_property_json_map_with_type<T: Any>(
+    json: &DiagnosticsJsonMap,
+    node: &dyn DiagnosticsNode,
+    data: &PropertyData<T>,
+    property_type: &str,
+) {
+    assert_eq!(
+        json.contains_key("defaultValue"),
+        data.default_value.is_some(),
+        "defaultValue"
+    );
+    assert_eq!(json_str(json, "ifEmpty"), data.if_empty.as_deref());
+    assert_eq!(json_str(json, "ifNull"), data.effective_if_null());
+    assert_eq!(json_str(json, "tooltip"), data.tooltip.as_deref());
+    assert_eq!(json_bool(json, "missingIfNull"), Some(data.missing_if_null));
+    assert_eq!(json_str(json, "propertyType"), Some(property_type));
+    assert!(json.contains_key("defaultLevel"), "defaultLevel");
+    assert_eq!(
+        json.contains_key("isDiagnosticableValue"),
+        data.node_value().is_some()
+    );
+    validate_node_json_map(json, node);
+}
+
+/// Flutter's `validatePropertyJsonSerialization`.
+fn validate_diagnostics_property_json_serialization<T: fmt::Display + PartialEq + Any>(
+    property: &DiagnosticsProperty<T>,
+) {
+    let json = serialize(property);
+    validate_property_json_map(&json, property, property.property_data());
+}
+
+/// Flutter's `validateStringPropertyJsonSerialization`.
+fn validate_string_property_json_serialization(property: &StringProperty) {
+    let json = serialize(property);
+    assert_eq!(json_bool(&json, "quoted"), Some(property.quoted));
+    validate_property_json_map(&json, property, property.property_data());
+}
+
+/// Flutter's `validateFlagPropertyJsonSerialization`.
+fn validate_flag_property_json_serialization(property: &FlagProperty) {
+    let json = serialize(property);
+    assert_eq!(json_str(&json, "ifTrue"), property.if_true.as_deref());
+    assert_eq!(json_str(&json, "ifFalse"), property.if_false.as_deref());
+    validate_property_json_map(&json, property, property.property_data());
+}
+
+/// Flutter's `validateDoublePropertyJsonSerialization`, for both a `DoubleProperty` and the
+/// `PercentProperty` that inherits its JSON.
+fn validate_number_property_json_serialization(
+    node: &dyn DiagnosticsNode,
+    data: &PropertyData<f64>,
+    unit: Option<&String>,
+    number_to_string: &str,
+) {
+    let json = serialize(node);
+    assert_eq!(json_str(&json, "unit"), unit.map(String::as_str));
+    assert_eq!(json_str(&json, "numberToString"), Some(number_to_string));
+    validate_property_json_map(&json, node, data);
+}
+
+/// Flutter's `validatePropertyJsonSerialization` for an `EnumProperty`.
+fn validate_enum_property_json_serialization<T: fmt::Debug + PartialEq + Any>(
+    property: &EnumProperty<T>,
+) {
+    let json = serialize(property);
+    validate_property_json_map(&json, property, property.property_data());
+}
+
+/// Flutter's `validateObjectFlagPropertyJsonSerialization`.
+fn validate_object_flag_property_json_serialization<T: fmt::Display + Any>(
+    property: &ObjectFlagProperty<T>,
+) {
+    let json = serialize(property);
+    assert_eq!(json_str(&json, "ifPresent"), property.if_present.as_deref());
+    validate_property_json_map(&json, property, property.property_data());
+}
+
+/// Flutter's `validateIterableFlagsPropertyJsonSerialization`.
+fn validate_iterable_flags_property_json_serialization<T: Any>(property: &FlagsSummary<T>) {
+    let json = serialize(property);
+    if property.value().is_empty() {
+        assert!(!json.contains_key("values"));
+    } else {
+        let expected: Vec<&str> = property
+            .value()
+            .iter()
+            .filter_map(|(key, value)| value.is_some().then_some(key.as_str()))
+            .collect();
+        assert_eq!(json_strings(&json, "values"), Some(expected));
+    }
+    validate_property_json_map(&json, property, property.property_data());
+}
+
+/// Flutter's `validateIterablePropertyJsonSerialization`.
+fn validate_iterable_property_json_serialization<T: fmt::Display + PartialEq + Any>(
+    property: &IterableProperty<T>,
+) {
+    let json = serialize(property);
+    match property.value() {
+        Some(values) => {
+            let expected: Vec<String> = values
+                .iter()
+                .map(|value| dart_value_to_string(value as &dyn Any, value.to_string()))
+                .collect();
+            assert_eq!(
+                json_strings(&json, "values"),
+                Some(expected.iter().map(String::as_str).collect())
+            );
+        }
+        None => assert!(!json.contains_key("values")),
+    }
+    validate_property_json_map(&json, property, property.property_data());
+}
+
+type NodeFilter =
+    Rc<dyn Fn(Vec<Rc<dyn DiagnosticsNode>>, &dyn DiagnosticsNode) -> Vec<Rc<dyn DiagnosticsNode>>>;
+type NodeTruncator = Rc<
+    dyn Fn(
+        Vec<Rc<dyn DiagnosticsNode>>,
+        Option<&dyn DiagnosticsNode>,
+    ) -> Vec<Rc<dyn DiagnosticsNode>>,
+>;
+type NodeDelegator = Rc<
+    dyn Fn(
+        &dyn DiagnosticsNode,
+        &TestDiagnosticsSerializationDelegate,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate>,
+>;
+
+/// Flutter's `TestDiagnosticsSerializationDelegate`.
+#[derive(Clone)]
+struct TestDiagnosticsSerializationDelegate {
+    include_properties: bool,
+    subtree_depth: i32,
+    additional_node_properties_map: DiagnosticsJsonMap,
+    child_filter: Option<NodeFilter>,
+    property_filter: Option<NodeFilter>,
+    node_truncator: Option<NodeTruncator>,
+    node_delegator: Option<NodeDelegator>,
+}
+
+impl TestDiagnosticsSerializationDelegate {
+    fn new() -> Self {
+        TestDiagnosticsSerializationDelegate {
+            include_properties: false,
+            subtree_depth: 0,
+            additional_node_properties_map: DiagnosticsJsonMap::new(),
+            child_filter: None,
+            property_filter: None,
+            node_truncator: None,
+            node_delegator: None,
+        }
+    }
+
+    fn with_include_properties(mut self, include_properties: bool) -> Self {
+        self.include_properties = include_properties;
+        self
+    }
+
+    fn with_subtree_depth(mut self, subtree_depth: i32) -> Self {
+        self.subtree_depth = subtree_depth;
+        self
+    }
+
+    fn with_additional_node_properties(mut self, json: DiagnosticsJsonMap) -> Self {
+        self.additional_node_properties_map = json;
+        self
+    }
+
+    fn with_child_filter(
+        mut self,
+        filter: impl Fn(
+            Vec<Rc<dyn DiagnosticsNode>>,
+            &dyn DiagnosticsNode,
+        ) -> Vec<Rc<dyn DiagnosticsNode>>
+        + 'static,
+    ) -> Self {
+        self.child_filter = Some(Rc::new(filter));
+        self
+    }
+
+    fn with_property_filter(
+        mut self,
+        filter: impl Fn(
+            Vec<Rc<dyn DiagnosticsNode>>,
+            &dyn DiagnosticsNode,
+        ) -> Vec<Rc<dyn DiagnosticsNode>>
+        + 'static,
+    ) -> Self {
+        self.property_filter = Some(Rc::new(filter));
+        self
+    }
+
+    fn with_node_truncator(
+        mut self,
+        truncator: impl Fn(
+            Vec<Rc<dyn DiagnosticsNode>>,
+            Option<&dyn DiagnosticsNode>,
+        ) -> Vec<Rc<dyn DiagnosticsNode>>
+        + 'static,
+    ) -> Self {
+        self.node_truncator = Some(Rc::new(truncator));
+        self
+    }
+
+    fn with_node_delegator(
+        mut self,
+        delegator: impl Fn(
+            &dyn DiagnosticsNode,
+            &TestDiagnosticsSerializationDelegate,
+        ) -> Rc<dyn DiagnosticsSerializationDelegate>
+        + 'static,
+    ) -> Self {
+        self.node_delegator = Some(Rc::new(delegator));
+        self
+    }
+}
+
+impl DiagnosticsSerializationDelegate for TestDiagnosticsSerializationDelegate {
+    fn additional_node_properties(
+        &self,
+        _node: &dyn DiagnosticsNode,
+        _full_details: bool,
+    ) -> DiagnosticsJsonMap {
+        self.additional_node_properties_map.clone()
+    }
+
+    fn filter_children(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        match &self.child_filter {
+            Some(filter) => filter(nodes, owner),
+            None => nodes,
+        }
+    }
+
+    fn filter_properties(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        match &self.property_filter {
+            Some(filter) => filter(nodes, owner),
+            None => nodes,
+        }
+    }
+
+    fn truncate_nodes_list(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        owner: Option<&dyn DiagnosticsNode>,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        match &self.node_truncator {
+            Some(truncator) => truncator(nodes, owner),
+            None => nodes,
+        }
+    }
+
+    fn delegate_for_node(
+        &self,
+        node: &dyn DiagnosticsNode,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate> {
+        if let Some(delegator) = &self.node_delegator {
+            return delegator(node, self);
+        }
+        if self.subtree_depth > 0 {
+            self.copy_with(Some(self.subtree_depth - 1), None)
+        } else {
+            Rc::new(self.clone())
+        }
+    }
+
+    fn subtree_depth(&self) -> i32 {
+        self.subtree_depth
+    }
+
+    fn include_properties(&self) -> bool {
+        self.include_properties
+    }
+
+    fn expand_property_values(&self) -> bool {
+        false
+    }
+
+    fn copy_with(
+        &self,
+        subtree_depth: Option<i32>,
+        include_properties: Option<bool>,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate> {
+        Rc::new(TestDiagnosticsSerializationDelegate {
+            include_properties: include_properties.unwrap_or(self.include_properties),
+            subtree_depth: subtree_depth.unwrap_or(self.subtree_depth),
+            ..self.clone()
+        })
+    }
+}
+
 struct TestTree {
     name: String,
     style: Option<DiagnosticsTreeStyle>,
@@ -192,8 +579,10 @@ fn golden_style_test(
                 .name("node C")
                 .maybe_style(last_child_style.or(style)),
         );
-    let actual = tree.debug_node(None, style).to_string_deep();
+    let node = tree.debug_node(None, style);
+    let actual = node.to_string_deep();
     assert_deep(&actual, golden);
+    validate_node_json_serialization(&node);
 }
 
 #[test]
@@ -427,8 +816,10 @@ fn golden_property_style_test(
                         .with_style(property_style),
                 ),
         );
-    let actual = tree.debug_node(name, style).to_string_deep();
+    let node = tree.debug_node(name, style);
+    let actual = node.to_string_deep();
     assert_deep(&actual, golden);
+    validate_node_json_serialization(&node);
 }
 
 #[test]
@@ -960,6 +1351,7 @@ fn string_property_test() {
         .if_empty("<hidden>")
         .quoted(false);
     assert_eq!(string_property.to_string(), "name: VALUE");
+    validate_string_property_json_serialization(&string_property);
 
     assert_eq!(
         StringProperty::new("name", Some("value".into()))
@@ -998,6 +1390,7 @@ fn string_property_test() {
     );
     let quoted = StringProperty::new("name", Some("value".into()));
     assert_eq!(quoted.to_string(), "name: \"value\"");
+    validate_string_property_json_serialization(&quoted);
     assert_eq!(
         StringProperty::new("name", Some("value".into()))
             .with_show_name(false)
@@ -1045,6 +1438,10 @@ fn bool_property_test() {
     );
     let missing_bool = DiagnosticsProperty::<bool>::new("name", None).if_null("missing");
     assert_eq!(missing_bool.to_string(), "name: missing");
+    validate_diagnostics_property_json_serialization(&true_property);
+    validate_diagnostics_property_json_serialization(&false_property);
+    validate_diagnostics_property_json_serialization(&truthy_property);
+    validate_diagnostics_property_json_serialization(&missing_bool);
 }
 
 #[test]
@@ -1056,6 +1453,8 @@ fn flag_property_test() {
     assert_eq!(false_flag.value(), Some(&false));
     assert!(!true_flag.is_filtered(DiagnosticLevel::Fine));
     assert!(false_flag.is_filtered(DiagnosticLevel::Fine));
+    validate_flag_property_json_serialization(&true_flag);
+    validate_flag_property_json_serialization(&false_flag);
 }
 
 #[test]
@@ -1065,6 +1464,7 @@ fn property_with_tooltip_test() {
     assert_eq!(with_tooltip.to_string(), "name: value (tooltip)");
     assert_eq!(with_tooltip.value(), Some(&"value".to_string()));
     assert!(!with_tooltip.is_filtered(DiagnosticLevel::Fine));
+    validate_diagnostics_property_json_serialization(&with_tooltip);
 }
 
 #[test]
@@ -1073,6 +1473,12 @@ fn double_property_test() {
     assert_eq!(double_property.to_string(), "name: 42.0");
     assert!(!double_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(double_property.value(), Some(&42.0));
+    validate_number_property_json_serialization(
+        &double_property,
+        double_property.property_data(),
+        double_property.unit.as_ref(),
+        &double_property.number_to_string(),
+    );
 
     assert_eq!(
         DoubleProperty::new("name", Some(1.3333)).to_string(),
@@ -1089,6 +1495,12 @@ fn double_property_test() {
 
     let double_with_unit = DoubleProperty::new("name", Some(42.0)).unit("px");
     assert_eq!(double_with_unit.to_string(), "name: 42.0px");
+    validate_number_property_json_serialization(
+        &double_with_unit,
+        double_with_unit.property_data(),
+        double_with_unit.unit.as_ref(),
+        &double_with_unit.number_to_string(),
+    );
 }
 
 #[test]
@@ -1098,6 +1510,18 @@ fn double_infinity_serialization_test() {
 
     let inf_property_2 = DoubleProperty::new("double2", Some(f64::NEG_INFINITY));
     assert_eq!(inf_property_2.to_string(), "double2: -Infinity");
+    validate_number_property_json_serialization(
+        &inf_property_1,
+        inf_property_1.property_data(),
+        inf_property_1.unit.as_ref(),
+        &inf_property_1.number_to_string(),
+    );
+    validate_number_property_json_serialization(
+        &inf_property_2,
+        inf_property_2.property_data(),
+        inf_property_2.unit.as_ref(),
+        &inf_property_2.number_to_string(),
+    );
 }
 
 #[test]
@@ -1106,6 +1530,12 @@ fn unsafe_double_property_test() {
     assert_eq!(safe.to_string(), "name: 42.0");
     assert!(!safe.is_filtered(DiagnosticLevel::Info));
     assert_eq!(safe.value(), Some(&42.0));
+    validate_number_property_json_serialization(
+        &safe,
+        safe.property_data(),
+        safe.unit.as_ref(),
+        &safe.number_to_string(),
+    );
     assert_eq!(
         DoubleProperty::lazy("name", Rc::new(|| Some(1.3333))).to_string(),
         "name: 1.3"
@@ -1131,6 +1561,12 @@ fn percent_property_test() {
     assert_eq!(
         complex_percent_property.to_string(),
         "name: 99.0% invisible (almost transparent)"
+    );
+    validate_number_property_json_serialization(
+        &complex_percent_property,
+        complex_percent_property.property_data(),
+        complex_percent_property.unit.as_ref(),
+        &complex_percent_property.number_to_string(),
     );
 
     assert_eq!(
@@ -1191,6 +1627,8 @@ fn callback_property_test() {
     assert_eq!(present.value(), Some(&TestClosure));
     assert_eq!(missing.to_string(), "onClick: null");
     assert!(missing.is_filtered(DiagnosticLevel::Fine));
+    validate_object_flag_property_json_serialization(&present);
+    validate_object_flag_property_json_serialization(&missing);
 }
 
 #[test]
@@ -1204,6 +1642,8 @@ fn missing_callback_property_test() {
     assert_eq!(present.value(), Some(&TestClosure));
     assert_eq!(missing.to_string(), "disabled");
     assert!(!missing.is_filtered(DiagnosticLevel::Info));
+    validate_object_flag_property_json_serialization(&present);
+    validate_object_flag_property_json_serialization(&missing);
 }
 
 #[test]
@@ -1219,9 +1659,11 @@ fn describe_bool_property() {
     assert_eq!(yes.to_string(), "name: YES");
     assert_eq!(yes.level(), DiagnosticLevel::Info);
     assert_eq!(yes.value(), Some(&true));
+    validate_flag_property_json_serialization(&yes);
     assert_eq!(no.to_string(), "name: NO");
     assert_eq!(no.level(), DiagnosticLevel::Info);
     assert_eq!(no.value(), Some(&false));
+    validate_flag_property_json_serialization(&no);
 
     assert_eq!(
         FlagProperty::new("name", Some(true))
@@ -1282,6 +1724,12 @@ fn enum_property_test() {
             .level(),
         DiagnosticLevel::Hidden
     );
+
+    validate_enum_property_json_serialization(&hello);
+    validate_enum_property_json_serialization(&world);
+    validate_enum_property_json_serialization(&defer_to_child);
+    validate_enum_property_json_serialization(&null_enum);
+    validate_enum_property_json_serialization(&matches_default);
 }
 
 #[test]
@@ -1342,28 +1790,33 @@ fn object_property_test() {
         simple.to_string(),
         "name: Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)"
     );
+    validate_diagnostics_property_json_serialization(&simple);
 
     let with_description =
         DiagnosticsProperty::<TestRect>::new("name", Some(rect)).description("small rect");
     assert_eq!(with_description.value(), Some(&rect));
     assert_eq!(with_description.level(), DiagnosticLevel::Info);
     assert_eq!(with_description.to_string(), "name: small rect");
+    validate_diagnostics_property_json_serialization(&with_description);
 
     let null_property = DiagnosticsProperty::<TestObject>::new("name", None);
     assert_eq!(null_property.value(), None);
     assert_eq!(null_property.level(), DiagnosticLevel::Info);
     assert_eq!(null_property.to_string(), "name: null");
+    validate_diagnostics_property_json_serialization(&null_property);
 
     let hide_null_property =
         DiagnosticsProperty::<TestObject>::new("name", None).default_value(None);
     assert_eq!(hide_null_property.value(), None);
     assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_null_property.to_string(), "name: null");
+    validate_diagnostics_property_json_serialization(&hide_null_property);
 
     let null_description = DiagnosticsProperty::<TestObject>::new("name", None).if_null("missing");
     assert_eq!(null_description.value(), None);
     assert_eq!(null_description.level(), DiagnosticLevel::Info);
     assert_eq!(null_description.to_string(), "name: missing");
+    validate_diagnostics_property_json_serialization(&null_description);
 
     let hide_name = DiagnosticsProperty::<TestRect>::new("name", Some(rect))
         .with_show_name(false)
@@ -1371,6 +1824,7 @@ fn object_property_test() {
     assert_eq!(hide_name.value(), Some(&rect));
     assert_eq!(hide_name.level(), DiagnosticLevel::Warning);
     assert_eq!(hide_name.to_string(), "Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)");
+    validate_diagnostics_property_json_serialization(&hide_name);
 
     let hide_separator =
         DiagnosticsProperty::<TestRect>::new("Creator", Some(rect)).with_show_separator(false);
@@ -1380,6 +1834,7 @@ fn object_property_test() {
         hide_separator.to_string(),
         "Creator Rect.fromLTRB(0.0, 0.0, 20.0, 20.0)"
     );
+    validate_diagnostics_property_json_serialization(&hide_separator);
 }
 
 #[test]
@@ -1390,6 +1845,7 @@ fn lazy_object_property_test() {
     assert_eq!(simple.value(), Some(&rect));
     assert_eq!(simple.level(), DiagnosticLevel::Info);
     assert_eq!(simple.to_string(), "name: small rect");
+    validate_diagnostics_property_json_serialization(&simple);
 
     let null_property =
         DiagnosticsProperty::<TestObject>::lazy("name", Rc::new(|| None::<TestObject>))
@@ -1397,6 +1853,7 @@ fn lazy_object_property_test() {
     assert_eq!(null_property.value(), None);
     assert!(!null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(null_property.to_string(), "name: missing");
+    validate_diagnostics_property_json_serialization(&null_property);
 
     let hide_null_property =
         DiagnosticsProperty::<TestObject>::lazy("name", Rc::new(|| None::<TestObject>))
@@ -1405,6 +1862,7 @@ fn lazy_object_property_test() {
     assert_eq!(hide_null_property.value(), None);
     assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_null_property.to_string(), "name: missing");
+    validate_diagnostics_property_json_serialization(&hide_null_property);
 
     let hide_name = DiagnosticsProperty::<TestRect>::lazy("name", Rc::new(move || Some(rect)))
         .description("small rect")
@@ -1412,6 +1870,7 @@ fn lazy_object_property_test() {
     assert_eq!(hide_name.value(), Some(&rect));
     assert!(!hide_name.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_name.to_string(), "small rect");
+    validate_diagnostics_property_json_serialization(&hide_name);
 }
 
 #[test]
@@ -1421,6 +1880,7 @@ fn color_property_test() {
     assert!(!simple.is_filtered(DiagnosticLevel::Info));
     assert_eq!(simple.value(), Some(&color));
     assert_eq!(simple.to_string(), "name: Color(0xffffffff)");
+    validate_diagnostics_property_json_serialization(&simple);
 }
 
 #[test]
@@ -1430,18 +1890,21 @@ fn flag_property_was_layout_test() {
     assert_eq!(show.value(), Some(&true));
     assert!(!show.is_filtered(DiagnosticLevel::Info));
     assert_eq!(show.to_string(), "layout computed");
+    validate_flag_property_json_serialization(&show);
 
     let hide = FlagProperty::new("wasLayout", Some(false)).if_true("layout computed");
     assert_eq!(hide.name(), Some("wasLayout"));
     assert_eq!(hide.value(), Some(&false));
     assert_eq!(hide.level(), DiagnosticLevel::Hidden);
     assert_eq!(hide.to_string(), "wasLayout: false");
+    validate_flag_property_json_serialization(&hide);
 
     let hide_true = FlagProperty::new("wasLayout", Some(true)).if_false("no layout computed");
     assert_eq!(hide_true.name(), Some("wasLayout"));
     assert_eq!(hide_true.value(), Some(&true));
     assert_eq!(hide_true.level(), DiagnosticLevel::Hidden);
     assert_eq!(hide_true.to_string(), "wasLayout: true");
+    validate_flag_property_json_serialization(&hide_true);
 }
 
 #[test]
@@ -1451,12 +1914,14 @@ fn has_property_test() {
     assert_eq!(has.value(), Some(&TestClosure));
     assert!(!has.is_filtered(DiagnosticLevel::Info));
     assert_eq!(has.to_string(), "has onClick");
+    validate_object_flag_property_json_serialization(&has);
 
     let missing = ObjectFlagProperty::<TestClosure>::has("onClick", None);
     assert_eq!(missing.name(), Some("onClick"));
     assert_eq!(missing.value(), None);
     assert!(missing.is_filtered(DiagnosticLevel::Info));
     assert_eq!(missing.to_string(), "onClick: null");
+    validate_object_flag_property_json_serialization(&missing);
 }
 
 #[test]
@@ -1469,6 +1934,7 @@ fn iterable_flags_property_test() {
     assert_eq!(flags.value().len(), 2);
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
     assert_eq!(flags.to_string(), "listeners: click, move");
+    validate_iterable_flags_property_json_serialization(&flags);
 
     let mut value = IndexMap::new();
     value.insert("move".to_string(), Some(TestClosure));
@@ -1476,6 +1942,7 @@ fn iterable_flags_property_test() {
     let flags = FlagsSummary::<TestClosure>::new("listeners", value);
     assert_eq!(flags.to_string(), "listeners: move, click");
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
+    validate_iterable_flags_property_json_serialization(&flags);
 
     let mut value = IndexMap::new();
     value.insert("move".to_string(), None);
@@ -1483,17 +1950,20 @@ fn iterable_flags_property_test() {
     let flags = FlagsSummary::<TestClosure>::new("listeners", value);
     assert_eq!(flags.to_string(), "listeners: click");
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
+    validate_iterable_flags_property_json_serialization(&flags);
 
     let mut value = IndexMap::new();
     value.insert("enter".to_string(), None::<TestClosure>);
     let flags = FlagsSummary::<TestClosure>::new("listeners", value);
     assert!(flags.is_filtered(DiagnosticLevel::Info));
+    validate_iterable_flags_property_json_serialization(&flags);
 
     let mut value = IndexMap::new();
     value.insert("enter".to_string(), None::<TestClosure>);
     let flags = FlagsSummary::<TestClosure>::new("listeners", value).if_empty("<none>");
     assert_eq!(flags.to_string(), "listeners: <none>");
     assert!(!flags.is_filtered(DiagnosticLevel::Info));
+    validate_iterable_flags_property_json_serialization(&flags);
 }
 
 #[test]
@@ -1503,33 +1973,43 @@ fn iterable_property_test() {
     assert_eq!(ints_property.value(), Some(&ints));
     assert!(!ints_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(ints_property.to_string(), "ints: 1, 2, 3");
+    validate_iterable_property_json_serialization(&ints_property);
 
     let doubles = vec![1.0, 2.0, 3.0];
     let doubles_property = IterableProperty::<f64>::new("doubles", Some(doubles.clone()));
     assert_eq!(doubles_property.value(), Some(&doubles));
     assert!(!doubles_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(doubles_property.to_string(), "doubles: 1.0, 2.0, 3.0");
+    validate_iterable_property_json_serialization(&doubles_property);
+    assert_eq!(
+        json_strings(&serialize(&doubles_property), "values"),
+        Some(vec!["1.0", "2.0", "3.0"])
+    );
 
     let empty_property = IterableProperty::<TestObject>::new("name", Some(Vec::new()));
     assert_eq!(empty_property.value().map(Vec::len), Some(0));
     assert!(!empty_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(empty_property.to_string(), "name: []");
+    validate_iterable_property_json_serialization(&empty_property);
 
     let null_property = IterableProperty::<TestObject>::new("list", None);
     assert_eq!(null_property.value(), None);
     assert!(!null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(null_property.to_string(), "list: null");
+    validate_iterable_property_json_serialization(&null_property);
 
     let hide_null_property = IterableProperty::<TestObject>::new("list", None).default_value(None);
     assert_eq!(hide_null_property.value(), None);
     assert!(hide_null_property.is_filtered(DiagnosticLevel::Info));
     assert_eq!(hide_null_property.level(), DiagnosticLevel::Fine);
     assert_eq!(hide_null_property.to_string(), "list: null");
+    validate_iterable_property_json_serialization(&hide_null_property);
 
     let objects = vec![TestObject::Rect, TestObject::Color];
     let objects_property = IterableProperty::<TestObject>::new("objects", Some(objects.clone()));
     assert_eq!(objects_property.value(), Some(&objects));
     assert!(!objects_property.is_filtered(DiagnosticLevel::Info));
+    validate_iterable_property_json_serialization(&objects_property);
     assert_eq!(
         objects_property.to_string(),
         "objects: Rect.fromLTRB(0.0, 0.0, 20.0, 20.0), Color(0xffffffff)"
@@ -1555,6 +2035,7 @@ fn iterable_property_test() {
             "  Color(0xffffffff)\n",
         )
     );
+    validate_iterable_property_json_serialization(&multi_line_property);
 
     assert_deep(
         &TestTree::new()
@@ -1594,6 +2075,7 @@ fn iterable_property_test() {
         object_property.to_string_deep_with("", None, None, DiagnosticLevel::Debug, 100),
         "object: Color(0xffffffff)\n"
     );
+    validate_iterable_property_json_serialization(&object_property);
     assert_deep(
         &TestTree::new()
             .name("root")
@@ -1610,12 +2092,20 @@ fn message_test() {
     assert_eq!(message.name(), Some(""));
     assert_eq!(message.value(), None);
     assert!(!message.show_name());
+    validate_node_json_serialization(&message);
 
     let message_property = MessageProperty::new("diagnostics", "hello world");
     assert_eq!(message_property.to_string(), "diagnostics: hello world");
     assert_eq!(message_property.name(), Some("diagnostics"));
     assert_eq!(message_property.value(), None);
     assert!(message_property.show_name());
+    let json = serialize(&message_property);
+    validate_property_json_map_with_type(
+        &json,
+        &message_property,
+        message_property.property_data(),
+        "void",
+    );
 }
 
 fn create_tree_with_wrapping_nodes(
@@ -2053,4 +2543,448 @@ fn snapshot_node_matches_a_live_tree_node() {
     .to_string_deep();
 
     assert_deep(&snapshot, &live);
+}
+
+/// The tree `diagnostics_json_test.dart` serializes.
+fn serialization_test_tree() -> TestTree {
+    TestTree::new()
+        .property(StringProperty::new("stringProperty1", Some("value1".into())).quoted(false))
+        .property(DoubleProperty::new("doubleProperty1", Some(42.5)))
+        .property(DoubleProperty::new("roundedProperty", Some(1.0 / 3.0)))
+        .property(
+            StringProperty::new("DO_NOT_SHOW", Some("DO_NOT_SHOW".into()))
+                .with_level(DiagnosticLevel::Hidden)
+                .quoted(false),
+        )
+        .property(DiagnosticsProperty::<String>::new("DO_NOT_SHOW_NULL", None).default_value(None))
+        .property(DiagnosticsProperty::<String>::new("nullProperty", None))
+        .property(
+            StringProperty::new("node_type", Some("<root node>".into()))
+                .with_show_name(false)
+                .quoted(false),
+        )
+        .child(TestTree::new().name("node A"))
+        .child(
+            TestTree::new()
+                .name("node B")
+                .property(StringProperty::new("p1", Some("v1".into())).quoted(false))
+                .property(StringProperty::new("p2", Some("v2".into())).quoted(false))
+                .child(TestTree::new().name("node B1"))
+                .child(TestTree::new().name("node B2").property(
+                    StringProperty::new("property1", Some("value1".into())).quoted(false),
+                ))
+                .child(
+                    TestTree::new()
+                        .name("node B3")
+                        .property(
+                            StringProperty::new("node_type", Some("<leaf node>".into()))
+                                .with_show_name(false)
+                                .quoted(false),
+                        )
+                        .property(IntProperty::new("foo", 42_i64)),
+                ),
+        )
+        .child(
+            TestTree::new().name("node C").property(
+                StringProperty::new("foo", Some("multi\nline\nvalue!".into())).quoted(false),
+            ),
+        )
+}
+
+#[test]
+fn serialization_default() {
+    let tree = serialization_test_tree();
+    let json = serialize(&tree.debug_node(None, None));
+    assert!(!json.contains_key("properties"));
+    assert!(!json.contains_key("children"));
+
+    assert!(json.contains_key("description"), "description is included.");
+    for key in ["type", "hasChildren", "allowWrap"] {
+        assert!(json.contains_key(key), "{key} is included.");
+    }
+    assert_eq!(json_str(&json, "type"), Some("DiagnosticableTreeNode"));
+}
+
+#[test]
+fn serialization_subtree_depth_1() {
+    let tree = serialization_test_tree();
+    let json = simulate_json_serialization(
+        &tree.debug_node(None, None),
+        &DefaultDiagnosticsSerializationDelegate::new(1, false),
+    );
+    assert!(!json.contains_key("properties"));
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(children.len(), 3);
+    for child in children {
+        assert!(!child.as_object().expect("a node").contains_key("children"));
+    }
+}
+
+#[test]
+fn serialization_subtree_depth_5() {
+    let tree = serialization_test_tree();
+    let json = simulate_json_serialization(
+        &tree.debug_node(None, None),
+        &DefaultDiagnosticsSerializationDelegate::new(5, false),
+    );
+    assert!(!json.contains_key("properties"));
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(
+        children[0]
+            .as_object()
+            .expect("a node")
+            .get("children")
+            .and_then(Value::as_array)
+            .map(Vec::len),
+        Some(0)
+    );
+    assert_eq!(
+        children[1]
+            .as_object()
+            .expect("a node")
+            .get("children")
+            .and_then(Value::as_array)
+            .map(Vec::len),
+        Some(3)
+    );
+    assert_eq!(
+        children[2]
+            .as_object()
+            .expect("a node")
+            .get("children")
+            .and_then(Value::as_array)
+            .map(Vec::len),
+        Some(0)
+    );
+}
+
+#[test]
+fn serialization_include_properties() {
+    let tree = serialization_test_tree();
+    let json = simulate_json_serialization(
+        &tree.debug_node(None, None),
+        &DefaultDiagnosticsSerializationDelegate::new(0, true),
+    );
+    assert!(!json.contains_key("children"));
+    assert_eq!(json_len(&json, "properties"), Some(7));
+}
+
+#[test]
+fn serialization_include_properties_with_subtree_depth_1() {
+    let tree = serialization_test_tree();
+    let json = simulate_json_serialization(
+        &tree.debug_node(None, None),
+        &DefaultDiagnosticsSerializationDelegate::new(1, true),
+    );
+    assert_eq!(json_len(&json, "properties"), Some(7));
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(children.len(), 3);
+    assert_eq!(
+        json_len(children[0].as_object().expect("a node"), "properties"),
+        Some(0)
+    );
+    assert_eq!(
+        json_len(children[1].as_object().expect("a node"), "properties"),
+        Some(2)
+    );
+    assert_eq!(
+        json_len(children[2].as_object().expect("a node"), "properties"),
+        Some(1)
+    );
+}
+
+#[test]
+fn serialization_additional_node_properties() {
+    let tree = serialization_test_tree();
+    let mut additional = DiagnosticsJsonMap::new();
+    additional.insert("foo".to_string(), Value::Bool(true));
+    let delegate = TestDiagnosticsSerializationDelegate::new()
+        .with_include_properties(true)
+        .with_subtree_depth(1)
+        .with_additional_node_properties(additional);
+    let json = simulate_json_serialization(&tree.debug_node(None, None), &delegate);
+    assert_eq!(json_bool(&json, "foo"), Some(true));
+    let properties = json
+        .get("properties")
+        .and_then(Value::as_array)
+        .expect("properties");
+    assert_eq!(properties.len(), 7);
+    assert!(
+        properties
+            .iter()
+            .all(|property| json_bool(property.as_object().expect("a node"), "foo") == Some(true))
+    );
+
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(children.len(), 3);
+    assert!(
+        children
+            .iter()
+            .all(|child| json_bool(child.as_object().expect("a node"), "foo") == Some(true))
+    );
+}
+
+#[test]
+fn serialization_filter_properties_sublist() {
+    let tree = serialization_test_tree();
+    let delegate = TestDiagnosticsSerializationDelegate::new()
+        .with_include_properties(true)
+        .with_property_filter(|nodes, _owner| {
+            nodes
+                .into_iter()
+                .filter(|node| node.type_name() == "StringProperty")
+                .collect()
+        });
+    let json = simulate_json_serialization(&tree.debug_node(None, None), &delegate);
+    let properties = json
+        .get("properties")
+        .and_then(Value::as_array)
+        .expect("properties");
+    assert_eq!(properties.len(), 3);
+    assert!(properties.iter().all(|property| json_str(
+        property.as_object().expect("a node"),
+        "type"
+    ) == Some("StringProperty")));
+}
+
+#[test]
+fn serialization_filter_properties_replace() {
+    let tree = serialization_test_tree();
+    let replaced = Rc::new(std::cell::Cell::new(false));
+    let delegate = TestDiagnosticsSerializationDelegate::new()
+        .with_include_properties(true)
+        .with_property_filter({
+            let replaced = replaced.clone();
+            move |nodes, _owner| {
+                if replaced.get() {
+                    return nodes;
+                }
+                replaced.set(true);
+                vec![Rc::new(StringProperty::new("foo", Some("bar".into())))]
+            }
+        });
+    let json = simulate_json_serialization(&tree.debug_node(None, None), &delegate);
+    let properties = json
+        .get("properties")
+        .and_then(Value::as_array)
+        .expect("properties");
+    assert_eq!(properties.len(), 1);
+    assert_eq!(
+        json_str(properties[0].as_object().expect("a node"), "name"),
+        Some("foo")
+    );
+}
+
+#[test]
+fn serialization_filter_children_sublist() {
+    let tree = serialization_test_tree();
+    let delegate = TestDiagnosticsSerializationDelegate::new()
+        .with_subtree_depth(1)
+        .with_child_filter(|nodes, _owner| {
+            nodes
+                .into_iter()
+                .filter(|node| node.get_properties().is_empty())
+                .collect()
+        });
+    let json = simulate_json_serialization(&tree.debug_node(None, None), &delegate);
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(children.len(), 1);
+}
+
+#[test]
+fn serialization_filter_children_replace() {
+    let tree = serialization_test_tree();
+    let delegate = TestDiagnosticsSerializationDelegate::new()
+        .with_subtree_depth(1)
+        .with_child_filter(|nodes, _owner| {
+            nodes
+                .into_iter()
+                .flat_map(|node| node.get_children())
+                .collect()
+        });
+    let json = simulate_json_serialization(&tree.debug_node(None, None), &delegate);
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(children.len(), 3);
+    assert_eq!(
+        json_str(children[0].as_object().expect("a node"), "name"),
+        Some("child node B1")
+    );
+}
+
+#[test]
+fn serialization_node_truncator() {
+    let tree = serialization_test_tree();
+    let delegate = TestDiagnosticsSerializationDelegate::new()
+        .with_subtree_depth(5)
+        .with_include_properties(true)
+        .with_node_truncator(|nodes, _owner| nodes.into_iter().take(2).collect());
+    let json = simulate_json_serialization(&tree.debug_node(None, None), &delegate);
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(children.len(), 3);
+    assert_eq!(
+        json_bool(children[2].as_object().expect("a node"), "truncated"),
+        Some(true)
+    );
+
+    let properties = json
+        .get("properties")
+        .and_then(Value::as_array)
+        .expect("properties");
+    assert_eq!(properties.len(), 3);
+    assert_eq!(
+        json_bool(properties[2].as_object().expect("a node"), "truncated"),
+        Some(true)
+    );
+}
+
+#[test]
+fn serialization_delegate_for_adding_nodes() {
+    let tree = serialization_test_tree();
+    let delegate = TestDiagnosticsSerializationDelegate::new()
+        .with_subtree_depth(5)
+        .with_include_properties(true)
+        .with_node_delegator(|_node, delegate| delegate.copy_with(None, Some(false)));
+    let json = simulate_json_serialization(&tree.debug_node(None, None), &delegate);
+    let properties = json
+        .get("properties")
+        .and_then(Value::as_array)
+        .expect("properties");
+    assert_eq!(properties.len(), 7);
+    assert!(properties.iter().all(|property| {
+        !property
+            .as_object()
+            .expect("a node")
+            .contains_key("properties")
+    }));
+
+    let children = json
+        .get("children")
+        .and_then(Value::as_array)
+        .expect("children");
+    assert_eq!(children.len(), 3);
+    assert!(children.iter().all(|child| {
+        !child
+            .as_object()
+            .expect("a node")
+            .contains_key("properties")
+    }));
+}
+
+#[test]
+fn diagnostics_property_for_basic_types_has_value_in_json() {
+    let json = serialize(&DiagnosticsProperty::<i64>::new("int1", Some(10)));
+    assert_eq!(json_str(&json, "name"), Some("int1"));
+    assert_eq!(json.get("value"), Some(&Value::from(10)));
+
+    let json = serialize(&IntProperty::<i64>::new("int2", Some(20)));
+    assert_eq!(json_str(&json, "name"), Some("int2"));
+    assert_eq!(json.get("value"), Some(&Value::from(20)));
+
+    let json = serialize(&DiagnosticsProperty::<f64>::new("double", Some(33.3)));
+    assert_eq!(json_str(&json, "name"), Some("double"));
+    assert_eq!(json.get("value"), Some(&serde_json::json!(33.3)));
+
+    let json = serialize(&DoubleProperty::new("double2", Some(33.3)));
+    assert_eq!(json_str(&json, "name"), Some("double2"));
+    assert_eq!(json.get("value"), Some(&serde_json::json!(33.3)));
+
+    let json = serialize(&DiagnosticsProperty::<bool>::new("bool", Some(true)));
+    assert_eq!(json_str(&json, "name"), Some("bool"));
+    assert_eq!(json.get("value"), Some(&Value::Bool(true)));
+
+    let json = serialize(&DiagnosticsProperty::<String>::new(
+        "string1",
+        Some("hello".into()),
+    ));
+    assert_eq!(json_str(&json, "name"), Some("string1"));
+    assert_eq!(json_str(&json, "value"), Some("hello"));
+
+    let json = serialize(&StringProperty::new("string2", Some("world".into())));
+    assert_eq!(json_str(&json, "name"), Some("string2"));
+    assert_eq!(json_str(&json, "value"), Some("world"));
+}
+
+#[test]
+fn double_json_sanitizes_non_finite_values() {
+    let json = serialize(&DoubleProperty::new("double1", Some(f64::INFINITY)));
+    assert_eq!(json_str(&json, "value"), Some("Infinity"));
+
+    let json = serialize(&DoubleProperty::new("double2", Some(f64::NEG_INFINITY)));
+    assert_eq!(json_str(&json, "value"), Some("-Infinity"));
+}
+
+#[test]
+fn json_default_value_strings_are_dart_to_strings() {
+    let json = serialize(&DoubleProperty::new("name", Some(42.0)).default_value(Some(1.0)));
+    assert_eq!(json_str(&json, "defaultValue"), Some("1.0"));
+
+    let json = serialize(
+        &EnumProperty::<ExampleEnum>::new("name", Some(ExampleEnum::Hello))
+            .default_value(Some(ExampleEnum::Hello)),
+    );
+    assert_eq!(json_str(&json, "defaultValue"), Some("ExampleEnum.hello"));
+
+    let json = serialize(
+        &IterableProperty::<i64>::new("name", Some(vec![1, 2, 3])).default_value(Some(vec![1, 2])),
+    );
+    assert_eq!(json_str(&json, "defaultValue"), Some("[1, 2]"));
+}
+
+/// A node that leaves `to_json_map` at the trait's default, as painting's property types do.
+struct BareNode;
+
+impl fmt::Display for BareNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("bare")
+    }
+}
+
+impl DiagnosticsNode for BareNode {
+    fn to_description(&self, _parent_configuration: Option<&TextTreeConfiguration>) -> String {
+        "bare".to_string()
+    }
+
+    fn style(&self) -> Option<DiagnosticsTreeStyle> {
+        Some(DiagnosticsTreeStyle::Sparse)
+    }
+
+    render_deep_with!();
+}
+
+#[test]
+fn a_node_that_leaves_json_at_the_default_serializes_the_base_fields() {
+    let json = serialize(&BareNode);
+    assert_eq!(json_str(&json, "type"), Some("BareNode"));
+    assert_eq!(json_str(&json, "description"), Some("bare"));
+    assert!(!json.contains_key("propertyType"));
+
+    // The delegate's per-node properties take the node as a trait object, which a provided
+    // method cannot supply.
+    let mut additional = DiagnosticsJsonMap::new();
+    additional.insert("foo".to_string(), Value::Bool(true));
+    let delegate =
+        TestDiagnosticsSerializationDelegate::new().with_additional_node_properties(additional);
+    let json = simulate_json_serialization(&BareNode, &delegate);
+    assert!(!json.contains_key("foo"));
 }
