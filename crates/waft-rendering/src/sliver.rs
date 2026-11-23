@@ -1211,6 +1211,31 @@ pub trait RenderSliver: RenderObject {
     /// See [`render_sliver_data`](Self::render_sliver_data).
     fn render_sliver_data_mut(self: RenderHandle<Self>, app: &mut App) -> &mut RenderSliverData;
 
+    /// Whether this sliver should be included in the semantics tree.
+    ///
+    /// This value is used by [`RenderViewportBase`](crate::RenderViewportBase) to ensure a
+    /// sliver is included in the semantics tree regardless of its geometry.
+    ///
+    /// A [`RenderSliver`] should override this value to `true` to ensure its child is included
+    /// in the semantics tree. For example if your sliver is under a [`crate::RenderViewport`]
+    /// you may want to wrap it with a `SliverEnsureSemantics` to ensure that:
+    ///
+    /// 1. It is still visited by `RenderViewportBase.visitChildrenForSemantics` regardless of
+    ///    its geometry. This includes cases where your sliver is outside the current viewport
+    ///    and cache extent.
+    /// 2. Its semantic information is not clipped out by the [`crate::RenderViewport`] in
+    ///    `RenderViewportBase.describeSemanticsClip` or
+    ///    [`RenderViewportBase::describe_approximate_paint_clip`](crate::RenderViewportBase::describe_approximate_paint_clip).
+    ///
+    /// If a given [`RenderSliver`] does not provide a valid `semanticBounds` it will still be
+    /// dropped from the semantics tree.
+    ///
+    /// Defaults to `false`.
+    fn ensure_semantics(self: RenderHandle<Self>, _app: &App) -> bool {
+        let _ = self;
+        false
+    }
+
     /// The sliver constraints most recently supplied by the parent.
     fn constraints(self: RenderHandle<Self>, app: &App) -> SliverConstraints {
         self.render_sliver_data(app).constraints.unwrap_or_else(|| {
@@ -1651,6 +1676,7 @@ pub(crate) struct RenderSliverVTable {
     pub object: RenderObjectVTable,
     pub sliver_data: fn(&App, HandleId) -> &RenderSliverData,
     pub sliver_data_mut: fn(&mut App, HandleId) -> &mut RenderSliverData,
+    pub ensure_semantics: fn(&App, HandleId) -> bool,
     pub hit_test: fn(&mut App, HandleId, &mut SliverHitTestResult<'_>, f64, f64) -> bool,
     pub handle_event: fn(&mut App, HandleId, &PointerEvent, &SliverHitTestEntry),
     pub center_offset_adjustment: fn(&App, HandleId) -> f64,
@@ -1674,6 +1700,7 @@ impl RenderSliverVTable {
             ),
             sliver_data: |app, id| T::render_sliver_data(resolve(id), app),
             sliver_data_mut: |app, id| T::render_sliver_data_mut(resolve(id), app),
+            ensure_semantics: |app, id| T::ensure_semantics(resolve(id), app),
             hit_test: |app, id, result, main, cross| {
                 T::hit_test(resolve(id), app, result, main, cross)
             },
@@ -1751,6 +1778,11 @@ impl AnyRenderSliver {
 
     fn sliver_data_mut(self, app: &mut App) -> &mut RenderSliverData {
         (self.vtable.sliver_data_mut)(app, self.id)
+    }
+
+    /// See [`RenderSliver::ensure_semantics`].
+    pub fn ensure_semantics(self, app: &App) -> bool {
+        (self.vtable.ensure_semantics)(app, self.id)
     }
 
     /// Compute the layout for this sliver.

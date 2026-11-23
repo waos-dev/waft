@@ -908,6 +908,23 @@ impl RenderObject for RenderSingleChildViewport {
         waft_rendering::RenderObjectBase::dispose(self, app);
     }
 
+    /// Dart's `describeApproximatePaintClip`: the content is clipped to the viewport when the
+    /// paint offset takes it past an edge.
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        // Dart's `child != null` is the erased child the caller visits.
+        if self.child(app).is_some()
+            && self.should_clip_at_paint_offset(app, self.paint_offset(app))
+        {
+            Some(Offset::ZERO & self.size(app))
+        } else {
+            None
+        }
+    }
+
     fn show_on_screen(
         self: RenderHandle<Self>,
         app: &mut App,
@@ -1441,5 +1458,36 @@ mod tests {
                 "content that fits needs no clip"
             );
         });
+    }
+
+    /// `_RenderSingleChildViewport.describeApproximatePaintClip`: content that overflows is
+    /// described as clipped to the viewport, and `Clip::None` or content that fits as not
+    /// clipped.
+    #[test]
+    fn describe_approximate_paint_clip_answers_the_viewports_clip() {
+        for (clip_behavior, content_height, clipped) in [
+            (Clip::HardEdge, CONTENT_HEIGHT, true),
+            (Clip::None, CONTENT_HEIGHT, false),
+            (Clip::HardEdge, VIEW_HEIGHT, false),
+        ] {
+            test_widgets(|tester| {
+                let viewport = mount(
+                    tester,
+                    SingleChildScrollView::new()
+                        .clip_behavior(clip_behavior)
+                        .child(painted(CONTENT_WIDTH, content_height)),
+                );
+                let app = tester.cell.borrow();
+                let child = viewport.child(&app).expect("the content");
+                let expected = clipped.then(|| Offset::ZERO & viewport.size(&app));
+                assert_eq!(
+                    viewport
+                        .as_object()
+                        .describe_approximate_paint_clip(&app, child.as_object()),
+                    expected,
+                    "{clip_behavior:?}, content {content_height}"
+                );
+            });
+        }
     }
 }

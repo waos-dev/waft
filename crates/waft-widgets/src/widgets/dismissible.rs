@@ -493,6 +493,10 @@ impl CustomClipper<Rect> for DismissibleClipper {
         }
     }
 
+    fn get_approximate_clip_rect(&self, app: &App, size: Size) -> Rect {
+        self.get_clip(app, size)
+    }
+
     fn should_reclip(&self, app: &App, old_clipper: &dyn CustomClipper<Rect>) -> bool {
         let old_clipper = old_clipper
             .as_any()

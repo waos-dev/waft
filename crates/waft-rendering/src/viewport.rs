@@ -855,6 +855,60 @@ pub trait RenderViewportBase:
         0.0
     }
 
+    /// Dart's `describeApproximatePaintClip`: the rectangle a sliver is painted within, the
+    /// viewport's bounds less the part another sliver covers.
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderSliver,
+    ) -> Option<Rect> {
+        let geometry = child.geometry(app);
+        if child.ensure_semantics(app) && !(geometry.visible || geometry.cache_extent > 0.0) {
+            // Return null here so we don't end up clipping out a semantics node rect
+            // for a sliver child when we explicitly want it to be included in the semantics
+            // tree.
+            return None;
+        }
+
+        match self.clip_behavior(app) {
+            Clip::None => return None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => {}
+        }
+
+        let viewport_clip = Offset::ZERO & self.size(app);
+        let constraints = child.constraints(app);
+        // The child's viewportMainAxisExtent can be infinite when a
+        // RenderShrinkWrappingViewport is given infinite constraints, such as when it is the
+        // child of a Row or Column (depending on orientation).
+        //
+        // For example, a shrink wrapping render sliver may have infinite constraints along the
+        // viewport's main axis but may also have bouncing scroll physics, which will allow for
+        // some scrolling effect to occur. We should just use the viewport_clip - the start of
+        // the overlap is at double.infinity and so it is effectively meaningless.
+        if constraints.overlap == 0.0 || !constraints.viewport_main_axis_extent.is_finite() {
+            return Some(viewport_clip);
+        }
+
+        // Adjust the clip rect for this sliver by the overlap from the previous sliver.
+        let mut left = viewport_clip.left;
+        let mut right = viewport_clip.right;
+        let mut top = viewport_clip.top;
+        let mut bottom = viewport_clip.bottom;
+        let start_of_overlap =
+            constraints.viewport_main_axis_extent - constraints.remaining_paint_extent;
+        let overlap_correction = start_of_overlap + constraints.overlap;
+        match apply_growth_direction_to_axis_direction(
+            self.axis_direction(app),
+            constraints.growth_direction,
+        ) {
+            AxisDirection::Down => top += overlap_correction,
+            AxisDirection::Up => bottom -= overlap_correction,
+            AxisDirection::Right => left += overlap_correction,
+            AxisDirection::Left => right -= overlap_correction,
+        }
+        Some(Rect::from_ltrb(left, top, right, bottom))
+    }
+
     /// The body of Flutter's `paint` override.
     fn paint(
         self: RenderHandle<Self>,
@@ -1966,6 +2020,20 @@ impl RenderObject for RenderViewport {
         RenderViewportBase::dispose(self, app)
     }
 
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderViewportBase::describe_approximate_paint_clip(
+            self,
+            app,
+            child
+                .as_sliver()
+                .expect("a viewport's children are slivers"),
+        )
+    }
+
     fn show_on_screen(
         self: RenderHandle<Self>,
         app: &mut App,
@@ -2450,6 +2518,20 @@ impl RenderObject for RenderShrinkWrappingViewport {
 
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         RenderViewportBase::dispose(self, app)
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderViewportBase::describe_approximate_paint_clip(
+            self,
+            app,
+            child
+                .as_sliver()
+                .expect("a viewport's children are slivers"),
+        )
     }
 
     fn show_on_screen(
@@ -3115,6 +3197,127 @@ mod tests {
         assert_eq!(
             viewport.children_in_hit_test_order(&app),
             vec![second, first]
+        );
+    }
+
+    /// `viewport_test.dart`: the viewport's clip behavior decides what it says it clips a
+    /// sliver to.
+    #[test]
+    fn a_viewport_describes_its_clip_respecting_clip_behavior() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let (sliver, _) = test_sliver(&mut app, 20.0);
+        let offset = FixedViewportOffset::zero(&mut app);
+        let viewport = vertical_viewport(&mut app, &offset, vec![sliver]);
+        viewport.set_clip_behavior(&mut app, Clip::None);
+        layout_with(
+            &mut app,
+            viewport.as_box(),
+            Some(BoxConstraints::tight(Size::new(800.0, 600.0))),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Paint,
+        );
+
+        assert_eq!(viewport.clip_behavior(&app), Clip::None);
+        assert_eq!(
+            viewport
+                .as_object()
+                .describe_approximate_paint_clip(&app, sliver.as_object()),
+            None
+        );
+
+        viewport.set_clip_behavior(&mut app, Clip::HardEdge);
+        assert_eq!(viewport.clip_behavior(&app), Clip::HardEdge);
+        assert_eq!(
+            viewport
+                .as_object()
+                .describe_approximate_paint_clip(&app, sliver.as_object()),
+            Some(Offset::ZERO & viewport.size(&app))
+        );
+    }
+
+    /// A sliver that reports the constraints it was handed, whatever the viewport laid it out
+    /// with: Dart's `CustomConstraintsRenderSliver`.
+    struct CustomConstraintsRenderSliver {
+        render_object: RenderObjectData,
+        render_sliver: crate::sliver::RenderSliverData,
+        constraints: SliverConstraints,
+    }
+
+    impl RenderObject for CustomConstraintsRenderSliver {
+        crate::render_object_accessors!();
+
+        fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
+            self.set_geometry(app, SliverGeometry::ZERO);
+        }
+    }
+
+    impl RenderSliver for CustomConstraintsRenderSliver {
+        crate::render_sliver_accessors!();
+
+        fn constraints(self: RenderHandle<Self>, app: &App) -> SliverConstraints {
+            self.get(app).constraints
+        }
+
+        fn hit_test_self(
+            self: RenderHandle<Self>,
+            _app: &App,
+            _main_axis_position: f64,
+            _cross_axis_position: f64,
+        ) -> bool {
+            let _ = self;
+            false
+        }
+    }
+
+    /// `viewport_caching_test.dart`: a shrink wrapping viewport with an infinite main axis
+    /// extent answers a finite clip.
+    #[test]
+    fn a_shrink_wrapping_viewport_answers_a_finite_clip_for_an_infinite_extent() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let constraints = SliverConstraints {
+            axis_direction: AxisDirection::Down,
+            growth_direction: GrowthDirection::Forward,
+            user_scroll_direction: crate::viewport_offset::ScrollDirection::Idle,
+            scroll_offset: 0.0,
+            preceding_scroll_extent: 0.0,
+            overlap: 1.0,
+            remaining_paint_extent: f64::INFINITY,
+            cross_axis_extent: 400.0,
+            cross_axis_direction: AxisDirection::Left,
+            viewport_main_axis_extent: f64::INFINITY,
+            remaining_cache_extent: 0.0,
+            cache_origin: 0.0,
+        };
+        let child = RenderHandle::new_sliver(
+            &mut app,
+            CustomConstraintsRenderSliver {
+                render_object: RenderObjectData::new(),
+                render_sliver: crate::sliver::RenderSliverData::new(),
+                constraints,
+            },
+        );
+        let offset = FixedViewportOffset::zero(&mut app);
+        let viewport = RenderShrinkWrappingViewport::new(
+            &mut app,
+            AxisDirection::Left,
+            offset.erase(),
+            Some(vec![child.as_sliver()]),
+        );
+        layout_with(
+            &mut app,
+            viewport.as_box(),
+            Some(BoxConstraints::tight(Size::new(800.0, 600.0))),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Paint,
+        );
+
+        assert_eq!(
+            viewport
+                .as_object()
+                .describe_approximate_paint_clip(&app, child.as_object()),
+            Some(Rect::from_ltrb(0.0, 0.0, 800.0, 600.0))
         );
     }
 }

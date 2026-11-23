@@ -7,7 +7,7 @@
 use std::fmt;
 use std::rc::Rc;
 
-use waft_embedder::{Offset, Size, TextDirection};
+use waft_embedder::{Offset, Rect, Size, TextDirection};
 use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsNode};
 use waft_painting::{Axis, EdgeInsets, EdgeInsetsGeometry};
 use waft_rendering::{
@@ -528,6 +528,14 @@ impl RenderObject for RenderButtonBarRow {
 
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         RenderFlexMixin::dispose(self, app)
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
     }
 }
 

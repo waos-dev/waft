@@ -933,6 +933,22 @@ pub trait RenderStackBase:
         );
         crate::object::RenderObjectBase::dispose(self, app);
     }
+
+    /// Dart's `describeApproximatePaintClip`: the children that overflow the stack's geometry
+    /// are clipped to its bounds, and only when it has visual overflow.
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        match self.clip_behavior(app) {
+            Clip::None => None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => self
+                .stack_data(app)
+                .has_visual_overflow
+                .then(|| Offset::ZERO & self.size(app)),
+        }
+    }
 }
 
 /// The plain [`RenderStackBase`]: paints every child in order.
@@ -1056,6 +1072,14 @@ impl RenderObject for RenderStack {
 
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         RenderStackBase::dispose(self, app)
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderStackBase::describe_approximate_paint_clip(self, app, child)
     }
 }
 
@@ -1290,6 +1314,14 @@ impl RenderObject for RenderIndexedStack {
 
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         RenderStackBase::dispose(self, app)
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderStackBase::describe_approximate_paint_clip(self, app, child)
     }
 }
 

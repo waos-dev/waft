@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use waft_animation::{Curve, Curves};
 use waft_embedder::{
-    Brightness, Color, ColorFilter, ImageFilter, Offset, PointerDeviceKind, Radius, SemanticsRole,
-    Size, TargetPlatform, TextAlign, TextBaseline, TextDirection, lerp_double,
+    Brightness, Color, ColorFilter, ImageFilter, Offset, PointerDeviceKind, Radius, Rect,
+    SemanticsRole, Size, TargetPlatform, TextAlign, TextBaseline, TextDirection, lerp_double,
 };
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, Handle, K_IS_WEB, Listener, OptionRetained, Ref, ValueSetter,
@@ -3800,6 +3800,14 @@ impl RenderObject for RenderAlertDialogActionsLayout {
     ) {
         RenderFlexMixin::paint(self, app, context, offset)
     }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
+    }
 }
 
 impl RenderBox for RenderAlertDialogActionsLayout {
@@ -4149,6 +4157,14 @@ impl RenderObject for RenderPriorityColumn {
         offset: Offset,
     ) {
         RenderFlexMixin::paint(self, app, context, offset)
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
     }
 }
 

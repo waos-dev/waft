@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::fmt::{self, Debug, Display};
 use std::rc::Rc;
 
-use waft_embedder::{Clip, Matrix4, Offset, Size, TextDirection};
+use waft_embedder::{Clip, Matrix4, Offset, Rect, Size, TextDirection};
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle,
     EnumProperty, Handle, IntProperty, ListenableObject, Listener, OptionRetained, Retained,
@@ -2228,6 +2228,21 @@ impl RenderObject for RenderTheater {
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         LayerHandle::set_layer(app, |app| &mut self.get_mut(app).clip_rect_layer, None);
         waft_rendering::RenderObjectBase::dispose(self, app);
+    }
+
+    /// Dart's `describeApproximatePaintClip`: the theater clips every entry to its bounds
+    /// unless [`clip_behavior`](Self::clip_behavior) is [`Clip::None`].
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        match self.clip_behavior(app) {
+            Clip::None => None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => {
+                Some(Offset::ZERO & self.size(app))
+            }
+        }
     }
 }
 
@@ -4884,5 +4899,50 @@ mod tests {
             "{dump}"
         );
         assert!(!dump.contains("no offstage children"), "{dump}");
+    }
+
+    /// `overlay_test.dart`'s "Overlay can set and update clipBehavior": each clip behavior
+    /// decides what the theater says it clips its entries to.
+    #[test]
+    fn the_theater_describes_its_clip_for_each_clip_behavior() {
+        for clip_behavior in [
+            Clip::None,
+            Clip::HardEdge,
+            Clip::AntiAlias,
+            Clip::AntiAliasWithSaveLayer,
+        ] {
+            let cell = AppCell::new();
+            let mut app = cell.borrow_mut();
+            let entry = test_entry(&mut app);
+            let tree = MediaQuery::new(
+                MediaQueryData::new(),
+                Directionality::new(
+                    TextDirection::Ltr,
+                    Overlay::new()
+                        .clip_behavior(clip_behavior)
+                        .initial_entries(vec![entry]),
+                ),
+            )
+            .into_widget();
+            let harness = Harness::mount(&mut app, tree);
+            harness.pump(&mut app);
+
+            let theater = theater_of(&harness, &app);
+            assert_eq!(theater.clip_behavior(&app), clip_behavior);
+            let child = theater.first_child(&app).expect("an entry's render object");
+            let expected = match clip_behavior {
+                Clip::None => None,
+                Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => {
+                    Some(Offset::ZERO & theater.size(&app))
+                }
+            };
+            assert_eq!(
+                theater
+                    .as_object()
+                    .describe_approximate_paint_clip(&app, child.as_object()),
+                expected,
+                "{clip_behavior:?}"
+            );
+        }
     }
 }

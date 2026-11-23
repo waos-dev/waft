@@ -4051,6 +4051,20 @@ pub trait CustomClipper<T>: 'static {
     /// `app` reaches what a Dart clipper reads directly: an animation's value.
     fn get_clip(&self, app: &App, size: Size) -> T;
 
+    /// Returns an approximation of the clip returned by [`get_clip`](Self::get_clip), as an
+    /// axis-aligned [`Rect`]. The widget inspector uses it to bound a screenshot of the clip's
+    /// subtree.
+    ///
+    /// By default, this returns a rectangle that is the same size as the [`RenderObject`]. If
+    /// [`get_clip`](Self::get_clip) returns a shape that is roughly the same size as the
+    /// [`RenderObject`] (e.g. it's a rounded rectangle with very small arcs in the corners),
+    /// then this may be adequate.
+    ///
+    /// [`RenderObject`]: crate::RenderObject
+    fn get_approximate_clip_rect(&self, _app: &App, size: Size) -> Rect {
+        Offset::ZERO & size
+    }
+
     /// Called whenever a new instance of the custom clipper delegate class is
     /// provided to the clip object, or any time that a new clip object is created
     /// with a new instance of the custom clipper delegate class (which amounts to
@@ -4279,6 +4293,24 @@ pub trait RenderCustomClip<T: Clone + 'static>: RenderProxyBoxMixin {
             .clone()
             .expect("update_clip computes the clip")
     }
+
+    /// Dart's `describeApproximatePaintClip`: the rectangle this clip keeps the child within,
+    /// or `None` where [`clip_behavior`](Self::clip_behavior) is [`Clip::None`].
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        match self.clip_behavior(app) {
+            Clip::None => None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => {
+                Some(match self.clipper(app) {
+                    Some(clipper) => clipper.get_approximate_clip_rect(app, self.size(app)),
+                    None => Offset::ZERO & self.size(app),
+                })
+            }
+        }
+    }
 }
 
 fn mark_needs_clip<C: RenderCustomClip<T>, T: Clone + 'static>(this: Handle<C>, app: &mut App) {
@@ -4377,6 +4409,14 @@ impl RenderObject for RenderClipRect {
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderCustomClip::perform_layout(self, app);
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderCustomClip::describe_approximate_paint_clip(self, app, child)
     }
 
     fn paint(
@@ -4646,6 +4686,14 @@ impl RenderObject for RenderClipRRect {
         RenderCustomClip::perform_layout(self, app);
     }
 
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderCustomClip::describe_approximate_paint_clip(self, app, child)
+    }
+
     fn paint(
         self: RenderHandle<Self>,
         app: &mut App,
@@ -4879,6 +4927,14 @@ impl RenderObject for RenderClipOval {
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderCustomClip::perform_layout(self, app);
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderCustomClip::describe_approximate_paint_clip(self, app, child)
     }
 
     fn paint(
@@ -5117,6 +5173,14 @@ impl RenderObject for RenderClipPath {
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderCustomClip::perform_layout(self, app);
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderCustomClip::describe_approximate_paint_clip(self, app, child)
     }
 
     fn paint(
@@ -5389,6 +5453,14 @@ impl RenderObject for RenderClipRSuperellipse {
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderCustomClip::perform_layout(self, app);
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderCustomClip::describe_approximate_paint_clip(self, app, child)
     }
 
     fn paint(
@@ -5814,6 +5886,14 @@ impl RenderObject for RenderPhysicalModel {
         RenderCustomClip::perform_layout(self, app);
     }
 
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderCustomClip::describe_approximate_paint_clip(self, app, child)
+    }
+
     fn paint(
         self: RenderHandle<Self>,
         app: &mut App,
@@ -6112,6 +6192,14 @@ impl RenderObject for RenderPhysicalShape {
 
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         RenderCustomClip::perform_layout(self, app);
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderCustomClip::describe_approximate_paint_clip(self, app, child)
     }
 
     fn paint(
@@ -10399,6 +10487,10 @@ mod tests {
             Rect::from_ltwh(0.0, 0.0, size.width() / 2.0, size.height())
         }
 
+        fn get_approximate_clip_rect(&self, app: &App, size: Size) -> Rect {
+            self.get_clip(app, size)
+        }
+
         fn should_reclip(&self, _app: &App, _old_clipper: &dyn CustomClipper<Rect>) -> bool {
             false
         }
@@ -10510,6 +10602,79 @@ mod tests {
         assert_eq!(
             drawn_rects(&mut app, clip.as_object()),
             [fill(Rect::from_ltwh(0.0, 0.0, 100.0, 100.0), RED)]
+        );
+    }
+
+    /// `proxy_box_test.dart`: `RenderCustomClip` extenders respect `clipBehavior` when asked to
+    /// describe their approximate clip.
+    #[test]
+    fn custom_clip_extenders_respect_clip_behavior_when_described() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let child = RenderConstrainedBox::new(
+            &mut app,
+            BoxConstraints::tight_for(Some(200.0), Some(200.0)),
+            None,
+        );
+        let clip = RenderClipRect::new(&mut app, None, Clip::None, Some(child.as_box()));
+        layout_with(
+            &mut app,
+            clip.as_box(),
+            Some(BoxConstraints::tight(Size::new(100.0, 100.0))),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Paint,
+        );
+
+        assert_eq!(
+            clip.as_object()
+                .describe_approximate_paint_clip(&app, child.as_object()),
+            None
+        );
+        for clip_behavior in [
+            Clip::HardEdge,
+            Clip::AntiAlias,
+            Clip::AntiAliasWithSaveLayer,
+        ] {
+            clip.set_clip_behavior(&mut app, clip_behavior);
+            assert_eq!(
+                clip.as_object()
+                    .describe_approximate_paint_clip(&app, child.as_object()),
+                Some(Offset::ZERO & clip.size(&app)),
+                "{clip_behavior:?}"
+            );
+        }
+    }
+
+    /// A clipper that says its clip is the left half spreads that through the base body; the
+    /// default is the whole box.
+    #[test]
+    fn a_custom_clip_asks_its_clipper_for_an_approximate_rect() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let child = RenderConstrainedBox::new(
+            &mut app,
+            BoxConstraints::tight_for(Some(200.0), Some(200.0)),
+            None,
+        );
+        let clipper: Rc<dyn CustomClipper<Rect>> = Rc::new(LeftHalfClipper);
+        let clip = RenderClipRect::new(
+            &mut app,
+            Some(clipper),
+            Clip::HardEdge,
+            Some(child.as_box()),
+        );
+        layout_with(
+            &mut app,
+            clip.as_box(),
+            Some(BoxConstraints::tight(Size::new(100.0, 100.0))),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Paint,
+        );
+
+        assert_eq!(
+            clip.as_object()
+                .describe_approximate_paint_clip(&app, child.as_object()),
+            Some(Rect::from_ltwh(0.0, 0.0, 50.0, 100.0))
         );
     }
 

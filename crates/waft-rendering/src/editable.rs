@@ -2002,6 +2002,21 @@ impl RenderObject for RenderEditable {
         crate::object::RenderObjectBase::dispose(self, app);
     }
 
+    /// Dart's `describeApproximatePaintClip`: the scrolled text is clipped to the editable's
+    /// bounds, and only when it has visual overflow.
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        match self.get(app).clip_behavior {
+            Clip::None => None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => self
+                .has_visual_overflow(app)
+                .then(|| Offset::ZERO & self.size(app)),
+        }
+    }
+
     fn perform_layout(self: RenderHandle<Self>, app: &mut App) {
         let constraints = self.constraints(app);
         let placeholder_dimensions = self.layout_inline_children(
@@ -2340,6 +2355,7 @@ mod tests {
     use waft_services::{TextEditingValue, TextSelectionDelegate};
 
     use super::*;
+    use crate::proxy_box::RenderConstrainedBox;
     use crate::testing::{EnginePhase, layout_with, pump_frame};
     use crate::viewport_offset::FixedViewportOffset;
 
@@ -2425,6 +2441,73 @@ mod tests {
             EnginePhase::Layout,
         );
         editable
+    }
+
+    /// `editable_test.dart`: the editable respects `clipBehavior` in
+    /// `describeApproximatePaintClip`.
+    #[test]
+    fn editable_respects_clip_behavior_when_described() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        install_fonts(&mut app);
+        let text = "a".repeat(10_000);
+        let delegate = app.create(TestDelegate {
+            value: TextEditingValue::new()
+                .text(text.clone())
+                .selection(TextSelection::collapsed(0, TextAffinity::Downstream)),
+        });
+        let start = LayerLink::new(&mut app);
+        let end = LayerLink::new(&mut app);
+        let offset = FixedViewportOffset::zero(&mut app).erase();
+        let editable = RenderEditable::new(
+            &mut app,
+            TextDirection::Ltr,
+            start,
+            end,
+            offset,
+            delegate.as_text_selection_delegate(),
+        );
+        editable.set_text(&mut app, Some(span(&text)));
+        editable.set_clip_behavior(&mut app, Clip::None);
+        layout_with(
+            &mut app,
+            editable.as_box(),
+            Some(BoxConstraints::tight_for(Some(200.0), Some(40.0))),
+            AlignmentGeometry::CENTER,
+            EnginePhase::Layout,
+        );
+        // Dart's editable visits its built-in painter children, which are not ported; an inline
+        // widget child is added instead, after layout so that it needs no placeholder span.
+        let child =
+            RenderConstrainedBox::new(&mut app, BoxConstraints::tight(Size::new(10.0, 10.0)), None);
+        editable.add(&mut app, child.as_box());
+
+        let mut visited = false;
+        editable
+            .as_object()
+            .visit_children(&app, &mut |visited_child| {
+                visited = true;
+                assert_eq!(
+                    editable
+                        .as_object()
+                        .describe_approximate_paint_clip(&app, visited_child),
+                    None
+                );
+            });
+        assert!(visited, "the editable has a child to describe");
+
+        editable.set_clip_behavior(&mut app, Clip::HardEdge);
+        let expected = Some(Offset::ZERO & editable.size(&app));
+        editable
+            .as_object()
+            .visit_children(&app, &mut |visited_child| {
+                assert_eq!(
+                    editable
+                        .as_object()
+                        .describe_approximate_paint_clip(&app, visited_child),
+                    expected
+                );
+            });
     }
 
     /// `editable_intrinsics_test.dart` "editable intrinsics": the text child of a dump.
