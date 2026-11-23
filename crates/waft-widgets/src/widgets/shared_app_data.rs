@@ -119,6 +119,7 @@ pub struct SharedAppData {
 impl SharedAppData {
     /// Creates a widget based on `InheritedModel` that supports sharing
     /// key/value data with its `child` and all of the child's descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> SharedAppData {
         SharedAppData {
             key: None,

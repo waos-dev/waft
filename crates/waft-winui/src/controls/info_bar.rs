@@ -176,6 +176,7 @@ impl InfoBar {
     }
 
     /// Sets IconSource.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon_source<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.icon_source = Some(value.into_widget());
         self
@@ -194,12 +195,14 @@ impl InfoBar {
     }
 
     /// Sets ActionButton.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn action_button<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.action_button = Some(value.into_widget());
         self
     }
 
     /// Sets Content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.content = Some(value.into_widget());
         self

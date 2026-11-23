@@ -413,6 +413,7 @@ impl SearchAnchor {
     }
 
     /// Dart `SearchAnchor(viewLeading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn view_leading<K>(mut self, view_leading: impl IntoWidget<K>) -> SearchAnchor {
         self.view_leading = Some(view_leading.into_widget());
         self
@@ -1978,6 +1979,7 @@ impl SearchAnchorWithSearchBar {
     }
 
     /// Dart `SearchAnchor.bar(barLeading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn bar_leading<K>(mut self, bar_leading: impl IntoWidget<K>) -> SearchAnchorWithSearchBar {
         self.bar_leading = Some(bar_leading.into_widget());
         self
@@ -2122,6 +2124,7 @@ impl SearchAnchorWithSearchBar {
     }
 
     /// Dart `SearchAnchor.bar(viewLeading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn view_leading<K>(
         mut self,
         view_leading: impl IntoWidget<K>,
@@ -2320,6 +2323,7 @@ impl SearchAnchorWithSearchBar {
     }
 
     /// The [`SearchAnchor`] the factory's `super(..)` call makes.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn into_search_anchor(self) -> SearchAnchor {
         let SearchAnchorWithSearchBar {
             bar_leading,
@@ -2418,6 +2422,7 @@ impl SearchAnchorWithSearchBar {
 }
 
 impl<K> IntoWidget<K> for SearchAnchorWithSearchBar {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.into_search_anchor().into_widget()
     }
@@ -2744,6 +2749,7 @@ impl SearchBar {
     }
 
     /// Dart `SearchBar(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> SearchBar {
         self.leading = Some(leading.into_widget());
         self

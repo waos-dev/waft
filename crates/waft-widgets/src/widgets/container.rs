@@ -93,6 +93,7 @@ impl DecoratedBox {
     }
 
     /// Dart `DecoratedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> DecoratedBox {
         self.child = Some(child.into_widget());
         self
@@ -449,6 +450,7 @@ impl Container {
     }
 
     /// Dart `Container(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Container {
         self.child = Some(child.into_widget());
         self

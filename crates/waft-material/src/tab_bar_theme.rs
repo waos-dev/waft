@@ -89,6 +89,7 @@ impl TabBarTheme {
     }
 
     /// Dart `TabBarTheme(child:)`; the default is an empty `SizedBox`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> TabBarTheme {
         self.child = child.into_widget();
         self

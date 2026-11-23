@@ -331,6 +331,7 @@ pub struct PopupMenuTheme {
 impl PopupMenuTheme {
     /// Creates a popup menu theme that controls the configurations for
     /// popup menus in its widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: PopupMenuThemeData, child: impl IntoWidget<K>) -> PopupMenuTheme {
         PopupMenuTheme {
             key: None,

@@ -92,16 +92,19 @@ impl ToggleSwitch {
         }
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> ToggleSwitch {
         self.header = Some(header.into_widget());
         self
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn on_content<K>(mut self, content: impl IntoWidget<K>) -> ToggleSwitch {
         self.on_content = Some(content.into_widget());
         self
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn off_content<K>(mut self, content: impl IntoWidget<K>) -> ToggleSwitch {
         self.off_content = Some(content.into_widget());
         self

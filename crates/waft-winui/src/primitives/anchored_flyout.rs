@@ -48,6 +48,7 @@ pub(crate) struct AnchoredFlyout {
 
 impl AnchoredFlyout {
     /// Attaches a controlled popup to an anchor in a tree with a native Overlay ancestor.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub(crate) fn new<A, C>(
         open: bool,
         anchor: impl IntoWidget<A>,

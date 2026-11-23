@@ -61,6 +61,7 @@ impl StretchEffect {
     ///
     /// The [`stretch_strength`](Self::stretch_strength) controls the intensity of the stretch
     /// effect and must be between -1.0 and 1.0.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(axis: Axis, child: impl IntoWidget<K>) -> StretchEffect {
         StretchEffect {
             key: None,

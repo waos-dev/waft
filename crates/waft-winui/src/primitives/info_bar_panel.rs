@@ -137,6 +137,7 @@ pub struct InfoBarPanelChild {
 
 impl InfoBarPanelChild {
     /// Attaches zero margins to a child.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Self {
         Self {
             key: None,

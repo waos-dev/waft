@@ -74,6 +74,7 @@ pub struct AutofillGroup {
 
 impl AutofillGroup {
     /// Creates a scope for autofillable input fields.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> AutofillGroup {
         AutofillGroup {
             key: None,

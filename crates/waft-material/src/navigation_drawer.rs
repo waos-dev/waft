@@ -169,12 +169,14 @@ impl NavigationDrawer {
     }
 
     /// Dart `NavigationDrawer(header:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> NavigationDrawer {
         self.header = Some(header.into_widget());
         self
     }
 
     /// Dart `NavigationDrawer(footer:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn footer<K>(mut self, footer: impl IntoWidget<K>) -> NavigationDrawer {
         self.footer = Some(footer.into_widget());
         self
@@ -397,6 +399,7 @@ pub struct NavigationDrawerDestination {
 
 impl NavigationDrawerDestination {
     /// Creates a navigation drawer destination.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<I, L>(
         icon: impl IntoWidget<I>,
         label: impl IntoWidget<L>,
@@ -424,6 +427,7 @@ impl NavigationDrawerDestination {
     }
 
     /// Dart `NavigationDrawerDestination(selectedIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_icon<K>(
         mut self,
         selected_icon: impl IntoWidget<K>,
@@ -784,6 +788,7 @@ impl StatusTransitionWidgetBuilder {
     }
 
     /// Dart `_StatusTransitionWidgetBuilder(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, child: impl IntoWidget<K>) -> StatusTransitionWidgetBuilder {
         self.child = Some(child.into_widget());
         self

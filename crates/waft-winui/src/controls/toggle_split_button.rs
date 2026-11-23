@@ -52,6 +52,7 @@ impl fmt::Debug for ToggleSplitButton {
 
 impl ToggleSplitButton {
     /// Creates a toggle split button using the kit's owner-managed checked-value convention.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         content: impl IntoWidget<K>,
         is_checked: bool,

@@ -101,6 +101,7 @@ impl InputChip {
     /// Creates an input chip.
     ///
     /// The [`elevation`](Self::elevation) and [`press_elevation`](Self::press_elevation) must be null or non-negative. Dart's named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>) -> InputChip {
         InputChip {
             key: None,

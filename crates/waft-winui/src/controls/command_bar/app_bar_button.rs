@@ -68,6 +68,7 @@ impl AppBarButton {
     }
 
     /// Sets the XAML `Icon`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> Self {
         self.icon = Some(icon.into_widget());
         self
@@ -519,6 +520,7 @@ pub(crate) fn inner_border(
 }
 
 /// `Root`: the inner border under `ContentRoot`, at the style's `Width` of 68 except in `LabelOnRight` and the overflow, where the width is the content's or the menu's.
+#[cfg_attr(debug_assertions, track_caller)]
 pub(crate) fn root(
     view: ApplicationViewState,
     inner_border: Margin,

@@ -190,6 +190,7 @@ impl Scrollbar {
     /// result in a default of an 8.0 pixel circular radius about the corners of the
     /// scrollbar thumb, except for when executing on [`TargetPlatform::Android`], which
     /// will render the thumb without a radius.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Scrollbar {
         Scrollbar {
             key: None,

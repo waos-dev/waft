@@ -163,6 +163,7 @@ pub struct DividerTheme {
 impl DividerTheme {
     /// Creates a divider theme that controls the configurations for
     /// [`Divider`](crate::Divider)s and `VerticalDivider`s in its widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: DividerThemeData, child: impl IntoWidget<K>) -> DividerTheme {
         DividerTheme {
             key: None,

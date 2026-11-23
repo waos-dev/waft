@@ -94,6 +94,7 @@ pub struct FilledButtonTheme {
 
 impl FilledButtonTheme {
     /// Create a [`FilledButtonTheme`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: FilledButtonThemeData, child: impl IntoWidget<K>) -> FilledButtonTheme {
         FilledButtonTheme {
             key: None,

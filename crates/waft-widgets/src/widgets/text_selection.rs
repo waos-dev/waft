@@ -2766,6 +2766,7 @@ pub(crate) struct SelectionToolbarWrapper {
 }
 
 impl SelectionToolbarWrapper {
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         layer_link: Ref<LayerLink>,
         offset: Offset,
@@ -4925,6 +4926,7 @@ impl Debug for TextSelectionGestureDetector {
 
 impl TextSelectionGestureDetector {
     /// Create a [`TextSelectionGestureDetector`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> TextSelectionGestureDetector {
         TextSelectionGestureDetector {
             key: None,

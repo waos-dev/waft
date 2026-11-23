@@ -144,6 +144,7 @@ pub struct MenuTheme {
 impl MenuTheme {
     /// Creates a const theme that controls the configurations for the menus
     /// created by the `SubmenuButton` or `MenuAnchor` widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: MenuThemeData, child: impl IntoWidget<K>) -> MenuTheme {
         MenuTheme {
             key: None,

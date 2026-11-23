@@ -201,6 +201,7 @@ impl AnimatedCrossFade {
     /// The [`duration`](Self::duration) of the animation is the same for all components (fade
     /// in, fade out, and size), and you can pass `Interval`s instead of `Curve`s in order to
     /// have finer control, e.g., creating an overlap between the fades.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<F, S>(
         first_child: impl IntoWidget<F>,
         second_child: impl IntoWidget<S>,

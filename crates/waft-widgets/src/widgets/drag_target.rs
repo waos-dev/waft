@@ -294,6 +294,7 @@ impl<T: 'static> fmt::Debug for Draggable<T> {
 
 impl<T: 'static> Draggable<T> {
     /// Creates a draggable with its normal child and drag feedback.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<C, F>(child: impl IntoWidget<C>, feedback: impl IntoWidget<F>) -> Self {
         Self {
             key: None,
@@ -338,6 +339,7 @@ impl<T: 'static> Draggable<T> {
     }
 
     /// Sets `child_when_dragging` for this draggable.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child_when_dragging<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.child_when_dragging = Some(value.into_widget());
         self
@@ -505,6 +507,7 @@ impl<T: 'static> fmt::Debug for LongPressDraggable<T> {
 
 impl<T: 'static> LongPressDraggable<T> {
     /// Creates a draggable with its normal child and drag feedback.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<C, F>(child: impl IntoWidget<C>, feedback: impl IntoWidget<F>) -> Self {
         Self {
             draggable: Draggable::new(child, feedback),
@@ -544,6 +547,7 @@ impl<T: 'static> LongPressDraggable<T> {
     }
 
     /// Sets `child_when_dragging` for this draggable.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child_when_dragging<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.draggable.child_when_dragging = Some(value.into_widget());
         self

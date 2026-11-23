@@ -364,6 +364,7 @@ pub struct SearchBarTheme {
 impl SearchBarTheme {
     /// Creates a search bar theme that controls the configurations for descendant
     /// `SearchBar` widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: SearchBarThemeData, child: impl IntoWidget<K>) -> SearchBarTheme {
         SearchBarTheme {
             key: None,

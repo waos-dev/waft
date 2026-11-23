@@ -335,6 +335,7 @@ impl Banner {
     }
 
     /// Dart `Banner(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Banner {
         self.child = Some(child.into_widget());
         self
@@ -468,6 +469,7 @@ pub struct CheckedModeBanner {
 
 impl CheckedModeBanner {
     /// Creates a const debug mode banner.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> CheckedModeBanner {
         CheckedModeBanner {
             key: None,

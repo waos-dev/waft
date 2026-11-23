@@ -248,6 +248,7 @@ impl ChangeNotifier for Flyout {
 
 impl Flyout {
     /// Creates a source Flyout backed by the approved retained overlay adapter.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(app: &mut App, content: impl IntoWidget<K>) -> Ref<Self> {
         let flyout = app.create(Self {
             content: content.into_widget(),
@@ -322,6 +323,7 @@ impl Flyout {
     }
 
     /// Sets Content and updates the retained presenter.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(self: Handle<Self>, app: &mut App, content: impl IntoWidget<K>) {
         app.get_mut(self).content = content.into_widget();
         self.invalidate(app);

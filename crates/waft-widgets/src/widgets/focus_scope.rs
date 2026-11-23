@@ -3,6 +3,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_embedder::TargetPlatform;
@@ -12,9 +13,9 @@ use waft_foundation::{
 };
 
 use crate::framework::{
-    AnyElement, BuildContext, ComponentElement, ComponentElementData, Element, ElementData,
-    ElementLifecycle, IntoWidget, KeyRef, ProxyElement, Slot, State, StateData, StatefulWidget,
-    Widget, WidgetKind, WidgetRef, component_element_overrides, downcast_widget,
+    AnyElement, BuildContext, ComponentElement, ComponentElementData, CreationLocation, Element,
+    ElementData, ElementLifecycle, IntoWidget, KeyRef, ProxyElement, Slot, State, StateData,
+    StatefulWidget, Widget, WidgetKind, WidgetRef, component_element_overrides, downcast_widget,
 };
 use crate::widgets::basic::Semantics;
 use crate::widgets::focus_manager::{
@@ -135,6 +136,7 @@ pub struct Focus {
 
 impl Focus {
     /// Creates a widget that manages a [`FocusNode`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Focus {
         Focus {
             key: None,
@@ -156,6 +158,7 @@ impl Focus {
 
     /// Creates a [`Focus`] widget that uses the given `focus_node` as the source of truth for
     /// attributes on the node, rather than the attributes of this widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_external_focus_node<K>(
         child: impl IntoWidget<K>,
         focus_node: FocusNodeRef,
@@ -849,7 +852,12 @@ impl State for FocusState {
         }
         // Dart wraps the child in a `_DebugFocusBorder` when `debugPaintFocusBoxes` is set;
         // that waits.
-        FocusInheritedScope { node, child }.into_widget()
+        FocusInheritedScope {
+            node,
+            child,
+            created: None,
+        }
+        .into_widget()
     }
 }
 
@@ -878,6 +886,7 @@ pub struct FocusScope {
 
 impl FocusScope {
     /// Creates a widget that manages a [`FocusScopeNode`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> FocusScope {
         FocusScope {
             focus: Focus::new(child),
@@ -886,6 +895,7 @@ impl FocusScope {
 
     /// Creates a [`FocusScope`] widget that uses the given `focus_scope_node` as the source of
     /// truth for attributes on the node, rather than the attributes of this widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_external_focus_node<K>(
         child: impl IntoWidget<K>,
         focus_scope_node: Ref<FocusScopeNode>,
@@ -1092,7 +1102,12 @@ impl State for FocusScopeState {
             .reparent(app, parent_node);
         let child = self.widget(app).focus.child.clone();
         let node = self.kept_focus_node(app);
-        let result = FocusInheritedScope { node, child }.into_widget();
+        let result = FocusInheritedScope {
+            node,
+            child,
+            created: None,
+        }
+        .into_widget();
         if self.widget(app).focus.include_semantics {
             return Semantics::new()
                 .explicit_child_nodes(true)
@@ -1115,12 +1130,16 @@ struct FocusInheritedScope {
     /// dependents of this widget are triggered.
     node: FocusNodeRef,
     child: WidgetRef,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl FocusInheritedScope {
     /// The tree node: an `InheritedWidget` with its own element, outside the `IntoWidget`
     /// kinds.
-    fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn into_widget(mut self) -> WidgetRef {
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -1148,6 +1167,14 @@ impl crate::framework::InheritedWidget for FocusInheritedScope {
 impl Widget for FocusInheritedScope {
     fn key(&self) -> Option<&KeyRef> {
         None
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -1368,6 +1395,7 @@ pub struct ExcludeFocus {
 
 impl ExcludeFocus {
     /// Creates an [`ExcludeFocus`] widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ExcludeFocus {
         ExcludeFocus {
             key: None,

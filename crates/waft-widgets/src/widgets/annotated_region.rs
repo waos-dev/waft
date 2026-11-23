@@ -40,6 +40,7 @@ impl<T: PartialEq + Debug + 'static> AnnotatedRegion<T> {
     ///
     /// [`sized`](Self::sized) defaults to true and controls whether the annotated region will
     /// clip its child.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, value: T) -> AnnotatedRegion<T> {
         AnnotatedRegion {
             key: None,

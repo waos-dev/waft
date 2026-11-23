@@ -172,6 +172,7 @@ impl ToggleButton {
     }
 
     /// XAML `Content`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, content: impl IntoWidget<K>) -> ToggleButton {
         self.content = Some(content.into_widget());
         self

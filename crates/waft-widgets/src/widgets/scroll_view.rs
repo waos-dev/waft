@@ -1184,6 +1184,7 @@ impl ListView {
     }
 
     /// Dart `ListView(prototypeItem:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prototype_item<K>(mut self, prototype_item: impl IntoWidget<K>) -> ListView {
         debug_assert!(
             self.item_extent.is_none() && self.item_extent_builder.is_none(),
@@ -1391,12 +1392,14 @@ impl ListViewSeparated {
 }
 
 impl IntoWidget<StatelessKind> for ListViewBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
 }
 
 impl IntoWidget<StatelessKind> for ListViewSeparated {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1712,6 +1715,7 @@ impl GridViewBuilder {
 }
 
 impl IntoWidget<StatelessKind> for GridViewBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1796,6 +1800,7 @@ impl GridViewCount {
 }
 
 impl IntoWidget<StatelessKind> for GridViewCount {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1812,6 +1817,7 @@ impl GridViewExtent {
 }
 
 impl IntoWidget<StatelessKind> for GridViewExtent {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }

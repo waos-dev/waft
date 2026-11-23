@@ -96,12 +96,14 @@ impl Expander {
     }
 
     /// Sets Header.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.header = Some(value.into_widget());
         self
     }
 
     /// Sets Content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.content = Some(value.into_widget());
         self

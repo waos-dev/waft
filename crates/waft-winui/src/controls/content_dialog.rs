@@ -304,11 +304,13 @@ impl ContentDialog {
     }
 
     /// Sets Title.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(self: Handle<Self>, app: &mut App, title: impl IntoWidget<K>) {
         self.change(app, |dialog| dialog.title = Some(title.into_widget()))
     }
 
     /// Sets Content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(self: Handle<Self>, app: &mut App, content: impl IntoWidget<K>) {
         self.change(app, |dialog| dialog.content = Some(content.into_widget()))
     }

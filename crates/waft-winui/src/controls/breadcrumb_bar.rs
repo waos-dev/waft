@@ -28,6 +28,7 @@ pub struct BreadcrumbBarItem {
 
 impl BreadcrumbBarItem {
     /// Creates an item with arbitrary widget content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(id: impl Into<String>, content: impl IntoWidget<K>) -> Self {
         Self {
             id: id.into(),

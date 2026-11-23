@@ -77,6 +77,7 @@ impl fmt::Debug for NavigationViewItem {
 
 impl NavigationViewItem {
     /// Creates an entry with a stable identity and arbitrary content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(id: impl Into<String>, content: impl IntoWidget<K>) -> Self {
         Self {
             id: id.into(),
@@ -130,6 +131,7 @@ impl NavigationViewItem {
     }
 
     /// Sets the icon column's content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> Self {
         self.icon = Some(icon.into_widget());
         self
@@ -160,6 +162,7 @@ impl NavigationViewItem {
     }
 
     /// Sets the badge presenter content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn info_badge<K>(mut self, badge: impl IntoWidget<K>) -> Self {
         self.info_badge = Some(badge.into_widget());
         self
@@ -725,6 +728,7 @@ impl PresenterGrid {
         self.children = value.into_iter().map(IntoWidget::into_widget).collect();
         self
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.children = vec![value.into_widget()];
         self

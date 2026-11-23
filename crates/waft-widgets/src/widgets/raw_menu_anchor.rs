@@ -467,6 +467,7 @@ impl RawMenuAnchor {
     }
 
     /// Dart `RawMenuAnchor(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> RawMenuAnchor {
         self.child = Some(child.into_widget());
         self
@@ -1291,6 +1292,7 @@ pub struct RawMenuAnchorGroup {
 
 impl RawMenuAnchorGroup {
     /// Creates a [`RawMenuAnchorGroup`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, controller: MenuControllerRef) -> RawMenuAnchorGroup {
         RawMenuAnchorGroup {
             key: None,

@@ -191,6 +191,7 @@ impl ActionIconTheme {
     /// Creates a theme that overrides the default icon of `BackButtonIcon`,
     /// `CloseButtonIcon`, `DrawerButtonIcon`, and `EndDrawerButtonIcon` in this
     /// widget's subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: ActionIconThemeData, child: impl IntoWidget<K>) -> ActionIconTheme {
         ActionIconTheme {
             key: None,

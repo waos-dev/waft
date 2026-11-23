@@ -117,6 +117,7 @@ pub struct AnimatedKind;
 pub struct Animated<W: AnimatedWidget>(pub W);
 
 impl<W: AnimatedWidget> IntoWidget<AnimatedKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         Rc::new(Stateful(
             Animated(self),
@@ -416,6 +417,7 @@ impl SlideTransition {
     }
 
     /// Dart `SlideTransition(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SlideTransition {
         self.child = Some(child.into_widget());
         self
@@ -534,6 +536,7 @@ impl MatrixTransition {
     }
 
     /// Dart `MatrixTransition(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> MatrixTransition {
         self.child = Some(child.into_widget());
         self
@@ -667,6 +670,7 @@ impl ScaleTransition {
     }
 
     /// Dart `ScaleTransition(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ScaleTransition {
         self.child = Some(child.into_widget());
         self
@@ -765,6 +769,7 @@ impl RotationTransition {
     }
 
     /// Dart `RotationTransition(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> RotationTransition {
         self.child = Some(child.into_widget());
         self
@@ -954,6 +959,7 @@ impl SizeTransition {
     }
 
     /// Dart `SizeTransition(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SizeTransition {
         self.child = Some(child.into_widget());
         self
@@ -1060,6 +1066,7 @@ impl FadeTransition {
     }
 
     /// Dart `FadeTransition(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> FadeTransition {
         self.child = Some(child.into_widget());
         self
@@ -1183,6 +1190,7 @@ pub struct PositionedTransition {
 
 impl PositionedTransition {
     /// Creates a transition for `Positioned`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         rect: AnimationRef<RelativeRect>,
         child: impl IntoWidget<K>,
@@ -1263,6 +1271,7 @@ impl RelativePositionedTransition {
     /// Each frame, the `Positioned` widget will be configured to represent the
     /// current value of the [`rect`](Self::rect) argument assuming that the stack has the
     /// given [`size`](Self::size).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         rect: AnimationRef<Option<Rect>>,
         size: Size,
@@ -1337,6 +1346,7 @@ impl DecoratedBoxTransition {
     /// See also:
     ///
     ///  * [`DecoratedBox::new`]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         decoration: AnimationRef<DecorationRef>,
         child: impl IntoWidget<K>,
@@ -1418,6 +1428,7 @@ impl AlignTransition {
     /// See also:
     ///
     ///  * `Align::new`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         alignment: AnimationRef<AlignmentGeometry>,
         child: impl IntoWidget<K>,
@@ -1511,6 +1522,7 @@ pub struct DefaultTextStyleTransition {
 impl DefaultTextStyleTransition {
     /// Creates an animated [`DefaultTextStyle`] whose [`TextStyle`] animation updates
     /// the widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         style: AnimationRef<TextStyle>,
         child: impl IntoWidget<K>,
@@ -1657,6 +1669,7 @@ impl ListenableBuilder {
     }
 
     /// Dart `ListenableBuilder(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ListenableBuilder {
         self.child = Some(child.into_widget());
         self

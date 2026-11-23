@@ -205,12 +205,14 @@ impl SplitView {
     }
 
     /// Sets the widget displayed in the pane area.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn pane<K>(mut self, pane: impl IntoWidget<K>) -> Self {
         self.pane = Some(pane.into_widget());
         self
     }
 
     /// Sets the widget displayed in the main content area.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, content: impl IntoWidget<K>) -> Self {
         self.content = Some(content.into_widget());
         self

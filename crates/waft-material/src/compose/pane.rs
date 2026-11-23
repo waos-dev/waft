@@ -42,6 +42,7 @@ pub struct Pane {
 
 impl Pane {
     /// Creates a pane around `child`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Pane {
         Pane {
             child: child.into_widget(),

@@ -3574,12 +3574,14 @@ impl TimePickerDialog {
     }
 
     /// Dart `TimePickerDialog(switchToInputEntryModeIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn switch_to_input_entry_mode_icon(mut self, icon: Icon) -> TimePickerDialog {
         self.switch_to_input_entry_mode_icon = Some(icon.into_widget());
         self
     }
 
     /// Dart `TimePickerDialog(switchToTimerEntryModeIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn switch_to_timer_entry_mode_icon(mut self, icon: Icon) -> TimePickerDialog {
         self.switch_to_timer_entry_mode_icon = Some(icon.into_widget());
         self

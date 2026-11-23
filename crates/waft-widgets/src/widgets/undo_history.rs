@@ -91,6 +91,7 @@ impl<T: Clone + PartialEq + 'static, V: ValueListenable<T> + Clone + PartialEq +
     UndoHistory<T, V>
 {
     /// Creates an instance of [`UndoHistory`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         value: V,
         on_triggered: impl Fn(&mut App, T) + 'static,

@@ -157,6 +157,7 @@ pub struct ScaffoldMessenger {
 
 impl ScaffoldMessenger {
     /// Creates a widget that manages [`SnackBar`]s for [`Scaffold`] descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ScaffoldMessenger {
         ScaffoldMessenger {
             key: None,
@@ -2744,12 +2745,14 @@ impl Scaffold {
     }
 
     /// Dart `Scaffold(body:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn body<K>(mut self, body: impl IntoWidget<K>) -> Scaffold {
         self.body = Some(body.into_widget());
         self
     }
 
     /// Dart `Scaffold(floatingActionButton:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn floating_action_button<K>(
         mut self,
         floating_action_button: impl IntoWidget<K>,
@@ -2804,6 +2807,7 @@ impl Scaffold {
     }
 
     /// Dart `Scaffold(drawer:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn drawer<K>(mut self, drawer: impl IntoWidget<K>) -> Scaffold {
         self.drawer = Some(drawer.into_widget());
         self
@@ -2819,6 +2823,7 @@ impl Scaffold {
     }
 
     /// Dart `Scaffold(endDrawer:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn end_drawer<K>(mut self, end_drawer: impl IntoWidget<K>) -> Scaffold {
         self.end_drawer = Some(end_drawer.into_widget());
         self
@@ -2834,6 +2839,7 @@ impl Scaffold {
     }
 
     /// Dart `Scaffold(bottomNavigationBar:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn bottom_navigation_bar<K>(
         mut self,
         bottom_navigation_bar: impl IntoWidget<K>,
@@ -2843,6 +2849,7 @@ impl Scaffold {
     }
 
     /// Dart `Scaffold(bottomSheet:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn bottom_sheet<K>(mut self, bottom_sheet: impl IntoWidget<K>) -> Scaffold {
         self.bottom_sheet = Some(bottom_sheet.into_widget());
         self
@@ -4907,6 +4914,7 @@ pub struct ScaffoldFeatureController<T, U> {
 }
 
 impl<T: 'static, U: Clone + 'static> ScaffoldFeatureController<T, U> {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(
         widget: impl IntoWidget<K>,
         completer: Completer<U>,

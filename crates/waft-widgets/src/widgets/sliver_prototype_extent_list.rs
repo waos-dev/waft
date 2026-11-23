@@ -70,6 +70,7 @@ pub struct SliverPrototypeExtentList {
 impl SliverPrototypeExtentList {
     /// Creates a sliver that places its box children in a linear array and constrains them to
     /// have the same extent as a prototype item along the main axis.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         delegate: SliverChildDelegateRef,
         prototype_item: impl IntoWidget<K>,
@@ -94,6 +95,7 @@ impl SliverPrototypeExtentList {
     /// than `item_count`.
     ///
     /// The `prototype_item` argument is used to determine the extent of each item.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn builder<K>(
         item_builder: impl Fn(&mut App, BuildContext, i32) -> Option<WidgetRef> + 'static,
         prototype_item: impl IntoWidget<K>,
@@ -104,6 +106,7 @@ impl SliverPrototypeExtentList {
     /// A sliver that places multiple box children in a linear array along the main axis.
     ///
     /// This constructor uses a list of widgets to build the sliver.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn list<K>(
         children: Vec<WidgetRef>,
         prototype_item: impl IntoWidget<K>,
@@ -191,6 +194,7 @@ impl SliverPrototypeExtentListBuilder {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverPrototypeExtentListBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -226,6 +230,7 @@ impl SliverPrototypeExtentListList {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverPrototypeExtentListList {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }

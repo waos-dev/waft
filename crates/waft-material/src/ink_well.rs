@@ -1016,6 +1016,7 @@ macro_rules! ink_response_shared_setters {
         );
 
         #[doc = concat!("Dart `", stringify!($name), "(child:)`.")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn child<K>(mut self, child: impl IntoWidget<K>) -> $name {
             self.ink_response_mut().child = Some(child.into_widget());
             self

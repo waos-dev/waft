@@ -319,6 +319,7 @@ pub struct SearchViewTheme {
 impl SearchViewTheme {
     /// Creates a const theme that controls the configurations for the search views in its
     /// widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: SearchViewThemeData, child: impl IntoWidget<K>) -> SearchViewTheme {
         SearchViewTheme {
             key: None,

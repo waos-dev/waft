@@ -238,6 +238,7 @@ impl MaterialBanner {
     ///
     /// The length of the [`actions`](Self::actions) list must not be empty. The
     /// [`elevation`](Self::elevation) must be `None` or non-negative.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(content: impl IntoWidget<K>, actions: Vec<WidgetRef>) -> MaterialBanner {
         MaterialBanner {
             key: None,
@@ -281,6 +282,7 @@ impl MaterialBanner {
     }
 
     /// Dart `MaterialBanner(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> MaterialBanner {
         self.leading = Some(leading.into_widget());
         self

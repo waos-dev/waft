@@ -199,6 +199,7 @@ pub struct BadgeTheme {
 impl BadgeTheme {
     /// Creates a theme that overrides the default color parameters for
     /// [`Badge`](crate::Badge)s in this widget's subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: BadgeThemeData, child: impl IntoWidget<K>) -> BadgeTheme {
         BadgeTheme {
             key: None,

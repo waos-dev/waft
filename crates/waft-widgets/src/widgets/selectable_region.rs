@@ -2740,6 +2740,7 @@ pub struct SelectableRegionSelectionStatusScope {
 
 impl SelectableRegionSelectionStatusScope {
     /// Creates the scope; Dart's private constructor.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K: 'static>(
         notifier: Ref<SelectableRegionSelectionStatusNotifier>,
         child: impl IntoWidget<K>,
@@ -2816,6 +2817,7 @@ pub struct SelectableRegion {
 
 impl SelectableRegion {
     /// Creates a selection area for `child`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         selection_controls: Rc<dyn TextSelectionControls>,
         child: impl IntoWidget<K>,

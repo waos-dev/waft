@@ -651,6 +651,7 @@ impl AppBar {
     }
 
     /// Dart `AppBar(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> AppBar {
         self.leading = Some(leading.into_widget());
         self
@@ -663,6 +664,7 @@ impl AppBar {
     }
 
     /// Dart `AppBar(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> AppBar {
         self.title = Some(title.into_widget());
         self
@@ -681,6 +683,7 @@ impl AppBar {
     }
 
     /// Dart `AppBar(flexibleSpace:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn flexible_space<K>(mut self, flexible_space: impl IntoWidget<K>) -> AppBar {
         self.flexible_space = Some(flexible_space.into_widget());
         self
@@ -2263,6 +2266,7 @@ impl SliverAppBar {
     }
 
     /// Dart `SliverAppBar(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> SliverAppBar {
         self.leading = Some(leading.into_widget());
         self
@@ -2278,6 +2282,7 @@ impl SliverAppBar {
     }
 
     /// Dart `SliverAppBar(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> SliverAppBar {
         self.title = Some(title.into_widget());
         self
@@ -2299,6 +2304,7 @@ impl SliverAppBar {
     }
 
     /// Dart `SliverAppBar(flexibleSpace:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn flexible_space<K>(mut self, flexible_space: impl IntoWidget<K>) -> SliverAppBar {
         self.flexible_space = Some(flexible_space.into_widget());
         self

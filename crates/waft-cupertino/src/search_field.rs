@@ -346,6 +346,7 @@ impl CupertinoSearchTextField {
     }
 
     /// Dart `CupertinoSearchTextField(prefixIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prefix_icon<K>(mut self, prefix_icon: impl IntoWidget<K>) -> CupertinoSearchTextField {
         self.prefix_icon = prefix_icon.into_widget();
         self
@@ -361,6 +362,7 @@ impl CupertinoSearchTextField {
     }
 
     /// Dart `CupertinoSearchTextField(suffixIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn suffix_icon(mut self, suffix_icon: Icon) -> CupertinoSearchTextField {
         self.suffix_icon = suffix_icon.into_widget();
         self

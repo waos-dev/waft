@@ -455,6 +455,7 @@ impl IconButton {
     ///
     /// The [`icon`](Self::icon) argument must be specified, and is typically either an `Icon`
     /// or an `ImageIcon`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(on_pressed: Option<Listener>, icon: impl IntoWidget<K>) -> IconButton {
         IconButton::with_variant(on_pressed, icon.into_widget(), IconButtonVariant::Standard)
     }
@@ -463,6 +464,7 @@ impl IconButton {
     ///
     /// Filled icon buttons have higher visual impact and should be used for
     /// high emphasis actions, such as turning off a microphone or camera.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn filled<K>(on_pressed: Option<Listener>, icon: impl IntoWidget<K>) -> IconButton {
         IconButton::with_variant(on_pressed, icon.into_widget(), IconButtonVariant::Filled)
     }
@@ -473,6 +475,7 @@ impl IconButton {
     /// icon buttons. They’re useful in contexts where the button requires slightly
     /// more emphasis than an outline would give, such as a secondary action paired
     /// with a high emphasis action.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn filled_tonal<K>(on_pressed: Option<Listener>, icon: impl IntoWidget<K>) -> IconButton {
         IconButton::with_variant(
             on_pressed,
@@ -486,6 +489,7 @@ impl IconButton {
     /// Outlined icon buttons are medium-emphasis buttons. They’re useful when an
     /// icon button needs more emphasis than a standard icon button but less than
     /// a filled or filled tonal icon button.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn outlined<K>(on_pressed: Option<Listener>, icon: impl IntoWidget<K>) -> IconButton {
         IconButton::with_variant(on_pressed, icon.into_widget(), IconButtonVariant::Outlined)
     }
@@ -575,6 +579,7 @@ impl IconButton {
     }
 
     /// Dart `IconButton(selectedIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_icon<K>(mut self, selected_icon: impl IntoWidget<K>) -> IconButton {
         self.selected_icon = Some(selected_icon.into_widget());
         self

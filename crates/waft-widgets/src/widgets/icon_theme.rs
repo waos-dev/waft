@@ -22,6 +22,7 @@ pub struct IconTheme {
 
 impl IconTheme {
     /// Creates an icon theme that controls properties of descendant widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: IconThemeData, child: impl IntoWidget<K>) -> IconTheme {
         IconTheme {
             key: None,
@@ -38,6 +39,7 @@ impl IconTheme {
 
     /// Creates an icon theme that controls the properties of descendant widgets, and merges
     /// in the current icon theme, if any.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn merge<K>(
         key: Option<KeyRef>,
         data: IconThemeData,

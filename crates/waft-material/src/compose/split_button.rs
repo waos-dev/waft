@@ -288,6 +288,7 @@ pub struct SplitButtonLeadingButton {
 
 impl SplitButtonLeadingButton {
     /// Creates a filled leading part; Compose's `LeadingButton(onClick, content)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         on_pressed: Option<Listener>,
         child: impl IntoWidget<K>,
@@ -379,6 +380,7 @@ pub struct SplitButtonTrailingButton {
 impl SplitButtonTrailingButton {
     /// Creates a filled trailing part that acts as a button; Compose's
     /// `TrailingButton(onClick, content)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         on_pressed: Option<Listener>,
         child: impl IntoWidget<K>,
@@ -402,6 +404,7 @@ impl SplitButtonTrailingButton {
     /// Creates a filled trailing part that acts as a toggle; Compose's
     /// `TrailingButton(checked, onCheckedChange, content)`. A press calls `on_checked_change` with
     /// `!checked`; `None` disables the part.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn toggle<K>(
         checked: bool,
         on_checked_change: Option<ValueChanged<bool>>,
@@ -491,6 +494,7 @@ pub struct SplitButtonLayout {
 
 impl SplitButtonLayout {
     /// Creates a split button; Compose's `SplitButtonLayout(leadingButton, trailingButton)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<L, T>(
         leading_button: impl IntoWidget<L>,
         trailing_button: impl IntoWidget<T>,

@@ -94,6 +94,7 @@ impl BottomNavigationBarItem {
     ///
     /// The argument `icon` should not be `None` and the argument `label` should not be `None`
     /// when used in a Material Design's `BottomNavigationBar`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(icon: impl IntoWidget<K>) -> BottomNavigationBarItem {
         let icon = icon.into_widget();
         BottomNavigationBarItem {
@@ -120,6 +121,7 @@ impl BottomNavigationBarItem {
     }
 
     /// Dart `BottomNavigationBarItem(activeIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn active_icon<K>(mut self, active_icon: impl IntoWidget<K>) -> BottomNavigationBarItem {
         self.active_icon = active_icon.into_widget();
         self

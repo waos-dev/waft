@@ -131,6 +131,7 @@ impl CupertinoListTile {
     ///
     /// The `title` is used to convey the most important information of list tile. It is
     /// typically a `Text`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(title: impl IntoWidget<K>) -> CupertinoListTile {
         CupertinoListTile::of_type(
             title.into_widget(),
@@ -145,6 +146,7 @@ impl CupertinoListTile {
     ///
     /// The `title` is used to convey the most important information of list tile. It is
     /// typically a `Text`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn notched<K>(title: impl IntoWidget<K>) -> CupertinoListTile {
         CupertinoListTile::of_type(
             title.into_widget(),
@@ -184,24 +186,28 @@ impl CupertinoListTile {
     }
 
     /// Dart `CupertinoListTile(subtitle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn subtitle<K>(mut self, subtitle: impl IntoWidget<K>) -> CupertinoListTile {
         self.subtitle = Some(subtitle.into_widget());
         self
     }
 
     /// Dart `CupertinoListTile(additionalInfo:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn additional_info<K>(mut self, additional_info: impl IntoWidget<K>) -> CupertinoListTile {
         self.additional_info = Some(additional_info.into_widget());
         self
     }
 
     /// Dart `CupertinoListTile(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> CupertinoListTile {
         self.leading = Some(leading.into_widget());
         self
     }
 
     /// Dart `CupertinoListTile(trailing:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing<K>(mut self, trailing: impl IntoWidget<K>) -> CupertinoListTile {
         self.trailing = Some(trailing.into_widget());
         self

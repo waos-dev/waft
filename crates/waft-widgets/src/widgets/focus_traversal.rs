@@ -2524,6 +2524,7 @@ pub struct FocusTraversalOrder {
 
 impl FocusTraversalOrder {
     /// Creates an inherited widget used to describe the focus order of the `child` subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(order: FocusOrderRef, child: impl IntoWidget<K>) -> FocusTraversalOrder {
         FocusTraversalOrder {
             key: None,
@@ -2691,6 +2692,7 @@ pub struct FocusTraversalGroup {
 
 impl FocusTraversalGroup {
     /// Creates a [`FocusTraversalGroup`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> FocusTraversalGroup {
         FocusTraversalGroup {
             key: None,
@@ -3305,6 +3307,7 @@ pub struct ExcludeFocusTraversal {
 
 impl ExcludeFocusTraversal {
     /// Creates an [`ExcludeFocusTraversal`] widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ExcludeFocusTraversal {
         ExcludeFocusTraversal {
             key: None,

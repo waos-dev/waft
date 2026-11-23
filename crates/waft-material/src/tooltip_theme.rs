@@ -377,6 +377,7 @@ pub struct TooltipTheme {
 impl TooltipTheme {
     /// Creates a tooltip theme that controls the configurations for
     /// `Tooltip`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: TooltipThemeData, child: impl IntoWidget<K>) -> TooltipTheme {
         TooltipTheme {
             key: None,

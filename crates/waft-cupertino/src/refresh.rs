@@ -56,6 +56,7 @@ impl CupertinoSliverRefresh {
         self
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, child: impl IntoWidget<K>) -> CupertinoSliverRefresh {
         self.child = Some(child.into_widget());
         self

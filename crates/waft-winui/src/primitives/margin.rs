@@ -24,6 +24,7 @@ pub struct Margin {
 
 impl Margin {
     /// Wraps a child in signed FrameworkElement margin.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(margin: [f64; 4], child: impl IntoWidget<K>) -> Self {
         assert!(
             margin.iter().all(|v| v.is_finite()),

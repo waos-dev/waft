@@ -78,24 +78,28 @@ impl GridTileBar {
     }
 
     /// Dart `GridTileBar(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> GridTileBar {
         self.leading = Some(leading.into_widget());
         self
     }
 
     /// Dart `GridTileBar(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> GridTileBar {
         self.title = Some(title.into_widget());
         self
     }
 
     /// Dart `GridTileBar(subtitle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn subtitle<K>(mut self, subtitle: impl IntoWidget<K>) -> GridTileBar {
         self.subtitle = Some(subtitle.into_widget());
         self
     }
 
     /// Dart `GridTileBar(trailing:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing<K>(mut self, trailing: impl IntoWidget<K>) -> GridTileBar {
         self.trailing = Some(trailing.into_widget());
         self

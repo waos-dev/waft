@@ -402,6 +402,7 @@ impl DefaultTabController {
     ///
     /// The [`length`](Self::length) argument is typically greater than one. The
     /// [`length`](Self::length) must match `TabBar::tabs`'s and `TabBarView::children`'s length.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(length: usize, child: impl IntoWidget<K>) -> DefaultTabController {
         DefaultTabController {
             key: None,

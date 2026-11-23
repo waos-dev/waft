@@ -147,6 +147,7 @@ impl ProgressIndicatorData {
     }
 
     /// Dart's `_buildSemanticsWrapper`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn build_semantics_wrapper<K>(
         &self,
         _context: BuildContext,

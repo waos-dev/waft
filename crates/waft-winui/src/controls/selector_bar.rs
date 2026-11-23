@@ -53,6 +53,7 @@ impl SelectorBarItem {
 
     /// Creates an item showing `child` in place of a text, as Flutter's `Tab(child:)`, which
     /// takes a text or a child, not both.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_child<K>(id: impl Into<String>, child: impl IntoWidget<K>) -> Self {
         Self {
             child: Some(child.into_widget()),
@@ -61,6 +62,7 @@ impl SelectorBarItem {
     }
 
     /// Sets `Icon`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> Self {
         self.icon = Some(icon.into_widget());
         self

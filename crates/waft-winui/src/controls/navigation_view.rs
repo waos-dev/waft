@@ -235,6 +235,7 @@ impl NavigationView {
     pub const SETTINGS_ITEM_ID: &'static str = "__navigation_settings";
 
     /// Creates an adaptive navigation shell with owner-managed selection and page content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<C>(
         menu_items: Vec<NavigationViewItem>,
         selected_item: Option<String>,
@@ -2575,36 +2576,42 @@ impl NavigationView {
     }
 
     /// Supplies the source `header` content slot.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.header = Some(child.into_widget());
         self
     }
 
     /// Supplies the source `pane_header` content slot.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn pane_header<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.pane_header = Some(child.into_widget());
         self
     }
 
     /// Supplies the source `pane_custom_content` content slot.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn pane_custom_content<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.pane_custom_content = Some(child.into_widget());
         self
     }
 
     /// Supplies the source `pane_footer` content slot.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn pane_footer<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.pane_footer = Some(child.into_widget());
         self
     }
 
     /// Supplies the source `content_overlay` content slot.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content_overlay<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.content_overlay = Some(child.into_widget());
         self
     }
 
     /// Supplies the source `auto_suggest_box` content slot.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn auto_suggest_box<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.auto_suggest_box = Some(child.into_widget());
         self

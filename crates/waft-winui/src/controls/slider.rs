@@ -117,6 +117,7 @@ pub struct SliderTemplateParts {
 impl SliderTemplateParts {
     /// `SliderContainer`: `content` as the element that takes the slider's pointer input, and
     /// whose size the pointer maths reads as the track's.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn slider_container<K>(&self, content: impl IntoWidget<K>) -> WidgetRef {
         (self.container)(content.into_widget())
     }
@@ -250,6 +251,7 @@ impl Slider {
     }
 
     /// XAML `Header`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> Slider {
         self.header = Some(header.into_widget());
         self
@@ -993,6 +995,7 @@ pub(crate) fn decrease_definitions(
 /// `child` stretched along `orientation` to a bounded length, adding nothing to an unbounded one.
 /// The track and tick bars use it so that a slider fills the width or height its parent bounds, as
 /// Flutter's `Slider` does, and in an unbounded length is as long as its thumb, as XAML measures it.
+#[cfg_attr(debug_assertions, track_caller)]
 pub(crate) fn fill_bounded<K>(orientation: Axis, child: impl IntoWidget<K>) -> WidgetRef {
     match orientation {
         Axis::Horizontal => LimitedBox::new()

@@ -84,6 +84,7 @@ impl DialogTheme {
     }
 
     /// Dart `DialogTheme(child:)`; the default is an empty `SizedBox`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> DialogTheme {
         self.child = child.into_widget();
         self

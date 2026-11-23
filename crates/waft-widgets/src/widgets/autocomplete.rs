@@ -1321,6 +1321,7 @@ pub struct AutocompleteHighlightedOption {
 
 impl AutocompleteHighlightedOption {
     /// Create an instance of AutocompleteHighlightedOption inherited widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         highlight_index_notifier: Ref<ValueNotifier<usize>>,
         child: impl IntoWidget<K>,

@@ -178,6 +178,7 @@ pub struct DropdownMenuTheme {
 impl DropdownMenuTheme {
     /// Creates a [`DropdownMenuTheme`] that controls visual parameters for descendant
     /// `DropdownMenu`s.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: DropdownMenuThemeData, child: impl IntoWidget<K>) -> DropdownMenuTheme {
         DropdownMenuTheme {
             key: None,

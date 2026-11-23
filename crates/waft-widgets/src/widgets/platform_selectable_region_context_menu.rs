@@ -24,6 +24,7 @@ pub struct PlatformSelectableRegionContextMenu {
 
 impl PlatformSelectableRegionContextMenu {
     /// Creates a [`PlatformSelectableRegionContextMenu`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl crate::framework::IntoWidget<K>) -> Self {
         PlatformSelectableRegionContextMenu {
             key: None,

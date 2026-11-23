@@ -414,12 +414,14 @@ impl NavigationRail {
     }
 
     /// Dart `NavigationRail(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> NavigationRail {
         self.leading = Some(leading.into_widget());
         self
     }
 
     /// Dart `NavigationRail(trailing:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing<K>(mut self, trailing: impl IntoWidget<K>) -> NavigationRail {
         self.trailing = Some(trailing.into_widget());
         self
@@ -1722,6 +1724,7 @@ impl NavigationRailDestination {
     /// When the [`NavigationRail::label_type`] is [`NavigationRailLabelType::None`], the
     /// label is still used for semantics, and may still be used if
     /// [`NavigationRail::extended`] is true.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<I, L>(
         icon: impl IntoWidget<I>,
         label: impl IntoWidget<L>,
@@ -1739,6 +1742,7 @@ impl NavigationRailDestination {
     }
 
     /// Dart `NavigationRailDestination(selectedIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_icon<K>(
         mut self,
         selected_icon: impl IntoWidget<K>,

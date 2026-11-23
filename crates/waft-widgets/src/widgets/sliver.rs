@@ -9,6 +9,7 @@
 use std::any::{Any, TypeId};
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Debug};
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_foundation::{App, DiagnosticPropertiesBuilder, DiagnosticsProperty, Handle};
@@ -22,9 +23,9 @@ use waft_rendering::{
 };
 
 use crate::framework::{
-    AnyElement, BuildContext, Element, ElementData, IntoWidget, KeyRef, ParentDataWidget,
-    RenderObjectElement, RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget,
-    Slot, Widget, WidgetKind, WidgetRef, downcast_widget, short_type_name,
+    AnyElement, BuildContext, CreationLocation, Element, ElementData, IntoWidget, KeyRef,
+    ParentDataWidget, RenderObjectElement, RenderObjectElementData, RenderObjectElementWidget,
+    RenderObjectWidget, Slot, Widget, WidgetKind, WidgetRef, downcast_widget, short_type_name,
 };
 use crate::widgets::scroll_delegate::{
     ChildIndexGetter, NullableIndexedWidgetBuilder, SemanticIndexCallback,
@@ -127,7 +128,10 @@ where
 pub struct SliverMultiBoxAdaptorKind;
 
 /// The erased form of a [`SliverMultiBoxAdaptorWidget`].
-pub struct SliverMultiBoxAdaptor<W: SliverMultiBoxAdaptorWidget>(pub W)
+pub struct SliverMultiBoxAdaptor<W: SliverMultiBoxAdaptorWidget>(
+    pub W,
+    pub(crate) CreationLocation,
+)
 where
     W::RenderObject: RenderSliverMultiBoxAdaptor;
 
@@ -135,11 +139,12 @@ impl<W: SliverMultiBoxAdaptorWidget> IntoWidget<SliverMultiBoxAdaptorKind> for W
 where
     W::RenderObject: RenderSliverMultiBoxAdaptor,
 {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             RenderObjectWidget::debug_check_constructor(&self);
         }
-        Rc::new(SliverMultiBoxAdaptor(self))
+        Rc::new(SliverMultiBoxAdaptor(self, CreationLocation::of_caller()))
     }
 }
 
@@ -149,6 +154,10 @@ where
 {
     fn key(&self) -> Option<&KeyRef> {
         RenderObjectWidget::key(&self.0)
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -410,6 +419,7 @@ impl SliverListBuilder {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverListBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -555,6 +565,7 @@ impl SliverListSeparated {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverListSeparated {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -587,6 +598,7 @@ impl SliverListList {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverListList {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -744,6 +756,7 @@ impl SliverFixedExtentListBuilder {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverFixedExtentListBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -778,6 +791,7 @@ impl SliverFixedExtentListList {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverFixedExtentListList {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -936,6 +950,7 @@ impl SliverVariedExtentListBuilder {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverVariedExtentListBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -974,6 +989,7 @@ impl SliverVariedExtentListList {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverVariedExtentListList {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1212,6 +1228,7 @@ impl SliverGridBuilder {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverGridBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1274,6 +1291,7 @@ impl SliverGridCount {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverGridCount {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1291,6 +1309,7 @@ impl SliverGridExtent {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverGridExtent {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1319,6 +1338,7 @@ impl SliverGridList {
 }
 
 impl IntoWidget<SliverMultiBoxAdaptorKind> for SliverGridList {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -2309,6 +2329,7 @@ pub struct KeepAlive {
 
 impl KeepAlive {
     /// Marks a child as needing to remain alive.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(keep_alive: bool, child: impl IntoWidget<K>) -> KeepAlive {
         KeepAlive {
             key: None,

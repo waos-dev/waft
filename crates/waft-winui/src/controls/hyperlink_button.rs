@@ -63,6 +63,7 @@ pub struct HyperlinkButton {
 }
 
 impl HyperlinkButton {
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(content: impl IntoWidget<K>, click: Listener) -> HyperlinkButton {
         HyperlinkButton {
             content: content.into_widget(),

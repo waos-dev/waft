@@ -94,6 +94,7 @@ impl WidgetSpan {
     ///
     /// A [`TextStyle`] may be provided with the [`style`](Self::style) property, but only the
     /// decoration, foreground, background, and spacing options will be used.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> WidgetSpan {
         WidgetSpan {
             child: child.into_widget(),

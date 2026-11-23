@@ -28,6 +28,7 @@ impl Title {
     /// Creates a widget that describes this app to the Android operating system.
     ///
     /// `color` must be an opaque color (i.e. color.alpha must be 255 (0xFF)).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(color: Color, child: impl IntoWidget<K>) -> Title {
         debug_assert!(alpha_byte(color) == 0xFF);
         Title {

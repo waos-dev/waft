@@ -71,6 +71,7 @@ pub struct CupertinoTheme {
 
 impl CupertinoTheme {
     /// Creates a [`CupertinoTheme`] to change descendant Cupertino widgets' styling.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: CupertinoThemeData, child: impl IntoWidget<K>) -> CupertinoTheme {
         CupertinoTheme {
             key: None,

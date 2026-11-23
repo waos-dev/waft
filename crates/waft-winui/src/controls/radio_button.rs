@@ -78,6 +78,7 @@ impl RadioButton {
     }
 
     /// XAML `Content`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, content: impl IntoWidget<K>) -> RadioButton {
         self.content = Some(content.into_widget());
         self

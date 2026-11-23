@@ -224,6 +224,7 @@ impl Tab {
     }
 
     /// Dart `Tab(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> Tab {
         self.icon = Some(icon.into_widget());
         self
@@ -242,6 +243,7 @@ impl Tab {
     }
 
     /// Dart `Tab(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Tab {
         self.child = Some(child.into_widget());
         self

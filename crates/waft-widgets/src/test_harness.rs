@@ -3,6 +3,7 @@
 //! with its own pipeline owner, plus the frame pump. Tests across the crate mount widgets
 //! under it.
 
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_embedder::{View as EmbedderView, ViewConstraints, ViewId, ViewMetrics};
@@ -227,7 +228,10 @@ impl Harness {
         // Flutter's test binding attaches test trees to the binding's own build owner, which is
         // the one `GlobalKey` lookups consult.
         let owner = WidgetsBinding::instance(app).build_owner(app);
-        let widget: WidgetRef = Rc::new(TestRootErased(TestRoot { child }));
+        let widget: WidgetRef = Rc::new(TestRootErased {
+            root: TestRoot { child },
+            created: None,
+        });
         let root = TestRootElement::new(app, widget);
         root.as_element().assign_owner(app, owner);
         owner.build_scope(
@@ -242,7 +246,10 @@ impl Harness {
 
     /// Replaces the root's child widget, the way a binding's `attachRootWidget` does.
     pub(crate) fn set_child(&self, app: &mut App, child: WidgetRef) {
-        let widget: WidgetRef = Rc::new(TestRootErased(TestRoot { child }));
+        let widget: WidgetRef = Rc::new(TestRootErased {
+            root: TestRoot { child },
+            created: None,
+        });
         let root = self.root;
         self.owner.build_scope(
             app,
@@ -307,11 +314,23 @@ pub(crate) fn layer_tree(
 
 /// The erased `TestRoot`: the test root is not one of the public kinds.
 #[derive(Debug)]
-struct TestRootErased(TestRoot);
+struct TestRootErased {
+    root: TestRoot,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
+}
 
 impl Widget for TestRootErased {
     fn key(&self) -> Option<&KeyRef> {
         None
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -319,7 +338,7 @@ impl Widget for TestRootErased {
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
-        &self.0
+        &self.root
     }
 
     fn widget_type(&self) -> std::any::TypeId {

@@ -217,6 +217,7 @@ pub struct DrawerTheme {
 impl DrawerTheme {
     /// Creates a theme that defines the [`DrawerThemeData`] properties for a
     /// `Drawer`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: DrawerThemeData, child: impl IntoWidget<K>) -> DrawerTheme {
         DrawerTheme {
             key: None,

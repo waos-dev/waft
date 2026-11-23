@@ -88,6 +88,7 @@ impl fmt::Debug for TabViewItem {
 
 impl TabViewItem {
     /// Creates a tab with a stable identity, header widget and content widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<H, C>(
         id: impl Into<String>,
         header: impl IntoWidget<H>,
@@ -109,6 +110,7 @@ impl TabViewItem {
     }
 
     /// Creates a string header with the source's automatic header tooltip.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn text<C>(
         id: impl Into<String>,
         header: impl Into<String>,
@@ -121,6 +123,7 @@ impl TabViewItem {
     }
 
     /// Sets the icon element; native widgets replace XAML IconSource factories.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon_source<K>(mut self, icon: impl IntoWidget<K>) -> Self {
         self.icon_source = Some(icon.into_widget());
         self

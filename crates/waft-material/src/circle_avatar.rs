@@ -141,6 +141,7 @@ impl CircleAvatar {
     }
 
     /// Dart `CircleAvatar(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> CircleAvatar {
         self.child = Some(child.into_widget());
         self

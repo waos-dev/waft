@@ -77,6 +77,7 @@ pub struct DefaultTextEditingShortcuts {
 impl DefaultTextEditingShortcuts {
     /// Creates a [`DefaultTextEditingShortcuts`] widget that provides the default text editing
     /// shortcuts on the current platform.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> DefaultTextEditingShortcuts {
         DefaultTextEditingShortcuts {
             key: None,

@@ -69,6 +69,7 @@ pub struct ToolTip {
 
 impl ToolTip {
     /// Creates a tooltip with arbitrary widget content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(content: impl IntoWidget<K>) -> Self {
         Self {
             content: content.into_widget(),
@@ -229,6 +230,7 @@ pub struct ToolTipService {
 
 impl ToolTipService {
     /// Attaches a tooltip to its owner. A root Overlay ancestor is required when opening.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, tool_tip: ToolTip) -> Self {
         Self {
             key: None,

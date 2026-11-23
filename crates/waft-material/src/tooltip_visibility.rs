@@ -45,6 +45,7 @@ pub struct TooltipVisibility {
 
 impl TooltipVisibility {
     /// Creates a widget that configures the visibility of `Tooltip`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(visible: bool, child: impl IntoWidget<K>) -> TooltipVisibility {
         TooltipVisibility {
             key: None,

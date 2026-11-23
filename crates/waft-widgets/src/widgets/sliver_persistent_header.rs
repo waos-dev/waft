@@ -2,6 +2,7 @@
 
 use std::any::{Any, TypeId};
 use std::fmt::{self, Debug};
+use std::panic::Location;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -24,10 +25,10 @@ use waft_rendering::{
 };
 
 use crate::framework::{
-    AnyElement, BuildContext, Element, ElementData, IntoWidget, KeyRef, RenderObjectElement,
-    RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget, Slot, State, StateData,
-    StatefulWidget, StatelessWidget, Widget, WidgetKind, WidgetRef, downcast_widget,
-    short_type_name,
+    AnyElement, BuildContext, CreationLocation, Element, ElementData, IntoWidget, KeyRef,
+    RenderObjectElement, RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget,
+    Slot, State, StateData, StatefulWidget, StatelessWidget, Widget, WidgetKind, WidgetRef,
+    downcast_widget, short_type_name,
 };
 use crate::widgets::scroll_position::ScrollPositionRef;
 use crate::widgets::scrollable::Scrollable;
@@ -264,16 +265,23 @@ where
 
 /// The erased form of a [`SliverPersistentHeaderRenderObjectWidget`], which is private in Dart
 /// and so has no [`IntoWidget`] kind of its own.
-struct SliverPersistentHeaderRenderObject<W: SliverPersistentHeaderRenderObjectWidget>(W)
+struct SliverPersistentHeaderRenderObject<W: SliverPersistentHeaderRenderObjectWidget>(
+    W,
+    CreationLocation,
+)
 where
     W::RenderObject: RenderSliverPersistentHeaderForWidgets;
 
 /// Dart's `_SliverScrollingPersistentHeader(delegate: ..)` as a tree node.
+#[cfg_attr(debug_assertions, track_caller)]
 fn header_widget<W: SliverPersistentHeaderRenderObjectWidget>(widget: W) -> WidgetRef
 where
     W::RenderObject: RenderSliverPersistentHeaderForWidgets,
 {
-    Rc::new(SliverPersistentHeaderRenderObject(widget))
+    Rc::new(SliverPersistentHeaderRenderObject(
+        widget,
+        CreationLocation::of_caller(),
+    ))
 }
 
 impl<W: SliverPersistentHeaderRenderObjectWidget> Widget for SliverPersistentHeaderRenderObject<W>
@@ -282,6 +290,10 @@ where
 {
     fn key(&self) -> Option<&KeyRef> {
         RenderObjectWidget::key(&self.0)
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -482,6 +494,7 @@ struct FloatingHeader {
 }
 
 impl FloatingHeader {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(child: impl IntoWidget<K>) -> FloatingHeader {
         FloatingHeader {
             child: child.into_widget(),

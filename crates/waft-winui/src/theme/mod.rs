@@ -120,16 +120,19 @@ type Override = Rc<dyn Fn(&mut ThemeResources)>;
 
 impl ThemeScope {
     /// `new` shows `child` in `theme`, with WinUI's values in the default accent. It does not keep an enclosing scope's values: XAML's `RequestedTheme` would.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(theme: Theme, child: impl IntoWidget<K>) -> ThemeScope {
         ThemeScope::from_base(Base::Theme(theme, AccentPalette::default()), child)
     }
 
     /// `overriding` shows `child` with the enclosing scope's resources, changed by its own.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn overriding<K>(child: impl IntoWidget<K>) -> ThemeScope {
         ThemeScope::from_base(Base::Enclosing, child)
     }
 
     /// `with_resources` shows `child` with `resources`. A popup's content takes its target's this way, since the overlay it shows in is outside the target's scope.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_resources<K>(
         resources: Rc<ThemeResources>,
         child: impl IntoWidget<K>,
@@ -137,6 +140,7 @@ impl ThemeScope {
         ThemeScope::from_base(Base::Resources(resources), child)
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn from_base<K>(base: Base, child: impl IntoWidget<K>) -> ThemeScope {
         ThemeScope {
             base,
