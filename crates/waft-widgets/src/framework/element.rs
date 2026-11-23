@@ -878,6 +878,7 @@ impl AnyElement {
         (self.vtable.debug_fill_properties)(app, self.id, &mut properties);
         let children = (self.vtable.debug_describe_children)(app, self.id);
         DiagnosticableTreeNode::from_parts(name, self.to_string_short(app), properties, children)
+            .with_value_id(self.id())
     }
 
     /// Dart's `Element.toStringDeep`: this element and its descendants, at Dart's default level

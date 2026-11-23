@@ -978,6 +978,27 @@ fn an_element_dump_shows_each_widget_with_its_properties_and_render_object() {
     );
 }
 
+/// An element's node names the arena object it was read from, which the JSON does not print but
+/// an inspector delegate adds as `valueId`.
+#[test]
+fn an_element_diagnostics_node_carries_the_elements_handle() {
+    use waft_foundation::DiagnosticsNode;
+
+    use crate::SizedBox;
+    use crate::testing::WidgetTester;
+
+    let key = GlobalKey::new();
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(SizedBox::new().key(key.clone().into()));
+    tester.update(|app| {
+        let element = key.current_context(app).expect("the SizedBox is mounted");
+        assert_eq!(
+            element.to_diagnostics_node(app, None).value_id(),
+            Some(element.id())
+        );
+    });
+}
+
 /// `inherited_dependencies_test.dart`, "InheritedWidget dependencies show up in diagnostic
 /// properties".
 #[test]
