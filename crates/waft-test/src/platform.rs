@@ -1016,11 +1016,17 @@ mod tests {
 
         platform.advance_clock(Duration::from_millis(16));
         assert_eq!(platform.elapsed(), Duration::from_millis(16));
-        assert_eq!(platform.now().duration_since(start), Duration::from_millis(16));
+        assert_eq!(
+            platform.now().duration_since(start),
+            Duration::from_millis(16)
+        );
 
         platform.advance_clock(Duration::from_millis(4));
         assert_eq!(platform.elapsed(), Duration::from_millis(20));
-        assert_eq!(platform.now().duration_since(start), Duration::from_millis(20));
+        assert_eq!(
+            platform.now().duration_since(start),
+            Duration::from_millis(20)
+        );
     }
 
     #[test]

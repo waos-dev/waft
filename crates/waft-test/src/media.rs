@@ -1111,12 +1111,18 @@ mod tests {
 
         let presents = made[0].presents();
         assert_eq!(presents.len(), 2);
-        assert_eq!((presents[0].buffer.width(), presents[0].buffer.height()), (100, 80));
+        assert_eq!(
+            (presents[0].buffer.width(), presents[0].buffer.height()),
+            (100, 80)
+        );
         assert_eq!(presents[0].children.len(), 1);
         assert!(Arc::ptr_eq(&presents[0].children[0].0, &child));
         assert_eq!(presents[0].children[0].1, placement);
 
-        assert_eq!((presents[1].buffer.width(), presents[1].buffer.height()), (200, 160));
+        assert_eq!(
+            (presents[1].buffer.width(), presents[1].buffer.height()),
+            (200, 160)
+        );
         assert!(presents[1].children.is_empty());
 
         let mock = MockLayer::of(&*parent).expect("a MockLayer");

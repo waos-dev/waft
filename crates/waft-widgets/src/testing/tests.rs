@@ -467,9 +467,7 @@ mod multi_window {
     use crate::widgets::basic::{Center, Column, Directionality, SizedBox};
     use crate::widgets::gesture_detector::GestureDetector;
     use crate::widgets::text::Text;
-    use crate::{
-        MultiViewApp, WindowScope, run_app, run_widget, state_accessors,
-    };
+    use crate::{MultiViewApp, WindowScope, run_app, run_widget, state_accessors};
 
     /// A widget that calls `on_dispose` when its state is disposed, to verify teardown across
     /// every window.
@@ -559,8 +557,9 @@ mod multi_window {
                         Some("main") => Some(
                             Directionality::new(
                                 TextDirection::Ltr,
-                                Center::new().child(Column::new().children([
-                                    button("Open Second", move |app| {
+                                Center::new().child(Column::new().children([button(
+                                    "Open Second",
+                                    move |app| {
                                         first_count.set(first_count.get() + 1);
                                         app.platform()
                                             .request_view(
@@ -572,8 +571,8 @@ mod multi_window {
                                                 Some("inspector".to_owned()),
                                             )
                                             .expect("second window");
-                                    }),
-                                ])),
+                                    },
+                                )])),
                             )
                             .into_widget(),
                         ),
@@ -582,28 +581,33 @@ mod multi_window {
                             Some(
                                 Directionality::new(
                                     TextDirection::Ltr,
-                                    Center::new().child(Column::new().children([
-                                        GestureDetector::new()
-                                            .behavior(HitTestBehavior::Opaque)
-                                            .on_tap(Listener::new(move |_| {
-                                                second_count.set(second_count.get() + 1);
-                                            }))
-                                            .on_long_press(Listener::new(move |_| {
-                                                second_lp.set(second_lp.get() + 1);
-                                            }))
-                                            .child(
-                                                SizedBox::new()
-                                                    .width(120.0)
-                                                    .height(40.0)
-                                                    .child(Center::new().child(Text::new("Inspect"))),
-                                            )
-                                            .into_widget(),
-                                        button("Close", move |_| {
-                                            if let Some(window) = &window {
-                                                window.close();
-                                            }
-                                        }),
-                                    ])),
+                                    Center::new().child(
+                                        Column::new().children([
+                                            GestureDetector::new()
+                                                .behavior(HitTestBehavior::Opaque)
+                                                .on_tap(Listener::new(move |_| {
+                                                    second_count.set(second_count.get() + 1);
+                                                }))
+                                                .on_long_press(Listener::new(move |_| {
+                                                    second_lp.set(second_lp.get() + 1);
+                                                }))
+                                                .child(
+                                                    SizedBox::new()
+                                                        .width(120.0)
+                                                        .height(40.0)
+                                                        .child(
+                                                            Center::new()
+                                                                .child(Text::new("Inspect")),
+                                                        ),
+                                                )
+                                                .into_widget(),
+                                            button("Close", move |_| {
+                                                if let Some(window) = &window {
+                                                    window.close();
+                                                }
+                                            }),
+                                        ]),
+                                    ),
                                 )
                                 .into_widget(),
                             )
@@ -692,11 +696,8 @@ mod multi_window {
                         crate::widgets::basic::Builder::new(move |app, context| {
                             let size = crate::MediaQuery::of(app, context).size;
                             sizes.borrow_mut().push(size);
-                            Directionality::new(
-                                TextDirection::Ltr,
-                                Text::new("Phone screen"),
-                            )
-                            .into_widget()
+                            Directionality::new(TextDirection::Ltr, Text::new("Phone screen"))
+                                .into_widget()
                         })
                         .into_widget(),
                     )
@@ -707,9 +708,8 @@ mod multi_window {
         tester.pump_by(Duration::ZERO);
         assert!(tester.views().is_empty());
 
-        let given = tester.give_view(
-            TestView::with_pixel_ratio(800.0, 1200.0, 2.0).with_id(ViewId(7)),
-        );
+        let given =
+            tester.give_view(TestView::with_pixel_ratio(800.0, 1200.0, 2.0).with_id(ViewId(7)));
         tester.pump();
         assert_eq!(tester.views(), [ViewId(7)]);
         assert_eq!(tester.view_of(find::text("Phone screen")), ViewId(7));
@@ -726,9 +726,8 @@ mod multi_window {
     #[test]
     fn shell_delivers_back_focus_close_and_lifecycle_events() {
         let windows = Rc::new(TestWindows::new());
-        let mut tester = WidgetTester::without_views(
-            TestPlatform::new().with_windows(Rc::clone(&windows)),
-        );
+        let mut tester =
+            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
         let events: Rc<RefCell<Vec<String>>> = Rc::default();
         let log = Rc::clone(&events);
 
@@ -792,9 +791,8 @@ mod multi_window {
         let disposed: Rc<RefCell<Vec<&'static str>>> = Rc::default();
         {
             let windows = Rc::new(TestWindows::new());
-            let mut tester = WidgetTester::without_views(
-                TestPlatform::new().with_windows(Rc::clone(&windows)),
-            );
+            let mut tester =
+                WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
             let spy = Rc::clone(&disposed);
             tester.update(|app| {
                 app.platform()
@@ -836,9 +834,8 @@ mod multi_window {
     #[should_panic(expected = "A Timer is still pending even after the widget tree was disposed.")]
     fn drop_catches_a_pending_timer_in_a_multi_window_test() {
         let windows = Rc::new(TestWindows::new());
-        let mut tester = WidgetTester::without_views(
-            TestPlatform::new().with_windows(Rc::clone(&windows)),
-        );
+        let mut tester =
+            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
         tester.update(|app| {
             run_app(app, SizedBox::new().into_widget());
             Timer::new(app, Duration::from_secs(5), Listener::new(|_| {}));
@@ -849,9 +846,8 @@ mod multi_window {
     #[test]
     fn closing_the_only_window_unmounts_its_tree_on_pump() {
         let windows = Rc::new(TestWindows::new());
-        let mut tester = WidgetTester::without_views(
-            TestPlatform::new().with_windows(Rc::clone(&windows)),
-        );
+        let mut tester =
+            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
         tester.update(|app| {
             app.platform()
                 .request_view(WindowConfig::default(), None)
@@ -951,9 +947,8 @@ mod multi_window {
     #[test]
     fn drag_in_second_window_moves_the_second_window_gesture() {
         let windows = Rc::new(TestWindows::new());
-        let mut tester = WidgetTester::without_views(
-            TestPlatform::new().with_windows(Rc::clone(&windows)),
-        );
+        let mut tester =
+            WidgetTester::without_views(TestPlatform::new().with_windows(Rc::clone(&windows)));
         let dragged = Rc::new(Cell::new(Offset::ZERO));
         let seen = Rc::clone(&dragged);
 

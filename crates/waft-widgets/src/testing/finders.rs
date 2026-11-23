@@ -38,8 +38,7 @@ impl WidgetTester {
                 crate::downcast_widget::<crate::View>(&**widget)
                     .map(|view| view.view.id())
                     .or_else(|| {
-                        crate::downcast_widget::<crate::RawView>(&**widget)
-                            .map(|raw| raw.view.id())
+                        crate::downcast_widget::<crate::RawView>(&**widget).map(|raw| raw.view.id())
                     })
             })
             .expect("No View ancestor found for finder in a call to \"viewOf()\"")

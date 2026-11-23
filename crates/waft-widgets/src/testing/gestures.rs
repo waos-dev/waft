@@ -77,10 +77,10 @@ impl WidgetTester {
         use waft_embedder::{
             Contact, EmbedderClient, Platform, PointerChange, PointerReport, ReportedChange,
         };
-        let ratio = self
-            .platform()
-            .view(pointer.view)
-            .map_or_else(|| self.device_pixel_ratio(), |view| view.metrics().device_pixel_ratio);
+        let ratio = self.platform().view(pointer.view).map_or_else(
+            || self.device_pixel_ratio(),
+            |view| view.metrics().device_pixel_ratio,
+        );
         let reported = match change {
             PointerChange::Add => ReportedChange::Add,
             PointerChange::Remove => ReportedChange::Remove,
@@ -106,10 +106,7 @@ impl WidgetTester {
             time_stamp,
             device: pointer.id,
             kind: pointer.kind,
-            position: [
-                pointer.position.dx() * ratio,
-                pointer.position.dy() * ratio,
-            ],
+            position: [pointer.position.dx() * ratio, pointer.position.dy() * ratio],
             change: reported,
             contact: Contact::default(),
         }]);
