@@ -1,0 +1,21 @@
+[package]
+name = "waft-service-protocol"
+description = "How a client reaches a running Waft app's service extensions on the same machine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[package.metadata.waft]
+# The transport the hosts and `cargo waft ext` share: its sockets and file permissions are a
+# platform's, not the framework's.
+platform = true
+
+[dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

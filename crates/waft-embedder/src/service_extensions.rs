@@ -4,7 +4,8 @@
 //! Flutter's service extensions are `dart:developer`'s: a method name beginning `ext.`, string
 //! parameters, and a JSON answer, which the Dart VM service carries to a client. Here the
 //! framework keeps the extensions (`waft_foundation::ServiceExtensions`) and a host carries the
-//! calls, so these are the types both sides read.
+//! calls ([`EmbedderClient::service_extension_call`](crate::EmbedderClient::service_extension_call)),
+//! so these are the types both sides read.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -74,3 +75,85 @@ impl fmt::Display for ServiceExtensionError {
 }
 
 impl std::error::Error for ServiceExtensionError {}
+
+/// One call from a client, which a host hands the framework through
+/// [`EmbedderClient::service_extension_call`](crate::EmbedderClient::service_extension_call).
+pub struct ServiceExtensionCall {
+    /// The extension's whole name, as `ext.waft.debugDumpApp`.
+    pub name: String,
+    pub params: ServiceExtensionParams,
+    /// Where the answer goes.
+    pub reply: ServiceExtensionReply,
+}
+
+/// The answer to one call, given once, as [`AppExitReply`](crate::AppExitReply) is. Dropped
+/// unanswered, it answers [`ServiceExtensionError::Failed`], so a client is never left waiting.
+pub struct ServiceExtensionReply(Option<Box<dyn FnOnce(ServiceExtensionResult)>>);
+
+impl ServiceExtensionReply {
+    /// A reply that hands its answer to `send`. The answer is given inside a call into the
+    /// client, so `send` may only post it to the host's own loop or thread, never call the
+    /// client.
+    pub fn new(send: impl FnOnce(ServiceExtensionResult) + 'static) -> ServiceExtensionReply {
+        ServiceExtensionReply(Some(Box::new(send)))
+    }
+
+    pub fn answer(mut self, result: ServiceExtensionResult) {
+        self.send(result);
+    }
+
+    fn send(&mut self, result: ServiceExtensionResult) {
+        if let Some(send) = self.0.take() {
+            send(result);
+        }
+    }
+}
+
+impl Drop for ServiceExtensionReply {
+    fn drop(&mut self) {
+        self.send(Err(ServiceExtensionError::Failed(
+            "the app let go of the call without answering it".to_owned(),
+        )));
+    }
+}
+
+impl fmt::Debug for ServiceExtensionReply {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ServiceExtensionReply")
+            .field("answered", &self.0.is_none())
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::*;
+
+    #[test]
+    fn a_reply_dropped_unanswered_answers_that_it_failed() {
+        let answered = Rc::new(RefCell::new(None));
+        let to = Rc::clone(&answered);
+        drop(ServiceExtensionReply::new(move |result| {
+            *to.borrow_mut() = Some(result)
+        }));
+        assert!(matches!(
+            answered.borrow().as_ref(),
+            Some(Err(ServiceExtensionError::Failed(_)))
+        ));
+    }
+
+    #[test]
+    fn a_reply_answers_once() {
+        let answers = Rc::new(RefCell::new(Vec::new()));
+        let to = Rc::clone(&answers);
+        ServiceExtensionReply::new(move |result| to.borrow_mut().push(result))
+            .answer(Ok(serde_json::json!({ "data": "tree" })));
+        assert_eq!(
+            *answers.borrow(),
+            [Ok(serde_json::json!({ "data": "tree" }))]
+        );
+    }
+}

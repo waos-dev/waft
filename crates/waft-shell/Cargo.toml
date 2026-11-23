@@ -19,6 +19,7 @@ waft-scheduler.workspace = true
 waft-services.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 waft-test.workspace = true
 
 [lints]

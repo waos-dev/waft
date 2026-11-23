@@ -13,6 +13,7 @@ mod carried;
 mod devices;
 mod doctor;
 mod environment;
+mod ext;
 mod file_associations;
 mod icons;
 mod ios;
@@ -61,6 +62,22 @@ enum Command {
     Doctor,
     /// List the devices `run -d` accepts.
     Devices,
+    /// Call a service extension of a running debug app, as `ext ext.waft.debugDumpApp`;
+    /// `ext --list` lists the apps running, and `ext ext.waft.listServiceExtensions` what one
+    /// serves.
+    Ext {
+        /// The app to call, by name or process id, when more than one is running.
+        #[arg(long)]
+        app: Option<String>,
+        /// List the apps running instead.
+        #[arg(long)]
+        list: bool,
+        /// The extension's name.
+        #[arg(required_unless_present = "list")]
+        name: Option<String>,
+        /// Its parameters, each `name=value`.
+        params: Vec<String>,
+    },
     /// Build and launch on a device. Defaults to this desktop.
     Run {
         /// A device from `cargo waft devices`: `macos`, `web`, `chrome`, `ios`, `android`, a simulator or emulator name, or an id.
@@ -140,6 +157,15 @@ fn run() -> Result<()> {
             devices::print(&devices::list()?);
             Ok(())
         }
+        Command::Ext {
+            app,
+            list,
+            name,
+            params,
+        } => match name {
+            Some(name) if !list => ext::call(app.as_deref(), &name, &params),
+            _ => ext::list(),
+        },
         Command::Run {
             device,
             release,

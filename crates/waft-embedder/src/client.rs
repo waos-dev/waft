@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use crate::{
     AppExitReply, AppExitResponse, AppLifecycleState, ClipboardEvent, DragReport, EditCommand,
-    Frame, KeyData, MenuId, NotificationActivation, OpenRequest, PointerReport, TextEditingValue,
-    TextInputAction, TrayIconEvent, TrayIconId, ViewFocusEvent, ViewId,
+    Frame, KeyData, MenuId, NotificationActivation, OpenRequest, PointerReport,
+    ServiceExtensionCall, ServiceExtensionError, TextEditingValue, TextInputAction, TrayIconEvent,
+    TrayIconId, ViewFocusEvent, ViewId,
 };
 
 /// Complete frames and typed view lifecycle notifications.
@@ -224,5 +225,17 @@ pub trait EmbedderClient {
     /// Flutter `SystemContextMenuClient.handleCustomContextMenuAction`. The default drops it.
     fn custom_context_menu_action(&mut self, callback_id: &str) {
         let _ = callback_id;
+    }
+
+    /// A client asked for the service extension `call` names: the framework answers it through
+    /// `call.reply`, which may be later, as its task ends. A host carries the call from its
+    /// transport and the answer back; the default answers that no extension of that name is
+    /// served.
+    fn service_extension_call(&mut self, call: ServiceExtensionCall) {
+        let ServiceExtensionCall { name, reply, .. } = call;
+        reply.answer(Err(ServiceExtensionError::Unknown {
+            name,
+            registered: Vec::new(),
+        }));
     }
 }

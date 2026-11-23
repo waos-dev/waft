@@ -41,6 +41,7 @@ waft-rendering = { version = "0.9.1", path = "crates/waft-rendering" }
 waft-scheduler = { version = "0.9.1", path = "crates/waft-scheduler" }
 waft-services = { version = "0.9.1", path = "crates/waft-services" }
 waft-shell = { version = "0.9.1", path = "crates/waft-shell" }
+waft-service-protocol = { version = "0.9.1", path = "crates/waft-service-protocol" }
 waft-single-instance = { version = "0.9.1", path = "crates/waft-single-instance" }
 waft-test = { version = "0.9.1", path = "crates/waft-test" }
 waft-widgets = { version = "0.9.1", path = "crates/waft-widgets" }

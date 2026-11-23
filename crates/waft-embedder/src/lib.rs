@@ -153,7 +153,8 @@ pub use semantics::{
     StringAttributeRef,
 };
 pub use service_extensions::{
-    ServiceExtensionError, ServiceExtensionParams, ServiceExtensionResult,
+    ServiceExtensionCall, ServiceExtensionError, ServiceExtensionParams, ServiceExtensionReply,
+    ServiceExtensionResult,
 };
 pub use signed_duration::SignedDuration;
 pub use snapshot_delegate::SnapshotDelegate;
