@@ -1338,6 +1338,22 @@ impl RenderObject for RenderConstraintsTransformBox {
         crate::object::RenderObjectBase::dispose(self, app);
     }
 
+    /// Dart's `describeApproximatePaintClip`: a child that overflowed is clipped to this box's
+    /// bounds, and only when it overflowed.
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        match self.clip_behavior(app) {
+            Clip::None => None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => self
+                .get(app)
+                .is_overflowing
+                .then(|| Offset::ZERO & self.size(app)),
+        }
+    }
+
     fn visit_children(
         self: RenderHandle<Self>,
         app: &App,
@@ -2606,6 +2622,52 @@ mod tests {
             .iter()
             .any(|op| matches!(op, Op::ClipPath { .. }));
         assert!(clipped, "the overflowing child is clipped");
+    }
+
+    /// `RenderConstraintsTransformBox.describeApproximatePaintClip`: an overflowing child is
+    /// clipped to the box's bounds, and only when the clip behavior asks for a clip.
+    #[test]
+    fn constraints_transform_box_describes_its_clip_only_when_overflowing() {
+        for (clip_behavior, child_extent, expected) in [
+            (Clip::None, 200.0, None),
+            (
+                Clip::HardEdge,
+                200.0,
+                Some(Rect::from_ltrb(0.0, 0.0, 100.0, 100.0)),
+            ),
+            (Clip::HardEdge, 50.0, None),
+        ] {
+            let cell = AppCell::new();
+            let mut app = cell.borrow_mut();
+            let child = RenderConstrainedBox::new(
+                &mut app,
+                BoxConstraints::tight(Size::new(child_extent, child_extent)),
+                None,
+            );
+            let unconstrained = RenderConstraintsTransformBox::new(
+                &mut app,
+                AlignmentGeometry::CENTER,
+                None,
+                |_| BoxConstraints::new(),
+                Some(child.as_box()),
+            );
+            unconstrained.set_clip_behavior(&mut app, clip_behavior);
+            layout_with(
+                &mut app,
+                unconstrained.as_box(),
+                Some(BoxConstraints::tight(Size::new(100.0, 100.0))),
+                AlignmentGeometry::CENTER,
+                EnginePhase::Paint,
+            );
+
+            assert_eq!(
+                unconstrained
+                    .as_object()
+                    .describe_approximate_paint_clip(&app, child.as_object()),
+                expected,
+                "{clip_behavior:?}, child {child_extent}"
+            );
+        }
     }
 
     /// A `RenderConstrainedOverflowBox` lets its child overflow and keeps the parent's size.

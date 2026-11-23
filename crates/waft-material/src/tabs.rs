@@ -683,6 +683,14 @@ impl RenderObject for TabLabelBarRenderer {
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         RenderFlexMixin::dispose(self, app)
     }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
+    }
 }
 
 impl RenderBox for TabLabelBarRenderer {

@@ -11029,6 +11029,41 @@ mod tests {
         }
     }
 
+    /// `stack_test.dart`: `Clip.none` is respected by `describeApproximateClip`; a hard edge
+    /// clips the overflowing positioned child to the stack's bounds.
+    #[test]
+    fn clip_none_is_respected_by_describe_approximate_paint_clip() {
+        let cell = AppCell::new();
+        let mut app = cell.borrow_mut();
+        let harness = Harness::mount(
+            &mut app,
+            ltr(Stack::new()
+                .children([Positioned::new(sized(2000.0, 2000.0))
+                    .left(1000.0)
+                    .into_widget()])
+                .into_widget()),
+        );
+        harness.pump(&mut app);
+
+        let stack = render_object_under_root::<RenderStack>(&harness, &app);
+        assert_eq!(stack.clip_behavior(&app), Clip::HardEdge);
+        let child = container_children(stack, &app)[0];
+        assert_eq!(
+            stack
+                .as_object()
+                .describe_approximate_paint_clip(&app, child.as_object()),
+            Some(Offset::ZERO & stack.size(&app))
+        );
+
+        stack.set_clip_behavior(&mut app, Clip::None);
+        assert_eq!(
+            stack
+                .as_object()
+                .describe_approximate_paint_clip(&app, child.as_object()),
+            None
+        );
+    }
+
     #[test]
     fn an_indexed_stack_lays_out_every_child_but_shows_one() {
         let cell = AppCell::new();

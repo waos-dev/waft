@@ -327,7 +327,6 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - `SliverConstraints.debugAssertIsValid` extra numeric checks. Trigger: a caller that relies on those messages.
 - `RenderIgnoreBaseline`, which reports no baseline for a child that has one, so that a baseline-aligned row puts that child at the top. Trigger: a child a baseline-aligned `Row` should not align by its baseline.
 - `PaintingContext.pushColorFilter`. Trigger: its first caller.
-- proxy_box.rs: `CustomClipper.getApproximateClipRect` and the clips' `describeApproximatePaintClip`, with `_DismissibleClipper`'s override of it. Trigger: the semantics tree.
 
 ## object.rs, layer.rs, binding.rs → object.dart, layer.dart, binding.dart (diagnostics)
 
