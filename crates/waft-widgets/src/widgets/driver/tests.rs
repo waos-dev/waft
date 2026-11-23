@@ -1,14 +1,17 @@
+use std::cell::Cell;
 use std::future::Future;
+use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
+use std::time::Duration;
 
 use serde_json::Value;
 use waft_embedder::{ServiceExtensionError, ServiceExtensionParams};
-use waft_foundation::{App, ServiceExtensions, ValueKey};
+use waft_foundation::{App, Listener, ServiceExtensions, Task, ValueKey};
 use waft_painting::TextDirection;
 
 use crate::testing::WidgetTester;
 use crate::widgets::widget_inspector::inspector_id;
-use crate::{Column, Directionality, IntoWidget, Row, SizedBox, Text, WidgetRef};
+use crate::{Column, Directionality, GestureDetector, IntoWidget, Row, SizedBox, Text, WidgetRef};
 
 /// A settings page: a row for each setting, its label and a keyed box standing for its switch.
 fn settings() -> WidgetRef {
@@ -130,4 +133,105 @@ fn what_the_driver_cannot_read_is_refused() {
             );
         }
     });
+}
+
+/// The answer of the driver `command` with `params`, the app pumped a frame at a time until it
+/// comes, as a running app's frames come.
+fn driven(
+    tester: &mut WidgetTester,
+    params: &[(&str, &str)],
+) -> Result<Value, ServiceExtensionError> {
+    let params = ServiceExtensionParams::new(
+        params
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned())),
+    );
+    let mut task: Task<_> =
+        tester.update(|app| ServiceExtensions::call(app, "ext.waft.driver", params));
+    for _ in 0..1000 {
+        if let Poll::Ready(answer) =
+            std::pin::Pin::new(&mut task).poll(&mut Context::from_waker(Waker::noop()))
+        {
+            return answer;
+        }
+        tester.pump_by(Duration::from_millis(16));
+    }
+    panic!("the driver never answered");
+}
+
+/// Two buttons, each counting its taps.
+fn buttons(taps: &[Rc<Cell<u32>>; 2]) -> WidgetRef {
+    let button = |label: &str, taps: &Rc<Cell<u32>>| {
+        let taps = Rc::clone(taps);
+        GestureDetector::new()
+            .on_tap(Listener::new(move |_app| taps.set(taps.get() + 1)))
+            .child(
+                SizedBox::new()
+                    .width(100.0)
+                    .height(40.0)
+                    .child(Text::new(label)),
+            )
+            .into_widget()
+    };
+    Directionality::new(
+        TextDirection::Ltr,
+        Column::new().children(vec![button("Save", &taps[0]), button("Cancel", &taps[1])]),
+    )
+    .into_widget()
+}
+
+/// A tap lands on the widget named, as a touch does, once the app has settled, and answers
+/// what it tapped.
+#[test]
+fn a_tap_lands_on_the_widget_named() {
+    let taps = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(buttons(&taps));
+    let answer = driven(
+        &mut tester,
+        &[
+            ("command", "tap"),
+            ("selector", r#"GestureDetector:has([text="Cancel"])"#),
+        ],
+    )
+    .expect("tapped");
+    assert_eq!((taps[0].get(), taps[1].get()), (0, 1));
+    assert_eq!(answer["tapped"]["description"], "GestureDetector");
+    assert_eq!(answer["settled"], true);
+
+    driven(
+        &mut tester,
+        &[("command", "tap"), ("selector", r#"[text="Save"]"#)],
+    )
+    .expect("tapped");
+    assert_eq!(
+        (taps[0].get(), taps[1].get()),
+        (1, 1),
+        "a tap on the label reaches its button"
+    );
+}
+
+/// A command that acts on one widget refuses a selector naming several, listing each with its
+/// id to choose by, and one naming none.
+#[test]
+fn a_tap_needs_one_widget() {
+    let taps = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(buttons(&taps));
+    let Err(ServiceExtensionError::Failed(why)) = driven(
+        &mut tester,
+        &[("command", "tap"), ("selector", "GestureDetector")],
+    ) else {
+        panic!("refused");
+    };
+    assert!(
+        why.starts_with("`GestureDetector` names 2 widgets"),
+        "{why}"
+    );
+    assert_eq!(why.matches("inspector-").count(), 2, "{why}");
+    let none = driven(&mut tester, &[("command", "tap"), ("selector", "Switch")]);
+    assert!(
+        matches!(none, Err(ServiceExtensionError::Failed(why)) if why.contains("names no widget"))
+    );
+    assert_eq!((taps[0].get(), taps[1].get()), (0, 0));
 }
