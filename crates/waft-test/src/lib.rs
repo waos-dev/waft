@@ -54,7 +54,7 @@ pub use image_codecs::{CodecCall, ImageAnswers, ImageFacts, MockImageCodecs};
 pub use media::{
     AssetAnswers, FrameAsked, MockCameras, MockCaptureSession, MockCompositor, MockLayer,
     MockMediaAsset, MockMediaAssets, MockPlayer, MockPlayers, MockVideoFrame,
-    MockVideoFrameReaders, PlayerCall, Presented, VideoOutputKind,
+    MockVideoFrameReaders, PlayerCall, VideoOutputKind,
 };
 pub use menus::{
     MockDockMenu, MockMenuBar, MockPopupMenus, MockTrayIcons, ShownMenu, ShownTrayIcon,

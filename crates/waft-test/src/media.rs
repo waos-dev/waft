@@ -8,8 +8,8 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
@@ -34,14 +34,6 @@ use crate::image_codecs::pixels_of;
 #[derive(Clone, Default)]
 pub struct MockCompositor(Arc<Mutex<Vec<Arc<MockLayer>>>>);
 
-/// One [`CompositionLayer::present`] on a [`MockLayer`]: the buffer shown and the children placed
-/// beneath it, in order.
-#[derive(Clone)]
-pub struct Presented {
-    pub buffer: Arc<dyn HardwareBuffer>,
-    pub children: Vec<(Arc<dyn CompositionLayer>, Placement)>,
-}
-
 impl MockCompositor {
     pub fn new() -> MockCompositor {
         MockCompositor::default()
@@ -64,20 +56,28 @@ impl Compositor for MockCompositor {
     }
 }
 
-/// A layer that shows nothing and keeps every [`present`](CompositionLayer::present) it was given:
-/// its buffer, its children and their placements. Presents release their buffers at once, and
-/// [`current_picture`](CompositionLayer::current_picture) answers the last presented buffer.
+/// A layer that shows nothing, and keeps what it shows now: the buffer presented last, as its
+/// [`current_picture`](CompositionLayer::current_picture), and the layers placed under it then;
+/// and how many pictures it was handed. Presents release their buffers at once.
 pub struct MockLayer {
     opaque: bool,
-    presents: Mutex<Vec<Presented>>,
+    shown: Mutex<Option<Shown>>,
+    presents: AtomicUsize,
 }
 
+/// What a layer shows: its buffer, and the layers under it, each where it is placed.
+type Shown = (
+    Arc<dyn HardwareBuffer>,
+    Vec<(Arc<dyn CompositionLayer>, Placement)>,
+);
+
 impl MockLayer {
-    /// A new recording layer with no presents yet.
+    /// A layer that has shown nothing yet.
     pub fn new(opaque: bool) -> MockLayer {
         MockLayer {
             opaque,
-            presents: Mutex::default(),
+            shown: Mutex::default(),
+            presents: AtomicUsize::new(0),
         }
     }
 
@@ -86,24 +86,23 @@ impl MockLayer {
         self.opaque
     }
 
-    /// Every [`CompositionLayer::present`] this layer was given, in order.
-    pub fn presents(&self) -> Vec<Presented> {
-        self.presents
+    /// The layers placed under the picture the layer shows now, the bottom-most first, each where
+    /// it is placed; none before its first picture.
+    pub fn children(&self) -> Vec<(Arc<dyn CompositionLayer>, Placement)> {
+        self.shown
             .lock()
             .expect("never held across a panic")
-            .clone()
+            .as_ref()
+            .map(|(_, children)| children.clone())
+            .unwrap_or_default()
     }
 
-    /// The last [`CompositionLayer::present`] this layer was given, or `None` before any.
-    pub fn last_present(&self) -> Option<Presented> {
-        self.presents
-            .lock()
-            .expect("never held across a panic")
-            .last()
-            .cloned()
+    /// How many pictures the layer was handed.
+    pub fn presents(&self) -> usize {
+        self.presents.load(Ordering::SeqCst)
     }
 
-    /// Downcasts a composition layer made by [`MockCompositor`] back to its [`MockLayer`].
+    /// The [`MockLayer`] a layer [`MockCompositor`] made is.
     pub fn of(layer: &dyn CompositionLayer) -> Option<&MockLayer> {
         (layer as &dyn std::any::Any).downcast_ref::<MockLayer>()
     }
@@ -116,16 +115,17 @@ impl CompositionLayer for MockLayer {
         children: Vec<(Arc<dyn CompositionLayer>, Placement)>,
         released: Box<dyn FnOnce() + Send + Sync>,
     ) {
-        self.presents
-            .lock()
-            .expect("never held across a panic")
-            .push(Presented { buffer, children });
+        *self.shown.lock().expect("never held across a panic") = Some((buffer, children));
+        self.presents.fetch_add(1, Ordering::SeqCst);
         released();
     }
 
     fn current_picture(&self) -> Option<LayerPicture> {
-        self.last_present()
-            .map(|presented| LayerPicture::Buffer(presented.buffer))
+        self.shown
+            .lock()
+            .expect("never held across a panic")
+            .as_ref()
+            .map(|(buffer, _)| LayerPicture::Buffer(Arc::clone(buffer)))
     }
 }
 
@@ -1031,76 +1031,58 @@ mod tests {
     }
 
     #[test]
-    fn mock_compositor_records_presents_children_and_placements() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
+    fn a_mock_layer_keeps_what_it_shows_now_and_how_many_pictures_it_was_handed() {
         use waft_embedder::{HardwareBufferUsage, Rect};
 
         let compositor = MockCompositor::new();
         let parent = compositor.make_layer(false);
         let child = compositor.make_layer(true);
-        assert!(parent.current_picture().is_none());
-
-        let buf1: Arc<dyn HardwareBuffer> = Arc::new(MockHardwareBuffer {
-            width: 100,
-            height: 80,
-            usage: HardwareBufferUsage::GPU_SAMPLED,
-        });
-        let buf2: Arc<dyn HardwareBuffer> = Arc::new(MockHardwareBuffer {
-            width: 200,
-            height: 160,
-            usage: HardwareBufferUsage::GPU_SAMPLED,
-        });
-        let released = Arc::new(AtomicUsize::new(0));
-        let placement = Placement {
-            rect: Rect::from_ltwh(10.0, 20.0, 50.0, 40.0),
-            mutators: Vec::new(),
-        };
-
-        let bump = Arc::clone(&released);
-        parent.present(
-            Arc::clone(&buf1),
-            vec![(Arc::clone(&child), placement.clone())],
-            Box::new(move || {
-                bump.fetch_add(1, Ordering::SeqCst);
-            }),
-        );
-        let bump = Arc::clone(&released);
-        parent.present(
-            Arc::clone(&buf2),
-            Vec::new(),
-            Box::new(move || {
-                bump.fetch_add(1, Ordering::SeqCst);
-            }),
-        );
-
-        assert_eq!(released.load(Ordering::SeqCst), 2);
         let made = compositor.made();
         assert_eq!(made.len(), 2);
         assert!(!made[0].opaque());
         assert!(made[1].opaque());
+        assert!(parent.current_picture().is_none());
+        assert_eq!(made[0].presents(), 0);
 
-        let presents = made[0].presents();
-        assert_eq!(presents.len(), 2);
-        assert_eq!(
-            (presents[0].buffer.width(), presents[0].buffer.height()),
-            (100, 80)
+        let buffer = |width, height| -> Arc<dyn HardwareBuffer> {
+            Arc::new(MockHardwareBuffer {
+                width,
+                height,
+                usage: HardwareBufferUsage::GPU_SAMPLED,
+            })
+        };
+        let released = Arc::new(AtomicUsize::new(0));
+        let release = || -> Box<dyn FnOnce() + Send + Sync> {
+            let bump = Arc::clone(&released);
+            Box::new(move || {
+                bump.fetch_add(1, Ordering::SeqCst);
+            })
+        };
+        let placement = Placement {
+            rect: Rect::from_ltwh(10.0, 20.0, 50.0, 40.0),
+            mutators: Vec::new(),
+        };
+        let shown = |layer: &dyn CompositionLayer| match layer.current_picture() {
+            Some(LayerPicture::Buffer(buffer)) => (buffer.width(), buffer.height()),
+            _ => panic!("a buffer shown"),
+        };
+
+        parent.present(
+            buffer(100, 80),
+            vec![(Arc::clone(&child), placement.clone())],
+            release(),
         );
-        assert_eq!(presents[0].children.len(), 1);
-        assert!(Arc::ptr_eq(&presents[0].children[0].0, &child));
-        assert_eq!(presents[0].children[0].1, placement);
+        assert_eq!(shown(&*parent), (100, 80));
+        let children = made[0].children();
+        assert_eq!(children.len(), 1);
+        assert!(Arc::ptr_eq(&children[0].0, &child));
+        assert_eq!(children[0].1, placement);
 
-        assert_eq!(
-            (presents[1].buffer.width(), presents[1].buffer.height()),
-            (200, 160)
-        );
-        assert!(presents[1].children.is_empty());
-
-        let mock = MockLayer::of(&*parent).expect("a MockLayer");
-        assert!(!mock.opaque());
-        assert_eq!(mock.last_present().unwrap().buffer.width(), 200);
-        match parent.current_picture() {
-            Some(LayerPicture::Buffer(buf)) => assert_eq!((buf.width(), buf.height()), (200, 160)),
-            _ => panic!("expected the last presented buffer"),
-        }
+        parent.present(buffer(200, 160), Vec::new(), release());
+        assert_eq!(shown(&*parent), (200, 160));
+        assert!(made[0].children().is_empty(), "what it shows now");
+        assert_eq!(made[0].presents(), 2);
+        assert_eq!(released.load(Ordering::SeqCst), 2, "each released at once");
+        assert!(MockLayer::of(&*parent).is_some_and(|layer| std::ptr::eq(layer, &*made[0])));
     }
 }
