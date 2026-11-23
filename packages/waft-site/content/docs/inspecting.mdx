@@ -143,7 +143,7 @@ A test calls one directly with `ServiceExtensions::call(app, name, params)`.
 
 ## How it is carried
 
-The framework keeps the extensions and does no I/O; the host carries the calls. On the desktop, a debug build listens on a loopback port and lists itself, with its address and a token, in a folder only its user can read. A client reads the folder, says hello with the token, and speaks JSON-RPC 2.0, an extension's name as the method.
+The framework keeps the extensions and does no I/O; the host carries the calls. On the desktop, a debug build listens on a loopback port and lists itself, with its address and a token, in a folder only its user can read. While a tool is connected, the app keeps drawing and its timers keep running though other windows cover its window, as a browser Playwright drives does, so an agent can drive it from behind its terminal; a minimized window still draws nothing. A client reads the folder, says hello with the token, and speaks JSON-RPC 2.0, an extension's name as the method.
 
 A platform with a protocol of its own lists a command instead of a port, as ssh's `ProxyCommand` does: `waos ext list --json` lists each program with `command:["waos","ext","--id","dev.example.notes.development","--stdio"]`, and the client runs that command and speaks the same messages, one to a line, on its stdin and stdout, while `waos` carries them to the program. Apps are told apart by the address that reaches them.
 

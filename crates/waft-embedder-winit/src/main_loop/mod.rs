@@ -97,6 +97,7 @@ mod quitting;
 mod views;
 mod windows;
 
+use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Weak;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -178,6 +179,9 @@ pub(crate) enum MainLoopEvent {
     TrackpadTouched(WindowId, Instant),
     /// A client called one of the app's service extensions (`service_extensions.rs`).
     ServiceExtensionCall(IncomingCall),
+    /// Whether any development tool is connected to the app's service extensions now: the
+    /// first has arrived, or the last has left.
+    ToolsConnected(bool),
 }
 
 /// Where an event for the loop is sent from, on any thread: it waits in the loop's queue, after
@@ -247,6 +251,15 @@ pub(crate) struct MainLoop<C> {
     proxy: MainLoopProxy,
     /// The app's service extensions, served while the loop runs, in a debug build.
     _service_extensions: Option<ServiceExtensionServer>,
+    /// Whether a development tool is connected, driving the app: while one is, the app's windows
+    /// count as in sight however other windows cover them, so they draw and the app runs, as a
+    /// covered browser window Playwright or Puppeteer drives keeps drawing
+    /// (`--disable-backgrounding-occluded-windows`). Every window's handle reads it.
+    driven: Rc<Cell<bool>>,
+    /// While driven on macOS, the activity that keeps App Nap from throttling the app's timers,
+    /// as `--disable-background-timer-throttling` keeps a driven browser's.
+    #[cfg(target_os = "macos")]
+    driven_activity: Option<crate::os::UserActivity>,
 }
 
 impl<C: EmbedderClient> MainLoop<C> {
@@ -268,7 +281,13 @@ impl<C: EmbedderClient> MainLoop<C> {
         // Linux's app id, else the bundle's.
         let identifier = linux.app_id.clone().or_else(System::bundle_identifier);
         let platform = Rc::new(WinitPlatform::new(Rc::clone(&state), proxy.clone()));
-        let view_maker = ViewMaker::new(state.gpu().clone(), Rc::clone(state.requests()), linux);
+        let driven = Rc::new(Cell::new(false));
+        let view_maker = ViewMaker::new(
+            state.gpu().clone(),
+            Rc::clone(state.requests()),
+            linux,
+            Rc::clone(&driven),
+        );
         let client = start(platform.clone());
         MainLoop {
             client,
@@ -289,6 +308,9 @@ impl<C: EmbedderClient> MainLoop<C> {
             events,
             started: false,
             _service_extensions: ServiceExtensionServer::start(proxy.clone(), identifier),
+            driven,
+            #[cfg(target_os = "macos")]
+            driven_activity: None,
             proxy,
         }
     }
@@ -298,6 +320,26 @@ impl<C: EmbedderClient> MainLoop<C> {
     fn on_started(&mut self) {
         self.started = true;
         self.proxy.wake();
+    }
+
+    /// A tool arrived, or the last one left: the windows count as in sight while one is
+    /// connected, and each window's view and the app hear what that changes.
+    fn on_tools_connected(&mut self, connected: bool) {
+        self.driven.set(connected);
+        #[cfg(target_os = "macos")]
+        {
+            self.driven_activity = connected
+                .then(|| crate::os::UserActivity::begin("a development tool is driving the app"));
+        }
+        let windows: Vec<_> = self
+            .windows()
+            .open_windows()
+            .iter()
+            .map(|open| open.window.id())
+            .collect();
+        for window in windows {
+            self.sync_window_state(window);
+        }
     }
 
     /// Hands a client's call to the framework, whose answer goes back to the connection.
@@ -341,6 +383,7 @@ impl<C: EmbedderClient> MainLoop<C> {
             MainLoopEvent::SystemChange(change) => self.on_system_change(event_loop, change),
             MainLoopEvent::WindowVisibility(id) => self.sync_window_state(id),
             MainLoopEvent::ServiceExtensionCall(call) => self.on_service_extension_call(call),
+            MainLoopEvent::ToolsConnected(connected) => self.on_tools_connected(connected),
             MainLoopEvent::TrackpadTouched(id, at) => self.on_trackpad_touched(id, at),
         }
     }
