@@ -415,8 +415,8 @@ mod tests {
     };
     use waft_foundation::AppCell;
     use waft_test::{
-        MockCompositor, MockPlayers, MockVideoFrameReaders, PlayerCall, TestPlatform, TestView,
-        VideoOutputKind,
+        MockCompositor, MockLayer, MockPlayers, MockVideoFrameReaders, PlayerCall, TestPlatform,
+        TestView, VideoOutputKind,
     };
 
     use super::*;
@@ -664,11 +664,14 @@ mod tests {
 
         let made = compositor.made();
         assert_eq!(made.len(), 1, "one layer, of the view's own");
-        assert!(!made[0].opaque);
+        assert!(!made[0].opaque());
         let video_layer = players.opened()[0]
             .video_layer()
             .expect("put on the view's layer");
-        assert!(Arc::ptr_eq(&video_layer, &made[0].layer));
+        assert!(
+            MockLayer::of(&*video_layer).is_some_and(|layer| std::ptr::eq(layer, &*made[0])),
+            "the layer the compositor made"
+        );
         assert_eq!(
             placements(tester).len(),
             0,
@@ -681,7 +684,7 @@ mod tests {
         let placements = placements(tester);
         assert_eq!(placements.len(), 1);
         let (placed, placement) = &placements[0];
-        assert!(Arc::ptr_eq(placed, &made[0].layer));
+        assert!(MockLayer::of(&**placed).is_some_and(|layer| std::ptr::eq(layer, &*made[0])));
         assert_eq!(
             placement.bounds(),
             waft_embedder::Rect::from_ltwh(720.0, 630.0, 960.0, 540.0),

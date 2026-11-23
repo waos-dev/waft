@@ -32,32 +32,7 @@ use crate::image_codecs::pixels_of;
 /// A compositor whose layers show nowhere, keep every [`present`](CompositionLayer::present)
 /// they were given, and are kept in the order made. Every clone is the same compositor.
 #[derive(Clone, Default)]
-pub struct MockCompositor(Arc<Mutex<Vec<MadeLayer>>>);
-
-/// A layer the app made.
-#[derive(Clone)]
-pub struct MadeLayer {
-    pub opaque: bool,
-    pub layer: Arc<dyn CompositionLayer>,
-    mock: Arc<MockLayer>,
-}
-
-impl MadeLayer {
-    /// The underlying [`MockLayer`], to read what was presented to it.
-    pub fn mock(&self) -> &Arc<MockLayer> {
-        &self.mock
-    }
-
-    /// Every [`CompositionLayer::present`] this layer was given, in order.
-    pub fn presents(&self) -> Vec<Presented> {
-        self.mock.presents()
-    }
-
-    /// The last [`CompositionLayer::present`] this layer was given, or `None` before any.
-    pub fn last_present(&self) -> Option<Presented> {
-        self.mock.last_present()
-    }
-}
+pub struct MockCompositor(Arc<Mutex<Vec<Arc<MockLayer>>>>);
 
 /// One [`CompositionLayer::present`] on a [`MockLayer`]: the buffer shown and the children placed
 /// beneath it, in order.
@@ -72,24 +47,19 @@ impl MockCompositor {
         MockCompositor::default()
     }
 
-    /// The layers made, in order.
-    pub fn made(&self) -> Vec<MadeLayer> {
+    /// The layers the app made, in order.
+    pub fn made(&self) -> Vec<Arc<MockLayer>> {
         self.0.lock().expect("never held across a panic").clone()
     }
 }
 
 impl Compositor for MockCompositor {
     fn make_layer(&self, opaque: bool) -> Arc<dyn CompositionLayer> {
-        let mock = Arc::new(MockLayer::new(opaque));
-        let layer: Arc<dyn CompositionLayer> = Arc::clone(&mock) as Arc<dyn CompositionLayer>;
+        let layer = Arc::new(MockLayer::new(opaque));
         self.0
             .lock()
             .expect("never held across a panic")
-            .push(MadeLayer {
-                opaque,
-                layer: Arc::clone(&layer),
-                mock,
-            });
+            .push(Arc::clone(&layer));
         layer
     }
 }
@@ -1106,8 +1076,8 @@ mod tests {
         assert_eq!(released.load(Ordering::SeqCst), 2);
         let made = compositor.made();
         assert_eq!(made.len(), 2);
-        assert!(!made[0].opaque);
-        assert!(made[1].opaque);
+        assert!(!made[0].opaque());
+        assert!(made[1].opaque());
 
         let presents = made[0].presents();
         assert_eq!(presents.len(), 2);

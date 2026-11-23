@@ -402,9 +402,11 @@ impl WidgetTester {
         }
     }
 
-    /// Pumps (dispatched work, windows and frames) until `done` answers `true`, failing after 60
-    /// real seconds naming `what`: for work finishing on other threads, where Flutter's tests use
-    /// `runAsync`.
+    /// Pumps (dispatched work, windows and frames) until `done` answers `true`, sleeping between
+    /// pumps until work on another thread wakes the app, as the host's event loop does, and
+    /// failing after 60 real seconds naming `what`: for work finishing on other threads, where
+    /// Flutter's tests use `runAsync`. The app's clock does not move meanwhile, as `runAsync`'s
+    /// does not: what waits on a timer needs [`pump_by`](Self::pump_by).
     pub fn pump_until(&mut self, what: &str, mut done: impl FnMut(&mut App) -> bool) {
         let deadline = std::time::Instant::now() + PUMP_UNTIL_DEADLINE;
         loop {
@@ -419,9 +421,9 @@ impl WidgetTester {
                 "timed out waiting for {what} after {}s",
                 PUMP_UNTIL_DEADLINE.as_secs()
             );
-            let remaining = deadline.saturating_duration_since(now);
+            // The event loop sleeps until work on another thread wakes the app.
             self.platform
-                .wait_for_wake(wake_count, remaining.min(Duration::from_millis(5)));
+                .wait_for_wake(wake_count, deadline.saturating_duration_since(now));
         }
     }
 
