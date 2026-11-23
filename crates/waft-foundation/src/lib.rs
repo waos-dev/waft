@@ -18,6 +18,7 @@ mod executor;
 mod handle_map;
 mod key;
 mod observer_list;
+mod service_extensions;
 mod timers;
 
 pub use any_eq::*;
@@ -36,5 +37,9 @@ pub use executor::Task;
 pub use handle_map::DebugObject;
 pub use key::*;
 pub use observer_list::*;
+pub use service_extensions::{ServiceExtensionCallback, ServiceExtensions};
 pub use timers::{Timer, delayed};
-pub use waft_embedder::{SignedDuration, TargetPlatform};
+pub use waft_embedder::{
+    ServiceExtensionError, ServiceExtensionParams, ServiceExtensionResult, SignedDuration,
+    TargetPlatform,
+};

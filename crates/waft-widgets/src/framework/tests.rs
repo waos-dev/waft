@@ -1056,3 +1056,64 @@ fn the_app_dump_shows_the_whole_tree_from_the_root() {
          \n"
     );
 }
+
+/// Dart's `WidgetsBinding.initServiceExtensions` and `RendererBinding.initServiceExtensions`:
+/// in a debug build an app serves its dumps, each answering `{"data": text}` with what the dump
+/// function prints, and lists them.
+#[test]
+fn an_app_serves_its_dumps_as_service_extensions() {
+    use std::future::Future;
+    use std::task::{Context, Poll, Waker};
+
+    use waft_foundation::{ServiceExtensionParams, ServiceExtensionResult, ServiceExtensions};
+
+    use crate::SizedBox;
+    use crate::testing::WidgetTester;
+
+    fn answer(app: &mut App, name: &str) -> serde_json::Value {
+        let mut task = ServiceExtensions::call(app, name, ServiceExtensionParams::default());
+        let mut cx = Context::from_waker(Waker::noop());
+        match std::pin::Pin::new(&mut task).poll(&mut cx) {
+            Poll::Ready(ServiceExtensionResult::Ok(value)) => value,
+            Poll::Ready(Err(error)) => panic!("{name}: {error}"),
+            Poll::Pending => panic!("{name} answers at once"),
+        }
+    }
+
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(SizedBox::new().width(10.0));
+    tester.update(|app| {
+        assert_eq!(
+            answer(app, "ext.waft.listServiceExtensions"),
+            serde_json::json!({ "extensions": [
+                "ext.waft.debugDumpApp",
+                "ext.waft.debugDumpFocusTree",
+                "ext.waft.debugDumpLayerTree",
+                "ext.waft.debugDumpRenderTree",
+                "ext.waft.listServiceExtensions",
+            ]})
+        );
+        let dumps: [(&str, fn(&mut App) -> String); 4] = [
+            ("ext.waft.debugDumpApp", crate::debug_dump_app),
+            (
+                "ext.waft.debugDumpFocusTree",
+                crate::debug_describe_focus_tree,
+            ),
+            (
+                "ext.waft.debugDumpLayerTree",
+                waft_rendering::debug_dump_layer_tree,
+            ),
+            (
+                "ext.waft.debugDumpRenderTree",
+                waft_rendering::debug_dump_render_tree,
+            ),
+        ];
+        for (name, dump) in dumps {
+            assert_eq!(
+                answer(app, name),
+                serde_json::json!({ "data": dump(app) }),
+                "{name}"
+            );
+        }
+    });
+}

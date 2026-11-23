@@ -39,8 +39,7 @@ web-time.workspace = true
 # The device a host imports a hardware buffer on as a texture (`Platform::import_texture`), and the
 # texture: wgpu's own types, which valo takes without re-exporting them.
 wgpu.workspace = true
-
-[dev-dependencies]
+# A service extension's answer: JSON, as Flutter's are.
 serde_json.workspace = true
 
 [lints]

@@ -149,6 +149,24 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — a Rust closure cannot name itself, and one that held its own listener strongly would be a ring of `Rc`s that outlives its removal, where Dart's `late` local names the closure and the collector frees it.
   Affect: a self-removing listener holds a weak copy of itself and removes what that upgrades to; once nothing else holds the listener, the upgrade answers `None`.
 
+## service_extensions.rs → binding.dart (`registerServiceExtension`) and `dart:developer` (`registerExtension`)
+
+- Change: the framework keeps the table of extensions (`ServiceExtensions`), which Dart's VM keeps, and a host carries a call to `ServiceExtensions::call`.
+  Reason: platform — there is no VM; a host never calls into the app except through its client, so the callbacks live where the app is.
+  Affect: a host is only a transport; `ext.waft.listServiceExtensions` answers the names an isolate's `extensionRPCs` lists.
+
+- Change: `register` takes the whole name (`ext.waft.debugDumpApp`), where Dart's `registerServiceExtension` prefixes `ext.flutter.`; the framework's extensions are named `ext.waft.…`.
+  Reason: other — one function for the framework's and an app's own extensions, as `dart:developer`'s `registerExtension` takes a whole name.
+  Affect: a client asks for `ext.waft.debugDumpApp` where Flutter's asks for `ext.flutter.debugDumpApp`.
+
+- Change: the bindings register their extensions in a debug build only, where Dart's register in debug and profile builds (`!kReleaseMode`).
+  Reason: platform — a Rust build has no profile mode.
+  Affect: a release build serves none, as Flutter's release builds do.
+
+- Change: a callback answers a `Task` of a `Result`, where Dart's returns a `Future` of a map and a thrown exception becomes the error.
+  Reason: language — no exceptions; `ServiceExtensionError` is Dart's `ServiceExtensionResponse.error` kinds.
+  Affect: none.
+
 ## Not ported
 
 - collections.rs: `listEquals`, `setEquals` and `mapEquals`, because Rust's `==` already compares slices, `HashSet`s, `HashMap`s and `Option`s by their contents, which is what they exist for in Dart, where `==` on a `List` is identity.

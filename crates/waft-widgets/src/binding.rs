@@ -24,7 +24,7 @@ use waft_embedder::{
     Locale, MediaChangeFuture, RequestId, TrayIconEvent, TrayIconId, ViewError, ViewFocusEvent,
     ViewId, ViewRef, WindowConfig,
 };
-use waft_foundation::{App, Handle, Listener, OptionRetained, Ref, Task, Timer};
+use waft_foundation::{App, Handle, Listener, OptionRetained, Ref, ServiceExtensions, Task, Timer};
 use waft_rendering::{RendererBinding, RendererBindingOverridesObject};
 use waft_scheduler::{FrameTarget, SchedulerBinding, SchedulerBindingOverridesObject};
 use waft_services::{
@@ -39,7 +39,7 @@ use crate::framework::{
 use crate::multi_view_app::MultiViewApp;
 use crate::view::View;
 use crate::widgets::actions::{Actions, Intent};
-use crate::widgets::focus_manager::FocusManager;
+use crate::widgets::focus_manager::{FocusManager, debug_describe_focus_tree};
 use crate::widgets::platform_menu_bar::{DefaultPlatformMenuDelegate, PlatformMenuDelegateRef};
 use crate::widgets::text_editing_intents::{
     CopySelectionTextIntent, DeleteCharacterIntent, PasteTextIntent, RedoTextIntent,
@@ -645,6 +645,21 @@ impl WidgetsBinding {
         self.follow_caption_settings(app);
         let platform_menu_delegate: PlatformMenuDelegateRef = DefaultPlatformMenuDelegate::new(app);
         app.get_mut(self).platform_menu_delegate = Some(platform_menu_delegate);
+        WidgetsBinding::init_service_extensions(app);
+    }
+
+    /// Dart's `WidgetsBinding.initServiceExtensions`, in a debug build: the element tree's and
+    /// the focus tree's dumps, each answering `{"data": text}`.
+    fn init_service_extensions(app: &mut App) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        ServiceExtensions::register_dump(app, "ext.waft.debugDumpApp", debug_dump_app);
+        ServiceExtensions::register_dump(
+            app,
+            "ext.waft.debugDumpFocusTree",
+            debug_describe_focus_tree,
+        );
     }
 
     /// The [`PlatformMenuDelegate`] the app's [`PlatformMenuBar`] hands its menus to: by default

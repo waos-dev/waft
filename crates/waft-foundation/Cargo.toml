@@ -12,6 +12,8 @@ categories.workspace = true
 [dependencies]
 async-task.workspace = true
 indexmap.workspace = true
+# A service extension's answer: JSON, as Flutter's are.
+serde_json.workspace = true
 waft-embedder.workspace = true
 slotmap.workspace = true
 # The current time on every target: std's, except in a browser, where std's panics.

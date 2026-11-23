@@ -9,10 +9,10 @@ use std::rc::Rc;
 
 use waft_embedder::{AppLifecycleState, Offset, PointerDeviceKind, Rect, Size, TargetPlatform};
 use waft_foundation::{
-    App, ChangeNotifier, ChangeNotifierData, DiagnosticPropertiesBuilder, DiagnosticableTreeNode,
-    DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle, FlagProperty, Handle, HandleId,
-    IterableProperty, K_IS_WEB, ListenableHandle, Listener, OptionRetained, Ref, Retained,
-    ValueChanged, describe_identity,
+    App, ChangeNotifier, ChangeNotifierData, DiagnosticLevel, DiagnosticPropertiesBuilder,
+    DiagnosticableTreeNode, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle,
+    FlagProperty, Handle, HandleId, IterableProperty, K_IS_WEB, ListenableHandle, Listener,
+    OptionRetained, Ref, Retained, ValueChanged, describe_identity,
 };
 use waft_gestures::{GestureBinding, PointerEvent, PointerRoute};
 use waft_rendering::RendererBinding;
@@ -2219,6 +2219,13 @@ impl FocusManager {
         describe_identity("FocusManager", self.id().identity_hash())
     }
 
+    /// Dart's `FocusManager.toStringDeep`: the manager and its focus tree, at Dart's default
+    /// level (debug) and width.
+    pub fn to_string_deep(self: Handle<Self>, app: &mut App) -> String {
+        self.to_diagnostics_tree_node(app, None)
+            .to_string_deep_with("", Some(""), None, DiagnosticLevel::Debug, 65)
+    }
+
     /// Dart's `FocusManager.toDiagnosticsNode(name:)`, from `DiagnosticableTree`.
     pub fn to_diagnostics_tree_node(
         self: Handle<Self>,
@@ -2905,6 +2912,12 @@ impl HighlightModeManager {
 pub fn primary_focus(app: &mut App) -> Option<AnyFocusNode> {
     let manager = WidgetsBinding::instance(app).focus_manager(app);
     manager.primary_focus(app)
+}
+
+/// Dart's `debugDescribeFocusTree`: the focus tree, with the current attributes of each node.
+pub fn debug_describe_focus_tree(app: &mut App) -> String {
+    let manager = WidgetsBinding::instance(app).focus_manager(app);
+    manager.to_string_deep(app)
 }
 
 // ---------------------------------------------------------------------------------------------
