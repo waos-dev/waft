@@ -30,8 +30,6 @@ pub(crate) struct WinitWindow {
     /// winit's last `Occluded` event: whether the window is occluded where the system cannot be
     /// asked.
     occluded: Cell<bool>,
-    /// Whether a development tool is driving the app, while which the window is never occluded.
-    driven: Rc<Cell<bool>>,
     /// How the window was when the app last heard of it.
     reported: Cell<WindowState>,
 }
@@ -49,7 +47,6 @@ impl WinitWindow {
         window: Weak<dyn Window>,
         view: Rc<WinitView>,
         requests: Rc<AppRequests>,
-        driven: Rc<Cell<bool>>,
     ) -> WinitWindow {
         let window = WinitWindow {
             id,
@@ -57,7 +54,6 @@ impl WinitWindow {
             view,
             requests,
             occluded: Cell::new(false),
-            driven,
             reported: Cell::default(),
         };
         window.reported.set(window.state());
@@ -160,14 +156,11 @@ impl HostWindow for WinitWindow {
 
     /// The system's answer where it can be asked, as AppKit can; winit's last word otherwise,
     /// which Windows and Wayland never give.
-    /// Whether other windows cover the window, as the system or winit says; never while a
-    /// development tool drives the app, so a covered window draws and its app keeps running, as
-    /// Chromium's `--disable-backgrounding-occluded-windows` keeps a page Playwright drives.
     fn is_occluded(&self) -> bool {
         let Some(window) = self.window.upgrade() else {
             return false;
         };
-        !self.driven.get() && System::is_occluded(&*window).unwrap_or(self.occluded.get())
+        System::is_occluded(&*window).unwrap_or(self.occluded.get())
     }
 
     fn close(&self) {

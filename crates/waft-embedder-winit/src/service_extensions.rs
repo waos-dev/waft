@@ -5,8 +5,6 @@
 //!
 //! A thread accepts connections, and one per connection reads its requests and waits for each
 //! answer before it reads the next, so a connection's answers keep the order of its requests.
-//! The loop hears when the first connection arrives and when the last one leaves: while a tool
-//! is connected, the app is driven, as a browser Playwright drives is.
 //! The listing is removed when the loop ends; one left by a process that was killed is passed
 //! over by a client, which cannot connect to it.
 
@@ -14,8 +12,6 @@ use std::collections::BTreeMap;
 use std::io;
 use std::net::{Ipv4Addr, TcpListener};
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
 
 use serde_json::json;
@@ -54,12 +50,7 @@ impl ServiceExtensionServer {
         let address = Address::Tcp(listener.local_addr().ok()?);
         let app = ListedApp::new(app_name(), identifier, std::process::id(), address);
         let listing = app.write_in(&listing_dir()).ok()?;
-        let to_the_loop = move |event| {
-            proxy.send(match event {
-                ServerEvent::Call(call) => MainLoopEvent::ServiceExtensionCall(call),
-                ServerEvent::ToolsConnected(connected) => MainLoopEvent::ToolsConnected(connected),
-            });
-        };
+        let to_the_loop = move |call| proxy.send(MainLoopEvent::ServiceExtensionCall(call));
         listen(listener, app.token, to_the_loop).ok()?;
         Some(ServiceExtensionServer { listing })
     }
@@ -82,50 +73,10 @@ fn app_name() -> String {
         .unwrap_or_else(|| "app".to_owned())
 }
 
-/// What the server tells the loop.
-enum ServerEvent {
-    /// A connection's call, for the loop to hand to the framework.
-    Call(IncomingCall),
-    /// Whether any tool is connected now: the first has arrived, or the last has left.
-    ToolsConnected(bool),
-}
+/// Where a connection's calls go: the loop, which hands each to the framework.
+trait Post: Fn(IncomingCall) + Clone + Send + 'static {}
 
-/// Where the server's events go: the loop.
-trait Post: Fn(ServerEvent) + Clone + Send + 'static {}
-
-impl<P: Fn(ServerEvent) + Clone + Send + 'static> Post for P {}
-
-/// The connections that said a hello with the app's token, counted so the loop hears when the
-/// first arrives and when the last leaves.
-#[derive(Clone, Default)]
-struct Tools(Arc<AtomicUsize>);
-
-impl Tools {
-    /// One more connection, until the returned guard is dropped.
-    fn arrived(&self, post: &impl Post) -> ToolLeaves {
-        if self.0.fetch_add(1, Ordering::SeqCst) == 0 {
-            post(ServerEvent::ToolsConnected(true));
-        }
-        ToolLeaves {
-            tools: self.clone(),
-            post: Box::new(post.clone()),
-        }
-    }
-}
-
-/// A connection, until it closes.
-struct ToolLeaves {
-    tools: Tools,
-    post: Box<dyn Fn(ServerEvent) + Send>,
-}
-
-impl Drop for ToolLeaves {
-    fn drop(&mut self) {
-        if self.tools.0.fetch_sub(1, Ordering::SeqCst) == 1 {
-            (self.post)(ServerEvent::ToolsConnected(false));
-        }
-    }
-}
+impl<P: Fn(IncomingCall) + Clone + Send + 'static> Post for P {}
 
 /// Accepts connections on a thread of its own, until the process ends, and serves each on
 /// another.
@@ -137,9 +88,8 @@ fn listen(listener: TcpListener, token: String, post: impl Post) -> io::Result<(
     std::thread::Builder::new()
         .name("waft service extensions".to_owned())
         .spawn(move || {
-            let tools = Tools::default();
             for stream in listener.incoming().filter_map(Result::ok) {
-                let (token, post, tools) = (token.clone(), post.clone(), tools.clone());
+                let (token, post) = (token.clone(), post.clone());
                 #[expect(
                     clippy::disallowed_methods,
                     reason = "a platform crate starts the threads its transport needs"
@@ -147,7 +97,7 @@ fn listen(listener: TcpListener, token: String, post: impl Post) -> io::Result<(
                 let _ = std::thread::Builder::new()
                     .name("waft service extension connection".to_owned())
                     .spawn(move || {
-                        let _ = serve(TcpLines::new(stream), &token, &post, &tools);
+                        let _ = serve(TcpLines::new(stream), &token, &post);
                     });
             }
         })
@@ -155,18 +105,12 @@ fn listen(listener: TcpListener, token: String, post: impl Post) -> io::Result<(
 }
 
 /// Reads one connection's requests after its hello, and answers each in turn.
-fn serve(
-    mut connection: impl Connection,
-    token: &str,
-    post: &impl Post,
-    tools: &Tools,
-) -> io::Result<()> {
+fn serve(mut connection: impl Connection, token: &str, post: &impl Post) -> io::Result<()> {
     let hello = connection.receive()?.map(|text| Message::from_text(&text));
     match hello {
         Some(Ok(Message::Hello { token: sent })) if sent == token => {}
         _ => return Ok(()),
     }
-    let _connected = tools.arrived(post);
     while let Some(text) = connection.receive()? {
         let response = match Message::from_text(&text) {
             Ok(Message::Request(request)) => answer(request, post),
@@ -184,11 +128,11 @@ fn serve(
 /// Hands `request` to the loop and waits for the framework's answer.
 fn answer(request: Request, post: &impl Post) -> Response {
     let (answer, answered) = mpsc::channel();
-    post(ServerEvent::Call(IncomingCall {
+    post(IncomingCall {
         name: request.method,
         params: request.params,
         answer,
-    }));
+    });
     let result = answered.recv().unwrap_or_else(|_| {
         Err(ServiceExtensionError::Failed(
             "the app ended before it answered".to_owned(),
@@ -233,10 +177,7 @@ mod tests {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a port");
         let address = Address::Tcp(listener.local_addr().unwrap());
         let app = ListedApp::new("echo", None, std::process::id(), address);
-        let echo = |event: ServerEvent| {
-            let ServerEvent::Call(call) = event else {
-                return;
-            };
+        let echo = |call: IncomingCall| {
             let result = if call.name == "ext.test.missing" {
                 Err(ServiceExtensionError::Unknown {
                     name: call.name,
@@ -279,53 +220,6 @@ mod tests {
         };
         let mut client = Client::connect(&stranger).expect("connected");
         assert!(client.call("ext.test.echo", BTreeMap::new()).is_err());
-    }
-
-    /// The loop hears when the first tool arrives and when the last leaves, and nothing of a
-    /// connection without the token.
-    #[test]
-    fn the_loop_hears_when_tools_come_and_go() {
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a port");
-        let address = Address::Tcp(listener.local_addr().unwrap());
-        let app = ListedApp::new("echo", None, std::process::id(), address);
-        let (heard, hearing) = mpsc::channel();
-        let report = move |event: ServerEvent| match event {
-            ServerEvent::ToolsConnected(connected) => {
-                let _ = heard.send(connected);
-            }
-            ServerEvent::Call(call) => {
-                let _ = call.answer.send(Ok(json!({})));
-            }
-        };
-        listen(listener, app.token.clone(), report).expect("listening");
-        let wait = std::time::Duration::from_secs(5);
-
-        let stranger = ListedApp {
-            token: "guess".to_owned(),
-            ..app.clone()
-        };
-        let mut turned_away = Client::connect(&stranger).expect("connected");
-        assert!(turned_away.call("ext.test.echo", BTreeMap::new()).is_err());
-
-        let mut first = Client::connect(&app).expect("connected");
-        first
-            .call("ext.test.echo", BTreeMap::new())
-            .expect("answered")
-            .expect("ok");
-        assert_eq!(
-            hearing.recv_timeout(wait),
-            Ok(true),
-            "the first tool arrived"
-        );
-        let mut second = Client::connect(&app).expect("connected");
-        second
-            .call("ext.test.echo", BTreeMap::new())
-            .expect("answered")
-            .expect("ok");
-        drop(first);
-        drop(second);
-        assert_eq!(hearing.recv_timeout(wait), Ok(false), "the last tool left");
-        assert!(hearing.try_recv().is_err(), "nothing heard in between");
     }
 
     #[test]

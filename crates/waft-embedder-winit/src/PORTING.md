@@ -46,8 +46,6 @@ Embedder implementation references: Flutter's C++ engine under `flutter/engine/s
   Reason: platform — there is no VM; one socket and a listing serve every desktop alike, and `cargo waft ext` finds an app by its listing rather than from the output of the run that started it.
   Affect: a client speaks the VM service's methods and errors for extensions (`ext.waft.…`, `-32601`, `-32602`, `-32000`), without the VM's own methods (`getIsolate`, `streamListen`).
 
-- Change: while a tool is connected (a hello with the token), the app's windows count as in sight however other windows cover them, and on macOS an `NSProcessInfo` activity keeps App Nap off, so a covered window draws and the app's timers run, as Playwright and Puppeteer keep a covered Chromium window drawing (`--disable-backgrounding-occluded-windows`, `--disable-background-timer-throttling`). Flutter's desktop embedders report `hidden` and its framework stops scheduling frames, so flutter_driver waits until its timeout; a minimized window stays out of sight here too.
-
 ## frame_scheduler.rs / vsync_source.rs / vsync_waiter.rs / os/macos/vsync_waiter.rs
 
 - Change: without a screen's display link, on macOS before 14 and on the other desktops, frames follow a timer at the display's refresh rate, and a refresh's picture is taken to reach the screen one interval after the timer fires.

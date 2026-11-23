@@ -14,7 +14,7 @@
 //! the view on that layer with the window's metrics, gives the view the window's metrics again as
 //! the window resizes or moves, and removes it as the window closes (`main_loop/windows.rs`).
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -192,22 +192,14 @@ pub(crate) struct ViewMaker {
     requests: Rc<AppRequests>,
     /// What the app tells Linux's desktops, its app id among it, which every window carries.
     linux: LinuxSettings,
-    /// Whether a development tool is driving the app, which every window's handle reads.
-    driven: Rc<Cell<bool>>,
 }
 
 impl ViewMaker {
-    pub(crate) fn new(
-        gpu: LazyGpu,
-        requests: Rc<AppRequests>,
-        linux: LinuxSettings,
-        driven: Rc<Cell<bool>>,
-    ) -> ViewMaker {
+    pub(crate) fn new(gpu: LazyGpu, requests: Rc<AppRequests>, linux: LinuxSettings) -> ViewMaker {
         ViewMaker {
             gpu,
             requests,
             linux,
-            driven,
         }
     }
 
@@ -233,7 +225,6 @@ impl ViewMaker {
             Arc::downgrade(&window),
             Rc::clone(&view),
             Rc::clone(&self.requests),
-            Rc::clone(&self.driven),
         ));
         view.set_window_handle(&handle);
         let open = OpenWindow {
