@@ -15,7 +15,10 @@ categories.workspace = true
 platform = true
 
 [dependencies]
-serde_json.workspace = true
+serde.workspace = true
+# A message is as deep as the tree an app writes into it: a real widget tree nests deeper than
+# the parser's default limit (see `message::parsed`).
+serde_json = { workspace = true, features = ["unbounded_depth"] }
 
 [lints]
 workspace = true

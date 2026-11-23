@@ -673,6 +673,7 @@ impl WidgetsBinding {
             debug_describe_focus_tree,
         );
         crate::widgets::widget_inspector::init_service_extensions(app);
+        crate::widgets::driver::init_service_extensions(app);
     }
 
     /// The [`PlatformMenuDelegate`] the app's [`PlatformMenuBar`] hands its menus to: by default

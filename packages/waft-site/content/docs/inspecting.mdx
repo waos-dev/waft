@@ -1,13 +1,13 @@
 ---
 title: Inspecting a running app
-description: Ask a running debug app for its widget tree, its render and layer trees, and pictures of its widgets, with cargo waft ext.
+description: Ask a running debug app for its widget tree, its render and layer trees and pictures of its widgets, and drive it as its user would, with cargo waft ext.
 ---
 A debug build of a Waft app answers questions about itself while it runs, as a debug Flutter app does through its VM service: what its widget tree is, where each widget was made, what a widget looks like on its own. `cargo waft ext` asks, from a terminal or an agent:
 
 ```bash
 cargo waft run                      # a debug build, in one terminal
 cargo waft ext list                 # the Waft apps running on this machine, WaOS's programs among them
-cargo waft ext tree                 # your widgets: properties, the line that made each, its id
+cargo waft ext tree                 # your widgets: the text each shows, the line that made it, its id
 ```
 
 With more than one app running, name one with `--app`: its executable's name, its identifier (`[package.metadata.waft] identifier`) or its process id. A release build answers nothing.
@@ -23,27 +23,93 @@ cargo waft ext tree --app dev.example.notes.development
 
 ## The widget tree
 
-`cargo waft ext tree` prints one widget a line: the widgets your project made, each with its key properties, the file and line of your code that made it, and its id:
+`cargo waft ext tree` prints one widget a line: the widgets your project made, each with the text it shows, the file and line of your code that made it, and its id:
 
 ```text
-Home  crates/notes/src/app.rs:12  inspector-4294967302
- Scaffold  crates/notes/src/home.rs:18  inspector-4294967307
-  Padding (padding: EdgeInsets(16.0, 20.0, 8.0, 8.0))  crates/notes/src/home.rs:24  inspector-4294967310
-   TextField (decoration: InputDecoration(hintText: "Search"))  crates/notes/src/home.rs:41  inspector-4294967322
+[root]  inspector-4294967297
+ Home  crates/notes/src/app.rs:12  inspector-4294967302
+  Scaffold  crates/notes/src/home.rs:18  inspector-4294967307
+   Text "Notes"  crates/notes/src/home.rs:20  inspector-4294967309
+   Padding  crates/notes/src/home.rs:24  inspector-4294967310
+    TextField  crates/notes/src/home.rs:41  inspector-4294967322
 ```
 
-`--all` adds the widgets the framework builds inside yours, and `--json` prints the inspector's JSON, as Flutter's DevTools reads it.
+It is the inspector's summary tree, as Flutter's DevTools shows it: the framework keeps the widgets your code made and passes over the ones it builds inside them. `--all` keeps those too, and `--json` prints the inspector's JSON.
+
+One widget's subtree, with each widget's properties, comes from its id, two levels down unless `--depth` says otherwise:
+
+```bash
+cargo waft ext tree inspector-4294967310             # the Padding, its child and grandchild
+cargo waft ext tree inspector-4294967310 --depth 0   # the Padding alone, with its properties
+```
+
+```text
+Padding (padding: EdgeInsets(16.0, 20.0, 8.0, 8.0))  crates/notes/src/home.rs:24  inspector-4294967310
+ TextField (decoration: InputDecoration(hintText: "Search"))  crates/notes/src/home.rs:41  inspector-4294967322
+```
+
+Ids name widgets for one run of the app: after a restart, ask for the tree again.
 
 ## A widget's picture
 
 ```bash
-cargo waft ext screenshot inspector-4294967322 > field.png   # that widget alone, at 2 pixels a point
-cargo waft ext screenshot > window.png                       # the whole view, in its own pixels
+cargo waft ext screenshot inspector-4294967322   # that widget alone, at 2 pixels a point
+cargo waft ext screenshot -o window.png          # the first window's whole view, in its own pixels
+cargo waft ext screenshot --view 2               # another window's
 ```
 
-A widget is pictured without what paints around it. `--scale` sets the pixels to a point.
+A picture is written to a file, as `flutter screenshot` writes one: `waft_01.png`, then `waft_02.png` and so on in the current folder, or the file `-o` names. A widget is pictured without what paints around it. `--scale` sets the pixels to a point.
+
+## A widget's layout
+
+```bash
+cargo waft ext layout 'AppBar'
+```
+
+```text
+AppBar  800.0×56.0  BoxConstraints(w=800.0, 0.0<=h<=Infinity)  at (0.0, 0.0)  RenderConstrainedBox#1f2a3  crates/notes/src/home.rs:18  inspector-4294967311
+ Text  120.0×20.0  BoxConstraints(0.0<=w<=704.0, 0.0<=h<=56.0)  at (16.0, 18.0)  RenderParagraph#2b3c4  crates/notes/src/home.rs:19  inspector-4294967312
+```
+
+A widget's size, the constraints its parent gave it, and where its parent placed it, or its flex factor and fit in a `Row` or `Column`, for it and its children: what DevTools' layout explorer shows, a line a widget, where `dump render` prints the whole render tree. Where a widget is on screen is `offset`, below.
+
+## Driving the app
+
+A debug build can be driven as its user would drive it, as Flutter's `flutter_driver` drives an app: a tap, typing, a scroll, waiting for something to show, reading a text. Each command names its widget by a **CSS selector**, or by an id `tree` printed:
+
+```bash
+cargo waft ext find 'ListTile:has([text="Wi-Fi"]) Switch'   # what a selector names, one a line
+cargo waft ext tap 'ListTile:has([text="Wi-Fi"]) Switch'
+cargo waft ext enter-text 'EditableText' groceries          # types into that field, replacing its text
+cargo waft ext scroll ListView --dy -400                     # drags up 400 pixels, showing what is below
+cargo waft ext text-input-action search                     # the keyboard's search key, on the focused field
+cargo waft ext long-press 'ListTile:has([text="Notes"])'
+cargo waft ext wait-for '[text="Saved"]'                     # until something says Saved, 5 seconds at most
+cargo waft ext get-text 'AppBar Text'
+cargo waft ext tap inspector-4294967318                      # the id tree printed
+cargo waft ext scroll-until-visible '[text="Privacy"]' --in ListView --dy -300
+cargo waft ext offset '[text="Save"]'                       # where it is on screen: (x, y) in its view
+cargo waft ext tap 'Tooltip[message=Back]'                   # back to the page before, as Flutter's pageBack finds the back button
+cargo waft ext health                                        # whether the app answers
+```
+
+A selector reads as on a web page, over the widget tree:
+
+| Selector | Names |
+|---|---|
+| `IconButton` | widgets of that type |
+| `#save`, `[key="42"]` | the widget keyed `save`, or 42 (a `ValueKey` of text or a number) |
+| `[tooltip=Back]`, `Switch[value=on]` | by a property, its value as `tree <id>` prints it, a text without its quotes |
+| `[text="Settings"]`, `[text^=Sett]` | by the text a `Text` or a field shows |
+| `AppBar IconButton` | inside: an `IconButton` anywhere in an `AppBar` |
+| `ListTile:has([text="Wi-Fi"])` | containing: the tile that shows Wi-Fi |
+| `Column > ListTile:nth-child(2)`, `:not(…)`, `A, B` | the rest of CSS |
+
+A selector sees what is on screen, as `flutter_driver`'s finders do: a page behind the one showing, or a list's item outside its viewport, is not there, though `tree` lists it. The tree is the element tree, so `>` counts the widgets the framework puts between yours; "inside", a space, is usually what you mean. A command waits up to 5 seconds for the widget it names to appear; one that acts on one widget refuses a selector naming several, and lists each with its id, so you can name one exactly. A tap acts only on a widget a touch at its centre would reach, as `flutter_test`'s `hitTestable`: one covered by a dialog, outside its view or ignoring touches is refused with what the touch would land on. `scroll-into-view` brings a partly visible widget into view; for an item a lazy list has not built yet, `scroll-until-visible` drags the list a step at a time until it shows, as `flutter_driver`'s `scrollUntilVisible`. Each command waits until the app has settled before it acts, as `flutter_driver`'s frame sync does, and again before it answers, so a `screenshot` after a `tap` shows what the tap did. On a screen that never settles, as one with a spinner, a command fails after 5 seconds rather than act on a moving screen; `--unsynchronized` acts at once, as `flutter_driver`'s `runUnsynchronized`. An app whose windows are all out of sight, minimized or covered by other windows, draws no frames, as a Flutter app reports `hidden` and stops them: a command waiting for it to settle fails, saying so, until its window is in view again.
 
 ## The other trees
+
+A dump prints a whole tree as text, as Flutter's `debugDump…` functions do, and as `flutter run` prints the widget tree on `w`. A dump of a real app runs to hundreds of kilobytes, so start from `tree`, and `layout` for one widget's size and constraints.
 
 ```bash
 cargo waft ext dump app      # the element tree, as Flutter's debugDumpApp prints it
@@ -56,7 +122,7 @@ In a test, the same text comes from `debug_dump_app(app)`, `debug_dump_render_tr
 
 ## Any extension
 
-The commands above call the app's **service extensions**, named calls answering JSON, as Flutter's do. `call` reaches any of them by name, an app's own included:
+The commands above call the app's **service extensions** (`ext.waft.driver` for driving it), named calls answering JSON, as Flutter's do. `call` reaches any of them by name, an app's own included:
 
 ```bash
 cargo waft ext call ext.waft.listServiceExtensions

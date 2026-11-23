@@ -1013,6 +1013,28 @@ impl AnyElement {
         (self.vtable.debug_visit_onstage_children)(app, self.id, visitor);
     }
 
+    /// Every element under this one, depth first with a parent before its children and siblings
+    /// in order, without this one, and with `skip_offstage` only those onstage: Dart's
+    /// `collectAllElementsFrom`.
+    pub fn descendants(self, app: &App, skip_offstage: bool) -> Vec<AnyElement> {
+        let children_of = |element: AnyElement| {
+            let mut children = Vec::new();
+            if skip_offstage {
+                element.debug_visit_onstage_children(app, &mut |child| children.push(child));
+            } else {
+                element.visit_children(app, &mut |child| children.push(child));
+            }
+            children
+        };
+        let mut found = Vec::new();
+        let mut pending: Vec<AnyElement> = children_of(self).into_iter().rev().collect();
+        while let Some(element) = pending.pop() {
+            found.push(element);
+            pending.extend(children_of(element).into_iter().rev());
+        }
+        found
+    }
+
     /// See [`Element::render_object_attaching_child`].
     pub fn render_object_attaching_child(self, app: &App) -> Option<AnyElement> {
         (self.vtable.render_object_attaching_child)(app, self.id)

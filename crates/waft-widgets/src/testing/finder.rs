@@ -189,31 +189,7 @@ impl fmt::Debug for Finder {
 /// Every element under `root`, depth first with a parent before its children and siblings in
 /// order, without `root` itself: Dart's `collectAllElementsFrom`.
 fn descendants_of(app: &App, root: AnyElement, skip_offstage: bool) -> Vec<AnyElement> {
-    let children_of = |element: AnyElement| {
-        let mut children = Vec::new();
-        if skip_offstage {
-            element.debug_visit_onstage_children(app, &mut |child| children.push(child));
-        } else {
-            element.visit_children(app, &mut |child| children.push(child));
-        }
-        children
-    };
-    let mut found = Vec::new();
-    let mut pending: Vec<AnyElement> = children_of(root).into_iter().rev().collect();
-    while let Some(element) = pending.pop() {
-        found.push(element);
-        pending.extend(children_of(element).into_iter().rev());
-    }
-    found
-}
-
-/// The plain text of a `Text`, its data or its span's.
-fn text_of(text: &crate::Text) -> Option<String> {
-    match (&text.data, &text.text_span) {
-        (Some(data), _) => Some(data.clone()),
-        (None, Some(span)) => Some(span.to_plain_text(true, true)),
-        (None, None) => None,
-    }
+    root.descendants(app, skip_offstage)
 }
 
 /// Dart's `_MatchTextFinder.matches`: an `EditableText` by its controller's text, and a `Text`,
@@ -224,17 +200,16 @@ fn matches_text(
     find_rich_text: bool,
     matches: &dyn Fn(&str) -> bool,
 ) -> bool {
-    let widget = element.widget(app);
-    if let Some(editable) = crate::downcast_widget::<crate::EditableText>(&**widget) {
-        return matches(&editable.controller.value(app).text);
-    }
     if find_rich_text {
-        return crate::downcast_widget::<crate::RichText>(&**widget)
-            .is_some_and(|rich_text| matches(&rich_text.text.to_plain_text(true, true)));
+        let widget = element.widget(app);
+        if let Some(rich_text) = crate::downcast_widget::<crate::RichText>(&**widget) {
+            return matches(&rich_text.text.to_plain_text(true, true));
+        }
+        if crate::downcast_widget::<crate::Text>(&**widget).is_some() {
+            return false;
+        }
     }
-    crate::downcast_widget::<crate::Text>(&**widget)
-        .and_then(text_of)
-        .is_some_and(|text| matches(&text))
+    crate::widgets::text::shown_text(app, element).is_some_and(|text| matches(&text))
 }
 
 /// flutter_test's `find`: the finders a case starts from.

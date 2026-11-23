@@ -1,13 +1,15 @@
-//! The widget tree as an outline, for a person or an agent: one widget a line, with its key
-//! properties, the file and line that made it, and its id.
+//! A tree of the inspector's JSON as an outline, for a person or an agent: one widget a line,
+//! indented under its parent, with the text it shows, its properties where the tree carries them,
+//! the file and line that made it, and its id.
 //!
 //! ```text
 //! Scaffold  crates/notes/src/home.rs:18  inspector-4294967307
+//!  Text "Search notes"  crates/notes/src/home.rs:22  inspector-4294967309
 //!  Padding (padding: EdgeInsets(16.0, 20.0, 8.0, 8.0))  crates/notes/src/home.rs:24  inspector-4294967310
 //! ```
 //!
-//! It is read from the inspector's details tree. By default it keeps the widgets the app's own
-//! code made (`createdByLocalProject`), each indented under the nearest one it keeps.
+//! Which widgets it holds is the framework's to say: the summary tree keeps the ones the app's
+//! own code made, as Flutter's inspector does.
 
 use serde_json::Value;
 
@@ -19,21 +21,17 @@ const ELEMENT_PROPERTIES: &[&str] = &["dependencies", "renderObject", "state"];
 const PROPERTY_WIDTH: usize = 48;
 const PROPERTIES_WIDTH: usize = 120;
 
-/// `node` and its descendants as an outline; with `all`, every widget, the framework's among them.
-pub(crate) fn outline(node: &Value, all: bool) -> String {
+/// `node` and its descendants as an outline.
+pub(crate) fn outline(node: &Value) -> String {
     let mut text = String::new();
-    write(node, all, 0, &mut text);
+    write(node, 0, &mut text);
     text
 }
 
-fn write(node: &Value, all: bool, depth: usize, text: &mut String) {
-    let shown = all || node["createdByLocalProject"] == true;
-    if shown {
-        text.push_str(&line(node, depth));
-    }
-    let child_depth = if shown { depth + 1 } else { depth };
+fn write(node: &Value, depth: usize, text: &mut String) {
+    text.push_str(&line(node, depth));
     for child in node["children"].as_array().into_iter().flatten() {
-        write(child, all, child_depth, text);
+        write(child, depth + 1, text);
     }
 }
 
@@ -41,6 +39,9 @@ fn write(node: &Value, all: bool, depth: usize, text: &mut String) {
 fn line(node: &Value, depth: usize) -> String {
     let mut line = " ".repeat(depth);
     line.push_str(node["description"].as_str().unwrap_or("?"));
+    if let Some(preview) = node["textPreview"].as_str() {
+        line.push_str(&format!(" {:?}", cut(preview, PROPERTY_WIDTH)));
+    }
     let properties = key_properties(node);
     if !properties.is_empty() {
         line.push_str(&format!(" ({properties})"));
@@ -68,8 +69,13 @@ fn key_properties(node: &Value) -> String {
             !ELEMENT_PROPERTIES.contains(&name)
         })
         .filter_map(|property| {
-            let description = cut(property["description"].as_str()?, PROPERTY_WIDTH);
             let shows_name = property["showName"] != false;
+            let description = property["description"].as_str()?;
+            // A nameless property with no value says nothing.
+            if !shows_name && description == "null" {
+                return None;
+            }
+            let description = cut(description, PROPERTY_WIDTH);
             Some(match property["name"].as_str() {
                 Some(name) if shows_name => format!("{name}: {description}"),
                 _ => description,
@@ -77,6 +83,53 @@ fn key_properties(node: &Value) -> String {
         })
         .collect();
     cut(&properties.join(", "), PROPERTIES_WIDTH)
+}
+
+/// A layout explorer node and its children as lines: each widget with its size, constraints and
+/// place in its parent, the render object that lays it out, the line that made it and its id.
+///
+/// ```text
+/// Padding  40.0×20.0  BoxConstraints(0.0<=w<=800.0, 0.0<=h<=600.0)  at (380.0, 290.0)  RenderPadding#00a3f  crates/notes/src/home.rs:24  inspector-4294967310
+/// ```
+pub(crate) fn layout_outline(node: &Value) -> String {
+    let mut text = String::new();
+    write_layout(node, 0, &mut text);
+    text
+}
+
+fn write_layout(node: &Value, depth: usize, text: &mut String) {
+    let mut line = " ".repeat(depth);
+    line.push_str(node["description"].as_str().unwrap_or("?"));
+    if let Some(size) = node["size"].as_object() {
+        let side = |name: &str| size.get(name).and_then(Value::as_str).unwrap_or("?");
+        line.push_str(&format!("  {}×{}", side("width"), side("height")));
+    }
+    if let Some(constraints) = node["constraints"]["description"].as_str() {
+        line.push_str(&format!("  {constraints}"));
+    }
+    if let Some(flex) = node["flexFactor"].as_i64() {
+        let fit = node["flexFit"].as_str().unwrap_or("?");
+        line.push_str(&format!("  flex {flex} {fit}"));
+    } else if let Some(offset) = node["parentData"].as_object() {
+        let at = |name: &str| offset.get(name).and_then(Value::as_str).unwrap_or("?");
+        line.push_str(&format!("  at ({}, {})", at("offsetX"), at("offsetY")));
+    }
+    if let Some(render) = node["renderObject"]["description"].as_str() {
+        line.push_str(&format!("  {render}"));
+    }
+    if let Some(location) = node["creationLocation"].as_object() {
+        let file = location.get("file").and_then(Value::as_str).unwrap_or("?");
+        let at = location.get("line").and_then(Value::as_u64).unwrap_or(0);
+        line.push_str(&format!("  {file}:{at}"));
+    }
+    if let Some(id) = node["valueId"].as_str() {
+        line.push_str(&format!("  {id}"));
+    }
+    text.push_str(&line);
+    text.push('\n');
+    for child in node["children"].as_array().into_iter().flatten() {
+        write_layout(child, depth + 1, text);
+    }
 }
 
 /// `text`, ending in `…` where it is longer than `width` characters.
@@ -95,60 +148,87 @@ mod tests {
 
     use super::*;
 
-    fn tree() -> Value {
+    /// A summary tree, as the framework gives it: the app's own widgets, a paragraph's text
+    /// previewed.
+    fn summary() -> Value {
         json!({
             "description": "[root]",
             "valueId": "inspector-1",
             "children": [{
                 "description": "Home",
-                "createdByLocalProject": true,
                 "creationLocation": { "file": "crates/notes/src/app.rs", "line": 12 },
                 "valueId": "inspector-2",
-                "properties": [
-                    { "name": "state", "description": "HomeState#1a2b3" }
-                ],
                 "children": [{
-                    "description": "Semantics",
-                    "creationLocation": { "file": "/home/me/.cargo/registry/src/waft-widgets/src/basic.rs", "line": 40 },
-                    "valueId": "inspector-3",
-                    "children": [{
-                        "description": "Padding",
-                        "createdByLocalProject": true,
-                        "creationLocation": { "file": "crates/notes/src/home.rs", "line": 24 },
-                        "valueId": "inspector-4",
-                        "properties": [
-                            { "name": "padding", "description": "EdgeInsets.all(16.0)" },
-                            { "name": "renderObject", "description": "RenderPadding#00a3f" }
-                        ]
-                    }]
+                    "description": "Text",
+                    "textPreview": "Search notes",
+                    "creationLocation": { "file": "crates/notes/src/home.rs", "line": 22 },
+                    "valueId": "inspector-3"
                 }]
             }]
         })
     }
 
-    /// The app's own widgets, each under the nearest one kept, with their properties, lines and
-    /// ids; the framework's in between and the element's own properties left out.
+    /// Every widget the tree holds, under its parent, with the text it shows, its line and id.
     #[test]
-    fn the_outline_keeps_the_apps_own_widgets() {
+    fn each_widget_is_a_line_under_its_parent() {
         assert_eq!(
-            outline(&tree(), false),
-            "Home  crates/notes/src/app.rs:12  inspector-2\n \
-             Padding (padding: EdgeInsets.all(16.0))  crates/notes/src/home.rs:24  inspector-4\n"
+            outline(&summary()),
+            "[root]  inspector-1\n \
+             Home  crates/notes/src/app.rs:12  inspector-2\n  \
+             Text \"Search notes\"  crates/notes/src/home.rs:22  inspector-3\n"
         );
     }
 
+    /// A widget's details carry its properties, shown but for the element's own.
     #[test]
-    fn with_all_every_widget_is_kept() {
-        let text = outline(&tree(), true);
-        assert!(text.starts_with("[root]  inspector-1\n Home"), "{text}");
-        assert!(
-            text.contains("  Semantics  /home/me/.cargo/registry/"),
-            "{text}"
+    fn a_widgets_details_show_its_properties() {
+        let details = json!({
+            "description": "Padding",
+            "valueId": "inspector-4",
+            "properties": [
+                { "name": "padding", "description": "EdgeInsets.all(16.0)" },
+                { "name": "renderObject", "description": "RenderPadding#00a3f" }
+            ]
+        });
+        assert_eq!(
+            outline(&details),
+            "Padding (padding: EdgeInsets.all(16.0))  inspector-4\n"
         );
-        assert!(
-            text.contains("   Padding (padding: EdgeInsets.all(16.0))"),
-            "{text}"
+    }
+
+    /// A layout node is its size, constraints, place and render object, its children under it.
+    #[test]
+    fn a_layout_is_a_line_a_widget() {
+        let node = json!({
+            "description": "Padding",
+            "size": { "width": "40.0", "height": "20.0" },
+            "constraints": { "description": "BoxConstraints(0.0<=w<=800.0, 0.0<=h<=600.0)" },
+            "parentData": { "offsetX": "380.0", "offsetY": "290.0" },
+            "renderObject": { "description": "RenderPadding#00a3f" },
+            "valueId": "inspector-4",
+            "children": [{
+                "description": "Expanded",
+                "size": { "width": "40.0", "height": "10.0" },
+                "flexFactor": 1,
+                "flexFit": "tight",
+                "valueId": "inspector-5"
+            }]
+        });
+        assert_eq!(
+            layout_outline(&node),
+            "Padding  40.0×20.0  BoxConstraints(0.0<=w<=800.0, 0.0<=h<=600.0)  at (380.0, 290.0)  \
+             RenderPadding#00a3f  inspector-4\n Expanded  40.0×10.0  flex 1 tight  inspector-5\n"
         );
+    }
+
+    /// A property shown without its name says nothing when it has no value.
+    #[test]
+    fn a_nameless_property_without_a_value_is_left_out() {
+        let node = json!({ "description": "ListView", "properties": [
+            { "name": "scrollDirection", "description": "vertical" },
+            { "name": "controller", "description": "null", "showName": false }
+        ]});
+        assert_eq!(key_properties(&node), "scrollDirection: vertical");
     }
 
     #[test]

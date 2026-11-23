@@ -3,6 +3,7 @@
 //! here that id is the object's arena handle (`inspector-<bits>`), which names it while it lives
 //! and nothing after, where Dart keeps a table of ids in object groups.
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use base64::Engine;
@@ -11,7 +12,10 @@ use waft_foundation::{
     App, DiagnosticLevel, DiagnosticsJsonMap, DiagnosticsNode, DiagnosticsSerializationDelegate,
     HandleId, ServiceExtensions, Task,
 };
-use waft_rendering::{AnyRenderObject, RendererBinding, screenshot_picture, subtree_bounds};
+use waft_rendering::{
+    AnyRenderObject, BoxParentData, FlexFit, FlexParentData, RenderParagraph, RenderView,
+    RendererBinding, screenshot_picture, subtree_bounds,
+};
 
 use crate::{AnyElement, ElementFacts, WidgetsBinding};
 
@@ -31,6 +35,11 @@ pub(crate) fn init_service_extensions(app: &mut App) {
         app,
         "ext.waft.inspector.getDetailsSubtree",
         Rc::new(get_details_subtree),
+    );
+    ServiceExtensions::register(
+        app,
+        "ext.waft.inspector.getLayoutExplorerNode",
+        Rc::new(get_layout_explorer_node),
     );
     ServiceExtensions::register(app, "ext.waft.inspector.screenshot", Rc::new(screenshot));
     // Dart's signal extension: whether widgets carry their creation locations, which a debug
@@ -60,21 +69,167 @@ fn get_root_widget(app: &mut App, params: ServiceExtensionParams) -> Task<Servic
 /// `ext.waft.inspector.getRootWidgetTree`: the element tree from the root as the inspector's
 /// JSON, `{"result": tree}`, every node's `valueId` its inspector id. With `isSummaryTree`, the
 /// widgets the app's own code made, which is every widget until creation locations are tracked,
-/// as in Dart when they are not. Dart's `withPreviews` and `fullDetails=false` are not ported.
+/// as in Dart when they are not; with `withPreviews`, each element that shows a paragraph has its
+/// text as `textPreview`. Dart's `fullDetails=false` is not ported.
 fn get_root_widget_tree(
     app: &mut App,
     params: ServiceExtensionParams,
 ) -> Task<ServiceExtensionResult> {
+    let Some(root) = WidgetsBinding::instance(app).root_element(app) else {
+        return Task::ready(Ok(serde_json::json!({ "result": null })));
+    };
+    let text_previews = match params.get("withPreviews") {
+        Some("true") => text_previews(app, root),
+        _ => HashMap::new(),
+    };
     let delegate = InspectorSerializationDelegate {
         group_name: params.get("groupName").map(str::to_owned),
         summary_tree: params.get("isSummaryTree") == Some("true"),
         subtree_depth: 1_000_000,
+        text_previews: Rc::new(text_previews),
         ..InspectorSerializationDelegate::default()
     };
-    let tree = WidgetsBinding::instance(app)
-        .root_element(app)
-        .map(|root| root.to_diagnostics_node(app, None).to_json_map(&delegate));
+    let tree = root.to_diagnostics_node(app, None).to_json_map(&delegate);
     Task::ready(Ok(serde_json::json!({ "result": tree })))
+}
+
+/// The text each element under `root` shows, by the element's id, where its render object is a
+/// paragraph: what Dart's `withPreviews` adds to a node as `textPreview`.
+fn text_previews(app: &App, root: AnyElement) -> HashMap<HandleId, String> {
+    let mut previews = HashMap::new();
+    add_text_previews(app, root, &mut previews);
+    previews
+}
+
+fn add_text_previews(app: &App, element: AnyElement, previews: &mut HashMap<HandleId, String>) {
+    let paragraph = element
+        .find_render_object(app)
+        .and_then(|object| object.downcast::<RenderParagraph>(app));
+    if let Some(paragraph) = paragraph {
+        let text = paragraph.text(app).to_plain_text(true, true);
+        previews.insert(element.id(), text);
+    }
+    element.visit_children(app, &mut |child| add_text_previews(app, child, previews));
+}
+
+/// `ext.waft.inspector.getLayoutExplorerNode`: the element `id` names and the summary tree
+/// `subtreeDepth` levels under it (1 when not given), each element with its layout: its render
+/// object with its properties, its constraints, its size, and its flex factor and fit or its
+/// offset in its parent, as `{"result": node}`, the layout explorer's view of a widget in
+/// DevTools. Dart's `parentRenderElement` waits for `debugCreator`.
+fn get_layout_explorer_node(
+    app: &mut App,
+    params: ServiceExtensionParams,
+) -> Task<ServiceExtensionResult> {
+    let subtree_depth = match whole_number(&params, "subtreeDepth") {
+        Ok(depth) => depth.unwrap_or(1),
+        Err(error) => return Task::ready(Err(error)),
+    };
+    let Some(element) = params
+        .get("id")
+        .and_then(from_inspector_id)
+        .and_then(|id| Inspected::named(app, id))
+        .and_then(|object| match object {
+            Inspected::Element(element) => Some(element),
+            Inspected::RenderObject(_) => None,
+        })
+    else {
+        return Task::ready(Ok(serde_json::json!({ "result": {} })));
+    };
+    let group_name = params.get("groupName").map(str::to_owned);
+    let layouts = std::iter::once(element)
+        .chain(element.descendants(app, false))
+        .filter_map(|element| Some((element.id(), layout_of(app, element, &group_name)?)))
+        .collect();
+    let delegate = InspectorSerializationDelegate {
+        group_name,
+        summary_tree: true,
+        subtree_depth,
+        layouts: Rc::new(layouts),
+        ..InspectorSerializationDelegate::default()
+    };
+    let node = element
+        .to_diagnostics_node(app, None)
+        .to_json_map(&delegate);
+    Task::ready(Ok(serde_json::json!({ "result": node })))
+}
+
+/// The layout Dart's layout explorer shows of `element`: its render object, constraints, size,
+/// and flex or offset; `None` for an element with no render object.
+fn layout_of(
+    app: &App,
+    element: AnyElement,
+    group_name: &Option<String>,
+) -> Option<DiagnosticsJsonMap> {
+    let render = element.find_render_object(app)?;
+    let delegate = InspectorSerializationDelegate {
+        group_name: group_name.clone(),
+        subtree_depth: 0,
+        include_properties: true,
+        expand_property_values: false,
+        ..InspectorSerializationDelegate::default()
+    };
+    let mut layout = DiagnosticsJsonMap::new();
+    layout.insert(
+        "renderObject".to_owned(),
+        render
+            .to_diagnostics_node(app, None)
+            .to_json_map(&delegate)
+            .into(),
+    );
+    if let Some(view) = render.downcast::<RenderView>(app) {
+        layout.insert("size".to_owned(), size_json(view.size(app)));
+        return Some(layout);
+    }
+    let Some(render_box) = render.as_box().filter(|render| render.has_size(app)) else {
+        return Some(layout);
+    };
+    let constraints = render_box.constraints(app);
+    layout.insert(
+        "constraints".to_owned(),
+        serde_json::json!({
+            "type": "BoxConstraints",
+            "description": constraints.to_string(),
+            "minWidth": dart_double(constraints.min_width),
+            "minHeight": dart_double(constraints.min_height),
+            "maxWidth": dart_double(constraints.max_width),
+            "maxHeight": dart_double(constraints.max_height),
+        }),
+    );
+    layout.insert("isBox".to_owned(), true.into());
+    layout.insert("size".to_owned(), size_json(render_box.size(app)));
+    let parent_data = render.parent_data(app);
+    if let Some(flex) = parent_data.and_then(|data| data.part::<FlexParentData>()) {
+        layout.insert("flexFactor".to_owned(), flex.flex.unwrap_or(0).into());
+        let fit = match flex.fit.unwrap_or(FlexFit::Tight) {
+            FlexFit::Tight => "tight",
+            FlexFit::Loose => "loose",
+        };
+        layout.insert("flexFit".to_owned(), fit.into());
+    } else if let Some(data) = parent_data.and_then(|data| data.part::<BoxParentData>()) {
+        layout.insert(
+            "parentData".to_owned(),
+            serde_json::json!({
+                "offsetX": dart_double(data.offset.dx()),
+                "offsetY": dart_double(data.offset.dy()),
+            }),
+        );
+    }
+    Some(layout)
+}
+
+fn size_json(size: waft_embedder::Size) -> serde_json::Value {
+    serde_json::json!({ "width": dart_double(size.width()), "height": dart_double(size.height()) })
+}
+
+/// A number as Dart's `double.toString` writes it: `100.0`, `0.5`, `Infinity`.
+fn dart_double(value: f64) -> String {
+    match value {
+        value if value == f64::INFINITY => "Infinity".to_owned(),
+        value if value == f64::NEG_INFINITY => "-Infinity".to_owned(),
+        value if value.is_finite() && value.fract() == 0.0 => format!("{value:.1}"),
+        value => value.to_string(),
+    }
 }
 
 /// `ext.waft.inspector.getDetailsSubtree`: the object `arg` names, with its properties, and its
@@ -83,17 +238,13 @@ fn get_details_subtree(
     app: &mut App,
     params: ServiceExtensionParams,
 ) -> Task<ServiceExtensionResult> {
-    let subtree_depth = match params
-        .get("subtreeDepth")
-        .map(str::parse::<i32>)
-        .transpose()
-    {
+    let subtree_depth = match whole_number(&params, "subtreeDepth") {
         Ok(depth) => depth.unwrap_or(2),
-        Err(_) => {
-            return Task::ready(Err(ServiceExtensionError::InvalidParams(
-                "`subtreeDepth` is a whole number".to_owned(),
-            )));
-        }
+        Err(error) => return Task::ready(Err(error)),
+    };
+    let arg = match params.require("arg") {
+        Ok(arg) => arg.to_owned(),
+        Err(error) => return Task::ready(Err(error)),
     };
     let delegate = InspectorSerializationDelegate {
         group_name: params.get("objectGroup").map(str::to_owned),
@@ -101,9 +252,7 @@ fn get_details_subtree(
         include_properties: true,
         ..InspectorSerializationDelegate::default()
     };
-    let node = params
-        .get("arg")
-        .and_then(from_inspector_id)
+    let node = from_inspector_id(&arg)
         .and_then(|id| Inspected::named(app, id))
         .map(|object| object.diagnostics_node(app).to_json_map(&delegate));
     Task::ready(Ok(serde_json::json!({ "result": node })))
@@ -122,6 +271,13 @@ pub struct InspectorSerializationDelegate {
     pub expand_property_values: bool,
     pub subtree_depth: i32,
     pub include_properties: bool,
+    /// The text of each element showing a paragraph, by its id, given as its node's
+    /// `textPreview`: Dart's `withPreviews`, gathered before the walk, which reads no render
+    /// object.
+    pub text_previews: Rc<HashMap<HandleId, String>>,
+    /// The layout of each element, by its id, added to its node: what Dart's layout explorer's
+    /// callback adds, gathered before the walk likewise.
+    pub layouts: Rc<HashMap<HandleId, DiagnosticsJsonMap>>,
 }
 
 impl Default for InspectorSerializationDelegate {
@@ -134,6 +290,8 @@ impl Default for InspectorSerializationDelegate {
             expand_property_values: true,
             subtree_depth: 1,
             include_properties: false,
+            text_previews: Rc::default(),
+            layouts: Rc::default(),
         }
     }
 }
@@ -151,6 +309,12 @@ impl DiagnosticsSerializationDelegate for InspectorSerializationDelegate {
         if self.group_name.is_some() {
             let value_id = node.value_id().map(inspector_id);
             result.insert("valueId".to_owned(), value_id.into());
+        }
+        if let Some(preview) = node.value_id().and_then(|id| self.text_previews.get(&id)) {
+            result.insert("textPreview".to_owned(), preview.clone().into());
+        }
+        if let Some(layout) = node.value_id().and_then(|id| self.layouts.get(&id)) {
+            result.extend(layout.clone());
         }
         if let Some(facts) = element_facts(node)
             && let Some(location) = facts.creation_location
@@ -323,19 +487,38 @@ fn screenshot(app: &mut App, params: ServiceExtensionParams) -> Task<ServiceExte
     match screenshot_image(app, &params) {
         Err(error) => Task::ready(Err(error)),
         Ok(None) => Task::ready(Ok(serde_json::json!({ "result": null }))),
-        Ok(Some(image)) => {
-            let pixels = app.platform().read_image_pixels(&image);
-            app.spawn(async move |_cx| {
-                let pixels = pixels
-                    .await
-                    .map_err(|error| ServiceExtensionError::Failed(error.to_string()))?;
-                let png =
-                    waft_embedder::encode_png(&pixels).map_err(ServiceExtensionError::Failed)?;
-                let encoded = base64::engine::general_purpose::STANDARD.encode(png);
-                Ok(serde_json::json!({ "result": encoded }))
-            })
-        }
+        Ok(Some(image)) => png_answer(app, &image),
     }
+}
+
+/// The PNG of `image`, read back from the host, as `{"result": base64}`.
+pub(crate) fn png_answer(
+    app: &mut App,
+    image: &waft_embedder::Image,
+) -> Task<ServiceExtensionResult> {
+    let pixels = app.platform().read_image_pixels(image);
+    app.spawn(async move |_cx| {
+        let pixels = pixels
+            .await
+            .map_err(|error| ServiceExtensionError::Failed(error.to_string()))?;
+        let png = waft_embedder::encode_png(&pixels).map_err(ServiceExtensionError::Failed)?;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(png);
+        Ok(serde_json::json!({ "result": encoded }))
+    })
+}
+
+/// `picture` drawn by the host into an image of `width` by `height` pixels.
+pub(crate) fn image_of(
+    app: &mut App,
+    picture: &waft_embedder::Picture,
+    width: u32,
+    height: u32,
+) -> Result<waft_embedder::Image, ServiceExtensionError> {
+    app.platform()
+        .picture_to_image_sync(picture, width, height)
+        .ok_or_else(|| {
+            ServiceExtensionError::Failed("this host draws no pictures into images".to_owned())
+        })
 }
 
 /// Dart's `WidgetInspectorService.screenshot`: the image, or `None` where the object is gone,
@@ -345,10 +528,10 @@ fn screenshot_image(
     params: &ServiceExtensionParams,
 ) -> Result<Option<waft_embedder::Image>, ServiceExtensionError> {
     let id = params.require("id")?;
-    let width = number(params, "width")?.ok_or_else(|| missing("width"))?;
-    let height = number(params, "height")?.ok_or_else(|| missing("height"))?;
+    let width = positive(params, "width")?.ok_or_else(|| missing("width"))?;
+    let height = positive(params, "height")?.ok_or_else(|| missing("height"))?;
     let margin = number(params, "margin")?.unwrap_or(0.0);
-    let max_pixel_ratio = number(params, "maxPixelRatio")?.unwrap_or(1.0);
+    let max_pixel_ratio = positive(params, "maxPixelRatio")?.unwrap_or(1.0);
     let Some(render_object) = from_inspector_id(id)
         .and_then(|id| Inspected::named(app, id))
         .and_then(|object| object.render_object(app))
@@ -378,22 +561,16 @@ fn screenshot_image(
         return Ok(None);
     }
     let pixel_ratio = max_pixel_ratio.min((width / bounds.width()).min(height / bounds.height()));
-    let picture = screenshot_picture(app, render_object, bounds, pixel_ratio);
-    let image = app.platform().picture_to_image_sync(
-        &picture,
-        (bounds.width() * pixel_ratio).ceil() as u32,
-        (bounds.height() * pixel_ratio).ceil() as u32,
-    );
-    match image {
-        Some(image) => Ok(Some(image)),
-        None => Err(ServiceExtensionError::Failed(
-            "this host draws no pictures into images".to_owned(),
-        )),
-    }
+    let Some(picture) = screenshot_picture(app, render_object, bounds, pixel_ratio) else {
+        return Ok(None);
+    };
+    let width = (bounds.width() * pixel_ratio).ceil() as u32;
+    let height = (bounds.height() * pixel_ratio).ceil() as u32;
+    image_of(app, &picture, width, height).map(Some)
 }
 
 /// The parameter `name` as a number, where the client sent it.
-fn number(
+pub(crate) fn number(
     params: &ServiceExtensionParams,
     name: &str,
 ) -> Result<Option<f64>, ServiceExtensionError> {
@@ -405,6 +582,34 @@ fn number(
             })
         })
         .transpose()
+}
+
+/// The parameter `name` as a whole number, where the client sent it.
+fn whole_number(
+    params: &ServiceExtensionParams,
+    name: &str,
+) -> Result<Option<i32>, ServiceExtensionError> {
+    params
+        .get(name)
+        .map(|text| {
+            text.parse().map_err(|_| {
+                ServiceExtensionError::InvalidParams(format!("`{name}` is a whole number"))
+            })
+        })
+        .transpose()
+}
+
+/// The parameter `name` as a number above zero, where the client sent it.
+pub(crate) fn positive(
+    params: &ServiceExtensionParams,
+    name: &str,
+) -> Result<Option<f64>, ServiceExtensionError> {
+    match number(params, name)? {
+        Some(value) if !(value > 0.0 && value.is_finite()) => Err(
+            ServiceExtensionError::InvalidParams(format!("`{name}` is a number above zero")),
+        ),
+        value => Ok(value),
+    }
 }
 
 fn missing(name: &str) -> ServiceExtensionError {
@@ -452,7 +657,8 @@ impl Inspected {
     }
 }
 
-fn element_named(app: &App, element: AnyElement, id: HandleId) -> Option<AnyElement> {
+/// The element `id` names under `element`, itself included.
+pub(crate) fn element_named(app: &App, element: AnyElement, id: HandleId) -> Option<AnyElement> {
     if element.id() == id {
         return Some(element);
     }
@@ -488,6 +694,10 @@ mod tests {
 
     use super::*;
     use crate::testing::WidgetTester;
+    use waft_embedder::ViewRef;
+
+    use crate::IntoWidget;
+    use crate::view::{View, ViewCollection};
     use crate::{Center, ColoredBox, GlobalKey, Padding, SizedBox};
 
     const GREEN: Color = Color::new(0xFF00FF00);
@@ -568,6 +778,40 @@ mod tests {
             .as_array()?
             .iter()
             .find_map(|child| find_node(child, description))
+    }
+
+    /// As DevTools and Flutter's MCP server ask for it, the summary tree with previews gives each
+    /// element that shows a paragraph its text, and the others none.
+    #[test]
+    fn the_root_tree_with_previews_gives_each_paragraph_its_text() {
+        let mut tester = WidgetTester::new();
+        tester.pump_widget(crate::Directionality::new(
+            waft_painting::TextDirection::Ltr,
+            Center::new().child(crate::Text::new("Programs")),
+        ));
+        tester.update(|app| {
+            let tree = answered_now(
+                app,
+                "ext.waft.inspector.getRootWidgetTree",
+                &[
+                    ("groupName", "g"),
+                    ("isSummaryTree", "true"),
+                    ("withPreviews", "true"),
+                ],
+            );
+            let root = &tree["result"];
+            let text = find_node(root, "Text").expect("the Text is in the tree");
+            assert_eq!(text["textPreview"], "Programs");
+            let center = find_node(root, "Center").expect("the Center is in the tree");
+            assert_eq!(center.get("textPreview"), None);
+            let without = answered_now(
+                app,
+                "ext.waft.inspector.getRootWidgetTree",
+                &[("groupName", "g"), ("isSummaryTree", "true")],
+            );
+            let text = find_node(&without["result"], "Text").expect("the Text is in the tree");
+            assert_eq!(text.get("textPreview"), None, "previews only when asked");
+        });
     }
 
     /// As DevTools reads it: the root tree names each element by an id, which the details of
@@ -740,24 +984,151 @@ mod tests {
     fn the_roots_id_pictures_the_whole_view() {
         let mut tester = WidgetTester::with_platform(TestPlatform::new().with_gpu());
         tester.pump_widget(ColoredBox::new(GREEN));
-        let mut task = tester.update(|app| {
+        let root = tester.update(|app| {
+            answered_now(
+                app,
+                "ext.waft.inspector.getRootWidget",
+                &[("objectGroup", "g")],
+            )
+        });
+        assert_eq!(root["result"]["description"], "[root]");
+        let id = root["result"]["valueId"].as_str().expect("the root's id");
+        // The view in its physical pixels, as Flutter's root render object paints its bounds
+        // at the device pixel ratio: the 800 by 600 test view at 3.
+        assert_eq!(png_size(&mut tester, id), Some((2400, 1800)));
+    }
+
+    /// A running app's root holds its views, a window's each (`[root]`, a `ViewCollection`, each
+    /// `View`), so the root alone pictures nothing; each view is a node of the root's details,
+    /// and its id pictures that window whole, as `cargo waft ext screenshot` takes it.
+    #[test]
+    fn a_window_is_pictured_by_its_views_id_under_a_root_of_views() {
+        let mut tester = WidgetTester::with_platform(TestPlatform::new().with_gpu());
+        tester.pump_widget(SizedBox::new());
+        let view = Rc::clone(tester.view()) as ViewRef;
+        tester.update(|app| {
+            let views =
+                ViewCollection::new(vec![View::new(view, ColoredBox::new(GREEN)).into_widget()]);
+            WidgetsBinding::instance(app).attach_root_widget(app, views.into_widget());
+        });
+        tester.pump();
+        let details = tester.update(|app| {
             let root = answered_now(
                 app,
                 "ext.waft.inspector.getRootWidget",
                 &[("objectGroup", "g")],
             );
-            assert_eq!(root["result"]["description"], "[root]");
-            let id = root["result"]["valueId"]
+            let root = root["result"]["valueId"]
                 .as_str()
                 .expect("the root's id")
                 .to_owned();
-            let params = ServiceExtensionParams::new([
-                ("id".to_owned(), id),
-                ("width".to_owned(), "100000".to_owned()),
-                ("height".to_owned(), "100000".to_owned()),
-            ]);
-            ServiceExtensions::call(app, "ext.waft.inspector.screenshot", params)
+            answered_now(
+                app,
+                "ext.waft.inspector.getDetailsSubtree",
+                &[
+                    ("arg", root.as_str()),
+                    ("objectGroup", "g"),
+                    ("subtreeDepth", "4"),
+                ],
+            )
         });
+        let root = &details["result"];
+        assert_eq!(
+            png_size(&mut tester, root["valueId"].as_str().unwrap()),
+            None
+        );
+        let collection = &root["children"][0];
+        assert_eq!(collection["widgetRuntimeType"], "ViewCollection");
+        let view = &collection["children"][0];
+        assert_eq!(view["widgetRuntimeType"], "View");
+        let id = view["valueId"].as_str().expect("the view's id");
+        assert_eq!(png_size(&mut tester, id), Some((2400, 1800)));
+    }
+
+    /// The layout explorer's node of a widget: its size, its constraints and where its parent
+    /// placed it; a flexible child's flex factor and fit instead of its offset.
+    #[test]
+    fn a_widgets_layout_is_its_size_constraints_and_place() {
+        let mut tester = WidgetTester::new();
+        let boxed = GlobalKey::new();
+        let flexible = GlobalKey::new();
+        tester.pump_widget(crate::Column::new().children(vec![
+                Center::new()
+                    .child(SizedBox::new().width(40.0).height(20.0).key(boxed.clone().into()))
+                    .into_widget(),
+                crate::Expanded::new(SizedBox::new().key(flexible.clone().into())).into_widget(),
+            ]));
+        tester.update(|app| {
+            let id = inspector_id(boxed.current_context(app).expect("mounted").id());
+            let node = answered_now(
+                app,
+                "ext.waft.inspector.getLayoutExplorerNode",
+                &[
+                    ("id", id.as_str()),
+                    ("groupName", "g"),
+                    ("subtreeDepth", "0"),
+                ],
+            );
+            let node = &node["result"];
+            assert_eq!(
+                node["size"],
+                serde_json::json!({ "width": "40.0", "height": "20.0" })
+            );
+            assert_eq!(node["isBox"], true);
+            assert_eq!(node["constraints"]["maxWidth"], "800.0");
+            assert_eq!(node["constraints"]["minWidth"], "0.0");
+            assert_eq!(node["parentData"]["offsetX"], "380.0");
+            assert!(
+                node["renderObject"]["description"]
+                    .as_str()
+                    .is_some_and(|text| text.starts_with("RenderConstrainedBox"))
+            );
+
+            let id = inspector_id(flexible.current_context(app).expect("mounted").id());
+            let node = answered_now(
+                app,
+                "ext.waft.inspector.getLayoutExplorerNode",
+                &[("id", id.as_str()), ("subtreeDepth", "0")],
+            );
+            assert_eq!(node["result"]["flexFactor"], 1);
+            assert_eq!(node["result"]["flexFit"], "tight");
+        });
+    }
+
+    /// A widget waiting to repaint, as one is while its window is out of sight, is pictured by
+    /// repainting the boundary above it, as Dart's `toImage` does, not refused.
+    #[test]
+    fn a_widget_waiting_to_repaint_is_pictured() {
+        let mut tester = WidgetTester::with_platform(TestPlatform::new().with_gpu());
+        let green = GlobalKey::new();
+        tester.pump_widget(
+            Center::new().child(
+                SizedBox::new()
+                    .width(40.0)
+                    .height(40.0)
+                    .key(green.clone().into())
+                    .child(ColoredBox::new(GREEN)),
+            ),
+        );
+        let id = tester.update(|app| {
+            let element = green.current_context(app).expect("mounted");
+            let render = element.find_render_object(app).expect("a render object");
+            render.mark_needs_paint(app);
+            inspector_id(element.id())
+        });
+        assert_eq!(png_size(&mut tester, &id), Some((40, 40)));
+    }
+
+    /// The width and height of the PNG `id`'s screenshot answers, read back by the next pump, or
+    /// `None` where it answers none.
+    fn png_size(tester: &mut WidgetTester, id: &str) -> Option<(u32, u32)> {
+        let params = ServiceExtensionParams::new([
+            ("id".to_owned(), id.to_owned()),
+            ("width".to_owned(), "100000".to_owned()),
+            ("height".to_owned(), "100000".to_owned()),
+        ]);
+        let mut task = tester
+            .update(|app| ServiceExtensions::call(app, "ext.waft.inspector.screenshot", params));
         tester.pump();
         let answer =
             match std::pin::Pin::new(&mut task).poll(&mut Context::from_waker(Waker::noop())) {
@@ -765,13 +1136,11 @@ mod tests {
                 Poll::Pending => panic!("the screenshot is read back by the next pump"),
             };
         let png = base64::engine::general_purpose::STANDARD
-            .decode(answer["result"].as_str().expect("a base64 PNG"))
+            .decode(answer["result"].as_str()?)
             .expect("base64");
         // A PNG's width and height follow its signature and the header chunk's name.
         let size = |at: usize| u32::from_be_bytes(png[at..at + 4].try_into().unwrap());
-        // The view in its physical pixels, as Flutter's root render object paints its bounds
-        // at the device pixel ratio: the 800 by 600 test view at 3.
-        assert_eq!((size(16), size(20)), (2400, 1800));
+        Some((size(16), size(20)))
     }
 
     #[test]

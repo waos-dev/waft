@@ -14,6 +14,9 @@ categories.workspace = true
 base64.workspace = true
 # A service extension's answer: JSON, as Flutter's are.
 serde_json.workspace = true
+selectors.workspace = true
+cssparser.workspace = true
+precomputed-hash.workspace = true
 indexmap.workspace = true
 waft-animation.workspace = true
 waft-embedder.workspace = true

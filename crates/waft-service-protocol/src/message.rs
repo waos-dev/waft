@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// JSON-RPC's code for text that is not JSON.
@@ -52,7 +53,7 @@ impl Message {
 
     /// The message `text` holds, or the response a reader answers text that is none with.
     pub fn from_text(text: &str) -> Result<Message, Response> {
-        let value: Value = serde_json::from_str(text).map_err(|error| {
+        let value = parsed(text).map_err(|error| {
             Response::error(Value::Null, RpcError::new(PARSE_ERROR, error.to_string()))
         })?;
         let id = value.get("id").cloned().unwrap_or(Value::Null);
@@ -186,6 +187,17 @@ impl fmt::Display for RpcError {
 
 impl std::error::Error for RpcError {}
 
+/// The JSON `text` holds, however deep: a message is as deep as the widget tree an app writes into
+/// it, two levels for each of the tree's, and a real app's is deeper than `serde_json`'s default
+/// limit of 128. The app wrote it out by recursing that deep, so reading it back can too.
+fn parsed(text: &str) -> serde_json::Result<Value> {
+    let mut deserializer = serde_json::Deserializer::from_str(text);
+    deserializer.disable_recursion_limit();
+    let value = Value::deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,5 +255,17 @@ mod tests {
                 .id,
             json!(1)
         );
+    }
+
+    /// A widget tree nests two levels of JSON for each of its own, so a real app's is deeper
+    /// than a parser's usual limit of 128.
+    #[test]
+    fn a_deep_tree_reads_back() {
+        let mut tree = json!({ "description": "Text" });
+        for _ in 0..300 {
+            tree = json!({ "description": "Padding", "children": [tree] });
+        }
+        let answer = Message::Response(Response::result(json!(7), json!({ "result": tree })));
+        assert_eq!(Message::from_text(&answer.to_text()), Ok(answer));
     }
 }

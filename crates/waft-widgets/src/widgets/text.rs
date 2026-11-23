@@ -2181,6 +2181,22 @@ impl MultiChildRenderObjectWidget for RichText {
     }
 }
 
+/// The text `element`'s widget shows, as flutter_test's `find.text` reads it: an `EditableText`'s
+/// controller's text, or a `Text`'s plain text, its data or its span's. A `RichText` shows none,
+/// so that a `Text` is not counted twice, as itself and as the `RichText` it builds.
+pub(crate) fn shown_text(app: &App, element: crate::AnyElement) -> Option<String> {
+    let widget = element.widget(app);
+    if let Some(editable) = crate::downcast_widget::<crate::EditableText>(&**widget) {
+        return Some(editable.controller.value(app).text.clone());
+    }
+    let text = crate::downcast_widget::<Text>(&**widget)?;
+    match (&text.data, &text.text_span) {
+        (Some(data), _) => Some(data.clone()),
+        (None, Some(span)) => Some(span.to_plain_text(true, true)),
+        (None, None) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use waft_foundation::AppCell;
