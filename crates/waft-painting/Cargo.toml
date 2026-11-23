@@ -10,6 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+# A property's JSON, as the widget inspector reads it.
+serde_json.workspace = true
 # The request and response values a network image is fetched with.
 http.workspace = true
 indexmap.workspace = true

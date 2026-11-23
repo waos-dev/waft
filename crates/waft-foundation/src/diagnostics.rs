@@ -1395,9 +1395,6 @@ macro_rules! json_map_impl {
 
 /// Dart's `DiagnosticsNode.toJsonMap` body for a node that can name itself as a trait object.
 ///
-/// A node class outside this crate whose `DiagnosticsNode` implementation leaves `to_json_map` at
-/// the trait's default has no way to do that; it serializes the same base fields and skips the
-/// delegate's per-node properties and list filters.
 pub fn base_json_map(
     node: &dyn DiagnosticsNode,
     delegate: &dyn DiagnosticsSerializationDelegate,
@@ -1559,18 +1556,13 @@ pub trait DiagnosticsNode: fmt::Display {
     }
 
     /// Serializes the node to a JSON map according to the configuration provided in the
-    /// [`DiagnosticsSerializationDelegate`].
+    /// [`DiagnosticsSerializationDelegate`]: Dart's `toJsonMap`.
     ///
-    /// Node classes that add fields of their own, as Dart's property classes do through
-    /// `super.toJsonMap`, override this and start from [`base_json_map`].
-    ///
-    /// A provided method cannot hand `&self` to a delegate as a `&dyn DiagnosticsNode`, so this
-    /// default has no owner for the delegate's hooks; every node class here overrides it — the
-    /// base-only classes through [`json_map_impl`](macro@json_map_impl), the property classes
-    /// through [`base_json_map`] and their own fields.
-    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
-        to_json_map_body!(self, None, delegate)
-    }
+    /// Required, where Dart's base class gives a body: a provided method cannot hand `&self` to
+    /// the delegate as the `&dyn DiagnosticsNode` its hooks are given. A node class starts from
+    /// [`base_json_map`] (`super.toJsonMap`), or from the JSON of the property it wraps, and adds
+    /// its own fields.
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap;
 
     /// Returns a string representation compatible with the style of the parent
     /// if the node is not the root.

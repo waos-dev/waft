@@ -37,9 +37,9 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — Rust has no identity hash; the arena slot is what tells two live objects apart.
   Affect: the numbers are small and a freed object's slot is reused, so a hash names an object only while it lives, as Dart's may collide too.
 
-- Change: `to_json_map` is a provided trait method, so a node class outside this crate that leaves it at the default — painting's `ColorProperty` and `TransformProperty` — serializes the base node fields only.
-  Reason: language — Rust has no inheritance, and a provided method cannot hand `&self` to a delegate as `&dyn DiagnosticsNode` (that needs a sized receiver), so only a node class here can pass itself as the owner its property and child lists are filtered against and as the node a delegate adds properties for.
-  Affect: a color or transform property in serialized JSON has no delegate-added properties (no `valueId`), and none of `propertyType`, `defaultLevel`, `value` or `missingIfNull`; `ColorProperty`'s `valueProperties` is absent too. A node class that overrides `to_json_map` and starts from `base_json_map(self, delegate)` serializes as Dart's does.
+- Change: `to_json_map` is a required trait method, where Dart's base class gives its body; a node class starts from `base_json_map(self, delegate)` (`super.toJsonMap`) or from the JSON of the property it wraps.
+  Reason: language — a provided method cannot hand `&self` to the delegate as the `&dyn DiagnosticsNode` its hooks take.
+  Affect: a node class outside this crate writes the one line Dart inherits; painting's `ColorProperty` adds `valueProperties` as Dart's does.
 
 - Change: JSON's `type` is the Rust type name without generic arguments, and a property's `propertyType` is the Rust type name of its value.
   Reason: language — Rust has no `runtimeType`, and its type names are its own: Dart's `int` and `double` are `i64` and `f64`, `Iterable<T>` is `Vec<T>`, and a flags map is `IndexMap`.

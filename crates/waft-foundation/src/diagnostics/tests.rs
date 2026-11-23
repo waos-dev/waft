@@ -2951,7 +2951,7 @@ fn json_default_value_strings_are_dart_to_strings() {
     assert_eq!(json_str(&json, "defaultValue"), Some("[1, 2]"));
 }
 
-/// A node that leaves `to_json_map` at the trait's default, as painting's property types do.
+/// A node of its own outside the property types, serialized by Dart's base body alone.
 struct BareNode;
 
 impl fmt::Display for BareNode {
@@ -2969,22 +2969,24 @@ impl DiagnosticsNode for BareNode {
         Some(DiagnosticsTreeStyle::Sparse)
     }
 
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        base_json_map(self, delegate)
+    }
+
     render_deep_with!();
 }
 
 #[test]
-fn a_node_that_leaves_json_at_the_default_serializes_the_base_fields() {
+fn a_node_built_on_the_base_body_serializes_the_base_fields_and_the_delegates() {
     let json = serialize(&BareNode);
     assert_eq!(json_str(&json, "type"), Some("BareNode"));
     assert_eq!(json_str(&json, "description"), Some("bare"));
     assert!(!json.contains_key("propertyType"));
 
-    // The delegate's per-node properties take the node as a trait object, which a provided
-    // method cannot supply.
     let mut additional = DiagnosticsJsonMap::new();
     additional.insert("foo".to_string(), Value::Bool(true));
     let delegate =
         TestDiagnosticsSerializationDelegate::new().with_additional_node_properties(additional);
     let json = simulate_json_serialization(&BareNode, &delegate);
-    assert!(!json.contains_key("foo"));
+    assert_eq!(json.get("foo"), Some(&Value::Bool(true)));
 }

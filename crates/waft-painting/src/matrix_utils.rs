@@ -5,7 +5,8 @@ use std::fmt;
 
 use waft_embedder::{Matrix4, Offset, Rect};
 use waft_foundation::{
-    DiagnosticLevel, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle, IntoPropertyName,
+    DiagnosticLevel, DiagnosticsJsonMap, DiagnosticsNode, DiagnosticsProperty,
+    DiagnosticsSerializationDelegate, DiagnosticsTreeStyle, IntoPropertyName,
     TextTreeConfiguration, TextTreeRenderer, debug_format_double,
 };
 
@@ -195,6 +196,11 @@ impl TransformProperty {
 }
 
 impl DiagnosticsNode for TransformProperty {
+    /// Dart's `TransformProperty`, which adds nothing to its property's JSON.
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        self.inner.to_json_map(delegate)
+    }
+
     fn name(&self) -> Option<&str> {
         self.inner.name()
     }

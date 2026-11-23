@@ -5476,6 +5476,7 @@ version = "0.9.1"
 dependencies = [
  "http",
  "indexmap",
+ "serde_json",
  "valo",
  "valo-system-fonts",
  "waft-embedder",
