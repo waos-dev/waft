@@ -9,16 +9,16 @@
 //! over by a client, which cannot connect to it.
 
 use std::collections::BTreeMap;
-use std::io::{self, BufRead, BufReader, Write};
-use std::net::{Ipv4Addr, TcpListener, TcpStream};
+use std::io;
+use std::net::{Ipv4Addr, TcpListener};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
 
 use serde_json::json;
 use waft_embedder::{ServiceExtensionError, ServiceExtensionResult};
 use waft_service_protocol::{
-    EXTENSION_ERROR, INVALID_PARAMS, ListedApp, METHOD_NOT_FOUND, Request, Response, RpcError,
-    is_hello_for, listing_dir,
+    Address, Connection, EXTENSION_ERROR, INVALID_PARAMS, INVALID_REQUEST, ListedApp,
+    METHOD_NOT_FOUND, Message, Request, Response, RpcError, TcpLines, listing_dir,
 };
 
 use crate::main_loop::{MainLoopEvent, MainLoopProxy};
@@ -43,8 +43,8 @@ impl ServiceExtensionServer {
             return None;
         }
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).ok()?;
-        let port = listener.local_addr().ok()?.port();
-        let app = ListedApp::new(app_name(), std::process::id(), port);
+        let address = Address::Tcp(listener.local_addr().ok()?);
+        let app = ListedApp::new(app_name(), None, std::process::id(), address);
         let listing = app.write_in(&listing_dir()).ok()?;
         let to_the_loop = move |call| proxy.send(MainLoopEvent::ServiceExtensionCall(call));
         listen(listener, app.token, to_the_loop).ok()?;
@@ -93,7 +93,7 @@ fn listen(listener: TcpListener, token: String, post: impl Post) -> io::Result<(
                 let _ = std::thread::Builder::new()
                     .name("waft service extension connection".to_owned())
                     .spawn(move || {
-                        let _ = serve(stream, &token, &post);
+                        let _ = serve(TcpLines::new(stream), &token, &post);
                     });
             }
         })
@@ -101,19 +101,22 @@ fn listen(listener: TcpListener, token: String, post: impl Post) -> io::Result<(
 }
 
 /// Reads one connection's requests after its hello, and answers each in turn.
-fn serve(stream: TcpStream, token: &str, post: &impl Post) -> io::Result<()> {
-    let mut answers = stream.try_clone()?;
-    let mut lines = BufReader::new(stream).lines();
-    match lines.next() {
-        Some(Ok(hello)) if is_hello_for(&hello, token) => {}
+fn serve(mut connection: impl Connection, token: &str, post: &impl Post) -> io::Result<()> {
+    let hello = connection.receive()?.map(|text| Message::from_text(&text));
+    match hello {
+        Some(Ok(Message::Hello { token: sent })) if sent == token => {}
         _ => return Ok(()),
     }
-    for line in lines {
-        let response = match Request::parse(&line?) {
-            Ok(request) => answer(request, post),
+    while let Some(text) = connection.receive()? {
+        let response = match Message::from_text(&text) {
+            Ok(Message::Request(request)) => answer(request, post),
+            Ok(_) => Response::error(
+                serde_json::Value::Null,
+                RpcError::new(INVALID_REQUEST, "an app answers requests alone".to_owned()),
+            ),
             Err(response) => response,
         };
-        writeln!(answers, "{}", response.to_line())?;
+        connection.send(&Message::Response(response).to_text())?;
     }
     Ok(())
 }
@@ -168,11 +171,8 @@ mod tests {
     /// sent back, or as unknown for `ext.test.missing`; and how a client finds it.
     fn echoing_server() -> ListedApp {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a port");
-        let app = ListedApp::new(
-            "echo",
-            std::process::id(),
-            listener.local_addr().unwrap().port(),
-        );
+        let address = Address::Tcp(listener.local_addr().unwrap());
+        let app = ListedApp::new("echo", None, std::process::id(), address);
         let echo = |call: IncomingCall| {
             let result = if call.name == "ext.test.missing" {
                 Err(ServiceExtensionError::Unknown {

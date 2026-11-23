@@ -1,7 +1,7 @@
 //! `cargo waft ext`: calls a service extension of a running debug app, as Flutter's tools call an
 //! app's VM service, and lists the apps running.
 //!
-//! A running app lists itself in `waft_service_protocol::listing_dir`; a listing whose app no
+//! Running apps are found through `waft_service_protocol`'s discovery; a listing whose app no
 //! longer answers was left by a process that ended without removing it, and is removed here.
 
 use std::collections::BTreeMap;
@@ -12,7 +12,7 @@ use std::io::Write;
 use anyhow::{Context, Result, bail};
 use base64::Engine;
 use serde_json::Value;
-use waft_service_protocol::{Client, ListedApp, listing_dir};
+use waft_service_protocol::{Client, ListedApp, ListingFolder, discover};
 
 /// Prints the apps running, one per line.
 pub(crate) fn list() -> Result<()> {
@@ -130,14 +130,16 @@ fn chosen(app: Option<&str>) -> Result<(ListedApp, Client)> {
 
 /// The apps listed that answer, each connected; the listings of those that do not are removed.
 fn running() -> Vec<(ListedApp, Client)> {
-    let dir = listing_dir();
-    ListedApp::all_in(&dir)
+    let folder = ListingFolder::new();
+    discover(&[&folder])
         .into_iter()
         .filter_map(|listed| match Client::connect(&listed) {
             Ok(client) => Some((listed, client)),
             Err(_) => {
-                let _ =
-                    std::fs::remove_file(dir.join(format!("{}-{}.json", listed.app, listed.pid)));
+                // Left by an app that ended without removing it; only this machine's are files.
+                if listed.device.is_none() {
+                    let _ = std::fs::remove_file(listed.file_in(folder.dir()));
+                }
                 None
             }
         })
