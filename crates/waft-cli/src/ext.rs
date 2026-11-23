@@ -5,6 +5,7 @@
 //! longer answers was left by a process that ended without removing it, and is removed here.
 
 use std::collections::BTreeMap;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
@@ -35,6 +36,9 @@ pub(crate) fn call(app: Option<&str>, name: &str, params: &[String]) -> Result<(
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
     let (listed, mut client) = chosen(app)?;
+    if !matches!(name, FIRST_FRAME | "ext.waft.listServiceExtensions") {
+        wait_for_the_first_frame(&mut client);
+    }
     let answer = client
         .call(name, params)
         .with_context(|| format!("calling {} (process {})", listed.app, listed.pid))?;
@@ -44,6 +48,24 @@ pub(crate) fn call(app: Option<&str>, name: &str, params: &[String]) -> Result<(
             Ok(())
         }
         Err(error) => bail!("{} answered: {error}", listed.app),
+    }
+}
+
+/// The extension that says whether the app has drawn its first frame, as Flutter's does.
+const FIRST_FRAME: &str = "ext.waft.didSendFirstFrameEvent";
+
+/// Waits until the app has drawn its first frame, as Flutter's tools wait before they call an
+/// app: an app just started answers a dump before its tree is built. An app that does not say,
+/// or has not drawn one in ten seconds, is called without waiting longer.
+fn wait_for_the_first_frame(client: &mut Client) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline {
+        match client.call(FIRST_FRAME, BTreeMap::new()) {
+            Ok(Ok(answer)) if answer["enabled"] == "false" => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            _ => return,
+        }
     }
 }
 

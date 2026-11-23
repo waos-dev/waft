@@ -1080,6 +1080,17 @@ fn an_app_serves_its_dumps_as_service_extensions() {
         }
     }
 
+    let cell = waft_foundation::AppCell::new();
+    {
+        let mut app = cell.borrow_mut();
+        crate::WidgetsBinding::instance(&mut app);
+        assert_eq!(
+            answer(&mut app, "ext.waft.didSendFirstFrameEvent"),
+            serde_json::json!({ "enabled": "false" }),
+            "no frame is drawn before the first one"
+        );
+    }
+
     let mut tester = WidgetTester::new();
     tester.pump_widget(SizedBox::new().width(10.0));
     tester.update(|app| {
@@ -1090,8 +1101,14 @@ fn an_app_serves_its_dumps_as_service_extensions() {
                 "ext.waft.debugDumpFocusTree",
                 "ext.waft.debugDumpLayerTree",
                 "ext.waft.debugDumpRenderTree",
+                "ext.waft.didSendFirstFrameEvent",
                 "ext.waft.listServiceExtensions",
             ]})
+        );
+        assert_eq!(
+            answer(app, "ext.waft.didSendFirstFrameEvent"),
+            serde_json::json!({ "enabled": "true" }),
+            "a pumped frame is sent"
         );
         let dumps: [(&str, fn(&mut App) -> String); 4] = [
             ("ext.waft.debugDumpApp", crate::debug_dump_app),

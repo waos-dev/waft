@@ -437,6 +437,7 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 - Change: `build` wraps the viewport in `Listener` → `RawGestureDetector` → `IgnorePointer` only: `_ScrollSemantics` and the selection handler are gone.
   Reason: platform — `_ScrollSemantics` is a render object that only feeds the semantics tree, and selection is deferred (`## Deferred`).
+- binding.rs: `ext.flutter.didSendFirstFrameRasterizedEvent` and the `Flutter.FirstFrame` event, which need the host's frame timings and an event stream to clients. Trigger: frame timings from a host, or a client that listens for events.
   Affect: a scrollable exposes no scroll actions to a screen reader and cannot be selected across; its tree is three nodes shallower.
 
 - Change: a pointer scroll signal is resolved through gestures' `PointerSignalResolver`, but the host is not told the event was handled.

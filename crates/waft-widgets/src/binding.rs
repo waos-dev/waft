@@ -61,6 +61,8 @@ pub struct WidgetsBinding {
     build_owner: Option<Ref<BuildOwner>>,
     root_element: Option<AnyElement>,
     ready_to_produce_frames: bool,
+    /// Dart's `!_needToReportFirstFrame`: a frame has been drawn and sent to the host.
+    did_send_first_frame: bool,
     observers: Vec<WidgetsBindingObserverRef>,
     /// The observers that are currently handling an active predictive back gesture.
     back_gesture_observers: Vec<WidgetsBindingObserverRef>,
@@ -655,6 +657,15 @@ impl WidgetsBinding {
             return;
         }
         ServiceExtensions::register_dump(app, "ext.waft.debugDumpApp", debug_dump_app);
+        // A string, not a boolean, as Flutter's tools read it.
+        ServiceExtensions::register(
+            app,
+            "ext.waft.didSendFirstFrameEvent",
+            Rc::new(|app, _params| {
+                let sent = WidgetsBinding::instance(app).debug_did_send_first_frame_event(app);
+                Task::ready(Ok(serde_json::json!({ "enabled": sent.to_string() })))
+            }),
+        );
         ServiceExtensions::register_dump(
             app,
             "ext.waft.debugDumpFocusTree",
@@ -800,6 +811,12 @@ impl WidgetsBinding {
             None => FrameTarget::EveryView,
         };
         SchedulerBinding::ensure_visual_update(app, target);
+    }
+
+    /// Whether a frame has been drawn and sent to the host: Dart's
+    /// `debugDidSendFirstFrameEvent`. Until then a dump finds no tree, or a tree not built yet.
+    pub fn debug_did_send_first_frame_event(self: Handle<Self>, app: &App) -> bool {
+        app.get(self).did_send_first_frame
     }
 
     /// The [`Element`] that is at the root of the element tree hierarchy.
@@ -1297,6 +1314,9 @@ impl RendererBindingOverridesObject for WidgetsBinding {
     fn did_draw_frame(self: Handle<Self>, app: &mut App) {
         let owner = self.build_owner(app);
         owner.finalize_tree(app);
+        if RendererBinding::instance(app).send_frames_to_engine(app) {
+            app.get_mut(self).did_send_first_frame = true;
+        }
     }
 
     /// `WidgetsBinding.handleMetricsChanged` after `super`: tells the observers.

@@ -10,6 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+# A service extension's answer: JSON, as Flutter's are.
+serde_json.workspace = true
 indexmap.workspace = true
 waft-animation.workspace = true
 waft-embedder.workspace = true
@@ -29,7 +31,6 @@ waft-test = { workspace = true, optional = true }
 test-support = ["dep:waft-test", "waft-rendering/test-support"]
 
 [dev-dependencies]
-serde_json.workspace = true
 waft-test.workspace = true
 waft-embedder = { workspace = true, features = ["test-support"] }
 waft-rendering = { workspace = true, features = ["test-support"] }
