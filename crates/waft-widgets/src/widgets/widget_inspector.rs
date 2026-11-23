@@ -19,6 +19,11 @@ use crate::{AnyElement, ElementFacts, WidgetsBinding};
 pub(crate) fn init_service_extensions(app: &mut App) {
     ServiceExtensions::register(
         app,
+        "ext.waft.inspector.getRootWidget",
+        Rc::new(get_root_widget),
+    );
+    ServiceExtensions::register(
+        app,
         "ext.waft.inspector.getRootWidgetTree",
         Rc::new(get_root_widget_tree),
     );
@@ -37,6 +42,19 @@ pub(crate) fn init_service_extensions(app: &mut App) {
             Task::ready(Ok(serde_json::json!({ "result": cfg!(debug_assertions) })))
         }),
     );
+}
+
+/// `ext.waft.inspector.getRootWidget`: the root element's node and its children, as
+/// `{"result": node}`: where a client starts, its `valueId` naming the root for the other calls.
+fn get_root_widget(app: &mut App, params: ServiceExtensionParams) -> Task<ServiceExtensionResult> {
+    let delegate = InspectorSerializationDelegate {
+        group_name: params.get("objectGroup").map(str::to_owned),
+        ..InspectorSerializationDelegate::default()
+    };
+    let root = WidgetsBinding::instance(app)
+        .root_element(app)
+        .map(|root| root.to_diagnostics_node(app, None).to_json_map(&delegate));
+    Task::ready(Ok(serde_json::json!({ "result": root })))
 }
 
 /// `ext.waft.inspector.getRootWidgetTree`: the element tree from the root as the inspector's
@@ -715,6 +733,45 @@ mod tests {
         assert!(!crate::framework::is_local_file(
             "/Users/me/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/waft-widgets-0.9.1/src/widgets/basic.rs"
         ));
+    }
+
+    /// The root's node names the root, and its id pictures the whole view.
+    #[test]
+    fn the_roots_id_pictures_the_whole_view() {
+        let mut tester = WidgetTester::with_platform(TestPlatform::new().with_gpu());
+        tester.pump_widget(ColoredBox::new(GREEN));
+        let mut task = tester.update(|app| {
+            let root = answered_now(
+                app,
+                "ext.waft.inspector.getRootWidget",
+                &[("objectGroup", "g")],
+            );
+            assert_eq!(root["result"]["description"], "[root]");
+            let id = root["result"]["valueId"]
+                .as_str()
+                .expect("the root's id")
+                .to_owned();
+            let params = ServiceExtensionParams::new([
+                ("id".to_owned(), id),
+                ("width".to_owned(), "100000".to_owned()),
+                ("height".to_owned(), "100000".to_owned()),
+            ]);
+            ServiceExtensions::call(app, "ext.waft.inspector.screenshot", params)
+        });
+        tester.pump();
+        let answer =
+            match std::pin::Pin::new(&mut task).poll(&mut Context::from_waker(Waker::noop())) {
+                Poll::Ready(answer) => answer.expect("answered"),
+                Poll::Pending => panic!("the screenshot is read back by the next pump"),
+            };
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(answer["result"].as_str().expect("a base64 PNG"))
+            .expect("base64");
+        // A PNG's width and height follow its signature and the header chunk's name.
+        let size = |at: usize| u32::from_be_bytes(png[at..at + 4].try_into().unwrap());
+        // The view in its physical pixels, as Flutter's root render object paints its bounds
+        // at the device pixel ratio: the 800 by 600 test view at 3.
+        assert_eq!((size(16), size(20)), (2400, 1800));
     }
 
     #[test]

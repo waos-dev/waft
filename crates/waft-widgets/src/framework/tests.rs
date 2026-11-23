@@ -1124,6 +1124,7 @@ fn an_app_serves_its_dumps_as_service_extensions() {
                 "ext.waft.debugDumpRenderTree",
                 "ext.waft.didSendFirstFrameEvent",
                 "ext.waft.inspector.getDetailsSubtree",
+                "ext.waft.inspector.getRootWidget",
                 "ext.waft.inspector.getRootWidgetTree",
                 "ext.waft.inspector.isWidgetCreationTracked",
                 "ext.waft.inspector.screenshot",
