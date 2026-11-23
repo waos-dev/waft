@@ -115,27 +115,18 @@ impl Layer for ProxyLayer {
 
 /// Dart's `_ScreenshotPaintingContext.toImage`, as the picture the host draws into an image: what
 /// `render_object` and its descendants paint within `render_bounds`, in its own coordinates,
-/// scaled by `pixel_ratio`. The object must have painted.
+/// scaled by `pixel_ratio`. The repaint boundary at or above the object is repainted, as Dart's
+/// is; an object that is its own boundary shows the layer it last painted. `None` where Dart's
+/// throws: no boundary above the object has a layer yet, as before its first paint.
 pub fn screenshot_picture(
     app: &mut App,
     render_object: AnyRenderObject,
     render_bounds: Rect,
     pixel_ratio: f64,
-) -> Picture {
-    debug_assert!(
-        !render_object.debug_needs_paint(app),
-        "the object has painted"
-    );
-    let mut boundary = render_object;
-    while !boundary.is_repaint_boundary(app) {
-        boundary = boundary
-            .parent(app)
-            .expect("a repaint boundary at or above the object");
-    }
-    let boundary_layer = boundary
-        .layer(app)
-        .and_then(|layer| layer.as_offset_layer())
-        .expect("a repaint boundary's layer is an offset layer");
+) -> Option<Picture> {
+    let boundary = std::iter::successors(Some(render_object), |object| object.parent(app))
+        .find(|object| object.is_repaint_boundary(app))?;
+    let boundary_layer = boundary.layer(app)?.as_offset_layer()?;
     let recording = ScreenshotRecording::new(app, render_object);
     if boundary == render_object {
         let mut data = recording.borrow_mut();
@@ -154,18 +145,19 @@ pub fn screenshot_picture(
     let _ = boundary_layer
         .as_container_layer()
         .build_scene(app, SceneBuilder::new());
-    let (container, offset) = {
+    let (container, offset, found_target) = {
         let data = recording.borrow();
-        debug_assert!(data.found_target, "the boundary's paint reached the object");
-        (data.container, data.screenshot_offset)
+        (data.container, data.screenshot_offset, data.found_target)
     };
-    let picture = scene_picture(
-        app,
-        container.as_container_layer(),
-        render_bounds,
-        offset,
-        pixel_ratio,
-    );
+    let picture = found_target.then(|| {
+        scene_picture(
+            app,
+            container.as_container_layer(),
+            render_bounds,
+            offset,
+            pixel_ratio,
+        )
+    });
     container.as_layer().dispose(app);
     picture
 }
@@ -241,7 +233,8 @@ mod tests {
         );
         let bounds = subtree_bounds(&app, green.as_object());
         assert_eq!(bounds, Rect::from_ltwh(0.0, 0.0, 40.0, 40.0));
-        let picture = screenshot_picture(&mut app, green.as_object(), bounds, 1.0);
+        let picture =
+            screenshot_picture(&mut app, green.as_object(), bounds, 1.0).expect("painted");
         let ops = flattened_ops(&picture);
         let colors: Vec<_> = ops
             .iter()

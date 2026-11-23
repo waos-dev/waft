@@ -1,47 +1,107 @@
 //! What a driver command does to a running app, as flutter_driver's `LiveWidgetController` does:
-//! it waits for the app to settle, then sends pointer events into the gesture binding, the way a
+//! it waits on the app's frames, and sends pointer events into the gesture binding, the way a
 //! host's touches arrive.
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
-use waft_embedder::{Offset, ViewId};
-use waft_foundation::{App, AsyncApp, delayed};
+use waft_embedder::{AppLifecycleState, Offset, ViewId};
+use waft_foundation::{App, AsyncApp, Completer, CompleterFuture, Listener, Timer, delayed};
 use waft_gestures::{
-    GestureBinding, PointerDownEvent, PointerEvent, PointerMoveEvent, PointerUpEvent,
+    GestureBinding, HitTestResult, K_LONG_PRESS_TIMEOUT, K_PRESS_TIMEOUT, PointerDownEvent,
+    PointerEvent, PointerMoveEvent, PointerUpEvent,
 };
-use waft_rendering::{AnyRenderBox, RenderView};
-use waft_scheduler::SchedulerBinding;
+use waft_rendering::{
+    AnyRenderBox, AnyRenderObject, BoxHitTestEntry, RenderView, SliverHitTestEntry,
+};
+use waft_scheduler::{FrameCallback, SchedulerBinding};
 
 use crate::AnyElement;
 
-/// How long a command waits for the app to settle: an app that animates without end, as a
-/// spinner does, never settles, and a command waiting before it acts then fails, as
-/// flutter_driver's does when its frame sync times out.
-pub(super) const SETTLE_LIMIT: Duration = Duration::from_secs(5);
+/// How long a command waits, on the app's clock, for the app to settle and for the widget it
+/// names to appear: flutter_driver's commands take a timeout, and ours is this one.
+pub(super) const WAIT_LIMIT: Duration = Duration::from_secs(5);
 
-/// How often a waiting command looks again: a frame's time.
+/// How often a drag moves: a frame's time.
 const FRAME: Duration = Duration::from_millis(16);
 
-/// Waits until the app has no frame scheduled and nothing animating, flutter_driver's frame
-/// sync, for up to [`SETTLE_LIMIT`]; whether it settled.
-pub(super) async fn settle(cx: &mut AsyncApp) -> bool {
-    let tries = SETTLE_LIMIT.as_millis() / FRAME.as_millis();
-    for _ in 0..tries {
-        if cx.update(is_settled) {
+/// Waits until `holds` holds, looking now and after each frame, as flutter_driver's
+/// `_waitUntilFrame` does with post-frame callbacks, for up to `limit` on the app's clock;
+/// whether it came to hold. A frame is when the tree changes, so between frames there is
+/// nothing new to look at.
+pub(super) async fn wait_until(
+    cx: &mut AsyncApp,
+    limit: Duration,
+    holds: impl Fn(&mut App) -> bool,
+) -> bool {
+    let deadline = cx.update(|app| app.clock()) + limit;
+    loop {
+        if cx.update(&holds) {
             return true;
         }
-        cx.update(|app| delayed(app, FRAME)).await;
+        let now = cx.update(|app| app.clock());
+        if now >= deadline {
+            return false;
+        }
+        cx.update(|app| next_frame_or_after(app, deadline - now))
+            .await;
     }
-    cx.update(is_settled)
 }
 
-fn is_settled(app: &mut App) -> bool {
-    !SchedulerBinding::has_scheduled_frame(app)
-        && SchedulerBinding::transient_callback_count(app) == 0
+/// A future that completes after the app's next frame, or after `timeout`, whichever is first;
+/// the timer is cancelled when the frame comes first.
+fn next_frame_or_after(app: &mut App, timeout: Duration) -> CompleterFuture<()> {
+    let completer: Completer<()> = Completer::new();
+    let future = completer.future();
+    let timer: Rc<Cell<Option<Timer>>> = Rc::default();
+    let finish = {
+        let timer = Rc::clone(&timer);
+        Rc::new(move |app: &mut App| {
+            if completer.is_completed() {
+                return;
+            }
+            if let Some(timer) = timer.take() {
+                timer.cancel(app);
+            }
+            completer.complete(app, ());
+        })
+    };
+    let after_frame = Rc::clone(&finish);
+    SchedulerBinding::add_post_frame_callback(
+        app,
+        FrameCallback::new(move |app, _| after_frame(app)),
+        None,
+    );
+    timer.set(Some(Timer::new(
+        app,
+        timeout,
+        Listener::new(move |app| finish(app)),
+    )));
+    future
 }
 
-/// Where a tap on `element` lands: the centre of its render box, globally, in the view it
+/// flutter_driver's frame sync: waits until the app has no frame scheduled and nothing
+/// animating, for up to [`WAIT_LIMIT`]; whether it settled.
+pub(super) async fn settle(cx: &mut AsyncApp) -> bool {
+    wait_until(cx, WAIT_LIMIT, |app| {
+        !SchedulerBinding::has_scheduled_frame(app)
+            && SchedulerBinding::transient_callback_count(app) == 0
+    })
+    .await
+}
+
+/// Why the app draws no frames, where it knows: its windows are out of sight.
+pub(super) fn why_no_frames(app: &mut App) -> Option<&'static str> {
+    matches!(
+        SchedulerBinding::lifecycle_state(app),
+        Some(AppLifecycleState::Hidden | AppLifecycleState::Paused)
+    )
+    .then_some("its windows are out of sight, where it draws no frames")
+}
+
+/// Where a touch on `element` lands: the centre of its render box, globally, in the view it
 /// renders into; `None` for an element that renders no box.
 pub(super) fn center_of(app: &App, element: AnyElement) -> Option<(Offset, ViewId)> {
     let render = element.find_render_object(app)?.as_box()?;
@@ -56,6 +116,28 @@ fn view_of(app: &App, render: AnyRenderBox) -> Option<ViewId> {
         node.downcast::<RenderView>(app)
             .map(|view| view.flutter_view(app).id())
     })
+}
+
+/// The render objects a touch at `at` in `view` reaches, the deepest first: the hit test the
+/// gesture binding runs for a touch.
+pub(super) fn hit_at(app: &mut App, at: Offset, view: ViewId) -> Vec<AnyRenderObject> {
+    let mut result = HitTestResult::new();
+    GestureBinding::instance(app).hit_test_in_view(app, &mut result, at, view);
+    result
+        .path()
+        .iter()
+        .filter_map(|entry| {
+            let target: &dyn std::any::Any = entry.target();
+            target
+                .downcast_ref::<BoxHitTestEntry>()
+                .map(|entry| entry.target().as_object())
+                .or_else(|| {
+                    target
+                        .downcast_ref::<SliverHitTestEntry>()
+                        .map(|entry| entry.target().as_object())
+                })
+        })
+        .collect()
 }
 
 /// The pointers the driver's gestures use, apart from the host's.
@@ -124,6 +206,14 @@ pub(super) fn tap_at(app: &mut App, at: Offset, view: ViewId) {
     Touch::down(app, at, view).up(app);
 }
 
+/// A touch down at `at` in `view`, held past the long-press timeout, then lifted: flutter_test's
+/// `longPressAt`, which holds it `kLongPressTimeout + kPressTimeout`.
+pub(super) async fn long_press_at(cx: &mut AsyncApp, at: Offset, view: ViewId) {
+    let touch = cx.update(|app| Touch::down(app, at, view));
+    pause(cx, K_LONG_PRESS_TIMEOUT + K_PRESS_TIMEOUT).await;
+    cx.update(|app| touch.up(app));
+}
+
 /// A touch down at `from` in `view`, moved by `by` over `duration` a frame at a time, then
 /// lifted: flutter_driver's `scroll`.
 pub(super) async fn drag(
@@ -136,9 +226,14 @@ pub(super) async fn drag(
     let steps = (duration.as_millis() / FRAME.as_millis()).max(1);
     let mut touch = cx.update(|app| Touch::down(app, from, view));
     for step in 1..=steps {
-        cx.update(|app| delayed(app, FRAME)).await;
+        pause(cx, FRAME).await;
         let at = from + by * (step as f64 / steps as f64);
         cx.update(|app| touch.move_to(app, at));
     }
     cx.update(|app| touch.up(app));
+}
+
+/// Waits `duration` on the app's clock.
+async fn pause(cx: &mut AsyncApp, duration: Duration) {
+    cx.update(|app| delayed(app, duration)).await;
 }

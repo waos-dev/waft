@@ -4,11 +4,13 @@
 //! A selector's words mean, for an element:
 //!
 //! - a type selector (`IconButton`): its widget's type;
-//! - an id (`#save`): its widget's key, a `ValueKey` of text or a whole number, as
-//!   flutter_driver's `ByValueKey` takes one;
-//! - an attribute (`[tooltip="Back"]`): one of its widget's diagnostics properties, by name, as
-//!   `cargo waft ext tree <id>` prints it; and `text`, the text it shows, as `find.text` reads it;
-//! - the tree: the element tree, its parents, children and siblings, framework widgets included.
+//! - an id (`#save`) or `[key=save]`: its widget's key, a `ValueKey` of text or a whole number,
+//!   as flutter_driver's `ByValueKey` takes one; `[key="42"]` where CSS's `#` takes no number;
+//! - an attribute (`[tooltip=Back]`): one of its widget's diagnostics properties, by name, its
+//!   value as `cargo waft ext tree <id>` prints it, a text without its quotes; and `text`, the
+//!   text it shows, as `find.text` reads it;
+//! - the tree: the onstage element tree, its parents, children and siblings, framework widgets
+//!   included, as flutter_test's finders skip offstage widgets.
 //!
 //! Classes match nothing, as widgets have none; pseudo-classes other than the tree's own
 //! (`:nth-child`, `:has`, `:not`, …) and pseudo-elements are refused when parsed.
@@ -186,10 +188,11 @@ impl<'a> WidgetElement<'a> {
         WidgetElement { element, ..self }
     }
 
+    /// Its onstage children: what a finder skipping offstage widgets walks.
     fn children(self) -> Vec<AnyElement> {
         let mut children = Vec::new();
         self.element
-            .visit_children(self.app, &mut |child| children.push(child));
+            .debug_visit_onstage_children(self.app, &mut |child| children.push(child));
         children
     }
 
@@ -207,11 +210,14 @@ impl<'a> WidgetElement<'a> {
         self.element.widget(self.app).type_name()
     }
 
-    /// The value of the attribute `name`: the text the widget shows for `text`, else the
-    /// widget's diagnostics property of that name, as its description.
+    /// The value of the attribute `name`: the text the widget shows for `text`, its key's value
+    /// for `key`, else the widget's diagnostics property of that name, as its description, a
+    /// quoted text without its quotes.
     fn attribute(self, name: &str) -> Option<String> {
-        if name == "text" {
-            return shown_text(self.app, self.element);
+        match name {
+            "text" => return shown_text(self.app, self.element),
+            "key" => return self.key(),
+            _ => {}
         }
         let mut properties = DiagnosticPropertiesBuilder::new();
         self.element
@@ -221,7 +227,26 @@ impl<'a> WidgetElement<'a> {
             .properties
             .iter()
             .find(|property| property.name() == Some(name))
-            .map(|property| property.to_description(None))
+            .map(|property| unquoted(property.to_description(None)))
+    }
+
+    /// Its widget's key's value, where it is a `ValueKey` of text or a whole number.
+    fn key(self) -> Option<String> {
+        self.element
+            .widget(self.app)
+            .key()
+            .and_then(|key| key_value(key.key()))
+    }
+}
+
+/// `description` without the quotes a text property's description has.
+fn unquoted(description: String) -> String {
+    match description
+        .strip_prefix('"')
+        .and_then(|inner| inner.strip_suffix('"'))
+    {
+        Some(inner) => inner.to_owned(),
+        None => description,
     }
 }
 
@@ -331,10 +356,7 @@ impl Element for WidgetElement<'_> {
     }
 
     fn has_id(&self, id: &CssText, case_sensitivity: CaseSensitivity) -> bool {
-        self.element
-            .widget(self.app)
-            .key()
-            .and_then(|key| key_value(key.key()))
+        self.key()
             .is_some_and(|value| case_sensitivity.eq(value.as_bytes(), id.0.as_bytes()))
     }
 

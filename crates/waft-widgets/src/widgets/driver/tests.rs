@@ -380,3 +380,228 @@ fn a_command_on_a_screen_that_never_settles_fails_unless_unsynchronized() {
     assert_eq!(taps[0].get(), 1);
     assert_eq!(answer["settled"], false, "still spinning after the tap");
 }
+
+/// The usability test's sequence on a bouncing list with 60 pixels to scroll: up past its end,
+/// up again at its end, then down past its start; each scroll answers, and the list comes back
+/// within its range.
+#[test]
+fn scrolls_past_a_bouncing_lists_ends_answer_and_settle() {
+    let mut tester = WidgetTester::new();
+    let controller = tester.update(ScrollController::default);
+    let rows = (WidgetTester::SIZE.height() + 60.0) / 50.0;
+    let items: Vec<WidgetRef> = (0..rows as usize)
+        .map(|_| SizedBox::new().height(50.0).into_widget())
+        .chain(std::iter::once(SizedBox::new().height(10.0).into_widget()))
+        .collect();
+    tester.pump_widget(in_view(
+        ListView::new()
+            .controller(controller.erase())
+            .physics(Rc::new(crate::BouncingScrollPhysics::new()))
+            .children(items),
+    ));
+    for dy in ["-200", "-350", "200"] {
+        let answer = driven(
+            &mut tester,
+            &[("command", "scroll"), ("selector", "ListView"), ("dy", dy)],
+        );
+        assert!(answer.is_ok(), "dy {dy}: {answer:?}");
+    }
+    let offset = controller.offset(&tester.cell.borrow());
+    assert!(
+        (0.0..=60.0).contains(&offset),
+        "back within the range: {offset}"
+    );
+}
+
+/// A tap waits for the widget it names to appear, as flutter_driver's `waitForElement` does.
+#[test]
+fn a_tap_waits_for_its_widget_to_appear() {
+    let taps = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(SizedBox::new());
+    let view = Rc::clone(tester.view()) as waft_embedder::ViewRef;
+    let later = buttons(&taps);
+    tester.update(|app| {
+        waft_foundation::Timer::new(
+            app,
+            Duration::from_millis(200),
+            Listener::new(move |app| {
+                let root = crate::view::View::new(Rc::clone(&view), later.clone()).into_widget();
+                crate::WidgetsBinding::instance(app).attach_root_widget(app, root);
+            }),
+        );
+    });
+    driven(
+        &mut tester,
+        &[("command", "tap"), ("selector", r#"[text="Save"]"#)],
+    )
+    .expect("tapped");
+    assert_eq!(taps[0].get(), 1);
+}
+
+/// A tap refuses a widget a touch at its centre would miss, saying what it lands on, as
+/// flutter_test's `hitTestable` keeps such a widget out.
+#[test]
+fn a_tap_refuses_a_widget_a_touch_would_miss() {
+    let taps = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(
+        crate::IgnorePointer::new()
+            .ignoring(true)
+            .child(buttons(&taps)),
+    );
+    let missed = driven(
+        &mut tester,
+        &[("command", "tap"), ("selector", r#"[text="Save"]"#)],
+    );
+    assert!(
+        matches!(&missed, Err(ServiceExtensionError::Failed(why)) if why.contains("a touch at its centre lands on")),
+        "{missed:?}"
+    );
+    assert_eq!(taps[0].get(), 0);
+}
+
+/// Offstage widgets are not in the tree a selector reads, `:has()` included; a text property is
+/// read without its quotes; a whole number key is `[key=…]`.
+#[test]
+fn a_selector_reads_the_onstage_tree_and_plain_values() {
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(Directionality::new(
+        TextDirection::Ltr,
+        Column::new().children(vec![
+            crate::Offstage::new()
+                .offstage(true)
+                .child(Row::new().children(vec![Text::new("Wi-Fi").into_widget()]))
+                .into_widget(),
+            Row::new()
+                .children(vec![
+                    Text::new("Bluetooth").into_widget(),
+                    SizedBox::new()
+                        .key(ValueKey::new(7_i64).into())
+                        .into_widget(),
+                ])
+                .into_widget(),
+        ]),
+    ));
+    tester.update(|app| {
+        assert_eq!(
+            found(app, r#"Row:has([text="Wi-Fi"])"#),
+            Vec::<String>::new()
+        );
+        assert_eq!(found(app, "Text[data=Bluetooth]"), ["Text"]);
+        assert_eq!(found(app, r#"[key="7"]"#), ["SizedBox-[<7>]"]);
+    });
+}
+
+/// A long press holds a touch past the long-press timeout, as flutter_test's `longPress`.
+#[test]
+fn a_long_press_reaches_the_widget_named() {
+    let presses = Rc::new(Cell::new(0));
+    let mut tester = WidgetTester::new();
+    let counted = Rc::clone(&presses);
+    tester.pump_widget(
+        GestureDetector::new()
+            .on_long_press(Listener::new(move |_app| counted.set(counted.get() + 1)))
+            .child(crate::ColoredBox::new(waft_embedder::Color::new(
+                0xFF00FF00,
+            ))),
+    );
+    driven(
+        &mut tester,
+        &[("command", "long_press"), ("selector", "GestureDetector")],
+    )
+    .expect("pressed");
+    assert_eq!(presses.get(), 1);
+}
+
+/// The keyboard's action key reaches the focused field, as `done` submits it.
+#[test]
+fn a_text_input_action_reaches_the_focused_field() {
+    let submitted = Rc::new(std::cell::RefCell::new(None));
+    let kept = Rc::clone(&submitted);
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(TestWidgetsApp::new().home(
+        TestTextField::new().on_submitted(move |_app, value| *kept.borrow_mut() = Some(value)),
+    ));
+    driven(
+        &mut tester,
+        &[
+            ("command", "enter_text"),
+            ("selector", "EditableText"),
+            ("text", "milk"),
+        ],
+    )
+    .expect("entered");
+    driven(
+        &mut tester,
+        &[("command", "send_text_input_action"), ("action", "done")],
+    )
+    .expect("sent");
+    assert_eq!(submitted.borrow().as_deref(), Some("milk"));
+    let unknown = driven(
+        &mut tester,
+        &[("command", "send_text_input_action"), ("action", "fly")],
+    );
+    assert!(matches!(
+        unknown,
+        Err(ServiceExtensionError::InvalidParams(_))
+    ));
+}
+
+/// A widget partly in a list's viewport is scrolled into view, as flutter_driver's
+/// `scrollIntoView` reaches a widget its finder sees, one that is at least partly on screen.
+#[test]
+fn a_widget_is_scrolled_into_view() {
+    let mut tester = WidgetTester::new();
+    let controller = tester.update(ScrollController::default);
+    let items: Vec<WidgetRef> = (0..40)
+        .map(|item| {
+            SizedBox::new()
+                .height(70.0)
+                .key(ValueKey::new(item as i64).into())
+                .into_widget()
+        })
+        .collect();
+    tester.pump_widget(in_view(
+        ListView::new()
+            .controller(controller.erase())
+            .children(items),
+    ));
+    let before = controller.offset(&tester.cell.borrow());
+    driven(
+        &mut tester,
+        &[
+            ("command", "scroll_into_view"),
+            ("selector", r#"[key="8"]"#),
+        ],
+    )
+    .expect("shown");
+    let after = controller.offset(&tester.cell.borrow());
+    assert_eq!(before, 0.0);
+    assert_eq!(
+        after, 560.0,
+        "item 8, from 560 to 630, at the start of the viewport"
+    );
+}
+
+/// A screenshot pictures a whole view, the first when none is named, in its own pixels; the
+/// app answers its health.
+#[test]
+fn a_view_is_pictured_whole_and_the_app_answers_its_health() {
+    let mut tester = WidgetTester::with_platform(waft_test::TestPlatform::new().with_gpu());
+    tester.pump_widget(settings());
+    let health = driven(&mut tester, &[("command", "get_health")]).expect("healthy");
+    assert_eq!(health["status"], "ok");
+    let shot = driven(&mut tester, &[("command", "screenshot")]).expect("pictured");
+    let png = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        shot["result"].as_str().expect("a PNG"),
+    )
+    .expect("base64");
+    let size = |at: usize| u32::from_be_bytes(png[at..at + 4].try_into().unwrap());
+    assert_eq!((size(16), size(20)), (2400, 1800));
+    let unknown = driven(&mut tester, &[("command", "screenshot"), ("view", "99")]);
+    assert!(
+        matches!(unknown, Err(ServiceExtensionError::InvalidParams(why)) if why.contains("views are"))
+    );
+}
