@@ -6521,7 +6521,7 @@ mod tests {
                 .last()
                 .expect("the menu's 'two'");
             let node = focus_of(tester, two);
-            assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(node.has_focus(&tester.cell.borrow_mut()));
         });
     }
 
@@ -6636,7 +6636,7 @@ mod tests {
                 .last()
                 .expect("the menu's 42");
             let node = focus_of(tester, forty_two);
-            assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(node.has_focus(&tester.cell.borrow_mut()));
         });
     }
 

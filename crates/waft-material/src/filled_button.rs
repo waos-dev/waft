@@ -1551,10 +1551,10 @@ mod tests {
                 };
                 build(tester, Some(self::icon()));
                 tester.pump_and_settle();
-                assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
                 build(tester, None);
                 tester.pump_and_settle();
-                assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
             });
         }
     }

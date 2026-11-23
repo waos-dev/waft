@@ -2093,7 +2093,7 @@ pub(crate) mod tests {
             focus_node.request_focus(&mut tester.cell.borrow_mut(), None);
             tester.pump_and_settle();
             assert_eq!(group_value.get(), Some(0));
-            assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
 
             let press = |tester: &mut WidgetTester,
                          physical: PhysicalKeyboardKey,

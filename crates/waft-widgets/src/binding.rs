@@ -671,6 +671,7 @@ impl WidgetsBinding {
             "ext.waft.debugDumpFocusTree",
             debug_describe_focus_tree,
         );
+        crate::widgets::widget_inspector::init_service_extensions(app);
     }
 
     /// The [`PlatformMenuDelegate`] the app's [`PlatformMenuBar`] hands its menus to: by default

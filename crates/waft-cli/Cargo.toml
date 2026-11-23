@@ -35,6 +35,7 @@ roxmltree = "0.21"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 waft-service-protocol.workspace = true
+base64.workspace = true
 tar = "0.4"
 ureq = "3"
 zip = { version = "2", default-features = false, features = ["deflate"] }

@@ -3291,7 +3291,7 @@ pub(crate) mod tests {
                 if request {
                     node.request_focus(&mut app, None);
                 }
-                node.has_focus(&mut app)
+                node.has_focus(&app)
             };
 
             // Set focus on segment 2.

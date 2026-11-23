@@ -36,6 +36,7 @@ mod opener;
 mod painting;
 mod paragraph;
 mod platform;
+mod png;
 mod pointer;
 mod pointer_data_packet_converter;
 mod pointer_report;
@@ -137,6 +138,7 @@ pub use platform::{
     Screens, SystemChrome, SystemContextMenu, SystemUiOverlayStyle, TargetPlatform, TextServices,
     ViewRef,
 };
+pub use png::encode_png;
 pub use pointer::{
     PointerChange, PointerData, PointerDataPacket, PointerDeviceKind, PointerSignalKind,
 };

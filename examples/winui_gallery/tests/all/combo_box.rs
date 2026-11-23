@@ -531,7 +531,7 @@ fn an_editable_box_completes_typed_text_and_commits_it_or_submits_it() {
     let text = editable_text(&f, "Pick or type a size");
     click(&mut f, Offset::new(sizes.left + 20.0, sizes.center().dy()));
     assert!(
-        text.focus.has_focus(&mut f.cell.borrow_mut()),
+        text.focus.has_focus(&f.cell.borrow_mut()),
         "a click focuses the text"
     );
     assert_eq!(text.controller.text_value(&f.cell.borrow()), "12");
@@ -607,7 +607,7 @@ fn a_handled_text_submission_keeps_the_selection() {
     // Leaving the box shows its selection in place of the text box.
     let point = f.find("Colors");
     click(&mut f, point);
-    assert!(!text.focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(!text.focus.has_focus(&f.cell.borrow_mut()));
     f.capture("combo_box_editable_unfocused_light");
     f.tap("Dark theme");
     click(&mut f, Offset::new(sizes.right - 15.0, sizes.center().dy()));

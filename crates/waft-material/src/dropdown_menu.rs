@@ -6036,7 +6036,7 @@ pub(crate) mod tests {
             let icon_button = tester.element(find::by_icon(&Icons::arrow_drop_down()).first());
             {
                 let mut app = tester.cell.borrow_mut();
-                assert!(Focus::of(&mut app, icon_button, false, true).has_focus(&mut app));
+                assert!(Focus::of(&mut app, icon_button, false, true).has_focus(&app));
             }
 
             // Move the focus to the text field.
@@ -6045,7 +6045,7 @@ pub(crate) mod tests {
             assert!(
                 text_field_focus_node
                     .as_node()
-                    .has_focus(&mut tester.cell.borrow_mut())
+                    .has_focus(&tester.cell.borrow_mut())
             );
 
             // Move the focus to the elevated button.
@@ -6054,7 +6054,7 @@ pub(crate) mod tests {
             assert!(
                 button_focus_node
                     .as_node()
-                    .has_focus(&mut tester.cell.borrow_mut())
+                    .has_focus(&tester.cell.borrow_mut())
             );
         });
     }
@@ -6787,7 +6787,7 @@ pub(crate) mod tests {
             tester.pump_and_settle();
             let text_field = first::<TextField>(tester);
             let mut app = tester.cell.borrow_mut();
-            assert!(Focus::of(&mut app, text_field, false, true).has_focus(&mut app));
+            assert!(Focus::of(&mut app, text_field, false, true).has_focus(&app));
         });
     }
 
@@ -7054,14 +7054,14 @@ pub(crate) mod tests {
             assert!(
                 trailing_icon_focus_node
                     .as_node()
-                    .has_focus(&mut tester.cell.borrow_mut())
+                    .has_focus(&tester.cell.borrow_mut())
             );
         } else {
             // Ensure the trailing icon does not have focus.
             // If FocusNode is not created then the TextField will have focus.
             let icon_button = tester.element(find::by_icon(&Icons::arrow_drop_down()).first());
             let mut app = tester.cell.borrow_mut();
-            assert!(Focus::of(&mut app, icon_button, false, true).has_focus(&mut app));
+            assert!(Focus::of(&mut app, icon_button, false, true).has_focus(&app));
         }
 
         // Ensure the TextField has focus.
@@ -7070,7 +7070,7 @@ pub(crate) mod tests {
         assert!(
             text_field_focus_node
                 .as_node()
-                .has_focus(&mut tester.cell.borrow_mut())
+                .has_focus(&tester.cell.borrow_mut())
         );
 
         // Ensure the button has focus.
@@ -7079,7 +7079,7 @@ pub(crate) mod tests {
         assert!(
             button_focus_node
                 .as_node()
-                .has_focus(&mut tester.cell.borrow_mut())
+                .has_focus(&tester.cell.borrow_mut())
         );
     }
 
@@ -7438,7 +7438,7 @@ pub(crate) mod tests {
 
     fn editable_has_focus(tester: &WidgetTester) -> bool {
         let focus_node = editable(tester, |editable| editable.focus_node.clone());
-        focus_node.has_focus(&mut tester.cell.borrow_mut())
+        focus_node.has_focus(&tester.cell.borrow_mut())
     }
 
     // '… when true and requestFocusOnTap is false, does not make the text field focusable'
@@ -7655,7 +7655,7 @@ pub(crate) mod tests {
                 ));
 
                 let has_focus = |tester: &WidgetTester, node: Handle<FocusNode>| {
-                    FocusNodeLeaf::as_node(node).has_focus(&mut tester.cell.borrow_mut())
+                    FocusNodeLeaf::as_node(node).has_focus(&tester.cell.borrow_mut())
                 };
                 assert!(!has_focus(tester, text_field_focus_node.handle()));
 
@@ -7906,7 +7906,7 @@ pub(crate) mod tests {
             assert!(
                 !focus_node
                     .as_node()
-                    .can_request_focus(&mut tester.cell.borrow_mut())
+                    .can_request_focus(&tester.cell.borrow_mut())
             );
             text_field(tester, |text_field| assert!(text_field.read_only));
         });

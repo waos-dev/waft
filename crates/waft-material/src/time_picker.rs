@@ -7489,7 +7489,7 @@ pub(crate) mod tests {
                 };
                 let has_focus = |tester: &WidgetTester, index: usize| {
                     let node = field(tester, index).focus_node.expect("a focus node");
-                    node.has_focus(&mut tester.cell.borrow_mut())
+                    node.has_focus(&tester.cell.borrow_mut())
                 };
                 let last = text_field_count(tester) - 1;
 

@@ -4876,7 +4876,7 @@ pub(crate) mod tests {
     }
 
     fn focus_of(tester: &WidgetTester, node: waft_widgets::AnyFocusNode) -> bool {
-        node.has_focus(&mut tester.cell.borrow_mut())
+        node.has_focus(&tester.cell.borrow_mut())
     }
 
     #[test]
@@ -5109,7 +5109,7 @@ pub(crate) mod tests {
 
     fn has_focus_of(tester: &WidgetTester, node: Handle<waft_widgets::FocusNode>) -> bool {
         use waft_widgets::FocusNodeLeaf;
-        node.as_node().has_focus(&mut tester.cell.borrow_mut())
+        node.as_node().has_focus(&tester.cell.borrow_mut())
     }
 
     fn request_focus_of(tester: &mut WidgetTester, node: Handle<waft_widgets::FocusNode>) {
@@ -5219,7 +5219,7 @@ pub(crate) mod tests {
                 let element = find::text("dialog").evaluate(tester)[0];
                 let mut app = tester.cell.borrow_mut();
                 let scope = waft_widgets::FocusScope::of(&mut app, element, true);
-                scope.as_node().has_focus(&mut app)
+                scope.as_node().has_focus(&app)
             };
             let navigator_context = |tester: &WidgetTester| {
                 navigator_key

@@ -2464,8 +2464,8 @@ mod tests {
                 .current_state::<CupertinoTextFieldState>(&tester.cell.borrow())
                 .expect("the field mounted");
             let has_focus = |tester: &WidgetTester| {
-                let mut app = tester.cell.borrow_mut();
-                state.effective_focus_node(&app).has_focus(&mut app)
+                let app = tester.cell.borrow_mut();
+                state.effective_focus_node(&app).has_focus(&app)
             };
             assert!(has_focus(tester), "clicking the field should focus it");
 

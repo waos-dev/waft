@@ -4288,7 +4288,7 @@ mod tests {
     use waft_widgets::FocusNodeLeaf;
 
     fn has_focus(tester: &WidgetTester, focus_node: waft_widgets::AnyFocusNode) -> bool {
-        focus_node.has_focus(&mut tester.cell.borrow_mut())
+        focus_node.has_focus(&tester.cell.borrow_mut())
     }
 
     /// Dart's `navigator.push(ModalBottomSheetRoute(requestFocus:, isScrollControlled: false,
@@ -4473,7 +4473,7 @@ mod tests {
                 let mut app = tester.cell.borrow_mut();
                 waft_widgets::FocusScope::of(&mut app, sheet_text, true)
                     .as_node()
-                    .has_focus(&mut app)
+                    .has_focus(&app)
             };
 
             drop(

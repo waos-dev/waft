@@ -5108,7 +5108,7 @@ mod tests {
                 find::by_type::<TextField>(),
             );
             let view_node = text_field_focus_node(tester, text_field_in_view());
-            assert!(view_node.handle().has_focus(&mut tester.cell.borrow_mut()));
+            assert!(view_node.handle().has_focus(&tester.cell.borrow_mut()));
 
             tester
                 .test_text_input()
@@ -5118,11 +5118,7 @@ mod tests {
             assert!(!controller.handle().is_open(&tester.cell.borrow()));
 
             let anchor_node = text_field_focus_node(tester, anchor_text_field);
-            assert!(
-                !anchor_node
-                    .handle()
-                    .has_focus(&mut tester.cell.borrow_mut())
-            );
+            assert!(!anchor_node.handle().has_focus(&tester.cell.borrow_mut()));
         });
     }
 

@@ -1503,7 +1503,7 @@ mod tests {
         node.request_focus(&mut tester.cell.borrow_mut(), None);
         tester.pump();
         assert_eq!(got_focus.get(), enabled);
-        assert_eq!(node.has_focus(&mut tester.cell.borrow_mut()), enabled);
+        assert_eq!(node.has_focus(&tester.cell.borrow_mut()), enabled);
         if !enabled {
             return;
         }
@@ -1511,7 +1511,7 @@ mod tests {
         node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
         tester.pump();
         assert!(!got_focus.get());
-        assert!(!node.has_focus(&mut tester.cell.borrow_mut()));
+        assert!(!node.has_focus(&tester.cell.borrow_mut()));
     }
 
     #[test]
@@ -2467,14 +2467,14 @@ mod tests {
             let node = button_focus_node(tester);
             node.request_focus(&mut tester.cell.borrow_mut(), None);
             tester.pump_and_settle();
-            assert!(button_focus_node(tester).has_focus(&mut tester.cell.borrow_mut()));
+            assert!(button_focus_node(tester).has_focus(&tester.cell.borrow_mut()));
 
             // Rebuild without icon.
             let without_icon = frame(tester, false);
             tester.pump_widget(without_icon);
 
             // The button should still be focused.
-            assert!(button_focus_node(tester).has_focus(&mut tester.cell.borrow_mut()));
+            assert!(button_focus_node(tester).has_focus(&tester.cell.borrow_mut()));
         });
     }
 }

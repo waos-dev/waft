@@ -104,7 +104,7 @@ fn mouse_leaves_focus_alone_and_tab_works_before_any_click() {
         f.cell.checkpoint();
         f.pump();
         if state == ViewFocusState::Unfocused {
-            assert!(!target.has_focus(&mut f.cell.borrow_mut()));
+            assert!(!target.has_focus(&f.cell.borrow_mut()));
         }
     }
     assert_eq!(primary_focus(&mut f.cell.borrow_mut()), Some(target));

@@ -7,7 +7,10 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
+use std::io::Write;
+
 use anyhow::{Context, Result, bail};
+use base64::Engine;
 use serde_json::Value;
 use waft_service_protocol::{Client, ListedApp, listing_dir};
 
@@ -44,7 +47,12 @@ pub(crate) fn call(app: Option<&str>, name: &str, params: &[String]) -> Result<(
         .with_context(|| format!("calling {} (process {})", listed.app, listed.pid))?;
     match answer {
         Ok(result) => {
-            print!("{}", answer_text(&result));
+            match png_of(&result) {
+                Some(png) => std::io::stdout()
+                    .write_all(&png)
+                    .context("writing the PNG to standard output")?,
+                None => print!("{}", answer_text(&result)),
+            }
             Ok(())
         }
         Err(error) => bail!("{} answered: {error}", listed.app),
@@ -67,6 +75,17 @@ fn wait_for_the_first_frame(client: &mut Client) {
             _ => return,
         }
     }
+}
+
+/// The PNG a screenshot answers, `{"result": base64}`, decoded: written as it is, so
+/// `> widget.png` keeps it.
+fn png_of(result: &Value) -> Option<Vec<u8>> {
+    const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+    let encoded = result.get("result")?.as_str()?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    bytes.starts_with(SIGNATURE).then_some(bytes)
 }
 
 /// A dump's `{"data": text}` as its text; any other answer as JSON, on lines of its own.
@@ -130,6 +149,15 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn a_screenshots_png_is_found_in_its_answer() {
+        let png = b"\x89PNG\r\n\x1a\nrest".to_vec();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&png);
+        assert_eq!(png_of(&json!({ "result": encoded })), Some(png));
+        assert_eq!(png_of(&json!({ "result": null })), None);
+        assert_eq!(png_of(&json!({ "data": "[root]" })), None);
+    }
 
     #[test]
     fn a_dump_prints_as_its_text_and_anything_else_as_json() {

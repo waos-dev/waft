@@ -1508,15 +1508,15 @@ mod tests {
                 .debug_label("outer")
                 .into_widget(),
             );
-            let mut app = tester.cell.borrow_mut();
+            let app = tester.cell.borrow_mut();
 
             let outer = outer.get().expect("the outer Focus.of found nothing");
             let inner = inner.get().expect("the inner Focus.of found nothing");
             assert_ne!(outer, inner);
             assert_eq!(inner.parent(&app), Some(outer));
             assert!(inner.has_primary_focus(&app));
-            assert!(inner.has_focus(&mut app));
-            assert!(outer.has_focus(&mut app));
+            assert!(inner.has_focus(&app));
+            assert!(outer.has_focus(&app));
             assert!(!outer.has_primary_focus(&app));
             assert_eq!(outer.debug_label(&app).as_deref(), Some("outer"));
         });
@@ -1659,7 +1659,7 @@ mod tests {
             tester.pump_widget(ExcludeFocus::new(Focus::new(probe(&captured))).into_widget());
             let mut app = tester.cell.borrow_mut();
             let node = captured.get().expect("Focus.of found the node");
-            assert!(!node.can_request_focus(&mut app));
+            assert!(!node.can_request_focus(&app));
 
             node.request_focus(&mut app, None);
             app.drain_microtasks();

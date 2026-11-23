@@ -5190,6 +5190,7 @@ name = "waft-cli"
 version = "0.9.1"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "brotli",
  "cargo-packager",
  "cargo_metadata 0.23.1",
@@ -5569,7 +5570,6 @@ version = "0.9.1"
 dependencies = [
  "http",
  "pollster",
- "valo-codec-software",
  "valo-system-fonts",
  "waft-embedder",
  "waft-foundation",
@@ -5580,6 +5580,7 @@ dependencies = [
 name = "waft-widgets"
 version = "0.9.1"
 dependencies = [
+ "base64 0.22.1",
  "indexmap",
  "pollster",
  "serde_json",

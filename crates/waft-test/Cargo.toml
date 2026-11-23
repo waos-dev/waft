@@ -16,8 +16,6 @@ http.workspace = true
 waft-embedder = { workspace = true, features = ["test-support"] }
 # The arena a leak snapshot reads.
 waft-foundation.workspace = true
-# Pixels encoded as a PNG to look at, the same on every machine.
-valo-codec-software = "0.26.0"
 # The system's fonts, for a test that looks at what its text draws as.
 valo-system-fonts.workspace = true
 # The device a video frame's texture is made on, which a mock frame names to make none.

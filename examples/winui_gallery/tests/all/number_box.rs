@@ -189,7 +189,7 @@ fn text(f: &Fixture, input: &InputBox) -> String {
 }
 
 fn focused(f: &Fixture, input: &InputBox) -> bool {
-    input.focus.has_focus(&mut f.cell.borrow_mut())
+    input.focus.has_focus(&f.cell.borrow_mut())
 }
 
 #[test]

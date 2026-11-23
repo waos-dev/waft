@@ -1,4 +1,5 @@
-//! Pixels encoded as a PNG to look at, by valo's software encoder, the same on every machine.
+//! Pixels encoded as a PNG to look at, by the framework's encoder (`waft_embedder::encode_png`),
+//! the same on every machine.
 
 use waft_embedder::valo::PixelBuffer;
 
@@ -9,6 +10,5 @@ use waft_embedder::valo::PixelBuffer;
 ///
 /// Panics if the encoder fails.
 pub fn encode_png(pixels: &PixelBuffer) -> Vec<u8> {
-    valo_codec_software::encode(pixels, valo_codec_software::Encoding::Png)
-        .expect("pixels encode as a PNG")
+    waft_embedder::encode_png(pixels).expect("pixels encode as a PNG")
 }

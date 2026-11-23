@@ -4394,14 +4394,14 @@ pub(crate) mod tests {
             tester.pump_and_settle();
 
             // Slider without focus doesn't have overlay when enabled and dragged.
-            assert!(!focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(!focus_node.has_focus(&tester.cell.borrow_mut()));
             assert!(!paints_circle(tester, slider_render(tester), dragged_color));
 
             // Slider has overlay when enabled, dragged and focused.
             focus_node.request_focus(&mut tester.cell.borrow_mut(), None);
             tester.pump_and_settle();
 
-            assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
             assert!(paints_circle(tester, slider_render(tester), dragged_color));
             focus_node.dispose(&mut tester.cell.borrow_mut());
         });
@@ -6996,7 +6996,7 @@ pub(crate) mod tests {
             tester.pump_and_settle();
 
             // Slider without focus doesn't have overlay when enabled and dragged.
-            assert!(!focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(!focus_node.has_focus(&tester.cell.borrow_mut()));
             assert!(!paints_circle(tester, slider_render(tester), lime));
             focus_node.dispose(&mut tester.cell.borrow_mut());
         });

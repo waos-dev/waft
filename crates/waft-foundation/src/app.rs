@@ -114,6 +114,19 @@ impl HandleId {
         slotmap::Key::data(&self).as_ffi() & 0xFFFF_FFFF
     }
 
+    /// The id as one number: its slot and generation, which name this object and no later
+    /// occupant of its slot. What a client is handed to name an object back, as the widget
+    /// inspector's ids are.
+    pub fn to_bits(self) -> u64 {
+        slotmap::Key::data(&self).as_ffi()
+    }
+
+    /// The id [`to_bits`](Self::to_bits) gave. A number that names no live object gives an id
+    /// that finds none.
+    pub fn from_bits(bits: u64) -> HandleId {
+        slotmap::KeyData::from_ffi(bits).into()
+    }
+
     /// An [`AnyRef`] while something still keeps the object; see [`Handle::upgrade`].
     pub fn upgrade(self, app: &App) -> Option<AnyRef> {
         app.handles.upgrade_id(self)

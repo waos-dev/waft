@@ -14361,12 +14361,12 @@ pub(crate) mod tests {
                         node = Some(focus_node);
                     }
                     let node = node.expect("the third tab's node");
-                    assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+                    assert!(node.has_focus(&tester.cell.borrow_mut()));
 
                     node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
                     tester.pump();
 
-                    assert!(!node.has_focus(&mut tester.cell.borrow_mut()));
+                    assert!(!node.has_focus(&tester.cell.borrow_mut()));
                     expected.push((false, 2));
                     assert_eq!(*focus_events.borrow(), expected);
                 }

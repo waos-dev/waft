@@ -1102,6 +1102,7 @@ fn an_app_serves_its_dumps_as_service_extensions() {
                 "ext.waft.debugDumpLayerTree",
                 "ext.waft.debugDumpRenderTree",
                 "ext.waft.didSendFirstFrameEvent",
+                "ext.waft.inspector.screenshot",
                 "ext.waft.listServiceExtensions",
             ]})
         );
@@ -1110,7 +1111,8 @@ fn an_app_serves_its_dumps_as_service_extensions() {
             serde_json::json!({ "enabled": "true" }),
             "a pumped frame is sent"
         );
-        let dumps: [(&str, fn(&mut App) -> String); 4] = [
+        type Dump = fn(&mut App) -> String;
+        let dumps: [(&str, Dump); 4] = [
             ("ext.waft.debugDumpApp", crate::debug_dump_app),
             (
                 "ext.waft.debugDumpFocusTree",

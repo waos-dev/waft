@@ -275,7 +275,7 @@ fn a_short_text_fills_the_box_and_a_tap_anywhere_lands_in_it() {
                 .widget(&f.cell.borrow())
                 .focus_node
                 .clone();
-            node.has_focus(&mut f.cell.borrow_mut())
+            node.has_focus(&f.cell.borrow_mut())
         },
         "a tap at the box's right edge focuses it"
     );

@@ -10,6 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+# The inspector's screenshots, as base64 PNGs in a JSON answer.
+base64.workspace = true
 # A service extension's answer: JSON, as Flutter's are.
 serde_json.workspace = true
 indexmap.workspace = true

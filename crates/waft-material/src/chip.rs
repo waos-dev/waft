@@ -5660,19 +5660,19 @@ pub(crate) mod tests {
                 let label_node = focus_of(tester, &label_key);
                 let delete_node = focus_of(tester, &delete_button_key);
                 assert_ne!(delete_node, label_node);
-                assert!(delete_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(delete_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(delete_node.has_primary_focus(&tester.cell.borrow()));
                 // Delete button is a child widget of the Chip, so the Chip should have focus if
                 // the delete button does.
-                assert!(label_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(label_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(!label_node.has_primary_focus(&tester.cell.borrow()));
 
                 label_node.request_focus(&mut tester.cell.borrow_mut(), None);
                 tester.pump();
 
-                assert!(!delete_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(!delete_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(!delete_node.has_primary_focus(&tester.cell.borrow()));
-                assert!(label_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(label_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(label_node.has_primary_focus(&tester.cell.borrow()));
             });
         }

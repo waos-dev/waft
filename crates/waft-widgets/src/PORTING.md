@@ -436,7 +436,17 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 ## widgets/scrollable.rs → scrollable.dart, widgets/scrollable_helpers.rs → scrollable_helpers.dart
 
 - Change: `build` wraps the viewport in `Listener` → `RawGestureDetector` → `IgnorePointer` only: `_ScrollSemantics` and the selection handler are gone.
-  Reason: platform — `_ScrollSemantics` is a render object that only feeds the semantics tree, and selection is deferred (`## Deferred`).
+  Reason: platform — `_ScrollSemantics` is a render object that only feeds the semantics tree, and selection is deferred (`## widgets/widget_inspector.rs → widget_inspector.dart (`WidgetInspectorService`)
+
+- Change: an inspector id is the object's arena handle (`inspector-<bits>`, `inspector_id`), where Dart's `toId` hands out counted ids kept in object groups until `disposeGroup`.
+  Reason: other — the arena already names each object uniquely, finds it back, and never keeps it alive, which Dart's id table and weak maps are for.
+  Affect: a client's `objectGroup` and `disposeGroup` have nothing to release; an id of a freed object finds nothing.
+
+- Change: the screenshot's PNG is encoded by valo's software encoder (`waft_embedder::encode_png`), where Dart's `toByteData(png)` is the engine's.
+  Reason: platform — the winit host's Windows and Linux systems have no image codecs here; one encoder makes the same file on every host.
+  Affect: none.
+
+## Deferred`).
 - binding.rs: `ext.flutter.didSendFirstFrameRasterizedEvent` and the `Flutter.FirstFrame` event, which need the host's frame timings and an event stream to clients. Trigger: frame timings from a host, or a client that listens for events.
   Affect: a scrollable exposes no scroll actions to a screen reader and cannot be selected across; its tree is three nodes shallower.
 

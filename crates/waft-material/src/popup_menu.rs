@@ -5777,7 +5777,7 @@ mod tests {
                     .expect("the focus actions answer whether focus moved")
             };
             let has_focus = |tester: &WidgetTester, text: &str| {
-                node(tester, text).has_focus(&mut tester.cell.borrow_mut())
+                node(tester, text).has_focus(&tester.cell.borrow_mut())
             };
 
             // Start at A

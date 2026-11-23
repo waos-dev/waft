@@ -116,13 +116,13 @@ fn text_box_mouse_focus_clear_and_native_edit_notifications() {
     let c = controller(&f, "Enter your name");
     let (focus, point, _) = editor(&f, c);
     click(&mut f, point);
-    assert!(focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(focus.has_focus(&f.cell.borrow_mut()));
     input(&mut f, "Hello", TextRange::EMPTY);
     f.find("User edits: 1");
     let clear = helper(&f, FluentSymbol::Dismiss).expect("focused nonempty TextBox shows clear");
     click(&mut f, clear);
     assert_eq!(c.text_value(&f.cell.borrow()), "");
-    assert!(focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(focus.has_focus(&f.cell.borrow_mut()));
     f.find("User edits: 2");
     c.set_text(&mut f.cell.borrow_mut(), "From controller");
     f.cell.checkpoint();
@@ -140,7 +140,7 @@ fn text_box_composition_multiline_and_read_only_use_native_editing() {
     let c = controller(&f, "Write a few lines…");
     let (focus, point, _) = editor(&f, c);
     click(&mut f, point);
-    assert!(focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(focus.has_focus(&f.cell.borrow_mut()));
     input(&mut f, "你好", TextRange::new(0, 2));
     assert_eq!(c.value(&f.cell.borrow()).composing, TextRange::new(0, 2));
     input(&mut f, "你好\nsecond line", TextRange::EMPTY);
@@ -167,7 +167,7 @@ fn password_peek_modes_reset_and_length_limit() {
     f.send_mouse(PointerChange::Down, eye, 1);
     f.pump();
     assert!(!editor(&f, c).2);
-    assert!(focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(focus.has_focus(&f.cell.borrow_mut()));
     f.send_mouse(PointerChange::Up, eye, 0);
     f.pump();
     assert!(editor(&f, c).2);
@@ -230,14 +230,14 @@ fn text_commands_copy_paste_undo_and_password_copy_policy() {
     let copy = f.find("Copy");
     click(&mut f, copy);
     assert_eq!(f.clipboard_text().as_deref(), Some("copy"));
-    assert!(focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(focus.has_focus(&f.cell.borrow_mut()));
     f.tap("Dark theme");
     context_menu(&mut f, point);
     f.capture("text_box_context_menu_dark");
     f.find("Paste");
     let paste = f.find("Paste");
     click(&mut f, paste);
-    assert!(focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(focus.has_focus(&f.cell.borrow_mut()));
     // A committed edit is added to the native undo history after its throttle window.
     let before = c.text_value(&f.cell.borrow()).to_owned();
     f.cell.elapse(f.at + std::time::Duration::from_secs(1));
@@ -284,14 +284,14 @@ fn disabling_a_focused_editor_and_hiding_a_revealed_page_clear_focus() {
     assert!(!editor(&f, c).2);
     f.tap("Enabled");
     assert!(editor(&f, c).2);
-    assert!(!focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(!focus.has_focus(&f.cell.borrow_mut()));
     key(&mut f, false, Key::F8, Physical::F8);
     key(&mut f, false, Key::ALT_LEFT, Physical::ALT_LEFT);
     f.tap("Enabled");
     click(&mut f, point);
-    assert!(focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(focus.has_focus(&f.cell.borrow_mut()));
     f.navigate(winui_gallery::Feature::TextBox);
-    assert!(!focus.has_focus(&mut f.cell.borrow_mut()));
+    assert!(!focus.has_focus(&f.cell.borrow_mut()));
     f.navigate(winui_gallery::Feature::PasswordBox);
     assert_eq!(c.text_value(&f.cell.borrow()), "sample");
     assert!(editor(&f, c).2);

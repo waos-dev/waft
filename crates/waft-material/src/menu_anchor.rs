@@ -11170,12 +11170,12 @@ mod tests {
 
                 focus_node.request_focus(&mut tester.cell.borrow_mut(), None);
                 pump(tester);
-                assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
                 assert_eq!(on_focus_change_called.get(), 1);
 
                 focus_node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
                 pump(tester);
-                assert!(!focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(!focus_node.has_focus(&tester.cell.borrow_mut()));
                 assert_eq!(on_focus_change_called.get(), 2);
             });
         }
@@ -11974,7 +11974,7 @@ mod tests {
         }
 
         fn has_focus(tester: &WidgetTester, node: AnyFocusNode) -> bool {
-            node.has_focus(&mut tester.cell.borrow_mut())
+            node.has_focus(&tester.cell.borrow_mut())
         }
 
         fn has_primary_focus(tester: &WidgetTester, node: AnyFocusNode) -> bool {
