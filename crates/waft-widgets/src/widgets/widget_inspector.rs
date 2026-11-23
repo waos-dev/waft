@@ -430,7 +430,7 @@ fn screenshot_image(
 }
 
 /// The parameter `name` as a number, where the client sent it.
-fn number(
+pub(crate) fn number(
     params: &ServiceExtensionParams,
     name: &str,
 ) -> Result<Option<f64>, ServiceExtensionError> {

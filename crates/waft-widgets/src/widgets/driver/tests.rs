@@ -10,8 +10,12 @@ use waft_foundation::{App, Listener, ServiceExtensions, Task, ValueKey};
 use waft_painting::TextDirection;
 
 use crate::testing::WidgetTester;
+use crate::testing::{TestTextField, TestWidgetsApp};
 use crate::widgets::widget_inspector::inspector_id;
-use crate::{Column, Directionality, GestureDetector, IntoWidget, Row, SizedBox, Text, WidgetRef};
+use crate::{
+    Column, Directionality, GestureDetector, IntoWidget, ListView, MediaQuery, MediaQueryData, Row,
+    ScrollController, ScrollControllerLeaf, SizedBox, Text, WidgetRef,
+};
 
 /// A settings page: a row for each setting, its label and a keyed box standing for its switch.
 fn settings() -> WidgetRef {
@@ -234,4 +238,115 @@ fn a_tap_needs_one_widget() {
         matches!(none, Err(ServiceExtensionError::Failed(why)) if why.contains("names no widget"))
     );
     assert_eq!((taps[0].get(), taps[1].get()), (0, 0));
+}
+
+/// `child` as a test's view shows it: sized as the tester's view, its text left to right.
+fn in_view<K>(child: impl IntoWidget<K>) -> WidgetRef {
+    let sized: WidgetRef =
+        MediaQuery::new(MediaQueryData::new().size(WidgetTester::SIZE), child).into_widget();
+    Directionality::new(TextDirection::Ltr, sized).into_widget()
+}
+
+/// Typing goes into the focused field as the platform's text input sends it; naming the field
+/// focuses it first, and with no field focused nothing is typed.
+#[test]
+fn text_is_entered_into_the_field_named() {
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(TestWidgetsApp::new().home(TestTextField::new()));
+    let unfocused = driven(&mut tester, &[("command", "enter_text"), ("text", "milk")]);
+    assert!(
+        matches!(unfocused, Err(ServiceExtensionError::Failed(why)) if why.contains("no text field has the focus"))
+    );
+    let entered = driven(
+        &mut tester,
+        &[
+            ("command", "enter_text"),
+            ("selector", "EditableText"),
+            ("text", "groceries"),
+        ],
+    )
+    .expect("entered");
+    assert_eq!(entered["entered"], "groceries");
+    let read = driven(
+        &mut tester,
+        &[("command", "get_text"), ("selector", "EditableText")],
+    );
+    assert_eq!(read.expect("read")["text"], "groceries");
+}
+
+/// A scroll drags the widget named by the offset given, over its duration, as a finger does.
+#[test]
+fn a_scroll_drags_the_list_named() {
+    let mut tester = WidgetTester::new();
+    let controller = tester.update(ScrollController::default);
+    let items: Vec<WidgetRef> = (0..40)
+        .map(|_| SizedBox::new().height(50.0).into_widget())
+        .collect();
+    tester.pump_widget(in_view(
+        ListView::new()
+            .controller(controller.erase())
+            .children(items),
+    ));
+    let answer = driven(
+        &mut tester,
+        &[
+            ("command", "scroll"),
+            ("selector", "ListView"),
+            ("dy", "-400"),
+            ("duration", "300"),
+        ],
+    )
+    .expect("scrolled");
+    assert_eq!(answer["scrolled"]["description"], "ListView");
+    let offset = controller.offset(&tester.cell.borrow());
+    assert!(
+        offset >= 380.0,
+        "scrolled by the drag, then by its fling: {offset}"
+    );
+}
+
+/// Waiting answers what the selector names once it does, and refuses after its timeout.
+#[test]
+fn waiting_ends_when_the_widget_comes_or_the_time_does() {
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(settings());
+    let found = driven(
+        &mut tester,
+        &[("command", "wait_for"), ("selector", "#wifi")],
+    );
+    assert_eq!(
+        found.expect("found")["found"][0]["description"],
+        "SizedBox-[<'wifi'>]"
+    );
+    let still = driven(
+        &mut tester,
+        &[
+            ("command", "wait_for"),
+            ("selector", "#wifi"),
+            ("absent", "true"),
+            ("timeout", "100"),
+        ],
+    );
+    assert!(
+        matches!(still, Err(ServiceExtensionError::Failed(why)) if why == "`#wifi` still names a widget after 100 ms")
+    );
+}
+
+/// The text a widget shows is read from it, or from the first text inside it.
+#[test]
+fn the_text_a_widget_shows_is_read() {
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(settings());
+    let read = driven(
+        &mut tester,
+        &[("command", "get_text"), ("selector", "Row:nth-child(2)")],
+    );
+    assert_eq!(read.expect("read")["text"], "Bluetooth");
+    let none = driven(
+        &mut tester,
+        &[("command", "get_text"), ("selector", "#wifi")],
+    );
+    assert!(
+        matches!(none, Err(ServiceExtensionError::Failed(why)) if why.contains("shows no text"))
+    );
 }
