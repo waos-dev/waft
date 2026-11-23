@@ -442,6 +442,12 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: other — the arena already names each object uniquely, finds it back, and never keeps it alive, which Dart's id table and weak maps are for.
   Affect: a client's `objectGroup` and `disposeGroup` have nothing to release; an id of a freed object finds nothing.
 
+- Change: an element's diagnostics node (`ElementDiagnosticsNode`, Dart's `_ElementDiagnosticableTreeNode`) answers as its `value` the facts the inspector reads of its element (`ElementFacts`: its widget's type, whether it is stateful), where Dart's answers the element.
+  Reason: language — a snapshot node keeps no arena object, and the serialization delegate has no `App` to read one through.
+  Affect: none.
+
+- Deferred: `getRootWidgetTree`'s `withPreviews` (a paragraph's `textPreview`) and `fullDetails=false` (`toJsonMapIterative`), `DisableWidgetInspectorScope`, and the inspector's other extensions (`getProperties`, `getChildren`, selection, layout explorer). Trigger: a client that asks for them.
+
 - Change: the screenshot's PNG is encoded by valo's software encoder (`waft_embedder::encode_png`), where Dart's `toByteData(png)` is the engine's.
   Reason: platform — the winit host's Windows and Linux systems have no image codecs here; one encoder makes the same file on every host.
   Affect: none.
@@ -903,7 +909,6 @@ Flutter folded `visibility.dart` into `indexed_stack.dart`; this file keeps the 
 - app.rs: `WidgetsApp.router` and every router field it fills, with their branches of `_updateRouting` and `build`. Trigger: `router.dart`.
 - app.rs: the state's route-push handlers. Trigger: the binding's pushed-route events.
 - app.rs: the performance overlay, semantics debugger and widget inspector the three carried debug flags would show. Trigger: `performance_overlay.dart`; the semantics tree; `widget_inspector.dart`.
-- framework.rs: `_ElementDiagnosticableTreeNode`, whose JSON adds `widgetRuntimeType` and `stateful`; an element's node is a plain `DiagnosticableTreeNode` with its `HandleId` as `value_id` meanwhile. Trigger: the widget inspector's element JSON.
 - default_text_editing_shortcuts.rs: the Control-key editing bindings macOS supplies from its own key tables (Control-A, Control-E, Control-K, Control-D), which Dart's macOS map leaves to the host. Trigger: nothing else supplies them over a host that reports plain key presses.
 - editable_text.rs: scribble and stylus support but the selection rects (`_ScribbleFocusable`, `_ScribblePlaceholder`, and `_ScribbleCacheKey`'s strut style and placeholder), the spell-check fetch, the magnifier overlay, the floating cursor and `insertContent`; the scroll notification's `_handleContextMenuOnScroll`. Trigger: `UndoManagerClient`; `RenderEditable.setFloatingCursor`; Scribble on the iOS host.
 - editable_text.rs: `Semantics(inputType:, onCopy:, onCut:, onPaste:)`. Trigger: the next edit of editable_text.rs.

@@ -40,6 +40,7 @@ use waft_foundation::{
 use waft_rendering::{AnyRenderObject, RenderHandle, RenderObject};
 
 use super::build_owner::{BuildOwner, BuildScope};
+use super::element_node::{ElementDiagnosticsNode, ElementFacts};
 use super::state::State;
 use super::widget::{
     GlobalKey, InheritedWidget, KeyRef, Widget, WidgetKind, WidgetRef, can_update, downcast_widget,
@@ -872,13 +873,24 @@ impl AnyElement {
         self,
         app: &App,
         name: impl IntoPropertyName,
-    ) -> DiagnosticableTreeNode {
+    ) -> ElementDiagnosticsNode {
         let mut properties = DiagnosticPropertiesBuilder::new();
         self.fill_base_properties(app, &mut properties);
         (self.vtable.debug_fill_properties)(app, self.id, &mut properties);
         let children = (self.vtable.debug_describe_children)(app, self.id);
-        DiagnosticableTreeNode::from_parts(name, self.to_string_short(app), properties, children)
-            .with_value_id(self.id())
+        let node = DiagnosticableTreeNode::from_parts(
+            name,
+            self.to_string_short(app),
+            properties,
+            children,
+        )
+        .with_value_id(self.id());
+        let widget = self.data(app).widget.as_ref();
+        let facts = ElementFacts {
+            widget_runtime_type: widget.map(|widget| widget.type_name()),
+            stateful: widget.is_some_and(|widget| widget.kind() == WidgetKind::Stateful),
+        };
+        ElementDiagnosticsNode::new(node, facts)
     }
 
     /// Dart's `Element.toStringDeep`: this element and its descendants, at Dart's default level

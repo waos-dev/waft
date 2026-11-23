@@ -7,14 +7,220 @@ use std::rc::Rc;
 
 use base64::Engine;
 use waft_embedder::{ServiceExtensionError, ServiceExtensionParams, ServiceExtensionResult};
-use waft_foundation::{App, HandleId, ServiceExtensions, Task};
+use waft_foundation::{
+    App, DiagnosticLevel, DiagnosticsJsonMap, DiagnosticsNode, DiagnosticsSerializationDelegate,
+    HandleId, ServiceExtensions, Task,
+};
 use waft_rendering::{AnyRenderObject, RendererBinding, screenshot_picture, subtree_bounds};
 
 use crate::{AnyElement, WidgetsBinding};
 
 /// Dart's `WidgetInspectorService.initServiceExtensions`, as far as it is ported.
 pub(crate) fn init_service_extensions(app: &mut App) {
+    ServiceExtensions::register(
+        app,
+        "ext.waft.inspector.getRootWidgetTree",
+        Rc::new(get_root_widget_tree),
+    );
+    ServiceExtensions::register(
+        app,
+        "ext.waft.inspector.getDetailsSubtree",
+        Rc::new(get_details_subtree),
+    );
     ServiceExtensions::register(app, "ext.waft.inspector.screenshot", Rc::new(screenshot));
+}
+
+/// `ext.waft.inspector.getRootWidgetTree`: the element tree from the root as the inspector's
+/// JSON, `{"result": tree}`, every node's `valueId` its inspector id. With `isSummaryTree`, the
+/// widgets the app's own code made, which is every widget until creation locations are tracked,
+/// as in Dart when they are not. Dart's `withPreviews` and `fullDetails=false` are not ported.
+fn get_root_widget_tree(
+    app: &mut App,
+    params: ServiceExtensionParams,
+) -> Task<ServiceExtensionResult> {
+    let delegate = InspectorSerializationDelegate {
+        group_name: params.get("groupName").map(str::to_owned),
+        summary_tree: params.get("isSummaryTree") == Some("true"),
+        subtree_depth: 1_000_000,
+        ..InspectorSerializationDelegate::default()
+    };
+    let tree = WidgetsBinding::instance(app)
+        .root_element(app)
+        .map(|root| root.to_diagnostics_node(app, None).to_json_map(&delegate));
+    Task::ready(Ok(serde_json::json!({ "result": tree })))
+}
+
+/// `ext.waft.inspector.getDetailsSubtree`: the object `arg` names, with its properties, and its
+/// descendants `subtreeDepth` levels down (2 when not given), as `{"result": node}`.
+fn get_details_subtree(
+    app: &mut App,
+    params: ServiceExtensionParams,
+) -> Task<ServiceExtensionResult> {
+    let subtree_depth = match params
+        .get("subtreeDepth")
+        .map(str::parse::<i32>)
+        .transpose()
+    {
+        Ok(depth) => depth.unwrap_or(2),
+        Err(_) => {
+            return Task::ready(Err(ServiceExtensionError::InvalidParams(
+                "`subtreeDepth` is a whole number".to_owned(),
+            )));
+        }
+    };
+    let delegate = InspectorSerializationDelegate {
+        group_name: params.get("objectGroup").map(str::to_owned),
+        subtree_depth,
+        include_properties: true,
+        ..InspectorSerializationDelegate::default()
+    };
+    let node = params
+        .get("arg")
+        .and_then(from_inspector_id)
+        .and_then(|id| Inspected::named(app, id))
+        .map(|object| object.diagnostics_node(app).to_json_map(&delegate));
+    Task::ready(Ok(serde_json::json!({ "result": node })))
+}
+
+/// Dart's `InspectorSerializationDelegate`: how the inspector's JSON walks a tree, naming each
+/// node's object by its inspector id.
+#[derive(Clone, Debug)]
+pub struct InspectorSerializationDelegate {
+    /// The client's object group; a node's `valueId` is given where there is one.
+    pub group_name: Option<String>,
+    /// Whether children the app's own code did not make are passed over for theirs.
+    pub summary_tree: bool,
+    /// How many children a node shows before the rest are cut, or every one when negative.
+    pub max_descendants_truncatable_node: i32,
+    pub expand_property_values: bool,
+    pub subtree_depth: i32,
+    pub include_properties: bool,
+}
+
+impl Default for InspectorSerializationDelegate {
+    /// Dart's defaults.
+    fn default() -> InspectorSerializationDelegate {
+        InspectorSerializationDelegate {
+            group_name: None,
+            summary_tree: false,
+            max_descendants_truncatable_node: -1,
+            expand_property_values: true,
+            subtree_depth: 1,
+            include_properties: false,
+        }
+    }
+}
+
+impl DiagnosticsSerializationDelegate for InspectorSerializationDelegate {
+    fn additional_node_properties(
+        &self,
+        node: &dyn DiagnosticsNode,
+        full_details: bool,
+    ) -> DiagnosticsJsonMap {
+        let mut result = DiagnosticsJsonMap::new();
+        if self.summary_tree && full_details {
+            result.insert("summaryTree".to_owned(), true.into());
+        }
+        if self.group_name.is_some() {
+            let value_id = node.value_id().map(inspector_id);
+            result.insert("valueId".to_owned(), value_id.into());
+        }
+        result
+    }
+
+    fn delegate_for_node(
+        &self,
+        node: &dyn DiagnosticsNode,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate> {
+        // In the details tree the depth holds until the nodes the summary tree shares, so
+        // expanding a node shows the whole subtree down to them.
+        if self.summary_tree || self.subtree_depth > 1 || should_show_in_summary_tree(node) {
+            self.copy_with(Some(self.subtree_depth - 1), None)
+        } else {
+            Rc::new(self.clone())
+        }
+    }
+
+    fn filter_children(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        _owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        self.children_shown(nodes)
+    }
+
+    fn filter_properties(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        _owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        nodes
+            .into_iter()
+            .filter(|node| !node.is_filtered(DiagnosticLevel::Info))
+            .collect()
+    }
+
+    fn truncate_nodes_list(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        owner: Option<&dyn DiagnosticsNode>,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let limit = self.max_descendants_truncatable_node;
+        if limit >= 0
+            && owner.is_some_and(|owner| owner.allow_truncate())
+            && nodes.len() > limit as usize
+        {
+            return nodes.into_iter().take(limit as usize).collect();
+        }
+        nodes
+    }
+
+    fn subtree_depth(&self) -> i32 {
+        self.subtree_depth
+    }
+
+    fn include_properties(&self) -> bool {
+        self.include_properties
+    }
+
+    fn expand_property_values(&self) -> bool {
+        self.expand_property_values
+    }
+
+    fn copy_with(
+        &self,
+        subtree_depth: Option<i32>,
+        include_properties: Option<bool>,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate> {
+        Rc::new(InspectorSerializationDelegate {
+            subtree_depth: subtree_depth.unwrap_or(self.subtree_depth),
+            include_properties: include_properties.unwrap_or(self.include_properties),
+            ..self.clone()
+        })
+    }
+}
+
+impl InspectorSerializationDelegate {
+    /// Dart's `_filterChildren`: in the summary tree, a child it does not show is replaced by
+    /// its own children shown.
+    fn children_shown(&self, nodes: Vec<Rc<dyn DiagnosticsNode>>) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let mut children = Vec::new();
+        for child in nodes {
+            if !self.summary_tree || should_show_in_summary_tree(&*child) {
+                children.push(child);
+            } else {
+                children.extend(self.children_shown(child.get_children()));
+            }
+        }
+        children
+    }
+}
+
+/// Dart's `_shouldShowInSummaryTree`: whether the app's own code made the node's widget. Every
+/// node is shown until creation locations are tracked, as in Dart when they are not.
+fn should_show_in_summary_tree(node: &dyn DiagnosticsNode) -> bool {
+    let _ = node;
+    true
 }
 
 /// The id the inspector names `id`'s object by: Dart's `toId`.
@@ -64,7 +270,9 @@ fn screenshot_image(
     let height = number(params, "height")?.ok_or_else(|| missing("height"))?;
     let margin = number(params, "margin")?.unwrap_or(0.0);
     let max_pixel_ratio = number(params, "maxPixelRatio")?.unwrap_or(1.0);
-    let Some(render_object) = from_inspector_id(id).and_then(|id| render_object_named(app, id))
+    let Some(render_object) = from_inspector_id(id)
+        .and_then(|id| Inspected::named(app, id))
+        .and_then(|object| object.render_object(app))
     else {
         return Ok(None);
     };
@@ -124,18 +332,45 @@ fn missing(name: &str) -> ServiceExtensionError {
     ServiceExtensionError::InvalidParams(format!("`{name}` is required"))
 }
 
-/// The render object `id` names: an element's (Dart's `_renderObjectOrNull`), or one in a view's
-/// render tree.
-fn render_object_named(app: &mut App, id: HandleId) -> Option<AnyRenderObject> {
-    if let Some(root) = WidgetsBinding::instance(app).root_element(app)
-        && let Some(element) = element_named(app, root, id)
-    {
-        return element.find_render_object(app);
+/// An object an inspector id names: Dart's `toObject`, for the two kinds the inspector names.
+#[derive(Clone, Copy)]
+enum Inspected {
+    Element(AnyElement),
+    RenderObject(AnyRenderObject),
+}
+
+impl Inspected {
+    /// The element or render object `id` names, in the element tree or a view's render tree.
+    fn named(app: &mut App, id: HandleId) -> Option<Inspected> {
+        if let Some(root) = WidgetsBinding::instance(app).root_element(app)
+            && let Some(element) = element_named(app, root, id)
+        {
+            return Some(Inspected::Element(element));
+        }
+        let views = RendererBinding::instance(app).render_views(app);
+        views
+            .into_iter()
+            .find_map(|view| render_object_in(app, view.as_object(), id))
+            .map(Inspected::RenderObject)
     }
-    let views = RendererBinding::instance(app).render_views(app);
-    views
-        .into_iter()
-        .find_map(|view| render_object_in(app, view.as_object(), id))
+
+    /// Its render object: Dart's `_renderObjectOrNull`.
+    fn render_object(self, app: &App) -> Option<AnyRenderObject> {
+        match self {
+            Inspected::Element(element) => element.find_render_object(app),
+            Inspected::RenderObject(render_object) => Some(render_object),
+        }
+    }
+
+    /// Its diagnostics node: Dart's `_idToDiagnosticsNode`.
+    fn diagnostics_node(self, app: &App) -> Rc<dyn DiagnosticsNode> {
+        match self {
+            Inspected::Element(element) => Rc::new(element.to_diagnostics_node(app, None)),
+            Inspected::RenderObject(render_object) => {
+                Rc::new(render_object.to_diagnostics_node(app, None))
+            }
+        }
+    }
 }
 
 fn element_named(app: &App, element: AnyElement, id: HandleId) -> Option<AnyElement> {
@@ -223,6 +458,98 @@ mod tests {
             png == waft_embedder::encode_png(&all_green).expect("a PNG"),
             "80 by 80 of green alone, without the red around it"
         );
+    }
+
+    /// The answer of an extension that answers at once.
+    fn answered_now(app: &mut App, name: &str, params: &[(&str, &str)]) -> serde_json::Value {
+        let params = ServiceExtensionParams::new(
+            params
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned())),
+        );
+        let mut task = ServiceExtensions::call(app, name, params);
+        match std::pin::Pin::new(&mut task).poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Ready(answer) => answer.expect("answered"),
+            Poll::Pending => panic!("{name} answers at once"),
+        }
+    }
+
+    /// The first node of `tree` whose description begins with `description`.
+    fn find_node<'a>(
+        tree: &'a serde_json::Value,
+        description: &str,
+    ) -> Option<&'a serde_json::Value> {
+        if tree["description"]
+            .as_str()
+            .is_some_and(|text| text.starts_with(description))
+        {
+            return Some(tree);
+        }
+        tree["children"]
+            .as_array()?
+            .iter()
+            .find_map(|child| find_node(child, description))
+    }
+
+    /// As DevTools reads it: the root tree names each element by an id, which the details of
+    /// one ask for back, answering its widget's properties.
+    #[test]
+    fn the_root_tree_names_each_element_and_its_details_answer_its_properties() {
+        let mut tester = WidgetTester::new();
+        tester.pump_widget(Center::new().child(SizedBox::new().width(10.0).height(20.0)));
+        tester.update(|app| {
+            let tree = answered_now(
+                app,
+                "ext.waft.inspector.getRootWidgetTree",
+                &[("groupName", "tree_1"), ("isSummaryTree", "true")],
+            );
+            let root = &tree["result"];
+            assert_eq!(root["description"], "[root]");
+            assert_eq!(root["type"], "_ElementDiagnosticableTreeNode");
+            let sized = find_node(root, "SizedBox").expect("the SizedBox is in the tree");
+            assert_eq!(sized["widgetRuntimeType"], "SizedBox");
+            assert_eq!(sized["stateful"], false);
+            let id = sized["valueId"].as_str().expect("an inspector id");
+
+            let details = answered_now(
+                app,
+                "ext.waft.inspector.getDetailsSubtree",
+                &[
+                    ("arg", id),
+                    ("objectGroup", "details_1"),
+                    ("subtreeDepth", "1"),
+                ],
+            );
+            let node = &details["result"];
+            assert_eq!(node["valueId"], id);
+            let properties: Vec<(&str, &str)> = node["properties"]
+                .as_array()
+                .expect("the details carry properties")
+                .iter()
+                .filter_map(|property| {
+                    Some((
+                        property["name"].as_str()?,
+                        property["description"].as_str()?,
+                    ))
+                })
+                .collect();
+            assert!(properties.contains(&("width", "10.0")), "{properties:?}");
+            assert!(properties.contains(&("height", "20.0")), "{properties:?}");
+        });
+    }
+
+    #[test]
+    fn the_details_of_an_id_that_names_nothing_are_null() {
+        let mut tester = WidgetTester::new();
+        tester.pump_widget(SizedBox::new());
+        tester.update(|app| {
+            let details = answered_now(
+                app,
+                "ext.waft.inspector.getDetailsSubtree",
+                &[("arg", "inspector-1"), ("objectGroup", "g")],
+            );
+            assert_eq!(details, serde_json::json!({ "result": null }));
+        });
     }
 
     /// An id that names nothing answers no picture, as Dart's does for a gone object.

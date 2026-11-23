@@ -11,6 +11,7 @@
 
 mod build_owner;
 mod element;
+mod element_node;
 mod elements;
 mod inherited_model;
 mod state;
@@ -20,6 +21,7 @@ mod widget;
 
 pub use build_owner::*;
 pub use element::*;
+pub use element_node::{ElementDiagnosticsNode, ElementFacts};
 pub use elements::*;
 pub use inherited_model::*;
 pub use state::*;
