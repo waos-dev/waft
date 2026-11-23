@@ -15,9 +15,10 @@ use waft_scheduler::SchedulerBinding;
 
 use crate::AnyElement;
 
-/// How long a command waits for the app to settle before it acts anyway: an app that animates
-/// without end, as a spinner does, never settles.
-const SETTLE_LIMIT: Duration = Duration::from_secs(5);
+/// How long a command waits for the app to settle: an app that animates without end, as a
+/// spinner does, never settles, and a command waiting before it acts then fails, as
+/// flutter_driver's does when its frame sync times out.
+pub(super) const SETTLE_LIMIT: Duration = Duration::from_secs(5);
 
 /// How often a waiting command looks again: a frame's time.
 const FRAME: Duration = Duration::from_millis(16);

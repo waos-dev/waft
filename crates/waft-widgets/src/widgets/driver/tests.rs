@@ -8,6 +8,7 @@ use serde_json::Value;
 use waft_embedder::{ServiceExtensionError, ServiceExtensionParams};
 use waft_foundation::{App, Listener, ServiceExtensions, Task, ValueKey};
 use waft_painting::TextDirection;
+use waft_scheduler::{FrameCallback, Ticker};
 
 use crate::testing::WidgetTester;
 use crate::testing::{TestTextField, TestWidgetsApp};
@@ -349,4 +350,33 @@ fn the_text_a_widget_shows_is_read() {
     assert!(
         matches!(none, Err(ServiceExtensionError::Failed(why)) if why.contains("shows no text"))
     );
+}
+
+/// On a screen that never settles, as one with a spinner, a command fails rather than act on a
+/// moving screen, as flutter_driver's does; with frame sync off it acts at once.
+#[test]
+fn a_command_on_a_screen_that_never_settles_fails_unless_unsynchronized() {
+    let taps = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(buttons(&taps));
+    let view = waft_embedder::View::id(&**tester.view());
+    let _spinner = tester.update(|app| {
+        let ticker = Ticker::new(app, FrameCallback::new(|_app, _elapsed| {}), Some(view));
+        ticker.start(app);
+        ticker
+    });
+    let save = [("command", "tap"), ("selector", r#"[text="Save"]"#)];
+    let Err(ServiceExtensionError::Failed(why)) = driven(&mut tester, &save) else {
+        panic!("refused");
+    };
+    assert!(
+        why.starts_with("the app did not settle within 5 seconds"),
+        "{why}"
+    );
+    assert_eq!(taps[0].get(), 0, "nothing tapped");
+
+    let unsynchronized = [save[0], save[1], ("frameSync", "false")];
+    let answer = driven(&mut tester, &unsynchronized).expect("tapped");
+    assert_eq!(taps[0].get(), 1);
+    assert_eq!(answer["settled"], false, "still spinning after the tap");
 }

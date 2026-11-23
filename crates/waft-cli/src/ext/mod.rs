@@ -69,6 +69,10 @@ pub(crate) enum ExtCommand {
     Tap {
         /// A CSS selector, as `ListTile:has([text="Wi-Fi"]) Switch`, or an id `tree` printed.
         widget: String,
+        /// Act at once, without waiting for the app to settle first: for a screen that never
+        /// does, as one with a spinner (flutter_driver's `runUnsynchronized`).
+        #[arg(long)]
+        unsynchronized: bool,
     },
     /// Types TEXT into the field WIDGET names, replacing its text; into the focused field, given
     /// TEXT alone.
@@ -78,6 +82,10 @@ pub(crate) enum ExtCommand {
         first: String,
         /// The text to type.
         text: Option<String>,
+        /// Act at once, without waiting for the app to settle first: for a screen that never
+        /// does, as one with a spinner (flutter_driver's `runUnsynchronized`).
+        #[arg(long)]
+        unsynchronized: bool,
     },
     /// Drags the one widget WIDGET names by DX, DY logical pixels, as a finger scrolls it.
     Scroll {
@@ -92,6 +100,10 @@ pub(crate) enum ExtCommand {
         /// How long the drag takes, in milliseconds.
         #[arg(long, default_value_t = 300)]
         duration: u64,
+        /// Act at once, without waiting for the app to settle first: for a screen that never
+        /// does, as one with a spinner (flutter_driver's `runUnsynchronized`).
+        #[arg(long)]
+        unsynchronized: bool,
     },
     /// Waits until WIDGET names a widget, or with `--absent` none, and prints what it names.
     WaitFor {
@@ -160,17 +172,25 @@ pub(crate) fn run(app: Option<&str>, command: ExtCommand) -> Result<()> {
         } => tree(app, id, depth, all, json),
         ExtCommand::Screenshot { id, scale, out } => screenshot(app, id, scale, out),
         ExtCommand::Find { widget } => drive::find(app, &widget),
-        ExtCommand::Tap { widget } => drive::tap(app, &widget),
-        ExtCommand::EnterText { first, text } => match text {
-            Some(text) => drive::enter_text(app, Some(&first), &text),
-            None => drive::enter_text(app, None, &first),
+        ExtCommand::Tap {
+            widget,
+            unsynchronized,
+        } => drive::tap(app, &widget, unsynchronized),
+        ExtCommand::EnterText {
+            first,
+            text,
+            unsynchronized,
+        } => match text {
+            Some(text) => drive::enter_text(app, Some(&first), &text, unsynchronized),
+            None => drive::enter_text(app, None, &first, unsynchronized),
         },
         ExtCommand::Scroll {
             widget,
             dx,
             dy,
             duration,
-        } => drive::scroll(app, &widget, dx, dy, duration),
+            unsynchronized,
+        } => drive::scroll(app, &widget, (dx, dy), duration, unsynchronized),
         ExtCommand::WaitFor {
             widget,
             absent,

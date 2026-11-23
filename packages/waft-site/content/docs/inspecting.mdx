@@ -85,7 +85,7 @@ A selector reads as on a web page, over the widget tree:
 | `ListTile:has([text="Wi-Fi"])` | containing: the tile that shows Wi-Fi |
 | `Column > ListTile:nth-child(2)`, `:not(…)`, `A, B` | the rest of CSS |
 
-The tree is the whole element tree, so `>` counts the widgets the framework puts between yours; "inside", a space, is usually what you mean. A command that acts on one widget refuses a selector naming several, and lists each with its id, so you can name one exactly. Each command waits until the app has settled before it acts, and again before it answers, so a `screenshot` after a `tap` shows what the tap did; an app that keeps drawing, as a spinner does, is acted on after 5 seconds regardless, and the command says so.
+The tree is the whole element tree, so `>` counts the widgets the framework puts between yours; "inside", a space, is usually what you mean. A command that acts on one widget refuses a selector naming several, and lists each with its id, so you can name one exactly. Each command waits until the app has settled before it acts, as `flutter_driver`'s frame sync does, and again before it answers, so a `screenshot` after a `tap` shows what the tap did. On a screen that never settles, as one with a spinner, a command fails after 5 seconds rather than act on a moving screen; `--unsynchronized` acts at once, as `flutter_driver`'s `runUnsynchronized`.
 
 ## The other trees
 

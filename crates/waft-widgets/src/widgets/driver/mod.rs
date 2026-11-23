@@ -5,6 +5,11 @@
 //!
 //! A command names its widget by a CSS selector (`selector=…`, see [`selector`]) or by the id
 //! `cargo waft ext tree` printed (`id=inspector-…`), for this run of the app.
+//!
+//! A command that acts first waits until the app has settled, flutter_driver's frame sync, and
+//! fails when it does not within five seconds, as on a screen with a spinner; `frameSync=false`
+//! acts without waiting, flutter_driver's `runUnsynchronized`. Having acted, it waits again, so
+//! its answer comes once what it did shows, and says whether the app settled then.
 
 mod controller;
 mod selector;
@@ -66,16 +71,34 @@ fn find(app: &mut App, params: &ServiceExtensionParams) -> ServiceExtensionResul
 
 /// `tap`: a tap at the centre of the one widget the command names, once the app has settled,
 /// answered once it has settled again, as `{"tapped": node, "settled": bool}`; `settled` is
-/// false where the app kept drawing and the tap went ahead regardless.
+/// false where the app was still drawing five seconds after the tap.
 async fn tap(cx: &mut AsyncApp, params: &ServiceExtensionParams) -> ServiceExtensionResult {
-    let settled_before = controller::settle(cx).await;
+    synchronize(cx, params).await?;
     let tapped = cx.update(|app| {
         let (element, at, view) = aimed_at(app, params)?;
         controller::tap_at(app, at, view);
         Ok::<_, ServiceExtensionError>(node_of(app, element))
     })?;
-    let settled_after = controller::settle(cx).await;
-    Ok(json!({ "tapped": tapped, "settled": settled_before && settled_after }))
+    let settled = controller::settle(cx).await;
+    Ok(json!({ "tapped": tapped, "settled": settled }))
+}
+
+/// flutter_driver's frame sync before a command acts: waits until the app has settled, and
+/// refuses the command where it has not within [`controller::SETTLE_LIMIT`]; with
+/// `frameSync=false`, flutter_driver's `runUnsynchronized`, acts at once.
+async fn synchronize(
+    cx: &mut AsyncApp,
+    params: &ServiceExtensionParams,
+) -> Result<(), ServiceExtensionError> {
+    if params.get("frameSync") == Some("false") || controller::settle(cx).await {
+        return Ok(());
+    }
+    Err(ServiceExtensionError::Failed(format!(
+        "the app did not settle within {} seconds: something keeps animating, as a spinner does. \
+         To act without waiting, turn frame sync off: `--unsynchronized` with cargo waft ext, \
+         `frameSync=false` in a call",
+        controller::SETTLE_LIMIT.as_secs()
+    )))
 }
 
 /// `enter_text`: `text=` as the focused field's whole text, the caret after it, as the platform's
@@ -83,14 +106,14 @@ async fn tap(cx: &mut AsyncApp, params: &ServiceExtensionParams) -> ServiceExten
 /// is tapped first, to focus it. As `{"entered": text, "settled": bool}`.
 async fn enter_text(cx: &mut AsyncApp, params: &ServiceExtensionParams) -> ServiceExtensionResult {
     let text = params.require("text")?.to_owned();
-    let mut settled = controller::settle(cx).await;
+    synchronize(cx, params).await?;
     if params.get("selector").is_some() || params.get("id").is_some() {
         cx.update(|app| {
             let (_, at, view) = aimed_at(app, params)?;
             controller::tap_at(app, at, view);
             Ok::<_, ServiceExtensionError>(())
         })?;
-        settled &= controller::settle(cx).await;
+        synchronize(cx, params).await?;
     }
     cx.update(|app| {
         let input = TextInput::instance(app);
@@ -106,7 +129,7 @@ async fn enter_text(cx: &mut AsyncApp, params: &ServiceExtensionParams) -> Servi
         input.update_editing_value(app, value);
         Ok(())
     })?;
-    settled &= controller::settle(cx).await;
+    let settled = controller::settle(cx).await;
     Ok(json!({ "entered": text, "settled": settled }))
 }
 
@@ -119,12 +142,12 @@ async fn scroll(cx: &mut AsyncApp, params: &ServiceExtensionParams) -> ServiceEx
         number(params, "dy")?.unwrap_or(0.0),
     );
     let duration = Duration::from_millis(number(params, "duration")?.unwrap_or(300.0) as u64);
-    let settled_before = controller::settle(cx).await;
+    synchronize(cx, params).await?;
     let (element, at, view) = cx.update(|app| aimed_at(app, params))?;
     controller::drag(cx, at, view, by, duration).await;
-    let settled_after = controller::settle(cx).await;
+    let settled = controller::settle(cx).await;
     let scrolled = cx.update(|app| node_of(app, element));
-    Ok(json!({ "scrolled": scrolled, "settled": settled_before && settled_after }))
+    Ok(json!({ "scrolled": scrolled, "settled": settled }))
 }
 
 /// `wait_for`: waits until the command names a widget, or with `absent=true` none, for up to

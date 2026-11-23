@@ -42,13 +42,19 @@ fn line(node: &Value) -> String {
     outline::outline(node).trim_end().to_owned()
 }
 
-/// What to say when the app kept drawing: the command went ahead regardless.
+/// What to say when the app was still drawing five seconds after the command acted: what it
+/// shows may still change.
 fn unsettled(answer: &Value) -> &'static str {
     if answer["settled"] == false {
-        "\n(the app was still drawing after 5 seconds; it went ahead regardless)"
+        "\n(the app was still drawing 5 seconds after; what it shows may still change)"
     } else {
         ""
     }
+}
+
+/// The parameter that turns frame sync off: flutter_driver's `runUnsynchronized`.
+fn frame_sync(unsynchronized: bool) -> Option<(&'static str, String)> {
+    unsynchronized.then(|| ("frameSync", "false".to_owned()))
 }
 
 /// Prints each widget `widget` names, one a line.
@@ -69,15 +75,23 @@ fn print_found(answer: &Value, widget: &str) {
 }
 
 /// Taps the one widget `widget` names.
-pub(super) fn tap(app: Option<&str>, widget: &str) -> Result<()> {
-    let answer = drive(app, "tap", Some(widget), &[])?;
+pub(super) fn tap(app: Option<&str>, widget: &str, unsynchronized: bool) -> Result<()> {
+    let params: Vec<_> = frame_sync(unsynchronized).into_iter().collect();
+    let answer = drive(app, "tap", Some(widget), &params)?;
     println!("Tapped {}{}", line(&answer["tapped"]), unsettled(&answer));
     Ok(())
 }
 
 /// Types `text` into the field `widget` names, or into the focused field.
-pub(super) fn enter_text(app: Option<&str>, widget: Option<&str>, text: &str) -> Result<()> {
-    let answer = drive(app, "enter_text", widget, &[("text", text.to_owned())])?;
+pub(super) fn enter_text(
+    app: Option<&str>,
+    widget: Option<&str>,
+    text: &str,
+    unsynchronized: bool,
+) -> Result<()> {
+    let mut params = vec![("text", text.to_owned())];
+    params.extend(frame_sync(unsynchronized));
+    let answer = drive(app, "enter_text", widget, &params)?;
     println!("Entered {:?}{}", text, unsettled(&answer));
     Ok(())
 }
@@ -86,15 +100,16 @@ pub(super) fn enter_text(app: Option<&str>, widget: Option<&str>, text: &str) ->
 pub(super) fn scroll(
     app: Option<&str>,
     widget: &str,
-    dx: f64,
-    dy: f64,
+    by: (f64, f64),
     duration: u64,
+    unsynchronized: bool,
 ) -> Result<()> {
-    let params = [
-        ("dx", dx.to_string()),
-        ("dy", dy.to_string()),
+    let mut params = vec![
+        ("dx", by.0.to_string()),
+        ("dy", by.1.to_string()),
         ("duration", duration.to_string()),
     ];
+    params.extend(frame_sync(unsynchronized));
     let answer = drive(app, "scroll", Some(widget), &params)?;
     println!(
         "Scrolled {}{}",
