@@ -489,7 +489,8 @@ impl Inspected {
     }
 }
 
-fn element_named(app: &App, element: AnyElement, id: HandleId) -> Option<AnyElement> {
+/// The element `id` names under `element`, itself included.
+pub(crate) fn element_named(app: &App, element: AnyElement, id: HandleId) -> Option<AnyElement> {
     if element.id() == id {
         return Some(element);
     }

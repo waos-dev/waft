@@ -1123,6 +1123,7 @@ fn an_app_serves_its_dumps_as_service_extensions() {
                 "ext.waft.debugDumpLayerTree",
                 "ext.waft.debugDumpRenderTree",
                 "ext.waft.didSendFirstFrameEvent",
+                "ext.waft.driver",
                 "ext.waft.inspector.getDetailsSubtree",
                 "ext.waft.inspector.getRootWidget",
                 "ext.waft.inspector.getRootWidgetTree",
