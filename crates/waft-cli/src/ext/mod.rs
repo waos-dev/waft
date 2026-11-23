@@ -134,10 +134,10 @@ fn tree(app: Option<&str>, all: bool, json: bool) -> Result<()> {
 
 fn screenshot(app: Option<&str>, id: Option<String>, scale: Option<f64>) -> Result<()> {
     let mut connected = Connected::to(app)?;
-    // A view's root paints in its own pixels, so the whole view is taken at its own scale.
+    // A view paints in its own pixels, so the whole view is taken at its own scale.
     let (id, scale) = match id {
         Some(id) => (id, scale.unwrap_or(2.0)),
-        None => (connected.root_id()?, scale.unwrap_or(1.0)),
+        None => (connected.first_view_id()?, scale.unwrap_or(1.0)),
     };
     let params = BTreeMap::from([
         ("id".to_owned(), id.clone()),
@@ -208,6 +208,34 @@ impl Connected {
             None => bail!("{} has no widget tree yet", self.listed.app),
         }
     }
+
+    /// The id of the app's first view, its first window's: what the whole view is. An app's
+    /// root holds its views (`MultiViewApp`, a `ViewCollection`, each window's `View`), and a
+    /// root of several views is no picture alone.
+    fn first_view_id(&mut self) -> Result<String> {
+        let params = BTreeMap::from([
+            ("arg".to_owned(), self.root_id()?),
+            ("objectGroup".to_owned(), "cli".to_owned()),
+            ("subtreeDepth".to_owned(), VIEW_DEPTH.to_string()),
+        ]);
+        let details = self.call("ext.waft.inspector.getDetailsSubtree", params)?;
+        match first_view(&details["result"]) {
+            Some(id) => Ok(id.to_owned()),
+            None => bail!("{} shows no view", self.listed.app),
+        }
+    }
+}
+
+/// How deep below the root an app's views are: `[root]`, `MultiViewApp`, `ViewCollection`, then
+/// each `View`, with one to spare.
+const VIEW_DEPTH: usize = 4;
+
+/// The id of the first `View` in `node`'s tree, depth first.
+fn first_view(node: &Value) -> Option<&str> {
+    if node["widgetRuntimeType"] == "View" {
+        return node["valueId"].as_str();
+    }
+    node["children"].as_array()?.iter().find_map(first_view)
 }
 
 /// The extension that says whether the app has drawn its first frame, as Flutter's does.
@@ -327,6 +355,27 @@ mod tests {
             answer_text(&json!({ "extensions": ["ext.waft.debugDumpApp"] })),
             "{\n  \"extensions\": [\n    \"ext.waft.debugDumpApp\"\n  ]\n}\n"
         );
+    }
+
+    /// The whole view is the first window's `View`, below the root of views a running app has.
+    #[test]
+    fn the_whole_view_is_the_first_windows_view() {
+        let view = |id: &str| json!({ "widgetRuntimeType": "View", "valueId": id });
+        let root = json!({
+            "description": "[root]",
+            "valueId": "inspector-1",
+            "children": [{
+                "widgetRuntimeType": "MultiViewApp",
+                "valueId": "inspector-2",
+                "children": [{
+                    "widgetRuntimeType": "ViewCollection",
+                    "valueId": "inspector-3",
+                    "children": [view("inspector-4"), view("inspector-5")],
+                }],
+            }],
+        });
+        assert_eq!(first_view(&root), Some("inspector-4"));
+        assert_eq!(first_view(&json!({ "description": "[root]" })), None);
     }
 
     #[test]

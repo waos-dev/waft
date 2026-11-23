@@ -488,6 +488,10 @@ mod tests {
 
     use super::*;
     use crate::testing::WidgetTester;
+    use waft_embedder::ViewRef;
+
+    use crate::IntoWidget;
+    use crate::view::{View, ViewCollection};
     use crate::{Center, ColoredBox, GlobalKey, Padding, SizedBox};
 
     const GREEN: Color = Color::new(0xFF00FF00);
@@ -740,24 +744,77 @@ mod tests {
     fn the_roots_id_pictures_the_whole_view() {
         let mut tester = WidgetTester::with_platform(TestPlatform::new().with_gpu());
         tester.pump_widget(ColoredBox::new(GREEN));
-        let mut task = tester.update(|app| {
+        let root = tester.update(|app| {
+            answered_now(
+                app,
+                "ext.waft.inspector.getRootWidget",
+                &[("objectGroup", "g")],
+            )
+        });
+        assert_eq!(root["result"]["description"], "[root]");
+        let id = root["result"]["valueId"].as_str().expect("the root's id");
+        // The view in its physical pixels, as Flutter's root render object paints its bounds
+        // at the device pixel ratio: the 800 by 600 test view at 3.
+        assert_eq!(png_size(&mut tester, id), Some((2400, 1800)));
+    }
+
+    /// A running app's root holds its views, a window's each (`[root]`, a `ViewCollection`, each
+    /// `View`), so the root alone pictures nothing; each view is a node of the root's details,
+    /// and its id pictures that window whole, as `cargo waft ext screenshot` takes it.
+    #[test]
+    fn a_window_is_pictured_by_its_views_id_under_a_root_of_views() {
+        let mut tester = WidgetTester::with_platform(TestPlatform::new().with_gpu());
+        tester.pump_widget(SizedBox::new());
+        let view = Rc::clone(tester.view()) as ViewRef;
+        tester.update(|app| {
+            let views =
+                ViewCollection::new(vec![View::new(view, ColoredBox::new(GREEN)).into_widget()]);
+            WidgetsBinding::instance(app).attach_root_widget(app, views.into_widget());
+        });
+        tester.pump();
+        let details = tester.update(|app| {
             let root = answered_now(
                 app,
                 "ext.waft.inspector.getRootWidget",
                 &[("objectGroup", "g")],
             );
-            assert_eq!(root["result"]["description"], "[root]");
-            let id = root["result"]["valueId"]
+            let root = root["result"]["valueId"]
                 .as_str()
                 .expect("the root's id")
                 .to_owned();
-            let params = ServiceExtensionParams::new([
-                ("id".to_owned(), id),
-                ("width".to_owned(), "100000".to_owned()),
-                ("height".to_owned(), "100000".to_owned()),
-            ]);
-            ServiceExtensions::call(app, "ext.waft.inspector.screenshot", params)
+            answered_now(
+                app,
+                "ext.waft.inspector.getDetailsSubtree",
+                &[
+                    ("arg", root.as_str()),
+                    ("objectGroup", "g"),
+                    ("subtreeDepth", "4"),
+                ],
+            )
         });
+        let root = &details["result"];
+        assert_eq!(
+            png_size(&mut tester, root["valueId"].as_str().unwrap()),
+            None
+        );
+        let collection = &root["children"][0];
+        assert_eq!(collection["widgetRuntimeType"], "ViewCollection");
+        let view = &collection["children"][0];
+        assert_eq!(view["widgetRuntimeType"], "View");
+        let id = view["valueId"].as_str().expect("the view's id");
+        assert_eq!(png_size(&mut tester, id), Some((2400, 1800)));
+    }
+
+    /// The width and height of the PNG `id`'s screenshot answers, read back by the next pump, or
+    /// `None` where it answers none.
+    fn png_size(tester: &mut WidgetTester, id: &str) -> Option<(u32, u32)> {
+        let params = ServiceExtensionParams::new([
+            ("id".to_owned(), id.to_owned()),
+            ("width".to_owned(), "100000".to_owned()),
+            ("height".to_owned(), "100000".to_owned()),
+        ]);
+        let mut task = tester
+            .update(|app| ServiceExtensions::call(app, "ext.waft.inspector.screenshot", params));
         tester.pump();
         let answer =
             match std::pin::Pin::new(&mut task).poll(&mut Context::from_waker(Waker::noop())) {
@@ -765,13 +822,11 @@ mod tests {
                 Poll::Pending => panic!("the screenshot is read back by the next pump"),
             };
         let png = base64::engine::general_purpose::STANDARD
-            .decode(answer["result"].as_str().expect("a base64 PNG"))
+            .decode(answer["result"].as_str()?)
             .expect("base64");
         // A PNG's width and height follow its signature and the header chunk's name.
         let size = |at: usize| u32::from_be_bytes(png[at..at + 4].try_into().unwrap());
-        // The view in its physical pixels, as Flutter's root render object paints its bounds
-        // at the device pixel ratio: the 800 by 600 test view at 3.
-        assert_eq!((size(16), size(20)), (2400, 1800));
+        Some((size(16), size(20)))
     }
 
     #[test]

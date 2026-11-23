@@ -9,7 +9,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use serde_json::{Value, json};
 
 use crate::listing::{Address, ListedApp};
-use crate::message::{Message, Request, RpcError};
+use crate::message::{Message, Request, Response, RpcError};
 
 /// One connection, over whatever transport: each message's text, in order.
 pub trait Connection {
@@ -152,7 +152,13 @@ impl Client {
         })?;
         match Message::from_text(&text) {
             Ok(Message::Response(response)) => Ok(response.outcome),
-            _ => Err(io::Error::new(
+            Err(Response {
+                outcome: Err(why), ..
+            }) => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("the app's answer cannot be read: {}", why.message),
+            )),
+            Ok(_) | Err(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "the app's answer is not a JSON-RPC response",
             )),
