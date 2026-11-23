@@ -401,6 +401,7 @@ impl ListTileTheme {
     ///
     /// Only the [`data`](Self::data) parameter should be used. The other parameters are
     /// redundant (are now obsolete) and will be deprecated in a future update.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ListTileTheme {
         ListTileTheme {
             key: None,
@@ -683,6 +684,7 @@ impl ListTileTheme {
     ///
     /// Dart's optional named arguments are the setters of the [`ListTileThemeMerge`] this
     /// returns.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn merge<K>(child: impl IntoWidget<K>) -> ListTileThemeMerge {
         ListTileThemeMerge {
             key: None,
@@ -715,6 +717,7 @@ impl ListTileThemeMerge {
 pub struct ListTileThemeMergeKind;
 
 impl IntoWidget<ListTileThemeMergeKind> for ListTileThemeMerge {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         Builder::new(move |app, context| {
             let parent = ListTileTheme::of(app, context);

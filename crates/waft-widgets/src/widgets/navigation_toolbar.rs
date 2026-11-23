@@ -65,18 +65,21 @@ impl NavigationToolbar {
     }
 
     /// Dart `NavigationToolbar(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> NavigationToolbar {
         self.leading = Some(leading.into_widget());
         self
     }
 
     /// Dart `NavigationToolbar(middle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn middle<K>(mut self, middle: impl IntoWidget<K>) -> NavigationToolbar {
         self.middle = Some(middle.into_widget());
         self
     }
 
     /// Dart `NavigationToolbar(trailing:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing<K>(mut self, trailing: impl IntoWidget<K>) -> NavigationToolbar {
         self.trailing = Some(trailing.into_widget());
         self

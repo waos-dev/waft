@@ -46,6 +46,7 @@ pub struct ObstructingPreferredSizeWidgetRef {
 
 impl ObstructingPreferredSizeWidgetRef {
     /// Erases an [`ObstructingPreferredSizeWidget`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K, W: ObstructingPreferredSizeWidget + IntoWidget<K>>(
         widget: W,
     ) -> ObstructingPreferredSizeWidgetRef {
@@ -90,6 +91,7 @@ impl Debug for ObstructingPreferredSizeWidgetRef {
 pub struct ObstructingPreferredSizeWidgetRefKind;
 
 impl IntoWidget<ObstructingPreferredSizeWidgetRefKind> for ObstructingPreferredSizeWidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.widget
     }
@@ -147,6 +149,7 @@ pub struct CupertinoPageScaffold {
 
 impl CupertinoPageScaffold {
     /// Creates a layout for pages with a navigation bar at the top.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> CupertinoPageScaffold {
         CupertinoPageScaffold {
             key: None,
@@ -427,6 +430,7 @@ pub struct CupertinoPageScaffoldBackgroundColor {
 
 impl CupertinoPageScaffoldBackgroundColor {
     /// Constructs a new [`CupertinoPageScaffoldBackgroundColor`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         color: AnyColor,
         child: impl IntoWidget<K>,

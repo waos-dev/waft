@@ -140,6 +140,7 @@ pub struct IconButtonTheme {
 
 impl IconButtonTheme {
     /// Create a [`IconButtonTheme`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: IconButtonThemeData, child: impl IntoWidget<K>) -> IconButtonTheme {
         IconButtonTheme {
             key: None,

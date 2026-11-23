@@ -51,6 +51,7 @@ impl Debug for CupertinoDesktopTextSelectionToolbarButton {
 
 impl CupertinoDesktopTextSelectionToolbarButton {
     /// Creates an instance of [`CupertinoDesktopTextSelectionToolbarButton`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         on_pressed: Option<Listener>,
         child: impl IntoWidget<K>,

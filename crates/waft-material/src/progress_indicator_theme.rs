@@ -416,6 +416,7 @@ pub struct ProgressIndicatorTheme {
 impl ProgressIndicatorTheme {
     /// Creates a theme that controls the configurations for `ProgressIndicator`
     /// widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         data: ProgressIndicatorThemeData,
         child: impl IntoWidget<K>,

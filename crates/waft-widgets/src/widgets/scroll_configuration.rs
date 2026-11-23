@@ -676,6 +676,7 @@ pub struct ScrollConfiguration {
 
 impl ScrollConfiguration {
     /// Creates a widget that controls how `Scrollable` widgets behave in a subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         behavior: ScrollBehaviorRef,
         child: impl crate::framework::IntoWidget<K>,

@@ -96,6 +96,7 @@ pub struct MaterialSlice {
 impl MaterialSlice {
     /// Creates a slice of `Material` that's mergeable within a [`MergeableMaterial`]; Dart's
     /// optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(key: impl Into<KeyRef>, child: impl IntoWidget<K>) -> MaterialSlice {
         MaterialSlice {
             key: key.into(),

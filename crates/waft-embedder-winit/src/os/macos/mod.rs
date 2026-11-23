@@ -88,7 +88,13 @@ impl OperatingSystem for AppKit {
 /// winit's sizes are AppKit's, and a desktop window has no safe area.
 impl WindowGeometry for AppKit {}
 impl StandardStreams for AppKit {}
-impl ApplicationIdentity for AppKit {}
+impl ApplicationIdentity for AppKit {
+    fn bundle_identifier() -> Option<String> {
+        objc2_foundation::NSBundle::mainBundle()
+            .bundleIdentifier()
+            .map(|identifier| identifier.to_string())
+    }
+}
 
 /// The C library's zone, which iOS shares.
 impl LocalTimeZone for AppKit {

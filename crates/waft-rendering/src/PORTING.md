@@ -282,6 +282,20 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — `ui.Image` is a host type with no `Display`.
   Affect: none; the line reads as Dart's.
 
+## screenshot.rs → widget_inspector.dart (`_ScreenshotPaintingContext`, `_ProxyLayer`, `_calculateSubtreeBounds`)
+
+- Change: the screenshot's context closes its picture before and after the target paints, and borrows the target's picture layers through proxy layers, where Dart's context tees the target's canvas into a recording of its own (`_MulticastCanvas`).
+  Reason: language — valo's `Canvas` is a concrete recorder; teeing it would forward its whole API for one debug path.
+  Affect: the real tree's picture is split where the target starts and ends painting, until its next repaint; it draws the same.
+
+- Change: `subtree_bounds` takes a render object's paint bounds where Dart takes its `semanticBounds`.
+  Reason: platform — accessibility is not ported; a box's `semanticBounds` and paint bounds are both `Offset.zero & size`.
+  Affect: an object whose semantic bounds differ from its paint bounds is shot within its paint bounds.
+
+- Change: `screenshot_picture` answers the picture the host draws into an image, where Dart's `toImage` answers the image, and takes no `debugPaint`.
+  Reason: platform — the host draws pictures into images (`Platform::picture_to_image_sync`); `debugPaint` waits for `debugPaintSizeEnabled`'s port.
+  Affect: the inspector's `debugPaint` parameter is ignored.
+
 ## Deferred
 - `paragraph_test.dart`'s "paints selection highlights outside fade layer and handles after text": the checks of the fade's `saveLayer` and shader rect. Trigger: the fade overflow shader.
 - `RenderParagraph` and `RenderEditable`'s `locale` line, which needs painting's text-painter locale. Trigger: a localized text painter.
@@ -313,7 +327,6 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - `SliverConstraints.debugAssertIsValid` extra numeric checks. Trigger: a caller that relies on those messages.
 - `RenderIgnoreBaseline`, which reports no baseline for a child that has one, so that a baseline-aligned row puts that child at the top. Trigger: a child a baseline-aligned `Row` should not align by its baseline.
 - `PaintingContext.pushColorFilter`. Trigger: its first caller.
-- proxy_box.rs: `CustomClipper.getApproximateClipRect` and the clips' `describeApproximatePaintClip`, with `_DismissibleClipper`'s override of it. Trigger: the semantics tree.
 
 ## object.rs, layer.rs, binding.rs → object.dart, layer.dart, binding.dart (diagnostics)
 

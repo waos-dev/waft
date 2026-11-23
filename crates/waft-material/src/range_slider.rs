@@ -6361,7 +6361,7 @@ mod tests {
             tester.pump_and_settle();
 
             let (start_focus_node, _) = thumb_focus_nodes(tester);
-            assert!(start_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(start_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert!(!paints_circle_of_color(tester, OVERLAY_COLOR));
             tester.set_highlight_strategy(waft_widgets::FocusHighlightStrategy::Automatic);
         });
@@ -6384,7 +6384,7 @@ mod tests {
             send_key(tester, LogicalKeyboardKey::TAB);
 
             let (start_focus_node, _) = thumb_focus_nodes(tester);
-            assert!(start_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(start_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert!(paints_circle_of_color(tester, OVERLAY_COLOR));
             tester.set_highlight_strategy(waft_widgets::FocusHighlightStrategy::Automatic);
         });
@@ -6413,7 +6413,7 @@ mod tests {
             send_key(tester, LogicalKeyboardKey::TAB);
 
             let (start_focus_node, _) = thumb_focus_nodes(tester);
-            assert!(start_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(start_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert!(paints_circle_of_color(tester, FOCUSED_COLOR));
             tester.set_highlight_strategy(waft_widgets::FocusHighlightStrategy::Automatic);
         });
@@ -6435,7 +6435,7 @@ mod tests {
 
             // Verify focus changed to start thumb
             let (start_focus_node, end_focus_node) = thumb_focus_nodes(tester);
-            assert!(start_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(start_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert_eq!(primary_focus(tester), Some(start_focus_node));
 
             // Reset focus
@@ -6450,7 +6450,7 @@ mod tests {
             tester.pump();
 
             // Verify focus changed to end thumb
-            assert!(end_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(end_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert_eq!(primary_focus(tester), Some(end_focus_node));
         });
     }
@@ -6472,7 +6472,7 @@ mod tests {
             tester.pump();
 
             // Verify focus on start drag
-            assert!(start_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(start_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert_eq!(primary_focus(tester), Some(start_focus_node));
             let at = gesture.position + Offset::new(10.0, 0.0);
             tester.move_to(&mut gesture, at, true);
@@ -6492,7 +6492,7 @@ mod tests {
             tester.pump();
 
             // Verify focus on end drag
-            assert!(end_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(end_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert_eq!(primary_focus(tester), Some(end_focus_node));
             let at = end_gesture.position + Offset::new(-10.0, 0.0);
             tester.move_to(&mut end_gesture, at, true);
@@ -6517,7 +6517,7 @@ mod tests {
 
             // Verify start thumb has focus
             let (start_focus_node, end_focus_node) = thumb_focus_nodes(tester);
-            assert!(start_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(start_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert_eq!(primary_focus(tester), Some(start_focus_node));
 
             // Press Tab
@@ -6528,7 +6528,7 @@ mod tests {
             tester.pump();
 
             // Verify end thumb has focus
-            assert!(end_focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(end_focus_node.has_focus(&tester.cell.borrow_mut()));
             assert_eq!(primary_focus(tester), Some(end_focus_node));
         });
     }

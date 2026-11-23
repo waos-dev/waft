@@ -1462,6 +1462,7 @@ impl PageViewBuilder {
 }
 
 impl IntoWidget<crate::framework::StatefulKind> for PageViewBuilder {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }

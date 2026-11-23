@@ -316,6 +316,7 @@ impl Hero {
     /// The `child` parameter and all of its descendants must not be [`Hero`]es.
     ///
     /// Dart's defaults: `transition_on_user_gestures` false, `curve` `Curves::fast_out_slow_in()`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(tag: Rc<dyn AnyEq>, child: impl IntoWidget<K>) -> Hero {
         Hero {
             key: None,
@@ -1707,6 +1708,7 @@ pub struct HeroMode {
 impl HeroMode {
     /// Creates a widget that enables or disables [`Hero`]es; Dart's optional named arguments are
     /// the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> HeroMode {
         HeroMode {
             key: None,

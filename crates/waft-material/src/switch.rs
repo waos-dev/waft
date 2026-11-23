@@ -4901,12 +4901,12 @@ pub(crate) mod tests {
             node.request_focus(&mut tester.cell.borrow_mut(), None);
             tester.pump();
             assert!(focused.get());
-            assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(node.has_focus(&tester.cell.borrow_mut()));
 
             node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
             tester.pump();
             assert!(!focused.get());
-            assert!(!node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(!node.has_focus(&tester.cell.borrow_mut()));
         });
     }
 

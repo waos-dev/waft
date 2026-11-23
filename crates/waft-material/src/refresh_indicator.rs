@@ -141,6 +141,7 @@ pub struct RefreshIndicator {
 
 impl RefreshIndicator {
     /// Creates a refresh indicator; Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(on_refresh: RefreshCallback, child: impl IntoWidget<K>) -> RefreshIndicator {
         RefreshIndicator {
             key: None,
@@ -163,6 +164,7 @@ impl RefreshIndicator {
 
     /// Creates an adaptive refresh indicator: a Cupertino activity indicator on iOS and
     /// macOS, and a Material one elsewhere.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn adaptive<K>(on_refresh: RefreshCallback, child: impl IntoWidget<K>) -> RefreshIndicator {
         RefreshIndicator {
             indicator_type: IndicatorType::Adaptive,
@@ -172,6 +174,7 @@ impl RefreshIndicator {
 
     /// Creates a refresh indicator with no spinner that calls `on_refresh` when successfully
     /// armed by a drag event.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn no_spinner<K>(
         on_refresh: RefreshCallback,
         child: impl IntoWidget<K>,

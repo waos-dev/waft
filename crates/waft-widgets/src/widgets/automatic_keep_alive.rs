@@ -50,6 +50,7 @@ pub struct AutomaticKeepAlive {
 impl AutomaticKeepAlive {
     /// Creates a widget that listens to [`KeepAliveNotification`]s and maintains a
     /// [`KeepAlive`] widget appropriately.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> AutomaticKeepAlive {
         AutomaticKeepAlive {
             key: None,

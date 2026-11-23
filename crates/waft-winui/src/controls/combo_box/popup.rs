@@ -445,6 +445,7 @@ pub(super) struct ItemProbe {
 
 impl ItemProbe {
     /// Measures `child`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub(super) fn new<K>(child: impl IntoWidget<K>, measured: ItemMeasured) -> Self {
         Self {
             child: child.into_widget(),

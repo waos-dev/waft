@@ -76,6 +76,7 @@ pub struct SliderTheme {
 
 impl SliderTheme {
     /// Applies the given theme [`data`](Self::data) to `child`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: SliderThemeData, child: impl IntoWidget<K>) -> SliderTheme {
         SliderTheme {
             key: None,

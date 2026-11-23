@@ -230,6 +230,7 @@ pub struct ScrollMetricsObserver {
 
 impl ScrollMetricsObserver {
     /// Observes layout and activity notifications from the scrolling child.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(controller: Ref<ScrollViewportController>, child: impl IntoWidget<K>) -> Self {
         Self {
             key: None,
@@ -314,6 +315,7 @@ pub struct ScrollViewport {
 
 impl ScrollViewport {
     /// Creates a native single-axis viewport.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         axis: Axis,
         controller: Ref<ScrollViewportController>,

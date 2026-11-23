@@ -12,7 +12,7 @@ categories.workspace = true
 [features]
 # Images and drawn pixels for tests, which need a GPU device to exist at all, and flutter_test's
 # FlutterTest font (`TestFontSource`).
-test-support = ["dep:pollster", "valo-codec", "dep:valo-codec-software"]
+test-support = ["dep:pollster", "valo-codec", "valo-codec-software/default"]
 # Opening encoded pictures with valo's decoders (`valo_images`), for a host that decodes with them.
 valo-codec = ["dep:valo-codec"]
 # Serde's derives for the values a host gives a view and takes from it, for an app that sends them
@@ -31,16 +31,16 @@ pollster = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 valo.workspace = true
 valo-codec = { workspace = true, optional = true }
-# The decoders a test opens pictures with, the same on every machine.
-valo-codec-software = { version = "0.26.0", optional = true }
+# Pixels read back encoded as a PNG, in software on every host (`encode_png`): the inspector's
+# screenshots and a test's. `test-support` adds the decoders a test opens pictures with.
+valo-codec-software = { version = "0.26.0", default-features = false, features = ["png"] }
 valo-geometry.workspace = true
 valo-system-fonts.workspace = true
 web-time.workspace = true
 # The device a host imports a hardware buffer on as a texture (`Platform::import_texture`), and the
 # texture: wgpu's own types, which valo takes without re-exporting them.
 wgpu.workspace = true
-
-[dev-dependencies]
+# A service extension's answer: JSON, as Flutter's are.
 serde_json.workspace = true
 
 [lints]

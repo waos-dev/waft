@@ -27,6 +27,7 @@ pub struct SizeObserver {
 
 impl SizeObserver {
     /// Creates a layout observer with a child and a size-change callback.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, on_changed: SizeChangedCallback) -> Self {
         Self {
             key: None,

@@ -112,6 +112,7 @@ impl DefaultTextStyle {
     ///
     /// The `max_lines` property may be `None` (and indeed defaults to `None`), but if it is
     /// not `None`, it must be greater than zero.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(style: TextStyle, child: impl IntoWidget<K>) -> DefaultTextStyle {
         DefaultTextStyle {
             key: None,
@@ -157,6 +158,7 @@ impl DefaultTextStyle {
     ///
     /// Dart's optional named arguments are the setters of the [`DefaultTextStyleMerge`] this
     /// returns.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn merge<K>(child: impl IntoWidget<K>) -> DefaultTextStyleMerge {
         DefaultTextStyleMerge {
             key: None,
@@ -308,6 +310,7 @@ impl DefaultTextStyleMerge {
 pub struct DefaultTextStyleMergeKind;
 
 impl IntoWidget<DefaultTextStyleMergeKind> for DefaultTextStyleMerge {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         Builder::new(move |app, context| {
             let parent = DefaultTextStyle::of(app, context);
@@ -437,6 +440,7 @@ pub struct DefaultTextHeightBehavior {
 
 impl DefaultTextHeightBehavior {
     /// Creates a default text height behavior for the given subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         text_height_behavior: TextHeightBehavior,
         child: impl IntoWidget<K>,

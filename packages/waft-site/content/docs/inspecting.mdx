@@ -1,0 +1,73 @@
+---
+title: Inspecting a running app
+description: Ask a running debug app for its widget tree, its render and layer trees, and pictures of its widgets, with cargo waft ext.
+---
+A debug build of a Waft app answers questions about itself while it runs, as a debug Flutter app does through its VM service: what its widget tree is, where each widget was made, what a widget looks like on its own. `cargo waft ext` asks, from a terminal or an agent:
+
+```bash
+cargo waft run                      # a debug build, in one terminal
+cargo waft ext list                 # the Waft apps running on this machine
+cargo waft ext tree                 # your widgets: properties, the line that made each, its id
+```
+
+With more than one app running, name one with `--app`: its executable's name, its identifier (`[package.metadata.waft] identifier`) or its process id. A release build answers nothing.
+
+## The widget tree
+
+`cargo waft ext tree` prints one widget a line: the widgets your project made, each with its key properties, the file and line of your code that made it, and its id:
+
+```text
+Home  crates/notes/src/app.rs:12  inspector-4294967302
+ Scaffold  crates/notes/src/home.rs:18  inspector-4294967307
+  Padding (padding: EdgeInsets(16.0, 20.0, 8.0, 8.0))  crates/notes/src/home.rs:24  inspector-4294967310
+   TextField (decoration: InputDecoration(hintText: "Search"))  crates/notes/src/home.rs:41  inspector-4294967322
+```
+
+`--all` adds the widgets the framework builds inside yours, and `--json` prints the inspector's JSON, as Flutter's DevTools reads it.
+
+## A widget's picture
+
+```bash
+cargo waft ext screenshot inspector-4294967322 > field.png   # that widget alone, at 2 pixels a point
+cargo waft ext screenshot > window.png                       # the whole view, in its own pixels
+```
+
+A widget is pictured without what paints around it. `--scale` sets the pixels to a point.
+
+## The other trees
+
+```bash
+cargo waft ext dump app      # the element tree, as Flutter's debugDumpApp prints it
+cargo waft ext dump render   # each render object's constraints, size and properties
+cargo waft ext dump layer    # the layers the frame is composited from
+cargo waft ext dump focus    # the focus tree, and which node has focus
+```
+
+In a test, the same text comes from `debug_dump_app(app)`, `debug_dump_render_tree(app)` and `debug_dump_layer_tree(app)`.
+
+## Any extension
+
+The commands above call the app's **service extensions**, named calls answering JSON, as Flutter's do. `call` reaches any of them by name, an app's own included:
+
+```bash
+cargo waft ext call ext.waft.listServiceExtensions
+cargo waft ext call ext.waft.inspector.getDetailsSubtree arg=inspector-4294967310 objectGroup=g
+```
+
+An app or a package adds its own with a whole name beginning `ext.`:
+
+```rust
+use std::rc::Rc;
+use waft::{ServiceExtensions, Task};
+
+ServiceExtensions::register(app, "ext.notes.openNoteCount", Rc::new(|app, _params| {
+    let count = notes(app).len();
+    Task::ready(Ok(serde_json::json!({ "count": count })))
+}));
+```
+
+A test calls one directly with `ServiceExtensions::call(app, name, params)`.
+
+## How it is carried
+
+The framework keeps the extensions and does no I/O; the host carries the calls. On the desktop, a debug build listens on a loopback port and lists itself, with its address and a token, in a folder only its user can read. A client reads the folder, says hello with the token, and speaks JSON-RPC 2.0, an extension's name as the method. `waft-service-protocol` has the listing, the messages and the transport, for another tool to speak it too.

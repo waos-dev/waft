@@ -107,6 +107,7 @@ pub struct NavigationSuiteDestination {
 
 impl NavigationSuiteDestination {
     /// Creates a destination with an icon and a label.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         icon: impl IntoWidget<K>,
         label: impl Into<String>,
@@ -120,6 +121,7 @@ impl NavigationSuiteDestination {
     }
 
     /// The icon shown when the destination is selected.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_icon<K>(
         mut self,
         selected_icon: impl IntoWidget<K>,
@@ -162,6 +164,7 @@ pub struct NavigationSuiteScaffold {
 
 impl NavigationSuiteScaffold {
     /// Creates a suite around `content`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         destinations: Vec<NavigationSuiteDestination>,
         content: impl IntoWidget<K>,
@@ -205,6 +208,7 @@ impl NavigationSuiteScaffold {
     }
 
     /// Sets the rail's leading widget, the drawer's header, or the button above the bar's end.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn primary_action<K>(
         mut self,
         primary_action: impl IntoWidget<K>,

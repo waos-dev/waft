@@ -1389,6 +1389,7 @@ struct DropdownMenuItemContainer {
 
 impl DropdownMenuItemContainer {
     /// Creates an item for a dropdown menu.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(child: impl IntoWidget<K>) -> DropdownMenuItemContainer {
         DropdownMenuItemContainer {
             key: None,
@@ -1458,6 +1459,7 @@ pub struct DropdownMenuItem<T: 'static> {
 
 impl<T: 'static> DropdownMenuItem<T> {
     /// Creates an item for a dropdown menu.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> DropdownMenuItem<T> {
         DropdownMenuItem {
             key: None,
@@ -1549,6 +1551,7 @@ pub struct DropdownButtonHideUnderline {
 
 impl DropdownButtonHideUnderline {
     /// Creates a [`DropdownButtonHideUnderline`]. A non-null `child` must be given.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> DropdownButtonHideUnderline {
         DropdownButtonHideUnderline {
             key: None,
@@ -1968,12 +1971,14 @@ impl<T: Clone + PartialEq + Debug + 'static> DropdownButton<T> {
     }
 
     /// Dart `DropdownButton(hint:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn hint<K>(mut self, hint: impl IntoWidget<K>) -> DropdownButton<T> {
         self.hint = Some(hint.into_widget());
         self
     }
 
     /// Dart `DropdownButton(disabledHint:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn disabled_hint<K>(mut self, disabled_hint: impl IntoWidget<K>) -> DropdownButton<T> {
         self.disabled_hint = Some(disabled_hint.into_widget());
         self
@@ -1998,12 +2003,14 @@ impl<T: Clone + PartialEq + Debug + 'static> DropdownButton<T> {
     }
 
     /// Dart `DropdownButton(underline:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn underline<K>(mut self, underline: impl IntoWidget<K>) -> DropdownButton<T> {
         self.underline = Some(underline.into_widget());
         self
     }
 
     /// Dart `DropdownButton(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> DropdownButton<T> {
         self.icon = Some(icon.into_widget());
         self
@@ -3024,12 +3031,14 @@ impl<T: Clone + PartialEq + Debug + 'static> DropdownButtonFormField<T> {
     }
 
     /// Dart `DropdownButtonFormField(hint:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn hint<K>(mut self, hint: impl IntoWidget<K>) -> DropdownButtonFormField<T> {
         self.button = self.button.hint(hint);
         self
     }
 
     /// Dart `DropdownButtonFormField(disabledHint:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn disabled_hint<K>(
         mut self,
         disabled_hint: impl IntoWidget<K>,
@@ -3066,6 +3075,7 @@ impl<T: Clone + PartialEq + Debug + 'static> DropdownButtonFormField<T> {
     }
 
     /// Dart `DropdownButtonFormField(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> DropdownButtonFormField<T> {
         self.button = self.button.icon(icon);
         self
@@ -6521,7 +6531,7 @@ mod tests {
                 .last()
                 .expect("the menu's 'two'");
             let node = focus_of(tester, two);
-            assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(node.has_focus(&tester.cell.borrow_mut()));
         });
     }
 
@@ -6636,7 +6646,7 @@ mod tests {
                 .last()
                 .expect("the menu's 42");
             let node = focus_of(tester, forty_two);
-            assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(node.has_focus(&tester.cell.borrow_mut()));
         });
     }
 

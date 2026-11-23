@@ -802,6 +802,7 @@ impl MaterialPage {
     ///
     /// Dart's defaults: `maintain_state` true, `fullscreen_dialog` false, `allow_snapshotting`
     /// true, `include_route_semantics` true, `can_pop` true.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> MaterialPage {
         MaterialPage {
             key: None,

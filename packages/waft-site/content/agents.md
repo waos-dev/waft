@@ -14,4 +14,5 @@ Do each step yourself; ask the user only where a step says so.
 5. **Icon & metadata:** Configure `[package.metadata.waft]` in `Cargo.toml` (`identifier`, `name`, `icon = "assets/icon.png"`, `resources`, `file_associations`, `usage_descriptions`). Replace `assets/icon.png` with a clean 1024×1024 RGBA PNG.
 6. **Run & package:**
    - Run locally: `cargo waft run` (desktop), `cargo waft run -d ios`, `cargo waft run -d android`, or `cargo waft run -d web`.
+   - Look at the running app instead of guessing from pixels: `cargo waft ext tree` prints your widgets with their properties, the file and line that made each and its id; `cargo waft ext screenshot <id> > widget.png` pictures one widget; `cargo waft ext dump render` shows each render object's constraints and size (https://waft.rs/docs/inspecting.md).
    - Build a distributable: `cargo waft build <target>` (`macos`, `dmg`, `windows`, `msi`, `nsis`, `linux`, `deb`, `appimage`, `ios`, `ipa`, `apk`, `web`, or `wasm`). See https://waft.rs/docs/cli.md for signing and platform details.

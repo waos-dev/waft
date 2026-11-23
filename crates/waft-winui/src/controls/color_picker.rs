@@ -1242,6 +1242,7 @@ impl State for ColorPickerState {
 }
 
 /// XAML alignment of an element sized to its content: `alignment` within its slot.
+#[cfg_attr(debug_assertions, track_caller)]
 fn aligned<K>(alignment: AlignmentGeometry, child: impl IntoWidget<K>) -> WidgetRef {
     Align::new()
         .alignment(alignment)
@@ -1253,6 +1254,7 @@ fn aligned<K>(alignment: AlignmentGeometry, child: impl IntoWidget<K>) -> Widget
 
 /// The template's `TabIndex` of an element, `document_index` its place among the elements
 /// without one, as a focus order: `TabIndex` first, then the order in the template.
+#[cfg_attr(debug_assertions, track_caller)]
 fn tab_order<K>(tab_index: i32, document_index: usize, child: impl IntoWidget<K>) -> WidgetRef {
     let order = f64::from(tab_index) * 64.0 + document_index as f64;
     FocusTraversalOrder::new(Rc::new(NumericFocusOrder::new(order)), child).into_widget()

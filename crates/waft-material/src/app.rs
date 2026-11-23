@@ -547,6 +547,7 @@ impl MaterialApp {
     }
 
     /// Dart `MaterialApp(home:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn home<K>(mut self, home: impl IntoWidget<K>) -> MaterialApp {
         self.home = Some(home.into_widget());
         self

@@ -74,6 +74,7 @@ struct CachedFallbackTheme {
 
 impl Theme {
     /// Applies the given theme `data` to `child`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: impl Into<Rc<ThemeData>>, child: impl IntoWidget<K>) -> Theme {
         Theme {
             key: None,
@@ -403,6 +404,7 @@ impl AnimatedTheme {
     /// Creates an animated theme.
     ///
     /// By default, the theme transition uses a linear curve.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: impl Into<Rc<ThemeData>>, child: impl IntoWidget<K>) -> AnimatedTheme {
         AnimatedTheme {
             implicitly_animated_widget: ImplicitlyAnimatedWidgetData::new(

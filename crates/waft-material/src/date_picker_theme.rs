@@ -47,6 +47,7 @@ pub struct DatePickerTheme {
 impl DatePickerTheme {
     /// Creates a [`DatePickerTheme`] that controls visual parameters for descendant
     /// [`DatePickerDialog`]s.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: DatePickerThemeData, child: impl IntoWidget<K>) -> DatePickerTheme {
         DatePickerTheme {
             key: None,

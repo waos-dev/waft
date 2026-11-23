@@ -143,12 +143,14 @@ impl CupertinoFormSection {
     }
 
     /// Dart `CupertinoFormSection(header:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> CupertinoFormSection {
         self.header = Some(header.into_widget());
         self
     }
 
     /// Dart `CupertinoFormSection(footer:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn footer<K>(mut self, footer: impl IntoWidget<K>) -> CupertinoFormSection {
         self.footer = Some(footer.into_widget());
         self

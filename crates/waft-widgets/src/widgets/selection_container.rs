@@ -43,6 +43,7 @@ pub type SelectionContainerDelegateRef = waft_foundation::Retained<AnySelectionC
 impl SelectionContainer {
     /// Creates a selection container for `child` that collects its selectables through
     /// `delegate`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(delegate: SelectionContainerDelegateRef, child: impl IntoWidget<K>) -> Self {
         SelectionContainer {
             key: None,
@@ -53,6 +54,7 @@ impl SelectionContainer {
     }
 
     /// Creates a selection container that disables selection for its subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn disabled<K>(child: impl IntoWidget<K>) -> Self {
         SelectionContainer {
             key: None,
@@ -353,6 +355,7 @@ pub struct SelectionRegistrarScope {
 
 impl SelectionRegistrarScope {
     /// Creates a scope that hosts `registrar`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(registrar: SelectionRegistrarRef, child: impl IntoWidget<K>) -> Self {
         SelectionRegistrarScope {
             key: None,

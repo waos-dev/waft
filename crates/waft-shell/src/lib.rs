@@ -13,10 +13,11 @@ use std::time::Duration;
 use waft_embedder::{
     AppExitReply, AppLifecycleState, ClipboardEvent, DragReport, EditCommand, EmbedderClient,
     Frame, Instant, KeyData, MenuId, NotificationActivation, OpenRequest, PlatformRef, PointerData,
-    PointerDataPacket, PointerDataPacketConverter, PointerReport, RequestId, TextEditingValue,
-    TextInputAction, TrayIconEvent, TrayIconId, ViewError, ViewFocusEvent, ViewId,
+    PointerDataPacket, PointerDataPacketConverter, PointerReport, RequestId, ServiceExtensionCall,
+    TextEditingValue, TextInputAction, TrayIconEvent, TrayIconId, ViewError, ViewFocusEvent,
+    ViewId,
 };
-use waft_foundation::{App, AppCell};
+use waft_foundation::{App, AppCell, ServiceExtensions};
 use waft_gestures::GestureBinding;
 use waft_painting::PaintingBinding;
 use waft_rendering::RendererBinding;
@@ -280,6 +281,20 @@ impl EmbedderClient for Shell {
     fn request_app_exit(&mut self, reply: AppExitReply) {
         self.push(|app| {
             let answer = ServicesBinding::instance(app).handle_request_app_exit(app);
+            app.spawn(async move |_cx| reply.answer(answer.await));
+        });
+    }
+
+    /// The extension's answer goes to `call.reply` when its task ends: at this push's checkpoint
+    /// when it answers at once.
+    fn service_extension_call(&mut self, call: ServiceExtensionCall) {
+        self.push(move |app| {
+            let ServiceExtensionCall {
+                name,
+                params,
+                reply,
+            } = call;
+            let answer = ServiceExtensions::call(app, &name, params);
             app.spawn(async move |_cx| reply.answer(answer.await));
         });
     }
@@ -717,6 +732,39 @@ mod tests {
         let (reply, answer) = recorded_reply();
         shell.request_app_exit(reply);
         assert_eq!(answer.get(), Some(AppExitResponse::Cancel));
+    }
+
+    /// A host's call reaches the framework's table, and the answer comes back through the reply.
+    #[test]
+    fn a_service_extension_call_is_answered_by_the_framework() {
+        use std::cell::RefCell;
+
+        use waft_embedder::{
+            ServiceExtensionCall, ServiceExtensionParams, ServiceExtensionReply,
+            ServiceExtensionResult,
+        };
+        use waft_foundation::{ServiceExtensions, Task};
+
+        let mut shell = Shell::new(Rc::new(TestPlatform::new()), |app| {
+            ServiceExtensions::register(
+                app,
+                "ext.test.greet",
+                Rc::new(|_app, params| {
+                    Task::ready(Ok(serde_json::json!({ "greeting": params.get("name") })))
+                }),
+            );
+        });
+        let answer: Rc<RefCell<Option<ServiceExtensionResult>>> = Rc::new(RefCell::new(None));
+        let to = Rc::clone(&answer);
+        shell.service_extension_call(ServiceExtensionCall {
+            name: "ext.test.greet".to_owned(),
+            params: ServiceExtensionParams::new([("name".to_owned(), "WaOS".to_owned())]),
+            reply: ServiceExtensionReply::new(move |result| *to.borrow_mut() = Some(result)),
+        });
+        assert_eq!(
+            answer.borrow_mut().take(),
+            Some(Ok(serde_json::json!({ "greeting": "WaOS" })))
+        );
     }
 
     /// The reply is answered inside the call that decides.

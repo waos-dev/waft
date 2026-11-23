@@ -402,6 +402,7 @@ impl CupertinoTextField {
     }
 
     /// Dart `CupertinoTextField(prefix:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prefix<K>(mut self, prefix: impl IntoWidget<K>) -> CupertinoTextField {
         self.prefix = Some(prefix.into_widget());
         self
@@ -414,6 +415,7 @@ impl CupertinoTextField {
     }
 
     /// Dart `CupertinoTextField(suffix:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn suffix<K>(mut self, suffix: impl IntoWidget<K>) -> CupertinoTextField {
         self.suffix = Some(suffix.into_widget());
         self
@@ -2464,8 +2466,8 @@ mod tests {
                 .current_state::<CupertinoTextFieldState>(&tester.cell.borrow())
                 .expect("the field mounted");
             let has_focus = |tester: &WidgetTester| {
-                let mut app = tester.cell.borrow_mut();
-                state.effective_focus_node(&app).has_focus(&mut app)
+                let app = tester.cell.borrow_mut();
+                state.effective_focus_node(&app).has_focus(&app)
             };
             assert!(has_focus(tester), "clicking the field should focus it");
 

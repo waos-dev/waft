@@ -425,6 +425,7 @@ impl<T: Clone + PartialEq + 'static> RadioGroup<T> {
     ///
     /// The `on_changed` callback is called when the selection has changed in the subtree
     /// radios.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(on_changed: ValueChanged<Option<T>>, child: impl IntoWidget<K>) -> RadioGroup<T> {
         RadioGroup {
             key: None,

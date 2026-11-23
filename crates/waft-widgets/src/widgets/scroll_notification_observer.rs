@@ -68,6 +68,7 @@ pub struct ScrollNotificationObserver {
 
 impl ScrollNotificationObserver {
     /// Create a [`ScrollNotificationObserver`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ScrollNotificationObserver {
         ScrollNotificationObserver {
             key: None,

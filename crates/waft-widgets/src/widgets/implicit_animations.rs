@@ -1453,6 +1453,7 @@ impl AnimatedContainer {
     }
 
     /// Dart `AnimatedContainer(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedContainer {
         self.child = Some(child.into_widget());
         self
@@ -1825,6 +1826,7 @@ impl AnimatedPadding {
     }
 
     /// Dart `AnimatedPadding(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedPadding {
         self.child = Some(child.into_widget());
         self
@@ -2025,6 +2027,7 @@ impl AnimatedAlign {
     }
 
     /// Dart `AnimatedAlign(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedAlign {
         self.child = Some(child.into_widget());
         self
@@ -2280,6 +2283,7 @@ impl AnimatedPositioned {
     /// vertical values ([`top`](Self::top), [`bottom`](Self::bottom),
     /// [`height`](Self::height)), can be set. In each case, at least one of the three must be
     /// `None`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, duration: Duration) -> AnimatedPositioned {
         AnimatedPositioned {
             implicitly_animated_widget: ImplicitlyAnimatedWidgetData::new(duration),
@@ -2294,6 +2298,7 @@ impl AnimatedPositioned {
     }
 
     /// Creates a widget that animates the rectangle it occupies implicitly.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_rect<K>(
         child: impl IntoWidget<K>,
         rect: Rect,
@@ -2600,6 +2605,7 @@ impl AnimatedPositionedDirectional {
     /// [`end`](Self::end), [`width`](Self::width)), and only two out of the three vertical
     /// values ([`top`](Self::top), [`bottom`](Self::bottom), [`height`](Self::height)), can
     /// be set. In each case, at least one of the three must be `None`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, duration: Duration) -> AnimatedPositionedDirectional {
         AnimatedPositionedDirectional {
             implicitly_animated_widget: ImplicitlyAnimatedWidgetData::new(duration),
@@ -2897,6 +2903,7 @@ impl AnimatedScale {
     }
 
     /// Dart `AnimatedScale(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedScale {
         self.child = Some(child.into_widget());
         self
@@ -3096,6 +3103,7 @@ impl AnimatedRotation {
     }
 
     /// Dart `AnimatedRotation(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedRotation {
         self.child = Some(child.into_widget());
         self
@@ -3286,6 +3294,7 @@ impl AnimatedSlide {
     }
 
     /// Dart `AnimatedSlide(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedSlide {
         self.child = Some(child.into_widget());
         self
@@ -3461,6 +3470,7 @@ impl AnimatedOpacity {
     }
 
     /// Dart `AnimatedOpacity(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedOpacity {
         self.child = Some(child.into_widget());
         self
@@ -3650,6 +3660,7 @@ pub struct AnimatedDefaultTextStyle {
 
 impl AnimatedDefaultTextStyle {
     /// Creates a widget that animates the default text style implicitly.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         child: impl IntoWidget<K>,
         style: TextStyle,
@@ -3918,6 +3929,7 @@ impl AnimatedPhysicalModel {
     ///
     /// Dart's defaults: `shape` [`BoxShape::Rectangle`], `clip_behavior` [`Clip::None`],
     /// `elevation` 0, `animate_color` and `animate_shadow_color` true.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         child: impl IntoWidget<K>,
         color: impl Into<AnyColor>,
@@ -4208,6 +4220,7 @@ impl AnimatedFractionallySizedBox {
     }
 
     /// Dart `AnimatedFractionallySizedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AnimatedFractionallySizedBox {
         self.child = Some(child.into_widget());
         self

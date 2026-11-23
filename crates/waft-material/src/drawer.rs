@@ -238,6 +238,7 @@ impl Drawer {
     }
 
     /// Dart `Drawer(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Drawer {
         self.child = Some(child.into_widget());
         self
@@ -472,6 +473,7 @@ impl DrawerController {
     /// Rarely used directly.
     ///
     /// The [`child`](Self::child) argument is typically a [`Drawer`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, alignment: DrawerAlignment) -> DrawerController {
         DrawerController {
             key: None,

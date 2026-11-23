@@ -16,6 +16,7 @@
 //! intents.
 
 use std::collections::HashMap;
+use std::panic::Location;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -24,7 +25,7 @@ use waft_embedder::{
     Locale, MediaChangeFuture, RequestId, TrayIconEvent, TrayIconId, ViewError, ViewFocusEvent,
     ViewId, ViewRef, WindowConfig,
 };
-use waft_foundation::{App, Handle, Listener, OptionRetained, Ref, Task, Timer};
+use waft_foundation::{App, Handle, Listener, OptionRetained, Ref, ServiceExtensions, Task, Timer};
 use waft_rendering::{RendererBinding, RendererBindingOverridesObject};
 use waft_scheduler::{FrameTarget, SchedulerBinding, SchedulerBindingOverridesObject};
 use waft_services::{
@@ -33,13 +34,13 @@ use waft_services::{
 };
 
 use crate::framework::{
-    AnyElement, BuildOwner, Element, ElementBase, ElementData, IntoWidget, KeyRef, Slot, Widget,
-    WidgetKind, WidgetRef, downcast_widget,
+    AnyElement, BuildOwner, CreationLocation, Element, ElementBase, ElementData, IntoWidget,
+    KeyRef, Slot, Widget, WidgetKind, WidgetRef, downcast_widget,
 };
 use crate::multi_view_app::MultiViewApp;
 use crate::view::View;
 use crate::widgets::actions::{Actions, Intent};
-use crate::widgets::focus_manager::FocusManager;
+use crate::widgets::focus_manager::{FocusManager, debug_describe_focus_tree};
 use crate::widgets::platform_menu_bar::{DefaultPlatformMenuDelegate, PlatformMenuDelegateRef};
 use crate::widgets::text_editing_intents::{
     CopySelectionTextIntent, DeleteCharacterIntent, PasteTextIntent, RedoTextIntent,
@@ -61,6 +62,8 @@ pub struct WidgetsBinding {
     build_owner: Option<Ref<BuildOwner>>,
     root_element: Option<AnyElement>,
     ready_to_produce_frames: bool,
+    /// Dart's `!_needToReportFirstFrame`: a frame has been drawn and sent to the host.
+    did_send_first_frame: bool,
     observers: Vec<WidgetsBindingObserverRef>,
     /// The observers that are currently handling an active predictive back gesture.
     back_gesture_observers: Vec<WidgetsBindingObserverRef>,
@@ -645,6 +648,31 @@ impl WidgetsBinding {
         self.follow_caption_settings(app);
         let platform_menu_delegate: PlatformMenuDelegateRef = DefaultPlatformMenuDelegate::new(app);
         app.get_mut(self).platform_menu_delegate = Some(platform_menu_delegate);
+        WidgetsBinding::init_service_extensions(app);
+    }
+
+    /// Dart's `WidgetsBinding.initServiceExtensions`, in a debug build: the element tree's and
+    /// the focus tree's dumps, each answering `{"data": text}`.
+    fn init_service_extensions(app: &mut App) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        ServiceExtensions::register_dump(app, "ext.waft.debugDumpApp", debug_dump_app);
+        // A string, not a boolean, as Flutter's tools read it.
+        ServiceExtensions::register(
+            app,
+            "ext.waft.didSendFirstFrameEvent",
+            Rc::new(|app, _params| {
+                let sent = WidgetsBinding::instance(app).debug_did_send_first_frame_event(app);
+                Task::ready(Ok(serde_json::json!({ "enabled": sent.to_string() })))
+            }),
+        );
+        ServiceExtensions::register_dump(
+            app,
+            "ext.waft.debugDumpFocusTree",
+            debug_describe_focus_tree,
+        );
+        crate::widgets::widget_inspector::init_service_extensions(app);
     }
 
     /// The [`PlatformMenuDelegate`] the app's [`PlatformMenuBar`] hands its menus to: by default
@@ -785,6 +813,12 @@ impl WidgetsBinding {
             None => FrameTarget::EveryView,
         };
         SchedulerBinding::ensure_visual_update(app, target);
+    }
+
+    /// Whether a frame has been drawn and sent to the host: Dart's
+    /// `debugDidSendFirstFrameEvent`. Until then a dump finds no tree, or a tree not built yet.
+    pub fn debug_did_send_first_frame_event(self: Handle<Self>, app: &App) -> bool {
+        app.get(self).did_send_first_frame
     }
 
     /// The [`Element`] that is at the root of the element tree hierarchy.
@@ -1282,6 +1316,9 @@ impl RendererBindingOverridesObject for WidgetsBinding {
     fn did_draw_frame(self: Handle<Self>, app: &mut App) {
         let owner = self.build_owner(app);
         owner.finalize_tree(app);
+        if RendererBinding::instance(app).send_frames_to_engine(app) {
+            app.get_mut(self).did_send_first_frame = true;
+        }
     }
 
     /// `WidgetsBinding.handleMetricsChanged` after `super`: tells the observers.
@@ -1403,6 +1440,8 @@ pub struct RootWidget {
     pub child: Option<WidgetRef>,
     /// A short description of this widget used by debugging aids.
     pub debug_short_description: Option<String>,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl RootWidget {
@@ -1418,6 +1457,7 @@ impl RootWidget {
     }
 
     /// Dart `RootWidget(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> RootWidget {
         self.child = Some(child.into_widget());
         self
@@ -1440,12 +1480,14 @@ impl RootWidget {
     ///
     /// Used by [`WidgetsBinding::attach_to_build_owner`] (which is indirectly called by
     /// [`run_app`]) to bootstrap applications.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn attach(
-        self,
+        mut self,
         app: &mut App,
         owner: Handle<BuildOwner>,
         element: Option<Handle<RootElement>>,
     ) -> Handle<RootElement> {
+        self.created = Some(CreationLocation::of_caller());
         let widget: WidgetRef = Rc::new(self);
         match element {
             None => {
@@ -1477,6 +1519,14 @@ impl RootWidget {
 impl Widget for RootWidget {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn to_string_short(&self) -> String {

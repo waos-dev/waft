@@ -44,6 +44,7 @@ impl fmt::Debug for SplitButton {
 
 impl SplitButton {
     /// Creates the source primary/secondary button template.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(content: impl IntoWidget<K>, click: Listener) -> Self {
         Self {
             content: content.into_widget(),

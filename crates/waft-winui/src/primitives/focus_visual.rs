@@ -26,6 +26,7 @@ pub struct FocusVisual {
 }
 
 impl FocusVisual {
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, theme: Theme) -> FocusVisual {
         FocusVisual {
             child: child.into_widget(),

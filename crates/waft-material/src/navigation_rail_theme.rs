@@ -320,6 +320,7 @@ pub struct NavigationRailTheme {
 impl NavigationRailTheme {
     /// Creates a navigation rail theme that controls the
     /// [`NavigationRailThemeData`] properties for a `NavigationRail`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: NavigationRailThemeData, child: impl IntoWidget<K>) -> NavigationRailTheme {
         NavigationRailTheme {
             key: None,

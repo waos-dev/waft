@@ -272,6 +272,7 @@ struct SelectionKeepAlive {
 }
 
 impl SelectionKeepAlive {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(child: impl IntoWidget<K>) -> SelectionKeepAlive {
         SelectionKeepAlive {
             key: None,

@@ -34,6 +34,9 @@ pollster.workspace = true
 winit.workspace = true
 # The user's languages, as each system lists them.
 sys-locale = "0.3"
+# The app's service extensions, served to `waft ext` in a debug build.
+serde_json.workspace = true
+waft-service-protocol.workspace = true
 
 
 # The clipboard's plain text where the embedder has no system code of its own for one.

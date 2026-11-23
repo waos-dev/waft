@@ -207,6 +207,7 @@ impl SliverFractionalPadding {
         }
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn sliver<K>(mut self, sliver: impl IntoWidget<K>) -> SliverFractionalPadding {
         self.sliver = Some(sliver.into_widget());
         self
@@ -514,6 +515,7 @@ impl SliverFillRemaining {
     }
 
     /// Dart `SliverFillRemaining(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SliverFillRemaining {
         self.child = Some(child.into_widget());
         self

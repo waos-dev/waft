@@ -80,6 +80,7 @@ pub struct CupertinoFormRow {
 impl CupertinoFormRow {
     /// Creates an iOS-style split form row with a standard prefix and child widget.
     /// Also provides a space for error and helper widgets that appear underneath.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> CupertinoFormRow {
         CupertinoFormRow {
             key: None,
@@ -98,6 +99,7 @@ impl CupertinoFormRow {
     }
 
     /// Dart `CupertinoFormRow(prefix:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prefix<K>(mut self, prefix: impl IntoWidget<K>) -> CupertinoFormRow {
         self.prefix = Some(prefix.into_widget());
         self
@@ -111,12 +113,14 @@ impl CupertinoFormRow {
     }
 
     /// Dart `CupertinoFormRow(helper:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn helper<K>(mut self, helper: impl IntoWidget<K>) -> CupertinoFormRow {
         self.helper = Some(helper.into_widget());
         self
     }
 
     /// Dart `CupertinoFormRow(error:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn error<K>(mut self, error: impl IntoWidget<K>) -> CupertinoFormRow {
         self.error = Some(error.into_widget());
         self

@@ -84,6 +84,7 @@ pub struct DragBoundary {
 
 impl DragBoundary {
     /// Creates a widget that provides a boundary to its descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> DragBoundary {
         DragBoundary {
             key: None,

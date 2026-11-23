@@ -186,6 +186,7 @@ pub use widgets::value_listenable_builder::*;
 pub use widgets::video_frame_view::*;
 pub use widgets::viewport::*;
 pub use widgets::visibility::*;
+pub use widgets::widget_inspector::{from_inspector_id, inspector_id};
 pub use widgets::widget_span::*;
 pub use widgets::widget_state::*;
 pub use window::*;

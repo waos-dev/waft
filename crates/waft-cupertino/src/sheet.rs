@@ -465,6 +465,7 @@ pub struct CupertinoSheetTransition {
 
 impl CupertinoSheetTransition {
     /// Creates an iOS style sheet transition; Dart's optional arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         primary_route_animation: AnimationRef<f64>,
         secondary_route_animation: AnimationRef<f64>,

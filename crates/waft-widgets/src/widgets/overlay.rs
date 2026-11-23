@@ -3,9 +3,10 @@
 use std::any::{Any, TypeId};
 use std::cell::Cell;
 use std::fmt::{self, Debug, Display};
+use std::panic::Location;
 use std::rc::Rc;
 
-use waft_embedder::{Clip, Matrix4, Offset, Size, TextDirection};
+use waft_embedder::{Clip, Matrix4, Offset, Rect, Size, TextDirection};
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle,
     EnumProperty, Handle, IntProperty, ListenableObject, Listener, OptionRetained, Retained,
@@ -26,8 +27,8 @@ use waft_scheduler::{
 };
 
 use crate::framework::{
-    AnyElement, BuildContext, BuildScope, BuildScopeCallback, Element, ElementData, GlobalKey,
-    InheritedWidget, IntoWidget, KeyRef, MultiChildRenderObjectElementBase,
+    AnyElement, BuildContext, BuildScope, BuildScopeCallback, CreationLocation, Element,
+    ElementData, GlobalKey, InheritedWidget, IntoWidget, KeyRef, MultiChildRenderObjectElementBase,
     MultiChildRenderObjectElementData, MultiChildRenderObjectWidget, RenderObjectElement,
     RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget,
     SingleChildRenderObjectWidget, Slot, State, StateData, StatefulWidget, Widget, WidgetKind,
@@ -609,6 +610,7 @@ impl Overlay {
     /// This is a convenience method over the regular [`Overlay`] constructor: it creates an
     /// [`Overlay`] and puts the provided `child` in an [`OverlayEntry`] at the bottom of that
     /// newly created Overlay.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn wrap<K>(child: impl IntoWidget<K>) -> WrappingOverlay {
         WrappingOverlay {
             key: None,
@@ -2229,6 +2231,21 @@ impl RenderObject for RenderTheater {
         LayerHandle::set_layer(app, |app| &mut self.get_mut(app).clip_rect_layer, None);
         waft_rendering::RenderObjectBase::dispose(self, app);
     }
+
+    /// Dart's `describeApproximatePaintClip`: the theater clips every entry to its bounds
+    /// unless [`clip_behavior`](Self::clip_behavior) is [`Clip::None`].
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        match self.clip_behavior(app) {
+            Clip::None => None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => {
+                Some(Offset::ZERO & self.size(app))
+            }
+        }
+    }
 }
 
 impl RenderBox for RenderTheater {
@@ -2652,6 +2669,7 @@ impl OverlayPortal {
         OverlayPortal::new(controller, move |_app, _context| {
             OverlayChildLayoutBuilderWidget {
                 builder: Rc::clone(&builder),
+                created: None,
             }
             .into_widget()
         })
@@ -2664,6 +2682,7 @@ impl OverlayPortal {
     }
 
     /// Dart `OverlayPortal(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> OverlayPortal {
         self.child = Some(child.into_widget());
         self
@@ -2872,6 +2891,7 @@ impl State for OverlayPortalState {
                 overlay_location: None,
                 overlay_child: None,
                 child,
+                created: None,
             }
             .into_widget();
         };
@@ -2888,6 +2908,7 @@ impl State for OverlayPortalState {
         let builder = Rc::clone(&self.widget(app).overlay_child_builder);
         RawOverlayPortal {
             overlay_location: Some(overlay_location),
+            created: None,
             overlay_child: Some(
                 DeferredLayout {
                     child: MediaQuery::new(data, Builder { key: None, builder }).into_widget(),
@@ -3135,13 +3156,17 @@ struct RawOverlayPortal {
     /// A widget below this widget in the tree.
     child: Option<WidgetRef>,
     overlay_location: Option<Ref<OverlayEntryLocation>>,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl RawOverlayPortal {
     /// The tree node: a render object widget with its own element, outside the `IntoWidget`
     /// kinds.
-    fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn into_widget(mut self) -> WidgetRef {
         debug_assert!(self.overlay_child.is_none() || self.overlay_location.is_some());
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -3149,6 +3174,14 @@ impl RawOverlayPortal {
 impl Widget for RawOverlayPortal {
     fn key(&self) -> Option<&KeyRef> {
         None
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -3928,12 +3961,16 @@ impl RenderBox for RenderLayoutSurrogateProxyBox {
 /// layout information, so this is a concrete pair of its own (see `PORTING.md`).
 struct OverlayChildLayoutBuilderWidget {
     builder: OverlayChildLayoutBuilder,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl OverlayChildLayoutBuilderWidget {
     /// The tree node: a render object widget with its own element, outside the `IntoWidget`
     /// kinds.
-    fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn into_widget(mut self) -> WidgetRef {
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 
@@ -3955,6 +3992,14 @@ impl Debug for OverlayChildLayoutBuilderWidget {
 impl Widget for OverlayChildLayoutBuilderWidget {
     fn key(&self) -> Option<&KeyRef> {
         None
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -4884,5 +4929,50 @@ mod tests {
             "{dump}"
         );
         assert!(!dump.contains("no offstage children"), "{dump}");
+    }
+
+    /// `overlay_test.dart`'s "Overlay can set and update clipBehavior": each clip behavior
+    /// decides what the theater says it clips its entries to.
+    #[test]
+    fn the_theater_describes_its_clip_for_each_clip_behavior() {
+        for clip_behavior in [
+            Clip::None,
+            Clip::HardEdge,
+            Clip::AntiAlias,
+            Clip::AntiAliasWithSaveLayer,
+        ] {
+            let cell = AppCell::new();
+            let mut app = cell.borrow_mut();
+            let entry = test_entry(&mut app);
+            let tree = MediaQuery::new(
+                MediaQueryData::new(),
+                Directionality::new(
+                    TextDirection::Ltr,
+                    Overlay::new()
+                        .clip_behavior(clip_behavior)
+                        .initial_entries(vec![entry]),
+                ),
+            )
+            .into_widget();
+            let harness = Harness::mount(&mut app, tree);
+            harness.pump(&mut app);
+
+            let theater = theater_of(&harness, &app);
+            assert_eq!(theater.clip_behavior(&app), clip_behavior);
+            let child = theater.first_child(&app).expect("an entry's render object");
+            let expected = match clip_behavior {
+                Clip::None => None,
+                Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => {
+                    Some(Offset::ZERO & theater.size(&app))
+                }
+            };
+            assert_eq!(
+                theater
+                    .as_object()
+                    .describe_approximate_paint_clip(&app, child.as_object()),
+                expected,
+                "{clip_behavior:?}"
+            );
+        }
     }
 }

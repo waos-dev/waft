@@ -295,6 +295,7 @@ impl Dialog {
     }
 
     /// Dart `Dialog(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Dialog {
         self.child = Some(child.into_widget());
         self
@@ -768,6 +769,7 @@ impl AlertDialog {
     }
 
     /// Dart `AlertDialog(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> AlertDialog {
         self.icon = Some(icon.into_widget());
         self
@@ -787,6 +789,7 @@ impl AlertDialog {
     }
 
     /// Dart `AlertDialog(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> AlertDialog {
         self.title = Some(title.into_widget());
         self
@@ -806,6 +809,7 @@ impl AlertDialog {
     }
 
     /// Dart `AlertDialog(content:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, content: impl IntoWidget<K>) -> AlertDialog {
         self.content = Some(content.into_widget());
         self
@@ -1368,6 +1372,7 @@ impl SimpleDialogOption {
     }
 
     /// Dart `SimpleDialogOption(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SimpleDialogOption {
         self.child = Some(child.into_widget());
         self
@@ -1533,6 +1538,7 @@ impl SimpleDialog {
     }
 
     /// Dart `SimpleDialog(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> SimpleDialog {
         self.title = Some(title.into_widget());
         self
@@ -4876,7 +4882,7 @@ pub(crate) mod tests {
     }
 
     fn focus_of(tester: &WidgetTester, node: waft_widgets::AnyFocusNode) -> bool {
-        node.has_focus(&mut tester.cell.borrow_mut())
+        node.has_focus(&tester.cell.borrow_mut())
     }
 
     #[test]
@@ -5109,7 +5115,7 @@ pub(crate) mod tests {
 
     fn has_focus_of(tester: &WidgetTester, node: Handle<waft_widgets::FocusNode>) -> bool {
         use waft_widgets::FocusNodeLeaf;
-        node.as_node().has_focus(&mut tester.cell.borrow_mut())
+        node.as_node().has_focus(&tester.cell.borrow_mut())
     }
 
     fn request_focus_of(tester: &mut WidgetTester, node: Handle<waft_widgets::FocusNode>) {
@@ -5219,7 +5225,7 @@ pub(crate) mod tests {
                 let element = find::text("dialog").evaluate(tester)[0];
                 let mut app = tester.cell.borrow_mut();
                 let scope = waft_widgets::FocusScope::of(&mut app, element, true);
-                scope.as_node().has_focus(&mut app)
+                scope.as_node().has_focus(&app)
             };
             let navigator_context = |tester: &WidgetTester| {
                 navigator_key

@@ -978,6 +978,27 @@ fn an_element_dump_shows_each_widget_with_its_properties_and_render_object() {
     );
 }
 
+/// An element's node names the arena object it was read from, which the JSON does not print but
+/// an inspector delegate adds as `valueId`.
+#[test]
+fn an_element_diagnostics_node_carries_the_elements_handle() {
+    use waft_foundation::DiagnosticsNode;
+
+    use crate::SizedBox;
+    use crate::testing::WidgetTester;
+
+    let key = GlobalKey::new();
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(SizedBox::new().key(key.clone().into()));
+    tester.update(|app| {
+        let element = key.current_context(app).expect("the SizedBox is mounted");
+        assert_eq!(
+            element.to_diagnostics_node(app, None).value_id(),
+            Some(element.id())
+        );
+    });
+}
+
 /// `inherited_dependencies_test.dart`, "InheritedWidget dependencies show up in diagnostic
 /// properties".
 #[test]
@@ -1055,4 +1076,88 @@ fn the_app_dump_shows_the_whole_tree_from_the_root() {
          \u{20}           └SizedBox(width: 10.0, renderObject: RenderConstrainedBox#00000)\n\
          \n"
     );
+}
+
+/// Dart's `WidgetsBinding.initServiceExtensions` and `RendererBinding.initServiceExtensions`:
+/// in a debug build an app serves its dumps, each answering `{"data": text}` with what the dump
+/// function prints, and lists them.
+#[test]
+fn an_app_serves_its_dumps_as_service_extensions() {
+    use std::future::Future;
+    use std::task::{Context, Poll, Waker};
+
+    use waft_foundation::{ServiceExtensionParams, ServiceExtensionResult, ServiceExtensions};
+
+    use crate::SizedBox;
+    use crate::testing::WidgetTester;
+
+    fn answer(app: &mut App, name: &str) -> serde_json::Value {
+        let mut task = ServiceExtensions::call(app, name, ServiceExtensionParams::default());
+        let mut cx = Context::from_waker(Waker::noop());
+        match std::pin::Pin::new(&mut task).poll(&mut cx) {
+            Poll::Ready(ServiceExtensionResult::Ok(value)) => value,
+            Poll::Ready(Err(error)) => panic!("{name}: {error}"),
+            Poll::Pending => panic!("{name} answers at once"),
+        }
+    }
+
+    let cell = waft_foundation::AppCell::new();
+    {
+        let mut app = cell.borrow_mut();
+        crate::WidgetsBinding::instance(&mut app);
+        assert_eq!(
+            answer(&mut app, "ext.waft.didSendFirstFrameEvent"),
+            serde_json::json!({ "enabled": "false" }),
+            "no frame is drawn before the first one"
+        );
+    }
+
+    let mut tester = WidgetTester::new();
+    tester.pump_widget(SizedBox::new().width(10.0));
+    tester.update(|app| {
+        assert_eq!(
+            answer(app, "ext.waft.listServiceExtensions"),
+            serde_json::json!({ "extensions": [
+                "ext.waft.debugDumpApp",
+                "ext.waft.debugDumpFocusTree",
+                "ext.waft.debugDumpLayerTree",
+                "ext.waft.debugDumpRenderTree",
+                "ext.waft.didSendFirstFrameEvent",
+                "ext.waft.inspector.getDetailsSubtree",
+                "ext.waft.inspector.getRootWidget",
+                "ext.waft.inspector.getRootWidgetTree",
+                "ext.waft.inspector.isWidgetCreationTracked",
+                "ext.waft.inspector.screenshot",
+                "ext.waft.listServiceExtensions",
+            ]})
+        );
+        assert_eq!(
+            answer(app, "ext.waft.didSendFirstFrameEvent"),
+            serde_json::json!({ "enabled": "true" }),
+            "a pumped frame is sent"
+        );
+        type Dump = fn(&mut App) -> String;
+        let dumps: [(&str, Dump); 4] = [
+            ("ext.waft.debugDumpApp", crate::debug_dump_app),
+            (
+                "ext.waft.debugDumpFocusTree",
+                crate::debug_describe_focus_tree,
+            ),
+            (
+                "ext.waft.debugDumpLayerTree",
+                waft_rendering::debug_dump_layer_tree,
+            ),
+            (
+                "ext.waft.debugDumpRenderTree",
+                waft_rendering::debug_dump_render_tree,
+            ),
+        ];
+        for (name, dump) in dumps {
+            assert_eq!(
+                answer(app, name),
+                serde_json::json!({ "data": dump(app) }),
+                "{name}"
+            );
+        }
+    });
 }

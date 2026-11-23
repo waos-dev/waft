@@ -641,6 +641,12 @@ pub(crate) trait ApplicationLifecycle {
 pub(crate) trait ApplicationIdentity {
     /// Gives the process the shell's identity `settings` names, before any window shows.
     fn set_identity(_settings: &WindowsSettings) {}
+
+    /// The identifier of the bundle the app runs from, where it runs from one: a macOS app's
+    /// `CFBundleIdentifier`.
+    fn bundle_identifier() -> Option<String> {
+        None
+    }
 }
 
 /// The local time zone, which `Platform::time_zone_offset` and `time_zone_name` answer from, asked

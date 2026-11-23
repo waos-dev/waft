@@ -4,6 +4,7 @@ use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 use std::f64::consts::PI;
 use std::fmt::{self, Debug};
+use std::panic::Location;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -28,7 +29,7 @@ use waft_rendering::{
 };
 use waft_scheduler::{Ticker, TickerCallback, TickerProviderObject};
 use waft_widgets::{
-    AnimatedSize, AnyElement, BuildContext, Center, ColoredBox, CustomPaint,
+    AnimatedSize, AnyElement, BuildContext, Center, ColoredBox, CreationLocation, CustomPaint,
     CustomSingleChildLayout, Element, ElementData, FadeTransition, GestureDetector, GlobalKey,
     IgnorePointer, IndexedSlot, IntoWidget, KeyRef, MediaQuery, Padding, RenderObjectElement,
     RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget,
@@ -867,6 +868,7 @@ impl State for CupertinoTextSelectionToolbarContentState {
                                         divider_width,
                                         next_button,
                                         children,
+                                        created: None,
                                     }
                                     .into_widget(),
                                 ),
@@ -958,6 +960,8 @@ struct CupertinoTextSelectionToolbarItems {
     divider_color: Color,
     divider_width: f64,
     next_button: WidgetRef,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl Debug for CupertinoTextSelectionToolbarItems {
@@ -968,8 +972,10 @@ impl Debug for CupertinoTextSelectionToolbarItems {
 }
 
 impl CupertinoTextSelectionToolbarItems {
-    fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn into_widget(mut self) -> WidgetRef {
         debug_assert!(!self.children.is_empty());
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -977,6 +983,14 @@ impl CupertinoTextSelectionToolbarItems {
 impl Widget for CupertinoTextSelectionToolbarItems {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -1837,5 +1851,82 @@ mod tests {
             2,
             "{dump}"
         );
+    }
+    /// Every widget names the line of the app's code that made it: a child passed to a setter,
+    /// a child passed to a constructor, a sliver list built from its builder, and a widget that
+    /// is its own tree node.
+    #[test]
+    fn each_widget_names_the_line_that_made_it() {
+        use waft_embedder::TextDirection;
+        use waft_widgets::testing::WidgetTester;
+        use waft_widgets::{
+            CustomScrollView, Directionality, GlobalKey, SizedBox, SliverList, SliverToBoxAdapter,
+        };
+
+        use crate::form_row::CupertinoFormRow;
+
+        let mut tester = WidgetTester::new();
+        let setter_key = GlobalKey::new();
+        let constructor_key = GlobalKey::new();
+        let builder_key = GlobalKey::new();
+        let tree_node_key = GlobalKey::new();
+
+        let row = CupertinoFormRow::new(SizedBox::new());
+        let setter_line = line!() + 1;
+        let setter = row.prefix(SizedBox::new().key(setter_key.clone().into()));
+        let setter = setter.into_widget();
+
+        let constructor_child = SizedBox::new().key(constructor_key.clone().into());
+        let constructor_line = line!() + 1;
+        let constructor = CupertinoFormRow::new(constructor_child).into_widget();
+
+        let builder = SliverList::builder(|_app, _context, index| {
+            (index < 1).then(|| SizedBox::new().height(10.0).into_widget())
+        })
+        .item_count(1)
+        .key(builder_key.clone().into());
+        let builder_line = line!() + 1;
+        let builder = builder.into_widget();
+
+        let tree_node = CupertinoTextSelectionToolbarItems {
+            key: Some(tree_node_key.clone().into()),
+            page: 0,
+            children: vec![SizedBox::new().width(20.0).height(20.0).into_widget()],
+            back_button: SizedBox::new().width(10.0).height(10.0).into_widget(),
+            divider_color: Color::new(0xFF000000),
+            divider_width: 1.0,
+            next_button: SizedBox::new().width(10.0).height(10.0).into_widget(),
+            created: None,
+        };
+        let tree_node_line = line!() + 1;
+        let tree_node = tree_node.into_widget();
+
+        tester.pump_widget(Directionality::new(
+            TextDirection::Ltr,
+            CustomScrollView::new().slivers([
+                SliverToBoxAdapter::new().child(setter).into_widget(),
+                SliverToBoxAdapter::new().child(constructor).into_widget(),
+                builder,
+                SliverToBoxAdapter::new().child(tree_node).into_widget(),
+            ]),
+        ));
+
+        for (key, line) in [
+            (setter_key, setter_line),
+            (constructor_key, constructor_line),
+            (builder_key, builder_line),
+            (tree_node_key, tree_node_line),
+        ] {
+            let app = tester.cell.borrow();
+            let context = key
+                .current_context(&app)
+                .expect("the widget is in the tree");
+            let location = context
+                .widget(&app)
+                .creation_location()
+                .expect("a creation location");
+            assert_eq!(location.file(), file!());
+            assert_eq!(location.line(), line);
+        }
     }
 }

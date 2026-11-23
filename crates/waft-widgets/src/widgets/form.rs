@@ -99,6 +99,7 @@ pub struct Form {
 
 impl Form {
     /// Creates a container for form fields.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Form {
         Form {
             key: None,

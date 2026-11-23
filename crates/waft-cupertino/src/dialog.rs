@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use waft_animation::{Curve, Curves};
 use waft_embedder::{
-    Brightness, Color, ColorFilter, ImageFilter, Offset, PointerDeviceKind, Radius, SemanticsRole,
-    Size, TargetPlatform, TextAlign, TextBaseline, TextDirection, lerp_double,
+    Brightness, Color, ColorFilter, ImageFilter, Offset, PointerDeviceKind, Radius, Rect,
+    SemanticsRole, Size, TargetPlatform, TextAlign, TextBaseline, TextDirection, lerp_double,
 };
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, Handle, K_IS_WEB, Listener, OptionRetained, Ref, ValueSetter,
@@ -322,12 +322,14 @@ impl CupertinoAlertDialog {
     }
 
     /// Dart `CupertinoAlertDialog(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> CupertinoAlertDialog {
         self.title = Some(title.into_widget());
         self
     }
 
     /// Dart `CupertinoAlertDialog(content:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, content: impl IntoWidget<K>) -> CupertinoAlertDialog {
         self.content = Some(content.into_widget());
         self
@@ -838,6 +840,7 @@ impl CupertinoPopupSurface {
     ];
 
     /// Creates an iOS-style rounded rectangle popup surface.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> CupertinoPopupSurface {
         CupertinoPopupSurface {
             key: None,
@@ -1448,6 +1451,7 @@ impl ActionSheetGestureDetector {
         ActionSheetGestureDetector::default()
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, child: impl IntoWidget<K>) -> ActionSheetGestureDetector {
         self.child = Some(child.into_widget());
         self
@@ -1571,12 +1575,14 @@ impl CupertinoActionSheet {
     }
 
     /// Dart `CupertinoActionSheet(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> CupertinoActionSheet {
         self.title = Some(title.into_widget());
         self
     }
 
     /// Dart `CupertinoActionSheet(message:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn message<K>(mut self, message: impl IntoWidget<K>) -> CupertinoActionSheet {
         self.message = Some(message.into_widget());
         self
@@ -1607,6 +1613,7 @@ impl CupertinoActionSheet {
     }
 
     /// Dart `CupertinoActionSheet(cancelButton:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn cancel_button<K>(mut self, cancel_button: impl IntoWidget<K>) -> CupertinoActionSheet {
         self.cancel_button = Some(cancel_button.into_widget());
         self
@@ -2016,6 +2023,7 @@ pub struct CupertinoActionSheetAction {
 
 impl CupertinoActionSheetAction {
     /// Creates an action for an iOS-style action sheet.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(on_pressed: Listener, child: impl IntoWidget<K>) -> CupertinoActionSheetAction {
         CupertinoActionSheetAction {
             key: None,
@@ -2337,6 +2345,7 @@ struct ActionSheetButtonBackground {
 }
 
 impl ActionSheetButtonBackground {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(pressed: bool, child: impl IntoWidget<K>) -> ActionSheetButtonBackground {
         ActionSheetButtonBackground {
             is_cancel: false,
@@ -2542,6 +2551,7 @@ struct OverscrollBackground {
 }
 
 impl OverscrollBackground {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(color: AnyColor, child: impl IntoWidget<K>) -> OverscrollBackground {
         OverscrollBackground {
             color,
@@ -2872,11 +2882,13 @@ impl CupertinoAlertContentSection {
         }
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn title<K>(mut self, title: impl IntoWidget<K>) -> CupertinoAlertContentSection {
         self.title = Some(title.into_widget());
         self
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn message<K>(mut self, message: impl IntoWidget<K>) -> CupertinoAlertContentSection {
         self.message = Some(message.into_widget());
         self
@@ -3086,6 +3098,7 @@ struct AlertDialogButtonBackground {
 }
 
 impl AlertDialogButtonBackground {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(
         idle_color: AnyColor,
         pressed_color: AnyColor,
@@ -3246,6 +3259,7 @@ pub struct CupertinoDialogAction {
 
 impl CupertinoDialogAction {
     /// Creates an action for an iOS-style dialog.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> CupertinoDialogAction {
         CupertinoDialogAction {
             key: None,
@@ -3800,6 +3814,14 @@ impl RenderObject for RenderAlertDialogActionsLayout {
     ) {
         RenderFlexMixin::paint(self, app, context, offset)
     }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
+    }
 }
 
 impl RenderBox for RenderAlertDialogActionsLayout {
@@ -4149,6 +4171,14 @@ impl RenderObject for RenderPriorityColumn {
         offset: Offset,
     ) {
         RenderFlexMixin::paint(self, app, context, offset)
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
     }
 }
 

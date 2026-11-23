@@ -83,12 +83,14 @@ impl<T> ButtonSegment<T> {
     }
 
     /// Dart `ButtonSegment(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> ButtonSegment<T> {
         self.icon = Some(icon.into_widget());
         self
     }
 
     /// Dart `ButtonSegment(label:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn label<K>(mut self, label: impl IntoWidget<K>) -> ButtonSegment<T> {
         self.label = Some(label.into_widget());
         self
@@ -391,6 +393,7 @@ impl<T: Clone + PartialEq + 'static> SegmentedButton<T> {
     }
 
     /// Dart `SegmentedButton(selectedIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_icon<K>(mut self, selected_icon: impl IntoWidget<K>) -> SegmentedButton<T> {
         self.selected_icon = Some(selected_icon.into_widget());
         self
@@ -3291,7 +3294,7 @@ pub(crate) mod tests {
                 if request {
                     node.request_focus(&mut app, None);
                 }
-                node.has_focus(&mut app)
+                node.has_focus(&app)
             };
 
             // Set focus on segment 2.

@@ -24,6 +24,7 @@ const DOCS_PAGES = [
   ['/docs/pages', 'Pages'],
   ['/docs/shortcuts', 'Keys and shortcuts'],
   ['/docs/testing', 'Testing'],
+  ['/docs/inspecting', 'Inspecting a running app'],
   ['/docs/cli', 'CLI and packaging'],
   ['/docs/embedder', 'Embedder and hosts'],
   ['/docs/reference', 'Reference'],

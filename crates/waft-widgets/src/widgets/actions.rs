@@ -837,6 +837,7 @@ pub struct ActionListener {
 
 impl ActionListener {
     /// Creates an [`ActionListener`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         listener: ActionListenerCallback,
         action: ActionRef,
@@ -1124,6 +1125,7 @@ pub struct Actions {
 
 impl Actions {
     /// Creates an [`Actions`] widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(actions: HashMap<TypeId, ActionRef>, child: impl IntoWidget<K>) -> Actions {
         Actions {
             key: None,
@@ -1650,6 +1652,7 @@ pub struct FocusableActionDetector {
 
 impl FocusableActionDetector {
     /// Creates a [`FocusableActionDetector`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> FocusableActionDetector {
         FocusableActionDetector {
             key: None,

@@ -588,6 +588,7 @@ impl RawMagnifier {
     }
 
     /// Dart `RawMagnifier(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> RawMagnifier {
         self.child = Some(child.into_widget());
         self
@@ -739,6 +740,7 @@ impl Magnifier {
         self
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, child: impl IntoWidget<K>) -> Magnifier {
         self.child = Some(child.into_widget());
         self

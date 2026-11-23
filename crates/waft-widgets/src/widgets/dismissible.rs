@@ -214,6 +214,7 @@ impl Dismissible {
     /// widgets based on their index in the list, which means the item after the dismissed item
     /// would be synced with the state of the dismissed item. Using keys causes the widgets to
     /// sync according to their keys and avoids this pitfall.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(key: KeyRef, child: impl IntoWidget<K>) -> Dismissible {
         Dismissible {
             key,
@@ -235,12 +236,14 @@ impl Dismissible {
     }
 
     /// Dart `Dismissible(background:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn background<K>(mut self, background: impl IntoWidget<K>) -> Dismissible {
         self.background = Some(background.into_widget());
         self
     }
 
     /// Dart `Dismissible(secondaryBackground:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn secondary_background<K>(
         mut self,
         secondary_background: impl IntoWidget<K>,
@@ -491,6 +494,10 @@ impl CustomClipper<Rect> for DismissibleClipper {
                 Rect::from_ltrb(0.0, 0.0, size.width(), offset)
             }
         }
+    }
+
+    fn get_approximate_clip_rect(&self, app: &App, size: Size) -> Rect {
+        self.get_clip(app, size)
     }
 
     fn should_reclip(&self, app: &App, old_clipper: &dyn CustomClipper<Rect>) -> bool {

@@ -54,6 +54,7 @@ pub struct TickerMode {
 
 impl TickerMode {
     /// Creates a `TickerMode`; Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(enabled: bool, child: impl IntoWidget<K>) -> TickerMode {
         TickerMode {
             key: None,
@@ -350,6 +351,7 @@ struct EffectiveTickerMode {
 
 impl EffectiveTickerMode {
     /// Creates an `EffectiveTickerMode`; Dart's arguments are all required.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(
         enabled: bool,
         force_frames: bool,

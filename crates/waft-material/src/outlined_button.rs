@@ -84,6 +84,7 @@ pub struct OutlinedButton {
 
 impl OutlinedButton {
     /// Create an OutlinedButton.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         on_pressed: Option<Listener>,
         child: Option<impl IntoWidget<K>>,
@@ -91,7 +92,10 @@ impl OutlinedButton {
         OutlinedButton {
             button_style_button: ButtonStyleButtonData::new(
                 on_pressed,
-                child.map(|child| child.into_widget()),
+                match child {
+                    Some(child) => Some(child.into_widget()),
+                    None => None,
+                },
             ),
             add_padding: false,
         }
@@ -114,6 +118,7 @@ impl OutlinedButton {
     ///
     /// The alignment of the icon within the button is set by
     /// [`icon_alignment`](OutlinedButtonIcon::icon_alignment); see [`IconAlignment`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(on_pressed: Option<Listener>, label: impl IntoWidget<K>) -> OutlinedButtonIcon {
         OutlinedButtonIcon {
             button_style_button: ButtonStyleButtonData::new(on_pressed, None),
@@ -457,6 +462,7 @@ impl OutlinedButtonIcon {
     );
 
     /// Dart `OutlinedButton.icon(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> OutlinedButtonIcon {
         self.icon = Some(icon.into_widget());
         self
@@ -469,6 +475,7 @@ impl OutlinedButtonIcon {
     }
 
     /// The [`OutlinedButton`] these arguments describe.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn build(self) -> OutlinedButton {
         let mut button_style_button = self.button_style_button;
         let add_padding = self.icon.is_some();
@@ -490,6 +497,7 @@ impl OutlinedButtonIcon {
 }
 
 impl IntoWidget<StatefulKind> for OutlinedButtonIcon {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1503,7 +1511,7 @@ mod tests {
         node.request_focus(&mut tester.cell.borrow_mut(), None);
         tester.pump();
         assert_eq!(got_focus.get(), enabled);
-        assert_eq!(node.has_focus(&mut tester.cell.borrow_mut()), enabled);
+        assert_eq!(node.has_focus(&tester.cell.borrow_mut()), enabled);
         if !enabled {
             return;
         }
@@ -1511,7 +1519,7 @@ mod tests {
         node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
         tester.pump();
         assert!(!got_focus.get());
-        assert!(!node.has_focus(&mut tester.cell.borrow_mut()));
+        assert!(!node.has_focus(&tester.cell.borrow_mut()));
     }
 
     #[test]
@@ -2467,14 +2475,14 @@ mod tests {
             let node = button_focus_node(tester);
             node.request_focus(&mut tester.cell.borrow_mut(), None);
             tester.pump_and_settle();
-            assert!(button_focus_node(tester).has_focus(&mut tester.cell.borrow_mut()));
+            assert!(button_focus_node(tester).has_focus(&tester.cell.borrow_mut()));
 
             // Rebuild without icon.
             let without_icon = frame(tester, false);
             tester.pump_widget(without_icon);
 
             // The button should still be focused.
-            assert!(button_focus_node(tester).has_focus(&mut tester.cell.borrow_mut()));
+            assert!(button_focus_node(tester).has_focus(&tester.cell.borrow_mut()));
         });
     }
 }

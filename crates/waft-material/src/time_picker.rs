@@ -3574,12 +3574,14 @@ impl TimePickerDialog {
     }
 
     /// Dart `TimePickerDialog(switchToInputEntryModeIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn switch_to_input_entry_mode_icon(mut self, icon: Icon) -> TimePickerDialog {
         self.switch_to_input_entry_mode_icon = Some(icon.into_widget());
         self
     }
 
     /// Dart `TimePickerDialog(switchToTimerEntryModeIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn switch_to_timer_entry_mode_icon(mut self, icon: Icon) -> TimePickerDialog {
         self.switch_to_timer_entry_mode_icon = Some(icon.into_widget());
         self
@@ -7489,7 +7491,7 @@ pub(crate) mod tests {
                 };
                 let has_focus = |tester: &WidgetTester, index: usize| {
                     let node = field(tester, index).focus_node.expect("a focus node");
-                    node.has_focus(&mut tester.cell.borrow_mut())
+                    node.has_focus(&tester.cell.borrow_mut())
                 };
                 let last = text_field_count(tester) - 1;
 

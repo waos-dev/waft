@@ -96,6 +96,7 @@ impl ActionChip {
     /// Create a chip that acts like a button.
     ///
     /// The [`elevation`](Self::elevation) and [`press_elevation`](Self::press_elevation) must be null or non-negative. Dart's named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>) -> ActionChip {
         ActionChip {
             key: None,
@@ -131,6 +132,7 @@ impl ActionChip {
     /// Create an elevated chip that acts like a button.
     ///
     /// The [`elevation`](Self::elevation) and [`press_elevation`](Self::press_elevation) must be null or non-negative. Dart's named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn elevated<K>(label: impl IntoWidget<K>) -> ActionChip {
         ActionChip {
             chip_variant: ChipVariant::Elevated,

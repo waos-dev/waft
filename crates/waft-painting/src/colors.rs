@@ -8,7 +8,8 @@ use std::rc::Rc;
 
 use waft_embedder::{Color, clamp_double, lerp_double};
 use waft_foundation::{
-    DiagnosticLevel, DiagnosticsNode, DiagnosticsProperty, DiagnosticsTreeStyle, IntoPropertyName,
+    DiagnosticLevel, DiagnosticsJsonMap, DiagnosticsNode, DiagnosticsProperty,
+    DiagnosticsSerializationDelegate, DiagnosticsTreeStyle, IntoPropertyName,
     TextTreeConfiguration, TextTreeRenderer,
 };
 
@@ -334,6 +335,27 @@ impl ColorProperty {
 }
 
 impl DiagnosticsNode for ColorProperty {
+    /// Dart's `ColorProperty.toJsonMap`: the property's, with the color's channels.
+    #[expect(
+        deprecated,
+        reason = "Dart's ColorProperty reads the deprecated 8-bit channels"
+    )]
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json = self.inner.to_json_map(delegate);
+        if let Some(color) = self.value() {
+            json.insert(
+                "valueProperties".to_owned(),
+                serde_json::json!({
+                    "red": color.red(),
+                    "green": color.green(),
+                    "blue": color.blue(),
+                    "alpha": color.alpha(),
+                }),
+            );
+        }
+        json
+    }
+
     fn name(&self) -> Option<&str> {
         self.inner.name()
     }

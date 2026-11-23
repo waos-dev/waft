@@ -98,6 +98,7 @@ pub struct RepeatButton {
 
 impl RepeatButton {
     /// Creates a repeating button with the default WinUI style.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(content: impl IntoWidget<K>, click: Listener) -> RepeatButton {
         RepeatButton {
             content: content.into_widget(),

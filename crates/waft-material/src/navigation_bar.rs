@@ -600,6 +600,7 @@ pub struct NavigationDestination {
 impl NavigationDestination {
     /// Creates a navigation bar destination with an icon and a label, to be used
     /// in the [`NavigationBar::destinations`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(icon: impl IntoWidget<K>, label: impl Into<String>) -> NavigationDestination {
         NavigationDestination {
             key: None,
@@ -618,6 +619,7 @@ impl NavigationDestination {
     }
 
     /// Dart `NavigationDestination(selectedIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_icon<K>(mut self, selected_icon: impl IntoWidget<K>) -> NavigationDestination {
         self.selected_icon = Some(selected_icon.into_widget());
         self
@@ -1013,6 +1015,7 @@ impl IndicatorInkWell {
     }
 
     /// Dart `_IndicatorInkWell(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.ink_response = self.ink_response.child(child);
         self
@@ -1479,6 +1482,7 @@ struct NavigationBarDestinationSemantics {
 impl NavigationBarDestinationSemantics {
     /// Adds the appropriate semantics for navigation bar destinations to the
     /// [`child`](Self::child).
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(enabled: bool, child: impl IntoWidget<K>) -> NavigationBarDestinationSemantics {
         NavigationBarDestinationSemantics {
             enabled,
@@ -1539,6 +1543,7 @@ struct NavigationBarDestinationTooltip {
 
 impl NavigationBarDestinationTooltip {
     /// Adds a tooltip to the [`child`](Self::child) widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(message: String, child: impl IntoWidget<K>) -> NavigationBarDestinationTooltip {
         NavigationBarDestinationTooltip {
             message,
@@ -1725,6 +1730,7 @@ impl StatusTransitionWidgetBuilder {
     }
 
     /// Dart `_StatusTransitionWidgetBuilder(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, child: impl IntoWidget<K>) -> StatusTransitionWidgetBuilder {
         self.child = Some(child.into_widget());
         self

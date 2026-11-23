@@ -1612,6 +1612,7 @@ impl RawScrollbar {
     ///
     /// The child, or a descendant of the child, should be a source of
     /// `ScrollNotification` notifications, typically a `Scrollable` widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> RawScrollbar {
         RawScrollbar {
             raw_scrollbar: RawScrollbarData::new(child.into_widget()),

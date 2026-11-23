@@ -1274,6 +1274,7 @@ impl Shortcuts {
     ///
     ///  * [`Shortcuts::manager`], a constructor that uses a [`ShortcutManagerBase`] to manage
     ///    the shortcuts list instead.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(shortcuts: ShortcutMap, child: impl IntoWidget<K>) -> Shortcuts {
         Shortcuts {
             key: None,
@@ -1289,6 +1290,7 @@ impl Shortcuts {
     ///
     /// If this constructor is used, [`get_shortcuts`](Self::get_shortcuts) will return the
     /// contents of [`ShortcutManagerBase::shortcuts`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn manager<K>(manager: ShortcutManagerRef, child: impl IntoWidget<K>) -> Shortcuts {
         Shortcuts {
             manager: Some(manager),
@@ -1492,6 +1494,7 @@ pub struct CallbackShortcuts {
 
 impl CallbackShortcuts {
     /// Creates a [`CallbackShortcuts`] widget.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         bindings: Vec<(ShortcutActivatorRef, Listener)>,
         child: impl IntoWidget<K>,
@@ -1837,6 +1840,7 @@ pub struct ShortcutRegistrar {
 
 impl ShortcutRegistrar {
     /// Creates a [`ShortcutRegistrar`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ShortcutRegistrar {
         ShortcutRegistrar {
             key: None,

@@ -45,6 +45,7 @@ impl Debug for DesktopTextSelectionToolbarButton {
 
 impl DesktopTextSelectionToolbarButton {
     /// Creates an instance of DesktopTextSelectionToolbarButton.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         on_pressed: Option<Listener>,
         child: impl IntoWidget<K>,

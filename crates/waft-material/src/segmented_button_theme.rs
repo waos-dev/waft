@@ -72,6 +72,7 @@ impl SegmentedButtonThemeData {
     }
 
     /// Dart `SegmentedButtonThemeData(selectedIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_icon<K>(
         mut self,
         selected_icon: impl IntoWidget<K>,
@@ -144,6 +145,7 @@ pub struct SegmentedButtonTheme {
 impl SegmentedButtonTheme {
     /// Creates a [`SegmentedButtonTheme`] that controls visual parameters for
     /// descendant `SegmentedButton`s.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         data: SegmentedButtonThemeData,
         child: impl IntoWidget<K>,

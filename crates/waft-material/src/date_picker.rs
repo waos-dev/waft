@@ -168,8 +168,8 @@ pub struct ShowDatePicker {
     field_label_text: Option<String>,
     keyboard_type: Option<TextInputType>,
     on_date_picker_mode_change: Option<ValueChanged<DatePickerEntryMode>>,
-    switch_to_input_entry_mode_icon: Option<Icon>,
-    switch_to_calendar_entry_mode_icon: Option<Icon>,
+    switch_to_input_entry_mode_icon: Option<WidgetRef>,
+    switch_to_calendar_entry_mode_icon: Option<WidgetRef>,
     day_builder: Option<CalendarDatePickerDayBuilder>,
     weekday_builder: Option<CalendarDatePickerWeekdayBuilder>,
     calendar_delegate: Rc<dyn CalendarDelegate>,
@@ -354,20 +354,23 @@ impl ShowDatePicker {
     }
 
     /// The icon that switches to the input entry mode.
-    pub fn switch_to_input_entry_mode_icon(
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn switch_to_input_entry_mode_icon<K>(
         mut self,
-        switch_to_input_entry_mode_icon: Icon,
+        switch_to_input_entry_mode_icon: impl IntoWidget<K>,
     ) -> ShowDatePicker {
-        self.switch_to_input_entry_mode_icon = Some(switch_to_input_entry_mode_icon);
+        self.switch_to_input_entry_mode_icon = Some(switch_to_input_entry_mode_icon.into_widget());
         self
     }
 
     /// The icon that switches to the calendar entry mode.
-    pub fn switch_to_calendar_entry_mode_icon(
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn switch_to_calendar_entry_mode_icon<K>(
         mut self,
-        switch_to_calendar_entry_mode_icon: Icon,
+        switch_to_calendar_entry_mode_icon: impl IntoWidget<K>,
     ) -> ShowDatePicker {
-        self.switch_to_calendar_entry_mode_icon = Some(switch_to_calendar_entry_mode_icon);
+        self.switch_to_calendar_entry_mode_icon =
+            Some(switch_to_calendar_entry_mode_icon.into_widget());
         self
     }
 
@@ -476,10 +479,8 @@ impl ShowDatePicker {
         dialog.field_label_text = field_label_text;
         dialog.keyboard_type = keyboard_type;
         dialog.on_date_picker_mode_change = on_date_picker_mode_change;
-        dialog.switch_to_input_entry_mode_icon =
-            switch_to_input_entry_mode_icon.map(IntoWidget::into_widget);
-        dialog.switch_to_calendar_entry_mode_icon =
-            switch_to_calendar_entry_mode_icon.map(IntoWidget::into_widget);
+        dialog.switch_to_input_entry_mode_icon = switch_to_input_entry_mode_icon;
+        dialog.switch_to_calendar_entry_mode_icon = switch_to_calendar_entry_mode_icon;
         dialog.day_builder = day_builder;
         dialog.weekday_builder = weekday_builder;
         let mut dialog = dialog.into_widget();
@@ -1662,8 +1663,8 @@ pub struct ShowDateRangePicker {
     text_direction: Option<TextDirection>,
     builder: Option<TransitionBuilder>,
     keyboard_type: TextInputType,
-    switch_to_input_entry_mode_icon: Option<Icon>,
-    switch_to_calendar_entry_mode_icon: Option<Icon>,
+    switch_to_input_entry_mode_icon: Option<WidgetRef>,
+    switch_to_calendar_entry_mode_icon: Option<WidgetRef>,
     selectable_day_predicate: Option<SelectableDayForRangePredicate>,
     calendar_delegate: Rc<dyn CalendarDelegate>,
 }
@@ -1868,20 +1869,23 @@ impl ShowDateRangePicker {
     }
 
     /// The icon that switches to the input entry mode.
-    pub fn switch_to_input_entry_mode_icon(
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn switch_to_input_entry_mode_icon<K>(
         mut self,
-        switch_to_input_entry_mode_icon: Icon,
+        switch_to_input_entry_mode_icon: impl IntoWidget<K>,
     ) -> ShowDateRangePicker {
-        self.switch_to_input_entry_mode_icon = Some(switch_to_input_entry_mode_icon);
+        self.switch_to_input_entry_mode_icon = Some(switch_to_input_entry_mode_icon.into_widget());
         self
     }
 
     /// The icon that switches to the calendar entry mode.
-    pub fn switch_to_calendar_entry_mode_icon(
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn switch_to_calendar_entry_mode_icon<K>(
         mut self,
-        switch_to_calendar_entry_mode_icon: Icon,
+        switch_to_calendar_entry_mode_icon: impl IntoWidget<K>,
     ) -> ShowDateRangePicker {
-        self.switch_to_calendar_entry_mode_icon = Some(switch_to_calendar_entry_mode_icon);
+        self.switch_to_calendar_entry_mode_icon =
+            Some(switch_to_calendar_entry_mode_icon.into_widget());
         self
     }
 
@@ -2005,10 +2009,8 @@ impl ShowDateRangePicker {
         dialog.field_end_hint_text = field_end_hint_text;
         dialog.field_start_label_text = field_start_label_text;
         dialog.field_end_label_text = field_end_label_text;
-        dialog.switch_to_input_entry_mode_icon =
-            switch_to_input_entry_mode_icon.map(IntoWidget::into_widget);
-        dialog.switch_to_calendar_entry_mode_icon =
-            switch_to_calendar_entry_mode_icon.map(IntoWidget::into_widget);
+        dialog.switch_to_input_entry_mode_icon = switch_to_input_entry_mode_icon;
+        dialog.switch_to_calendar_entry_mode_icon = switch_to_calendar_entry_mode_icon;
         let mut dialog = dialog.into_widget();
 
         if let Some(text_direction) = text_direction {

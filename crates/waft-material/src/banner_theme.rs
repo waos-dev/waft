@@ -203,6 +203,7 @@ pub struct MaterialBannerTheme {
 impl MaterialBannerTheme {
     /// Creates a banner theme that controls the configurations for
     /// `MaterialBanner`s in its widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> MaterialBannerTheme {
         MaterialBannerTheme {
             key: None,

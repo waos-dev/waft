@@ -207,6 +207,7 @@ impl Visibility {
     ///
     /// The [`maintain_animation`](Self::maintain_animation) flag can only be set if
     /// [`maintain_state`](Self::maintain_state) is set.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Visibility {
         Visibility {
             key: None,
@@ -227,6 +228,7 @@ impl Visibility {
     /// This is equivalent to [`Visibility::new`] with all "maintain" fields set to true. This
     /// constructor should be used in place of an [`Opacity`](crate::Opacity) widget that only
     /// takes on values of `0.0` or `1.0`, as it avoids extra compositing when fully opaque.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn maintain<K>(child: impl IntoWidget<K>) -> Visibility {
         Visibility {
             key: None,
@@ -250,6 +252,7 @@ impl Visibility {
     }
 
     /// Dart `Visibility(replacement:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn replacement<K>(mut self, replacement: impl IntoWidget<K>) -> Visibility {
         self.replacement = replacement.into_widget();
         self
@@ -447,6 +450,7 @@ impl RawVisibility {
         }
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn child<K>(mut self, child: impl IntoWidget<K>) -> RawVisibility {
         self.child = Some(child.into_widget());
         self

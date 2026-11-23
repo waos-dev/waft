@@ -26,6 +26,7 @@ pub(crate) struct ScrollBarViewport {
 
 impl ScrollBarViewport {
     /// Wraps content without changing controller ownership or native focus scrolling.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub(crate) fn new<K>(
         controller: Ref<ScrollViewportController>,
         child: impl IntoWidget<K>,
@@ -41,6 +42,7 @@ impl ScrollBarViewport {
 
     /// Puts the scrollbar on `scroller`, a native scroller attached to `controller` with
     /// whatever lies between them, such as a lazy ListView inside a fixed margin.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub(crate) fn scroller<K>(
         controller: Ref<ScrollViewportController>,
         scroller: impl IntoWidget<K>,

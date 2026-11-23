@@ -133,6 +133,7 @@ pub struct ElevatedButtonTheme {
 
 impl ElevatedButtonTheme {
     /// Create a [`ElevatedButtonTheme`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: ElevatedButtonThemeData, child: impl IntoWidget<K>) -> ElevatedButtonTheme {
         ElevatedButtonTheme {
             key: None,

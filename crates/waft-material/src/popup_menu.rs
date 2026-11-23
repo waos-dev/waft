@@ -132,6 +132,7 @@ pub struct PopupMenuEntryRef<T: 'static> {
 
 impl<T: 'static> PopupMenuEntryRef<T> {
     /// Erases `entry`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K, E: PopupMenuEntry<T> + IntoWidget<K>>(entry: E) -> PopupMenuEntryRef<T> {
         PopupMenuEntryRef {
             widget: entry.into_widget(),
@@ -184,6 +185,7 @@ impl<T: 'static> Debug for PopupMenuEntryRef<T> {
 pub struct PopupMenuEntryRefKind;
 
 impl<T: 'static> IntoWidget<PopupMenuEntryRefKind> for PopupMenuEntryRef<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.widget
     }
@@ -760,9 +762,13 @@ impl<T: Clone + PartialEq + 'static> PopupMenuItem<T> {
     /// Creates an item for a popup menu.
     ///
     /// By default, the item is [`enabled`](PopupMenuItemData::enabled).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: Option<impl IntoWidget<K>>) -> PopupMenuItem<T> {
         PopupMenuItem {
-            popup_menu_item: PopupMenuItemData::new(child.map(IntoWidget::into_widget)),
+            popup_menu_item: PopupMenuItemData::new(match child {
+                Some(child) => Some(child.into_widget()),
+                None => None,
+            }),
         }
     }
 
@@ -1103,6 +1109,7 @@ impl<T: Clone + PartialEq + 'static> CheckedPopupMenuItem<T> {
     ///
     /// This widget is placed in the `ListTile::title` slot of a [`ListTile`] whose
     /// `ListTile::leading` slot is an `Icons::done` icon.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> CheckedPopupMenuItem<T> {
         self.popup_menu_item.child = Some(child.into_widget());
         self
@@ -2784,12 +2791,14 @@ impl<T: Clone + PartialEq + 'static> PopupMenuButton<T> {
     }
 
     /// Dart `PopupMenuButton(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> PopupMenuButton<T> {
         self.child = Some(child.into_widget());
         self
     }
 
     /// Dart `PopupMenuButton(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> PopupMenuButton<T> {
         self.icon = Some(icon.into_widget());
         self
@@ -5777,7 +5786,7 @@ mod tests {
                     .expect("the focus actions answer whether focus moved")
             };
             let has_focus = |tester: &WidgetTester, text: &str| {
-                node(tester, text).has_focus(&mut tester.cell.borrow_mut())
+                node(tester, text).has_focus(&tester.cell.borrow_mut())
             };
 
             // Start at A

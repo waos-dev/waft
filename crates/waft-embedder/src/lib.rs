@@ -36,12 +36,14 @@ mod opener;
 mod painting;
 mod paragraph;
 mod platform;
+mod png;
 mod pointer;
 mod pointer_data_packet_converter;
 mod pointer_report;
 mod restoration;
 mod scene;
 mod semantics;
+mod service_extensions;
 mod signed_duration;
 mod snapshot_delegate;
 mod system_context_menu;
@@ -136,6 +138,7 @@ pub use platform::{
     Screens, SystemChrome, SystemContextMenu, SystemUiOverlayStyle, TargetPlatform, TextServices,
     ViewRef,
 };
+pub use png::encode_png;
 pub use pointer::{
     PointerChange, PointerData, PointerDataPacket, PointerDeviceKind, PointerSignalKind,
 };
@@ -150,6 +153,10 @@ pub use semantics::{
     LocaleStringAttribute, SemanticsAction, SemanticsHitTestBehavior, SemanticsInputType,
     SemanticsRole, SemanticsValidationResult, SpellOutStringAttribute, StringAttribute,
     StringAttributeRef,
+};
+pub use service_extensions::{
+    ServiceExtensionCall, ServiceExtensionError, ServiceExtensionParams, ServiceExtensionReply,
+    ServiceExtensionResult,
 };
 pub use signed_duration::SignedDuration;
 pub use snapshot_delegate::SnapshotDelegate;

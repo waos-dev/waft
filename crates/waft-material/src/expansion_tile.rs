@@ -481,6 +481,7 @@ impl ExpansionTile {
     /// Creates a single-line [`ListTile`] with an expansion arrow icon that expands or
     /// collapses the tile to reveal or hide the [`children`](Self::children); Dart's optional
     /// named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(title: impl IntoWidget<K>) -> ExpansionTile {
         ExpansionTile {
             key: None,
@@ -527,12 +528,14 @@ impl ExpansionTile {
     }
 
     /// Dart `ExpansionTile(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> ExpansionTile {
         self.leading = Some(leading.into_widget());
         self
     }
 
     /// Dart `ExpansionTile(subtitle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn subtitle<K>(mut self, subtitle: impl IntoWidget<K>) -> ExpansionTile {
         self.subtitle = Some(subtitle.into_widget());
         self
@@ -554,6 +557,7 @@ impl ExpansionTile {
     }
 
     /// Dart `ExpansionTile(trailing:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing<K>(mut self, trailing: impl IntoWidget<K>) -> ExpansionTile {
         self.trailing = Some(trailing.into_widget());
         self

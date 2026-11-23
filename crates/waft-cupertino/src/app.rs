@@ -278,6 +278,7 @@ impl CupertinoApp {
     }
 
     /// Dart `CupertinoApp(home:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn home<K>(mut self, home: impl IntoWidget<K>) -> CupertinoApp {
         self.home = Some(home.into_widget());
         self

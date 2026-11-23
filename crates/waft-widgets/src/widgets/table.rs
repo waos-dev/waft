@@ -3,6 +3,7 @@
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_embedder::{SemanticsRole, TextBaseline, TextDirection};
@@ -20,9 +21,9 @@ pub use waft_rendering::{
 };
 
 use crate::framework::{
-    AnyElement, BuildContext, Element, ElementData, KeyRef, ParentDataWidget, RenderObjectElement,
-    RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget, Slot, StatelessWidget,
-    Widget, WidgetKind, WidgetRef, downcast_widget,
+    AnyElement, BuildContext, CreationLocation, Element, ElementData, KeyRef, ParentDataWidget,
+    RenderObjectElement, RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget,
+    Slot, StatelessWidget, Widget, WidgetKind, WidgetRef, downcast_widget,
 };
 use crate::widgets::basic::{Directionality, Semantics};
 use crate::widgets::image::create_local_image_configuration;
@@ -174,6 +175,9 @@ pub struct Table {
     /// This must be set if using baseline alignment. There is no default because there is no
     /// way for the framework to know the correct baseline _a priori_.
     pub text_baseline: Option<TextBaseline>,
+
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl Default for Table {
@@ -187,6 +191,7 @@ impl Default for Table {
             border: None,
             default_vertical_alignment: TableCellVerticalAlignment::Top,
             text_baseline: None, // NO DEFAULT: we don't know what the text's baseline should be
+            created: None,
         }
     }
 }
@@ -314,6 +319,14 @@ impl fmt::Debug for Table {
 impl Widget for Table {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -722,6 +735,7 @@ pub struct TableCell {
 impl TableCell {
     /// Creates a widget that controls how a child of a [`Table`] is aligned; Dart's optional
     /// named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl crate::framework::IntoWidget<K>) -> TableCell {
         TableCell {
             key: None,

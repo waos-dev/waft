@@ -56,6 +56,7 @@ impl ControlBorder {
     }
 
     /// Sets the content inside the border and padding.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ControlBorder {
         self.child = Some(child.into_widget());
         self
@@ -379,5 +380,84 @@ impl RenderBox for RenderBorderPaint {
         let outer = self.get(app).style.outlines(self.size(app)).0;
         outer.contains(position)
             && RenderProxyBoxMixin::hit_test_children(self, app, result, position)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use waft_embedder::{Color, TextDirection};
+    use waft_widgets::testing::WidgetTester;
+    use waft_widgets::{
+        CustomScrollView, Directionality, GlobalKey, IntoWidget, LayoutBuilder, SizedBox,
+        SliverList, SliverToBoxAdapter,
+    };
+
+    use super::*;
+    use crate::Margin;
+
+    /// Every widget names the line of the app's code that made it: a child passed to a setter,
+    /// a child passed to a constructor, a sliver list built from its builder, and a widget that
+    /// is its own tree node.
+    #[test]
+    fn each_widget_names_the_line_that_made_it() {
+        let mut tester = WidgetTester::new();
+        let setter_key = GlobalKey::new();
+        let constructor_key = GlobalKey::new();
+        let builder_key = GlobalKey::new();
+        let tree_node_key = GlobalKey::new();
+
+        let border = ControlBorder::new(
+            Brush::Solid(Color::new(0xFF000000)),
+            Brush::Solid(Color::new(0xFFFFFFFF)),
+        );
+        let setter_line = line!() + 1;
+        let setter = border.child(SizedBox::new().key(setter_key.clone().into()));
+        let setter = setter.into_widget();
+
+        let constructor_child = SizedBox::new().key(constructor_key.clone().into());
+        let constructor_line = line!() + 1;
+        let constructor = Margin::new([1.0; 4], constructor_child).into_widget();
+
+        let builder = SliverList::builder(|_app, _context, index| {
+            (index < 1).then(|| SizedBox::new().height(10.0).into_widget())
+        })
+        .item_count(1)
+        .key(builder_key.clone().into());
+        let builder_line = line!() + 1;
+        let builder = builder.into_widget();
+
+        let tree_node =
+            LayoutBuilder::new(|_app, _context, _constraints| SizedBox::new().into_widget())
+                .key(tree_node_key.clone().into());
+        let tree_node_line = line!() + 1;
+        let tree_node = tree_node.into_widget();
+
+        tester.pump_widget(Directionality::new(
+            TextDirection::Ltr,
+            CustomScrollView::new().slivers([
+                SliverToBoxAdapter::new().child(setter).into_widget(),
+                SliverToBoxAdapter::new().child(constructor).into_widget(),
+                builder,
+                SliverToBoxAdapter::new().child(tree_node).into_widget(),
+            ]),
+        ));
+
+        for (key, line) in [
+            (setter_key, setter_line),
+            (constructor_key, constructor_line),
+            (builder_key, builder_line),
+            (tree_node_key, tree_node_line),
+        ] {
+            let app = tester.cell.borrow();
+            let context = key
+                .current_context(&app)
+                .expect("the widget is in the tree");
+            let location = context
+                .widget(&app)
+                .creation_location()
+                .expect("a creation location");
+            assert_eq!(location.file(), file!());
+            assert_eq!(location.line(), line);
+        }
     }
 }

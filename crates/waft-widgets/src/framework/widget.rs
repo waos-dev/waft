@@ -5,6 +5,7 @@
 use std::any::{Any, TypeId};
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_foundation::{
@@ -114,6 +115,20 @@ pub trait Widget: Any + Debug {
     /// replacing (and the types are the same), the framework updates the existing element
     /// instead of creating a new one.
     fn key(&self) -> Option<&KeyRef>;
+
+    /// Where the widget was made, in a debug build: Dart's creation location, which the widget
+    /// inspector shows and its summary tree keeps the app's own widgets by.
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        None
+    }
+
+    /// Keeps where the widget was made, for [`creation_location`](Self::creation_location) to
+    /// answer: what `into_widget` calls on a widget that is its own tree node, which has no
+    /// wrapper to keep it in. Such a widget keeps it in a field
+    /// (`created: Option<CreationLocation>`); the default keeps nothing.
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        let _ = location;
+    }
 
     /// Dart's `toStringShort`: the type, then the key when there is one, as
     /// `Text-[<'title'>]`.
@@ -296,12 +311,45 @@ fn without_module_path(name: &'static str) -> &'static str {
     &name[own_name..]
 }
 
+/// Where a widget was made, in a debug build: the line of the call that turned it into a
+/// [`WidgetRef`], which a setter taking a child passes on from its own caller. Dart's
+/// `--track-widget-creation` location, which is also kept in a debug build alone; a release build
+/// keeps nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CreationLocation {
+    #[cfg(debug_assertions)]
+    location: &'static Location<'static>,
+}
+
+impl CreationLocation {
+    /// The location of the call this one's caller was called from, as `#[track_caller]` carries
+    /// it.
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn of_caller() -> CreationLocation {
+        CreationLocation {
+            #[cfg(debug_assertions)]
+            location: Location::caller(),
+        }
+    }
+
+    /// The location, in a debug build.
+    pub fn location(self) -> Option<&'static Location<'static>> {
+        #[cfg(debug_assertions)]
+        return Some(self.location);
+        #[cfg(not(debug_assertions))]
+        return None;
+    }
+}
+
 /// The conversion of a widget value into a tree node.
 ///
 /// Every widget kind gets a blanket implementation, told apart by the phantom `Kind` so the
 /// implementations do not overlap; a call site infers it. A [`WidgetRef`] converts to itself, and
 /// a widget that is its own tree node converts as itself ([`TreeNodeKind`]).
 pub trait IntoWidget<Kind> {
+    /// The widget as a tree node, made where this is called: its
+    /// [`creation_location`](Widget::creation_location).
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef;
 }
 
@@ -322,7 +370,9 @@ impl IntoWidget<WidgetRefKind> for WidgetRef {
 pub struct TreeNodeKind;
 
 impl<W: Widget> IntoWidget<TreeNodeKind> for W {
-    fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn into_widget(mut self) -> WidgetRef {
+        self.record_creation_location(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -377,20 +427,25 @@ pub trait StatelessWidget: Debug + 'static {
 pub struct StatelessKind;
 
 /// The erased form of a [`StatelessWidget`].
-pub struct Stateless<W: StatelessWidget>(pub W);
+pub struct Stateless<W: StatelessWidget>(pub W, pub(crate) CreationLocation);
 
 impl<W: StatelessWidget> IntoWidget<StatelessKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             self.debug_check_constructor();
         }
-        Rc::new(Stateless(self))
+        Rc::new(Stateless(self, CreationLocation::of_caller()))
     }
 }
 
 impl<W: StatelessWidget> Widget for Stateless<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
@@ -497,20 +552,25 @@ pub trait StatefulWidget: Debug + 'static {
 pub struct StatefulKind;
 
 /// The erased form of a [`StatefulWidget`].
-pub struct Stateful<W: StatefulWidget>(pub W);
+pub struct Stateful<W: StatefulWidget>(pub W, pub(crate) CreationLocation);
 
 impl<W: StatefulWidget> IntoWidget<StatefulKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             self.debug_check_constructor();
         }
-        Rc::new(Stateful(self))
+        Rc::new(Stateful(self, CreationLocation::of_caller()))
     }
 }
 
 impl<W: StatefulWidget> Widget for Stateful<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
@@ -616,20 +676,25 @@ pub trait InheritedWidget: Debug + 'static {
 pub struct InheritedKind;
 
 /// The erased form of an [`InheritedWidget`].
-pub struct Inherited<W: InheritedWidget>(pub W);
+pub struct Inherited<W: InheritedWidget>(pub W, pub(crate) CreationLocation);
 
 impl<W: InheritedWidget> IntoWidget<InheritedKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             self.debug_check_constructor();
         }
-        Rc::new(Inherited(self))
+        Rc::new(Inherited(self, CreationLocation::of_caller()))
     }
 }
 
 impl<W: InheritedWidget> Widget for Inherited<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
@@ -758,20 +823,25 @@ pub trait ParentDataWidget: Debug + 'static {
 pub struct ParentDataKind;
 
 /// The erased form of a [`ParentDataWidget`].
-pub struct ParentDataWrapper<W: ParentDataWidget>(pub W);
+pub struct ParentDataWrapper<W: ParentDataWidget>(pub W, pub(crate) CreationLocation);
 
 impl<W: ParentDataWidget> IntoWidget<ParentDataKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             self.debug_check_constructor();
         }
-        Rc::new(ParentDataWrapper(self))
+        Rc::new(ParentDataWrapper(self, CreationLocation::of_caller()))
     }
 }
 
 impl<W: ParentDataWidget> Widget for ParentDataWrapper<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
@@ -935,20 +1005,25 @@ pub trait LeafRenderObjectWidget: RenderObjectWidget {}
 pub struct LeafRenderObjectKind;
 
 /// The erased form of a [`LeafRenderObjectWidget`].
-pub struct LeafRenderObject<W: LeafRenderObjectWidget>(pub W);
+pub struct LeafRenderObject<W: LeafRenderObjectWidget>(pub W, pub(crate) CreationLocation);
 
 impl<W: LeafRenderObjectWidget> IntoWidget<LeafRenderObjectKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             RenderObjectWidget::debug_check_constructor(&self);
         }
-        Rc::new(LeafRenderObject(self))
+        Rc::new(LeafRenderObject(self, CreationLocation::of_caller()))
     }
 }
 
 impl<W: LeafRenderObjectWidget> Widget for LeafRenderObject<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
@@ -1019,7 +1094,10 @@ where
 pub struct SingleChildRenderObjectKind;
 
 /// The erased form of a [`SingleChildRenderObjectWidget`].
-pub struct SingleChildRenderObject<W: SingleChildRenderObjectWidget>(pub W)
+pub struct SingleChildRenderObject<W: SingleChildRenderObjectWidget>(
+    pub W,
+    pub(crate) CreationLocation,
+)
 where
     W::RenderObject: RenderObjectWithChildMixin;
 
@@ -1027,11 +1105,12 @@ impl<W: SingleChildRenderObjectWidget> IntoWidget<SingleChildRenderObjectKind> f
 where
     W::RenderObject: RenderObjectWithChildMixin,
 {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             RenderObjectWidget::debug_check_constructor(&self);
         }
-        Rc::new(SingleChildRenderObject(self))
+        Rc::new(SingleChildRenderObject(self, CreationLocation::of_caller()))
     }
 }
 
@@ -1041,6 +1120,10 @@ where
 {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {
@@ -1132,7 +1215,10 @@ where
 pub struct MultiChildRenderObjectKind;
 
 /// The erased form of a [`MultiChildRenderObjectWidget`].
-pub struct MultiChildRenderObject<W: MultiChildRenderObjectWidget>(pub W)
+pub struct MultiChildRenderObject<W: MultiChildRenderObjectWidget>(
+    pub W,
+    pub(crate) CreationLocation,
+)
 where
     W::RenderObject: ContainerRenderObjectMixin;
 
@@ -1140,11 +1226,12 @@ impl<W: MultiChildRenderObjectWidget> IntoWidget<MultiChildRenderObjectKind> for
 where
     W::RenderObject: ContainerRenderObjectMixin,
 {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             RenderObjectWidget::debug_check_constructor(&self);
         }
-        Rc::new(MultiChildRenderObject(self))
+        Rc::new(MultiChildRenderObject(self, CreationLocation::of_caller()))
     }
 }
 
@@ -1154,6 +1241,10 @@ where
 {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(&self, app: &App, properties: &mut DiagnosticPropertiesBuilder) {

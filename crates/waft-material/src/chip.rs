@@ -959,6 +959,7 @@ impl Chip {
     ///
     /// The [`elevation`](Self::elevation) must be null or non-negative. Dart's named
     /// arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>) -> Chip {
         Chip {
             key: None,
@@ -1144,6 +1145,7 @@ impl RawChip {
     /// The [`press_elevation`](Self::press_elevation) and [`elevation`](Self::elevation)
     /// must be null or non-negative. The [`delete_icon`](Self::delete_icon) defaults to an
     /// `Icon` of `Icons::cancel`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>) -> RawChip {
         RawChip {
             key: None,
@@ -1247,6 +1249,7 @@ impl RawChip {
     chip_non_negative_setters!(RawChip; press_elevation, elevation);
 
     /// Dart `RawChip(deleteIcon:)`, which falls back to the default delete icon when null.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn delete_icon<K>(mut self, delete_icon: impl IntoWidget<K>) -> RawChip {
         self.delete_icon = delete_icon.into_widget();
         self
@@ -5660,19 +5663,19 @@ pub(crate) mod tests {
                 let label_node = focus_of(tester, &label_key);
                 let delete_node = focus_of(tester, &delete_button_key);
                 assert_ne!(delete_node, label_node);
-                assert!(delete_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(delete_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(delete_node.has_primary_focus(&tester.cell.borrow()));
                 // Delete button is a child widget of the Chip, so the Chip should have focus if
                 // the delete button does.
-                assert!(label_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(label_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(!label_node.has_primary_focus(&tester.cell.borrow()));
 
                 label_node.request_focus(&mut tester.cell.borrow_mut(), None);
                 tester.pump();
 
-                assert!(!delete_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(!delete_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(!delete_node.has_primary_focus(&tester.cell.borrow()));
-                assert!(label_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(label_node.has_focus(&tester.cell.borrow_mut()));
                 assert!(label_node.has_primary_focus(&tester.cell.borrow()));
             });
         }

@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use waft_embedder::{Offset, ViewId, ViewRef};
-use waft_foundation::{App, Handle, Listener};
+use waft_foundation::{App, Handle, Listener, ServiceExtensions};
 use waft_gestures::{GestureBinding, GestureBindingOverridesObject, HitTestResult, PointerEvent};
 use waft_scheduler::{FrameCallback, FrameTarget, PersistentFrameCallback, SchedulerBinding};
 
@@ -122,8 +122,23 @@ impl RendererBinding {
             // Flutter's `RendererBinding` overrides `GestureBinding.hitTestInView` and
             // `dispatchEvent`.
             GestureBinding::instance(app).set_overrides(app, Rc::new(this));
+            RendererBinding::init_service_extensions(app);
         }
         this
+    }
+
+    /// Dart's `RendererBinding.initServiceExtensions`, in a debug build: the render trees' and
+    /// layer trees' dumps, each answering `{"data": text}`.
+    fn init_service_extensions(app: &mut App) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        ServiceExtensions::register_dump(
+            app,
+            "ext.waft.debugDumpRenderTree",
+            debug_dump_render_tree,
+        );
+        ServiceExtensions::register_dump(app, "ext.waft.debugDumpLayerTree", debug_dump_layer_tree);
     }
 
     /// The object that manages state about currently connected mice, for hover

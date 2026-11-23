@@ -40,6 +40,7 @@ pub struct GridTile {
 
 impl GridTile {
     /// Creates a grid tile; Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> GridTile {
         GridTile {
             key: None,
@@ -56,12 +57,14 @@ impl GridTile {
     }
 
     /// Dart `GridTile(header:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> GridTile {
         self.header = Some(header.into_widget());
         self
     }
 
     /// Dart `GridTile(footer:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn footer<K>(mut self, footer: impl IntoWidget<K>) -> GridTile {
         self.footer = Some(footer.into_widget());
         self

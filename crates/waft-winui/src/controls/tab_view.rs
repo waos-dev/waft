@@ -191,12 +191,14 @@ impl TabView {
     }
 
     /// Supplies the leading strip content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn tab_strip_header<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.tab_strip_header = Some(child.into_widget());
         self
     }
 
     /// Supplies the trailing strip content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn tab_strip_footer<K>(mut self, child: impl IntoWidget<K>) -> Self {
         self.tab_strip_footer = Some(child.into_widget());
         self

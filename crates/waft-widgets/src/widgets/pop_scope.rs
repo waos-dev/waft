@@ -75,6 +75,7 @@ impl PopScope {
     /// enclosing [`ModalRoute`](crate::ModalRoute); Dart's optional arguments are the setters.
     ///
     /// Dart's default: `can_pop` true.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> PopScope {
         PopScope {
             key: None,

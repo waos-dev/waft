@@ -50,6 +50,7 @@ pub struct SelectionArea {
 
 impl SelectionArea {
     /// Creates a selection area over `child`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> SelectionArea {
         SelectionArea {
             key: None,

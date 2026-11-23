@@ -102,7 +102,9 @@ use std::sync::Weak;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
-use waft_embedder::{EmbedderClient, ScreenId, ViewId, VsyncObserver};
+use waft_embedder::{
+    EmbedderClient, ScreenId, ServiceExtensionCall, ServiceExtensionParams, ViewId, VsyncObserver,
+};
 use winit::application::ApplicationHandler;
 use winit::event::{StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
@@ -120,9 +122,10 @@ use crate::launch::StartApp;
 use crate::lifecycle::{AppLifecycle, LifecycleNotice};
 use crate::menus::MenuEvent;
 use crate::os::System;
-use crate::os::capabilities::NativeComposition;
+use crate::os::capabilities::{ApplicationIdentity, NativeComposition};
 use crate::platform::WinitPlatform;
 use crate::pointer::Pointer;
+use crate::service_extensions::{self, IncomingCall, ServiceExtensionServer};
 use crate::state::EmbedderState;
 use crate::system_changes::SystemChange;
 use crate::system_requests::SystemRequest;
@@ -173,6 +176,8 @@ pub(crate) enum MainLoopEvent {
     /// Fingers came down on a trackpad over a window, at the moment the system reported it,
     /// which winit does not report.
     TrackpadTouched(WindowId, Instant),
+    /// A client called one of the app's service extensions (`service_extensions.rs`).
+    ServiceExtensionCall(IncomingCall),
 }
 
 /// Where an event for the loop is sent from, on any thread: it waits in the loop's queue, after
@@ -240,6 +245,8 @@ pub(crate) struct MainLoop<C> {
     started: bool,
     /// Where a window's visibility notices send the loop their events.
     proxy: MainLoopProxy,
+    /// The app's service extensions, served while the loop runs, in a debug build.
+    _service_extensions: Option<ServiceExtensionServer>,
 }
 
 impl<C: EmbedderClient> MainLoop<C> {
@@ -257,6 +264,9 @@ impl<C: EmbedderClient> MainLoop<C> {
             create_image_loader,
             gpu_request,
         ));
+        // `[package.metadata.waft] identifier`, which `#[waft::main]` gives every desktop as
+        // Linux's app id, else the bundle's.
+        let identifier = linux.app_id.clone().or_else(System::bundle_identifier);
         let platform = Rc::new(WinitPlatform::new(Rc::clone(&state), proxy.clone()));
         let view_maker = ViewMaker::new(state.gpu().clone(), Rc::clone(state.requests()), linux);
         let client = start(platform.clone());
@@ -278,6 +288,7 @@ impl<C: EmbedderClient> MainLoop<C> {
             lifecycle: AppLifecycle::default(),
             events,
             started: false,
+            _service_extensions: ServiceExtensionServer::start(proxy.clone(), identifier),
             proxy,
         }
     }
@@ -287,6 +298,15 @@ impl<C: EmbedderClient> MainLoop<C> {
     fn on_started(&mut self) {
         self.started = true;
         self.proxy.wake();
+    }
+
+    /// Hands a client's call to the framework, whose answer goes back to the connection.
+    fn on_service_extension_call(&mut self, call: IncomingCall) {
+        self.client.service_extension_call(ServiceExtensionCall {
+            name: call.name,
+            params: ServiceExtensionParams::new(call.params),
+            reply: service_extensions::reply(call.answer),
+        });
     }
 
     /// Wakes the client: the futures its app awaits resolve at the checkpoint a wake brings.
@@ -320,6 +340,7 @@ impl<C: EmbedderClient> MainLoop<C> {
             MainLoopEvent::Lifecycle(notice) => self.on_lifecycle_notice(notice),
             MainLoopEvent::SystemChange(change) => self.on_system_change(event_loop, change),
             MainLoopEvent::WindowVisibility(id) => self.sync_window_state(id),
+            MainLoopEvent::ServiceExtensionCall(call) => self.on_service_extension_call(call),
             MainLoopEvent::TrackpadTouched(id, at) => self.on_trackpad_touched(id, at),
         }
     }

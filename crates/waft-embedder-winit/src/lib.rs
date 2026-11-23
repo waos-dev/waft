@@ -43,6 +43,7 @@ mod pointer;
 mod popup_menus;
 mod rasterizer;
 mod screens;
+mod service_extensions;
 mod state;
 mod system_changes;
 mod system_requests;

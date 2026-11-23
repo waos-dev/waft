@@ -7,6 +7,15 @@ use std::rc::Rc;
 use std::sync::LazyLock;
 
 use indexmap::IndexMap;
+use serde_json::{Map as JsonMap, Value};
+
+use crate::HandleId;
+
+/// A serialized diagnostics node: Dart's `Map<String, Object?>`, with JSON values.
+///
+/// Dart's `Map` is ordered; [`serde_json::Map`] is, unless another feature makes it so. Keys are
+/// never looked up by order.
+pub type DiagnosticsJsonMap = JsonMap<String, Value>;
 
 /// The various priority levels used to filter which diagnostics are shown and omitted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -48,6 +57,21 @@ impl DiagnosticLevel {
             DiagnosticLevel::Off => 8,
         }
     }
+
+    /// Dart's `DiagnosticLevel.name`: the case written in Dart's source, lowerCamel.
+    pub fn name(self) -> &'static str {
+        match self {
+            DiagnosticLevel::Hidden => "hidden",
+            DiagnosticLevel::Fine => "fine",
+            DiagnosticLevel::Debug => "debug",
+            DiagnosticLevel::Info => "info",
+            DiagnosticLevel::Warning => "warning",
+            DiagnosticLevel::Hint => "hint",
+            DiagnosticLevel::Summary => "summary",
+            DiagnosticLevel::Error => "error",
+            DiagnosticLevel::Off => "off",
+        }
+    }
 }
 
 /// Styles for displaying a node in a [`DiagnosticsNode`] tree.
@@ -81,6 +105,26 @@ pub enum DiagnosticsTreeStyle {
     /// Render only the children of a node truncating before the tree becomes too
     /// large.
     TruncateChildren,
+}
+
+impl DiagnosticsTreeStyle {
+    /// Dart's `DiagnosticsTreeStyle.name`: the case written in Dart's source, lowerCamel.
+    pub fn name(self) -> &'static str {
+        match self {
+            DiagnosticsTreeStyle::None => "none",
+            DiagnosticsTreeStyle::Sparse => "sparse",
+            DiagnosticsTreeStyle::Offstage => "offstage",
+            DiagnosticsTreeStyle::Dense => "dense",
+            DiagnosticsTreeStyle::Transition => "transition",
+            DiagnosticsTreeStyle::Error => "error",
+            DiagnosticsTreeStyle::Whitespace => "whitespace",
+            DiagnosticsTreeStyle::Flat => "flat",
+            DiagnosticsTreeStyle::SingleLine => "singleLine",
+            DiagnosticsTreeStyle::ErrorProperty => "errorProperty",
+            DiagnosticsTreeStyle::Shallow => "shallow",
+            DiagnosticsTreeStyle::TruncateChildren => "truncateChildren",
+        }
+    }
 }
 
 /// Configuration specifying how a particular [`DiagnosticsTreeStyle`] should be
@@ -1206,6 +1250,189 @@ impl Default for TextTreeRenderer {
     }
 }
 
+fn json_put(json: &mut DiagnosticsJsonMap, key: &str, value: Value) {
+    let _ = json.insert(key.to_string(), value);
+}
+
+fn json_array(nodes: Vec<DiagnosticsJsonMap>) -> Value {
+    Value::Array(nodes.into_iter().map(Value::Object).collect())
+}
+
+/// A value as Dart's `value.toString()` prints it, from the value's `Display`; a Rust double's
+/// `Display` drops the `.0` Dart keeps.
+fn dart_value_to_string(value: &dyn std::any::Any, display: String) -> String {
+    if let Some(value) = value.downcast_ref::<f64>() {
+        return dart_double_to_string(*value);
+    }
+    if let Some(value) = value.downcast_ref::<f32>() {
+        return dart_double_to_string(f64::from(*value));
+    }
+    display
+}
+
+/// Dart's `double.toString`: the shortest text that reads back as the same value, with `.0` kept
+/// on an integral one, and Dart's spellings for the three non-finite values.
+fn dart_double_to_string(value: f64) -> String {
+    if value.is_nan() {
+        "NaN".to_string()
+    } else if value == f64::INFINITY {
+        "Infinity".to_string()
+    } else if value == f64::NEG_INFINITY {
+        "-Infinity".to_string()
+    } else {
+        format!("{value:?}")
+    }
+}
+
+/// The body of Dart's `DiagnosticsNode.toJsonMap`.
+///
+/// `owner` is the node as a trait object, for the delegate hooks that take one. Only a sized
+/// implementation can hand itself over, which is why the trait's provided method passes none: see
+/// [`json_map_impl`](macro@json_map_impl).
+macro_rules! to_json_map_body {
+    ($node:expr, $owner:expr, $delegate:expr) => {{
+        let owner: Option<&dyn DiagnosticsNode> = $owner;
+        let delegate: &dyn DiagnosticsSerializationDelegate = $delegate;
+        let mut json = DiagnosticsJsonMap::new();
+        json_put(
+            &mut json,
+            "description",
+            Value::String($node.to_description(None)),
+        );
+        json_put(
+            &mut json,
+            "type",
+            Value::String($node.type_name().to_string()),
+        );
+        if let Some(name) = $node.name() {
+            json_put(&mut json, "name", Value::String(name.to_string()));
+        }
+        if !$node.show_separator() {
+            json_put(&mut json, "showSeparator", Value::Bool(false));
+        }
+        let level = $node.level();
+        if level != DiagnosticLevel::Info {
+            json_put(&mut json, "level", Value::String(level.name().to_string()));
+        }
+        if !$node.show_name() {
+            json_put(&mut json, "showName", Value::Bool(false));
+        }
+        if let Some(description) = $node.empty_body_description() {
+            json_put(
+                &mut json,
+                "emptyBodyDescription",
+                Value::String(description.to_string()),
+            );
+        }
+        let style = $node.style();
+        if let Some(style) = style
+            && style != DiagnosticsTreeStyle::Sparse
+        {
+            json_put(&mut json, "style", Value::String(style.name().to_string()));
+        }
+        if $node.allow_truncate() {
+            json_put(&mut json, "allowTruncate", Value::Bool(true));
+        }
+        let children = $node.get_children();
+        if !children.is_empty() {
+            json_put(&mut json, "hasChildren", Value::Bool(true));
+        }
+        if let Some(prefix) = $node.line_prefix()
+            && !prefix.is_empty()
+        {
+            json_put(&mut json, "linePrefix", Value::String(prefix.to_string()));
+        }
+        if !$node.allow_wrap() {
+            json_put(&mut json, "allowWrap", Value::Bool(false));
+        }
+        if $node.allow_name_wrap() {
+            json_put(&mut json, "allowNameWrap", Value::Bool(true));
+        }
+        if let Some(owner) = owner {
+            for (key, value) in delegate.additional_node_properties(owner, true) {
+                let _ = json.insert(key, value);
+            }
+        }
+        if delegate.include_properties() {
+            let properties = $node.get_properties();
+            let properties = match owner {
+                Some(owner) => delegate.filter_properties(properties, owner),
+                None => properties,
+            };
+            json_put(
+                &mut json,
+                "properties",
+                json_array(to_json_list(properties, owner, delegate)),
+            );
+        }
+        if delegate.subtree_depth() > 0 {
+            let children = match owner {
+                Some(owner) => delegate.filter_children(children, owner),
+                None => children,
+            };
+            json_put(
+                &mut json,
+                "children",
+                json_array(to_json_list(children, owner, delegate)),
+            );
+        }
+        json
+    }};
+}
+
+/// Implements [`DiagnosticsNode::to_json_map`] with Dart's base body and `self` as the owner its
+/// property and child lists are filtered against.
+macro_rules! json_map_impl {
+    () => {
+        fn to_json_map(
+            &self,
+            delegate: &dyn DiagnosticsSerializationDelegate,
+        ) -> DiagnosticsJsonMap {
+            base_json_map(self, delegate)
+        }
+    };
+}
+
+/// Dart's `DiagnosticsNode.toJsonMap` body for a node that can name itself as a trait object.
+///
+pub fn base_json_map(
+    node: &dyn DiagnosticsNode,
+    delegate: &dyn DiagnosticsSerializationDelegate,
+) -> DiagnosticsJsonMap {
+    to_json_map_body!(node, Some(node), delegate)
+}
+
+/// Serializes a list of nodes, as Dart's `DiagnosticsNode.toJsonList`.
+///
+/// `parent` owns the list: the delegate's truncation and, through it, a node's own filtering see
+/// it, and it is null only for a node that could not name itself (see [`base_json_map`]).
+pub fn to_json_list(
+    nodes: Vec<Rc<dyn DiagnosticsNode>>,
+    parent: Option<&dyn DiagnosticsNode>,
+    delegate: &dyn DiagnosticsSerializationDelegate,
+) -> Vec<DiagnosticsJsonMap> {
+    let original_node_count = nodes.len();
+    let mut nodes = delegate.truncate_nodes_list(nodes, parent);
+    let mut truncated = false;
+    if nodes.len() != original_node_count {
+        nodes.push(Rc::new(message("...")));
+        truncated = true;
+    }
+    let mut json: Vec<DiagnosticsJsonMap> = nodes
+        .iter()
+        .map(|node| {
+            let node_delegate = delegate.delegate_for_node(node.as_ref());
+            node.to_json_map(node_delegate.as_ref())
+        })
+        .collect();
+    if truncated {
+        json.last_mut()
+            .expect("a truncated list holds its hint")
+            .insert("truncated".to_string(), Value::Bool(true));
+    }
+    json
+}
+
 /// Defines diagnostics data for a value.
 ///
 /// Dart's `DiagnosticsNode`. Rust keeps Flutter's member set on a trait because
@@ -1261,6 +1488,20 @@ pub trait DiagnosticsNode: fmt::Display {
         None
     }
 
+    /// The arena object this node describes, when it describes one.
+    ///
+    /// A snapshot node keeps no object, so where Dart's `value` is the object itself, a node
+    /// built from one names it by handle and answers it here. The JSON does not print it; a
+    /// serialization delegate adds it as `valueId`.
+    fn value_id(&self) -> Option<HandleId> {
+        None
+    }
+
+    /// Dart's `Object.runtimeType.toString()`: the class name, as JSON's `type` prints it.
+    fn type_name(&self) -> &'static str {
+        bare_type_name(std::any::type_name::<Self>())
+    }
+
     /// Hint for how the node should be displayed.
     fn style(&self) -> Option<DiagnosticsTreeStyle>;
 
@@ -1313,6 +1554,15 @@ pub trait DiagnosticsNode: fmt::Display {
         }
         Some(result)
     }
+
+    /// Serializes the node to a JSON map according to the configuration provided in the
+    /// [`DiagnosticsSerializationDelegate`]: Dart's `toJsonMap`.
+    ///
+    /// Required, where Dart's base class gives a body: a provided method cannot hand `&self` to
+    /// the delegate as the `&dyn DiagnosticsNode` its hooks are given. A node class starts from
+    /// [`base_json_map`] (`super.toJsonMap`), or from the JSON of the property it wraps, and adds
+    /// its own fields.
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap;
 
     /// Returns a string representation compatible with the style of the parent
     /// if the node is not the root.
@@ -1415,6 +1665,14 @@ impl DiagnosticsNode for Rc<dyn DiagnosticsNode> {
         (**self).value()
     }
 
+    fn value_id(&self) -> Option<HandleId> {
+        (**self).value_id()
+    }
+
+    fn type_name(&self) -> &'static str {
+        (**self).type_name()
+    }
+
     fn style(&self) -> Option<DiagnosticsTreeStyle> {
         (**self).style()
     }
@@ -1437,6 +1695,10 @@ impl DiagnosticsNode for Rc<dyn DiagnosticsNode> {
 
     fn get_children(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
         (**self).get_children()
+    }
+
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        (**self).to_json_map(delegate)
     }
 
     fn to_string_deep_with(
@@ -1627,10 +1889,194 @@ impl<T> PropertyData<T> {
         if !self.expandable_value {
             return None;
         }
+        self.node_value()
+    }
+
+    /// The value as a node, when it is one: Waft's stand-in for Dart's `value is Diagnosticable`.
+    ///
+    /// A `Diagnosticable` value that is not a node cannot be told apart from any other `T`; see
+    /// `PORTING.md`.
+    fn node_value(&self) -> Option<Rc<dyn DiagnosticsNode>>
+    where
+        T: Any,
+    {
         let value = self.value()?;
         let any = value as &dyn Any;
         any.downcast_ref::<Rc<dyn DiagnosticsNode>>().cloned()
     }
+}
+
+impl<T: Any> PropertyData<T> {
+    /// Dart's `DiagnosticsProperty.propertyType`.
+    pub fn property_type(&self) -> &'static str {
+        bare_type_name(std::any::type_name::<T>())
+    }
+
+    /// The JSON value of Dart's `toJsonMap` value rules: a number, string, bool or null, and
+    /// nothing for a value that is an object.
+    fn json_value(&self) -> Option<Value> {
+        let Some(value) = self.value() else {
+            return Some(Value::Null);
+        };
+        let any = value as &dyn Any;
+        if let Some(text) = any.downcast_ref::<String>() {
+            return Some(Value::String(text.clone()));
+        }
+        if let Some(flag) = any.downcast_ref::<bool>() {
+            return Some(Value::Bool(*flag));
+        }
+        if let Some(number) = any.downcast_ref::<f64>() {
+            return Some(json_double(*number));
+        }
+        if let Some(number) = any.downcast_ref::<f32>() {
+            return Some(json_double(f64::from(*number)));
+        }
+        if let Some(number) = any.downcast_ref::<i64>() {
+            return Some(Value::Number((*number).into()));
+        }
+        if let Some(number) = any.downcast_ref::<u64>() {
+            return Some(Value::Number((*number).into()));
+        }
+        macro_rules! smaller_number {
+            ($($type:ty),+) => {
+                $(
+                    if let Some(number) = any.downcast_ref::<$type>() {
+                        return Some(Value::Number((*number as i64).into()));
+                    }
+                )+
+            };
+        }
+        smaller_number!(i8, i16, i32, isize);
+        macro_rules! small_unsigned_number {
+            ($($type:ty),+) => {
+                $(
+                    if let Some(number) = any.downcast_ref::<$type>() {
+                        return Some(Value::Number((*number as u64).into()));
+                    }
+                )+
+            };
+        }
+        small_unsigned_number!(u8, u16, u32, usize);
+        None
+    }
+
+    /// Dart's `DiagnosticsProperty.toJsonMap`, the JSON every property class starts from.
+    ///
+    /// `default_value` is Dart's `defaultValue.toString()`, which Rust cannot print for every `T`;
+    /// the property class, which knows whether its `T` is `Display`, `Debug` or a list, prints it.
+    fn json_map(
+        &self,
+        node: &dyn DiagnosticsNode,
+        delegate: &dyn DiagnosticsSerializationDelegate,
+        default_value: Option<String>,
+    ) -> DiagnosticsJsonMap {
+        let mut properties_json: Option<Vec<DiagnosticsJsonMap>> = None;
+        let mut copied_delegate: Option<Rc<dyn DiagnosticsSerializationDelegate>> = None;
+        if delegate.expand_property_values()
+            && delegate.include_properties()
+            && let Some(value_node) = self.node_value()
+            && node.get_properties().is_empty()
+        {
+            // Exclude children for expanded nodes to avoid cycles.
+            let copied = delegate.copy_with(Some(0), Some(false));
+            properties_json = Some(to_json_list(
+                copied.filter_properties(value_node.get_properties(), node),
+                Some(node),
+                copied.as_ref(),
+            ));
+            copied_delegate = Some(copied);
+        }
+        let delegate: &dyn DiagnosticsSerializationDelegate = match &copied_delegate {
+            Some(copied) => copied.as_ref(),
+            None => delegate,
+        };
+        let mut json = base_json_map(node, delegate);
+        if let Some(properties) = properties_json {
+            json_put(&mut json, "properties", json_array(properties));
+        }
+        if let Some(default_value) = default_value {
+            json_put(&mut json, "defaultValue", Value::String(default_value));
+        }
+        if let Some(if_empty) = &self.if_empty {
+            json_put(&mut json, "ifEmpty", Value::String(if_empty.clone()));
+        }
+        if let Some(if_null) = self.effective_if_null() {
+            json_put(&mut json, "ifNull", Value::String(if_null.to_string()));
+        }
+        if let Some(tooltip) = &self.tooltip {
+            json_put(&mut json, "tooltip", Value::String(tooltip.clone()));
+        }
+        json_put(
+            &mut json,
+            "missingIfNull",
+            Value::Bool(self.missing_if_null),
+        );
+        // Dart prints a caught exception's `toString`; a computed value here cannot throw, so
+        // there is no `exception` field to print.
+        json_put(
+            &mut json,
+            "propertyType",
+            Value::String(self.property_type().to_string()),
+        );
+        json_put(
+            &mut json,
+            "defaultLevel",
+            Value::String(self.default_level.name().to_string()),
+        );
+        if self.node_value().is_some() {
+            json_put(&mut json, "isDiagnosticableValue", Value::Bool(true));
+        }
+        if let Some(value) = self.json_value() {
+            json_put(&mut json, "value", value);
+        }
+        json
+    }
+}
+
+/// Dart's JSON for a `double` value: the number, or its text for a non-finite one, which JSON
+/// cannot carry.
+fn json_double(value: f64) -> Value {
+    match serde_json::Number::from_f64(value) {
+        Some(number) => Value::Number(number),
+        None => Value::String(dart_double_to_string(value)),
+    }
+}
+
+/// Dart's `defaultValue.toString()` for a value whose Rust type is `Display`.
+fn json_default_value<T: fmt::Display + Any>(default_value: &Option<Option<T>>) -> Option<String> {
+    default_value.as_ref().map(|value| match value {
+        Some(value) => dart_value_to_string(value as &dyn Any, value.to_string()),
+        None => "null".to_string(),
+    })
+}
+
+/// Dart's `defaultValue.toString()` for an `IterableProperty`'s list, which prints as a Dart list.
+fn json_iterable_default_value<T: fmt::Display + Any>(
+    default_value: &Option<Option<Vec<T>>>,
+) -> Option<String> {
+    default_value.as_ref().map(|value| match value {
+        Some(values) => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(|value| dart_value_to_string(value as &dyn Any, value.to_string()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        None => "null".to_string(),
+    })
+}
+
+/// Dart's `defaultValue.toString()` for an enum, which prints its type and case.
+fn json_enum_default_value<T: fmt::Debug>(default_value: &Option<Option<T>>) -> Option<String> {
+    default_value.as_ref().map(|value| match value {
+        Some(value) => format!(
+            "{}.{}",
+            bare_type_name(std::any::type_name::<T>()),
+            describe_enum(value)
+        ),
+        None => "null".to_string(),
+    })
 }
 
 impl<T> PropertyData<T> {
@@ -1912,6 +2358,11 @@ where
             .unwrap_or_default()
     }
 
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        self.data
+            .json_map(self, delegate, json_default_value(&self.data.default_value))
+    }
+
     render_deep_with!();
 }
 
@@ -1994,6 +2445,18 @@ impl DiagnosticsNode for MessageProperty {
 
     fn allow_name_wrap(&self) -> bool {
         self.property.allow_name_wrap()
+    }
+
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json = self.property.property_data().json_map(
+            self,
+            delegate,
+            json_default_value(&self.property.property_data().default_value),
+        );
+        // The property's value type is `void` in Dart: its message is a description, and its
+        // value is always null.
+        json_put(&mut json, "propertyType", Value::String("void".to_string()));
+        json
     }
 
     render_deep_with!();
@@ -2129,6 +2592,14 @@ impl DiagnosticsNode for StringProperty {
 
     fn value(&self) -> Option<&dyn Any> {
         self.data.value().map(|value| value as &dyn Any)
+    }
+
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json =
+            self.data
+                .json_map(self, delegate, json_default_value(&self.data.default_value));
+        json_put(&mut json, "quoted", Value::Bool(self.quoted));
+        json
     }
 
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
@@ -2283,6 +2754,21 @@ impl DiagnosticsNode for DoubleProperty {
         self.data.value().map(|value| value as &dyn Any)
     }
 
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json =
+            self.data
+                .json_map(self, delegate, json_default_value(&self.data.default_value));
+        if let Some(unit) = &self.unit {
+            json_put(&mut json, "unit", Value::String(unit.clone()));
+        }
+        json_put(
+            &mut json,
+            "numberToString",
+            Value::String(self.number_to_string()),
+        );
+        json
+    }
+
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
         self.data
             .to_description_with(parent_configuration, |parent| self.value_to_string(parent))
@@ -2429,6 +2915,21 @@ where
         self.data.value().map(|value| value as &dyn Any)
     }
 
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json =
+            self.data
+                .json_map(self, delegate, json_default_value(&self.data.default_value));
+        if let Some(unit) = &self.unit {
+            json_put(&mut json, "unit", Value::String(unit.clone()));
+        }
+        json_put(
+            &mut json,
+            "numberToString",
+            Value::String(self.number_to_string()),
+        );
+        json
+    }
+
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
         self.data
             .to_description_with(parent_configuration, |parent| self.value_to_string(parent))
@@ -2562,6 +3063,25 @@ impl DiagnosticsNode for PercentProperty {
         DiagnosticsNode::value(&self.inner)
     }
 
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        // Dart's `PercentProperty` inherits `DoubleProperty`'s JSON; only its number's text is
+        // its own.
+        let mut json = self.inner.property_data().json_map(
+            self,
+            delegate,
+            json_default_value(&self.inner.property_data().default_value),
+        );
+        if let Some(unit) = &self.inner.unit {
+            json_put(&mut json, "unit", Value::String(unit.clone()));
+        }
+        json_put(
+            &mut json,
+            "numberToString",
+            Value::String(self.number_to_string()),
+        );
+        json
+    }
+
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
         self.inner
             .data
@@ -2690,6 +3210,19 @@ impl DiagnosticsNode for FlagProperty {
 
     fn value(&self) -> Option<&dyn Any> {
         self.data.value().map(|value| value as &dyn Any)
+    }
+
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json =
+            self.data
+                .json_map(self, delegate, json_default_value(&self.data.default_value));
+        if let Some(if_true) = &self.if_true {
+            json_put(&mut json, "ifTrue", Value::String(if_true.clone()));
+        }
+        if let Some(if_false) = &self.if_false {
+            json_put(&mut json, "ifFalse", Value::String(if_false.clone()));
+        }
+        json
     }
 
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
@@ -2885,6 +3418,24 @@ where
         self.data.value().map(|value| value as &dyn Any)
     }
 
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json = self.data.json_map(
+            self,
+            delegate,
+            json_iterable_default_value(&self.data.default_value),
+        );
+        if let Some(values) = self.value() {
+            let values: Vec<Value> = values
+                .iter()
+                .map(|value| {
+                    Value::String(dart_value_to_string(value as &dyn Any, value.to_string()))
+                })
+                .collect();
+            json_put(&mut json, "values", Value::Array(values));
+        }
+        json
+    }
+
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
         self.data
             .to_description_with(parent_configuration, |parent| self.value_to_string(parent))
@@ -2990,6 +3541,14 @@ where
 
     fn value(&self) -> Option<&dyn Any> {
         self.data.value().map(|value| value as &dyn Any)
+    }
+
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        self.data.json_map(
+            self,
+            delegate,
+            json_enum_default_value(&self.data.default_value),
+        )
     }
 
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
@@ -3137,6 +3696,16 @@ where
         self.data.value().map(|value| value as &dyn Any)
     }
 
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json =
+            self.data
+                .json_map(self, delegate, json_default_value(&self.data.default_value));
+        if let Some(if_present) = &self.if_present {
+            json_put(&mut json, "ifPresent", Value::String(if_present.clone()));
+        }
+        json
+    }
+
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
         debug_assert!(
             self.if_present.is_some() || self.data.if_null.is_some(),
@@ -3208,6 +3777,12 @@ pub struct FlagsSummary<T> {
 }
 
 impl<T> FlagsSummary<T> {
+    /// The fields and behaviour this property shares with every `DiagnosticsProperty`, Dart's
+    /// inherited members.
+    pub fn property_data(&self) -> &PropertyData<IndexMap<String, Option<T>>> {
+        &self.data
+    }
+
     /// Create a summary for multiple properties.
     pub fn new(name: impl IntoPropertyName, value: IndexMap<String, Option<T>>) -> Self {
         let name = name.into_property_name();
@@ -3303,6 +3878,18 @@ where
 
     fn value(&self) -> Option<&dyn Any> {
         self.data.value().map(|value| value as &dyn Any)
+    }
+
+    fn to_json_map(&self, delegate: &dyn DiagnosticsSerializationDelegate) -> DiagnosticsJsonMap {
+        let mut json = self.data.json_map(self, delegate, None);
+        if !self.value().is_empty() {
+            let values: Vec<Value> = self
+                .formatted_values()
+                .map(|value| Value::String(value.clone()))
+                .collect();
+            json_put(&mut json, "values", Value::Array(values));
+        }
+        json
     }
 
     fn to_description(&self, parent_configuration: Option<&TextTreeConfiguration>) -> String {
@@ -3535,6 +4122,7 @@ pub struct DiagnosticableNode {
     style: DiagnosticsTreeStyle,
     properties: Vec<Rc<dyn DiagnosticsNode>>,
     empty_body_description: Option<String>,
+    value_id: Option<HandleId>,
 }
 
 impl DiagnosticableNode {
@@ -3577,6 +4165,7 @@ impl DiagnosticableNode {
             style: default_diagnostics_tree_style,
             properties,
             empty_body_description,
+            value_id: None,
         }
     }
 
@@ -3584,6 +4173,13 @@ impl DiagnosticableNode {
     /// properties asked for.
     pub fn with_style(mut self, style: DiagnosticsTreeStyle) -> Self {
         self.style = style;
+        self
+    }
+
+    /// Names the arena object this node was read from, so a delegate can print its id without
+    /// the node holding it; see [`DiagnosticsNode::value_id`].
+    pub fn with_value_id(mut self, id: HandleId) -> Self {
+        self.value_id = Some(id);
         self
     }
 
@@ -3617,6 +4213,10 @@ impl DiagnosticsNode for DiagnosticableNode {
         self.empty_body_description.as_deref()
     }
 
+    fn value_id(&self) -> Option<HandleId> {
+        self.value_id
+    }
+
     fn style(&self) -> Option<DiagnosticsTreeStyle> {
         Some(self.style)
     }
@@ -3624,6 +4224,8 @@ impl DiagnosticsNode for DiagnosticableNode {
     fn get_properties(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
         self.properties.clone()
     }
+
+    json_map_impl!();
 
     render_deep_with!();
 }
@@ -3685,6 +4287,12 @@ impl DiagnosticableTreeNode {
         self
     }
 
+    /// Names the arena object this node was read from; see [`DiagnosticsNode::value_id`].
+    pub fn with_value_id(mut self, id: HandleId) -> Self {
+        self.inner.value_id = Some(id);
+        self
+    }
+
     /// The node's short description.
     pub fn description(&self) -> &str {
         self.inner.description()
@@ -3730,6 +4338,10 @@ impl DiagnosticsNode for DiagnosticableTreeNode {
         self.inner.empty_body_description()
     }
 
+    fn value_id(&self) -> Option<HandleId> {
+        self.inner.value_id()
+    }
+
     fn style(&self) -> Option<DiagnosticsTreeStyle> {
         self.inner.style()
     }
@@ -3753,6 +4365,8 @@ impl DiagnosticsNode for DiagnosticableTreeNode {
     fn get_children(&self) -> Vec<Rc<dyn DiagnosticsNode>> {
         self.children.clone()
     }
+
+    json_map_impl!();
 
     render_deep_with!();
 }
@@ -3924,12 +4538,180 @@ impl DiagnosticsNode for DiagnosticsBlock {
         self.children.clone()
     }
 
+    json_map_impl!();
+
     render_deep_with!();
 }
 
 impl fmt::Display for DiagnosticsBlock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.to_string_with(None, DiagnosticLevel::Info))
+    }
+}
+
+/// A delegate that configures how a hierarchy of [`DiagnosticsNode`]s should be serialized.
+///
+/// Dart's `DiagnosticsSerializationDelegate`; implement it to configure how nodes serialize,
+/// and [`DefaultDiagnosticsSerializationDelegate`] for Dart's `DiagnosticsSerializationDelegate`
+/// factory.
+///
+/// A method that returns a delegate answers an owned one because Rust cannot return `this` from
+/// `&self`; the default delegate's copies are values, so returning one is indistinguishable.
+pub trait DiagnosticsSerializationDelegate {
+    /// Returns a serializable map of additional information that will be included in the
+    /// serialization of the given [`DiagnosticsNode`].
+    ///
+    /// This method is called for every [`DiagnosticsNode`] that's included in the serialization.
+    fn additional_node_properties(
+        &self,
+        node: &dyn DiagnosticsNode,
+        full_details: bool,
+    ) -> DiagnosticsJsonMap;
+
+    /// Filters the list of [`DiagnosticsNode`]s that will be included as children for the given
+    /// `owner` node.
+    ///
+    /// The callback may return a subset of the children in the provided list or replace the
+    /// entire list with new child nodes.
+    fn filter_children(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>>;
+
+    /// Filters the list of [`DiagnosticsNode`]s that will be included as properties for the given
+    /// `owner` node.
+    ///
+    /// The callback may return a subset of the properties in the provided list or replace the
+    /// entire list with new property nodes.
+    fn filter_properties(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>>;
+
+    /// Truncates the given list of [`DiagnosticsNode`] that will be added to the serialization as
+    /// children or properties of the `owner` node.
+    ///
+    /// The method must return a subset of the provided nodes and may not replace any nodes.
+    /// Truncating leaves a hint in the serialization that there were additional nodes.
+    fn truncate_nodes_list(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        owner: Option<&dyn DiagnosticsNode>,
+    ) -> Vec<Rc<dyn DiagnosticsNode>>;
+
+    /// Returns the delegate to be used for adding the provided [`DiagnosticsNode`] to the
+    /// serialization.
+    ///
+    /// By default, this returns a copy of this delegate with `subtree_depth` reduced by one.
+    fn delegate_for_node(
+        &self,
+        node: &dyn DiagnosticsNode,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate>;
+
+    /// Controls how many levels of children will be included in the serialized hierarchy.
+    fn subtree_depth(&self) -> i32;
+
+    /// Whether to include the properties of a [`DiagnosticsNode`] in the serialization.
+    fn include_properties(&self) -> bool;
+
+    /// Whether properties that have a [`Diagnosticable`] as value should be expanded.
+    fn expand_property_values(&self) -> bool;
+
+    /// Creates a copy of this delegate with the provided values.
+    fn copy_with(
+        &self,
+        subtree_depth: Option<i32>,
+        include_properties: Option<bool>,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate>;
+}
+
+/// Dart's `_DefaultDiagnosticsSerializationDelegate`, which
+/// `DiagnosticsSerializationDelegate(...)` constructs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DefaultDiagnosticsSerializationDelegate {
+    /// Controls how many levels of children will be included.
+    pub subtree_depth: i32,
+    /// Whether to include properties in the serialization.
+    pub include_properties: bool,
+}
+
+impl DefaultDiagnosticsSerializationDelegate {
+    /// Dart `DiagnosticsSerializationDelegate(subtreeDepth:, includeProperties:)`.
+    pub fn new(subtree_depth: i32, include_properties: bool) -> Self {
+        DefaultDiagnosticsSerializationDelegate {
+            subtree_depth,
+            include_properties,
+        }
+    }
+}
+
+impl DiagnosticsSerializationDelegate for DefaultDiagnosticsSerializationDelegate {
+    fn additional_node_properties(
+        &self,
+        _node: &dyn DiagnosticsNode,
+        _full_details: bool,
+    ) -> DiagnosticsJsonMap {
+        DiagnosticsJsonMap::new()
+    }
+
+    fn filter_children(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        _owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        nodes
+    }
+
+    fn filter_properties(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        _owner: &dyn DiagnosticsNode,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        nodes
+    }
+
+    fn truncate_nodes_list(
+        &self,
+        nodes: Vec<Rc<dyn DiagnosticsNode>>,
+        _owner: Option<&dyn DiagnosticsNode>,
+    ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        nodes
+    }
+
+    fn delegate_for_node(
+        &self,
+        _node: &dyn DiagnosticsNode,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate> {
+        if self.subtree_depth > 0 {
+            self.copy_with(Some(self.subtree_depth - 1), None)
+        } else {
+            Rc::new(*self)
+        }
+    }
+
+    fn subtree_depth(&self) -> i32 {
+        self.subtree_depth
+    }
+
+    fn include_properties(&self) -> bool {
+        self.include_properties
+    }
+
+    fn expand_property_values(&self) -> bool {
+        false
+    }
+
+    fn copy_with(
+        &self,
+        subtree_depth: Option<i32>,
+        include_properties: Option<bool>,
+    ) -> Rc<dyn DiagnosticsSerializationDelegate> {
+        Rc::new(DefaultDiagnosticsSerializationDelegate {
+            subtree_depth: subtree_depth.unwrap_or(self.subtree_depth),
+            include_properties: include_properties.unwrap_or(self.include_properties),
+        })
     }
 }
 

@@ -40,6 +40,12 @@ Embedder implementation references: Flutter's C++ engine under `flutter/engine/s
   Reason: platform — a panic cannot unwind through AppKit's frames.
   Affect: such a panic ends the process rather than coming out of `run`.
 
+## service_extensions.rs → the Dart VM service (`dart:developer`'s extensions, as `flutter run` reaches them)
+
+- Change: a debug build serves the app's service extensions on a loopback TCP port, lists the app in a folder only its user reads (`waft-service-protocol`), and speaks JSON-RPC 2.0 one request a line after a hello carrying the listing's token, where the VM service is a WebSocket whose address carries the token.
+  Reason: platform — there is no VM; one socket and a listing serve every desktop alike, and `cargo waft ext` finds an app by its listing rather than from the output of the run that started it.
+  Affect: a client speaks the VM service's methods and errors for extensions (`ext.waft.…`, `-32601`, `-32602`, `-32000`), without the VM's own methods (`getIsolate`, `streamListen`).
+
 ## frame_scheduler.rs / vsync_source.rs / vsync_waiter.rs / os/macos/vsync_waiter.rs
 
 - Change: without a screen's display link, on macOS before 14 and on the other desktops, frames follow a timer at the display's refresh rate, and a refresh's picture is taken to reach the screen one interval after the timer fires.

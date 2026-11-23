@@ -8,6 +8,7 @@
 use std::any::Any;
 use std::collections::HashSet;
 use std::fmt;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_embedder::{ViewFocusDirection, ViewFocusEvent, ViewFocusState, ViewId, ViewRef};
@@ -20,10 +21,11 @@ use waft_scheduler::{FrameTarget, SchedulerBinding};
 
 use crate::binding::{WidgetsBinding, WidgetsBindingObserverObject, WidgetsBindingObserverRef};
 use crate::framework::{
-    AnyElement, BuildContext, Element, ElementBase, ElementData, ElementLifecycle, InheritedWidget,
-    IntoWidget, KeyRef, RenderObjectElement, RenderObjectElementData, RenderObjectElementWidget,
-    RenderObjectWidget, RenderTreeRootElement, Slot, State, StateData, StatefulWidget,
-    StatelessWidget, Widget, WidgetKind, WidgetRef, downcast_widget,
+    AnyElement, BuildContext, CreationLocation, Element, ElementBase, ElementData,
+    ElementLifecycle, InheritedWidget, IntoWidget, KeyRef, RenderObjectElement,
+    RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget, RenderTreeRootElement,
+    Slot, State, StateData, StatefulWidget, StatelessWidget, Widget, WidgetKind, WidgetRef,
+    downcast_widget,
 };
 use crate::widgets::focus_manager::{FocusManager, FocusNodeLeaf, FocusScopeNode};
 use crate::widgets::focus_scope::FocusScope;
@@ -75,6 +77,7 @@ pub struct View {
 impl View {
     /// Create a [`View`] widget to bootstrap a render tree that is rendered into the provided
     /// `FlutterView`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(view: ViewRef, child: impl IntoWidget<K>) -> View {
         View {
             key: None,
@@ -333,6 +336,7 @@ pub struct RawView {
 impl RawView {
     /// Creates a [`RawView`] widget to bootstrap a render tree that is rendered into the
     /// provided `FlutterView`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(view: ViewRef, child: impl IntoWidget<K>) -> RawView {
         RawView {
             key: None,
@@ -386,6 +390,8 @@ pub struct RawViewInternal {
     key: KeyRef,
     view: ViewRef,
     builder: RawViewContentBuilder,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl RawViewInternal {
@@ -394,10 +400,13 @@ impl RawViewInternal {
             key: ValueKey::new(view.id().0).into(),
             view,
             builder,
+            created: None,
         }
     }
 
-    fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn into_widget(mut self) -> WidgetRef {
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -425,6 +434,14 @@ impl RenderObjectWidget for RawViewInternal {
 impl Widget for RawViewInternal {
     fn key(&self) -> Option<&KeyRef> {
         Some(&self.key)
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -731,6 +748,7 @@ pub struct ViewScope {
 
 impl ViewScope {
     /// Creates a `ViewScope`; Dart's arguments are all required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(view: ViewRef, child: impl IntoWidget<K>) -> ViewScope {
         ViewScope {
             view,
@@ -766,6 +784,7 @@ pub struct PipelineOwnerScope {
 
 impl PipelineOwnerScope {
     /// Creates a `PipelineOwnerScope`; Dart's arguments are all required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         pipeline_owner: Ref<PipelineOwner>,
         child: impl IntoWidget<K>,
@@ -794,14 +813,23 @@ pub struct MultiChildComponentWidget {
     key: Option<KeyRef>,
     views: Vec<WidgetRef>,
     child: Option<WidgetRef>,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl MultiChildComponentWidget {
     fn new(key: Option<KeyRef>, views: Vec<WidgetRef>, child: Option<WidgetRef>) -> Self {
-        MultiChildComponentWidget { key, views, child }
+        MultiChildComponentWidget {
+            key,
+            views,
+            child,
+            created: None,
+        }
     }
 
-    fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn into_widget(mut self) -> WidgetRef {
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -818,6 +846,14 @@ impl fmt::Debug for MultiChildComponentWidget {
 impl Widget for MultiChildComponentWidget {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -848,11 +884,17 @@ pub struct ViewCollection {
     pub key: Option<KeyRef>,
     /// The [`View`] widgets that are part of this collection.
     pub views: Vec<WidgetRef>,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl ViewCollection {
     pub fn new(views: Vec<WidgetRef>) -> ViewCollection {
-        ViewCollection { key: None, views }
+        ViewCollection {
+            key: None,
+            views,
+            created: None,
+        }
     }
 
     /// Dart `ViewCollection(key:)`.
@@ -861,7 +903,9 @@ impl ViewCollection {
         self
     }
 
-    pub fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn into_widget(mut self) -> WidgetRef {
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -877,6 +921,14 @@ impl fmt::Debug for ViewCollection {
 impl Widget for ViewCollection {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {
@@ -911,6 +963,7 @@ pub struct ViewAnchor {
 }
 
 impl ViewAnchor {
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ViewAnchor {
         ViewAnchor {
             key: None,
@@ -926,6 +979,7 @@ impl ViewAnchor {
     }
 
     /// Dart `ViewAnchor(view:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn view<K>(mut self, view: impl IntoWidget<K>) -> ViewAnchor {
         self.view = Some(view.into_widget());
         self

@@ -120,6 +120,7 @@ pub struct DataColumn {
 impl DataColumn {
     /// Creates the configuration for a column of a [`DataTable`]; Dart's optional named
     /// arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>) -> DataColumn {
         DataColumn {
             label: label.into_widget(),
@@ -426,6 +427,7 @@ pub struct DataCell {
 
 impl DataCell {
     /// Creates a data cell for a [`DataTable`]; Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> DataCell {
         DataCell {
             child: child.into_widget(),
@@ -1685,6 +1687,7 @@ impl TableRowInkWell {
     }
 
     /// Dart `TableRowInkWell(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> TableRowInkWell {
         self.ink_response.child = Some(child.into_widget());
         self

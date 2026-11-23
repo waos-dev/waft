@@ -93,11 +93,15 @@ pub struct FilledButton {
 
 impl FilledButton {
     /// Create a FilledButton.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(on_pressed: Option<Listener>, child: Option<impl IntoWidget<K>>) -> FilledButton {
         FilledButton::with_child(
             FilledButtonVariant::Filled,
             on_pressed,
-            child.map(|child| child.into_widget()),
+            match child {
+                Some(child) => Some(child.into_widget()),
+                None => None,
+            },
         )
     }
 
@@ -111,6 +115,7 @@ impl FilledButton {
     ///
     /// The alignment of the icon within the button is set by
     /// [`icon_alignment`](FilledButtonIcon::icon_alignment); see [`IconAlignment`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(on_pressed: Option<Listener>, label: impl IntoWidget<K>) -> FilledButtonIcon {
         FilledButtonIcon::new(FilledButtonVariant::Filled, on_pressed, label.into_widget())
     }
@@ -121,6 +126,7 @@ impl FilledButton {
     /// [`FilledButton`] and `OutlinedButton`. They’re useful in contexts where
     /// a lower-priority button requires slightly more emphasis than an
     /// outline would give, such as "Next" in an onboarding flow.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn tonal<K>(
         on_pressed: Option<Listener>,
         child: Option<impl IntoWidget<K>>,
@@ -128,7 +134,10 @@ impl FilledButton {
         FilledButton::with_child(
             FilledButtonVariant::Tonal,
             on_pressed,
-            child.map(|child| child.into_widget()),
+            match child {
+                Some(child) => Some(child.into_widget()),
+                None => None,
+            },
         )
     }
 
@@ -139,6 +148,7 @@ impl FilledButton {
     ///
     /// If [`icon`](FilledButtonIcon::icon) is null, this constructor will create a
     /// [`FilledButton`] that doesn't display an icon.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn tonal_icon<K>(
         on_pressed: Option<Listener>,
         label: impl IntoWidget<K>,
@@ -688,6 +698,7 @@ impl FilledButtonIcon {
     );
 
     /// Dart `FilledButton.icon(icon:)` and `FilledButton.tonalIcon(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> FilledButtonIcon {
         self.icon = Some(icon.into_widget());
         self
@@ -700,6 +711,7 @@ impl FilledButtonIcon {
     }
 
     /// The [`FilledButton`] these arguments describe.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn build(self) -> FilledButton {
         let mut button_style_button = self.button_style_button;
         let add_padding = self.icon.is_some();
@@ -722,6 +734,7 @@ impl FilledButtonIcon {
 }
 
 impl IntoWidget<StatefulKind> for FilledButtonIcon {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1551,10 +1564,10 @@ mod tests {
                 };
                 build(tester, Some(self::icon()));
                 tester.pump_and_settle();
-                assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
                 build(tester, None);
                 tester.pump_and_settle();
-                assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
             });
         }
     }

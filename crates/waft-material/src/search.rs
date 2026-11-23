@@ -1360,7 +1360,7 @@ mod tests {
         let focus_node = tester.widget(find::by_type::<TextField>(), |field: &TextField| {
             field.focus_node.clone().expect("a focus node")
         });
-        focus_node.handle().has_focus(&mut tester.cell.borrow_mut())
+        focus_node.handle().has_focus(&tester.cell.borrow_mut())
     }
 
     #[test]

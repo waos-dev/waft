@@ -587,6 +587,7 @@ pub struct TimePickerTheme {
 impl TimePickerTheme {
     /// Creates a time picker theme that controls the configurations for descendant time
     /// pickers.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: TimePickerThemeData, child: impl IntoWidget<K>) -> TimePickerTheme {
         TimePickerTheme {
             key: None,

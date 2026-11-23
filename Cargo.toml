@@ -41,6 +41,7 @@ waft-rendering = { version = "0.9.1", path = "crates/waft-rendering" }
 waft-scheduler = { version = "0.9.1", path = "crates/waft-scheduler" }
 waft-services = { version = "0.9.1", path = "crates/waft-services" }
 waft-shell = { version = "0.9.1", path = "crates/waft-shell" }
+waft-service-protocol = { version = "0.9.1", path = "crates/waft-service-protocol" }
 waft-single-instance = { version = "0.9.1", path = "crates/waft-single-instance" }
 waft-test = { version = "0.9.1", path = "crates/waft-test" }
 waft-widgets = { version = "0.9.1", path = "crates/waft-widgets" }
@@ -54,6 +55,7 @@ winit = "=0.31.0-beta.4"
 raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+base64 = "0.22"
 valo = "0.26.0"
 valo-codec = "0.26.0"
 valo-system-fonts = "0.26.0"

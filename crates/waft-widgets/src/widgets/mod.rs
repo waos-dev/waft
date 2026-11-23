@@ -129,5 +129,6 @@ pub mod value_listenable_builder;
 pub mod video_frame_view;
 pub mod viewport;
 pub mod visibility;
+pub mod widget_inspector;
 pub mod widget_span;
 pub mod widget_state;

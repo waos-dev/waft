@@ -2695,7 +2695,7 @@ mod tests {
         node.request_focus(&mut fixture.tester.cell.borrow_mut(), None);
         fixture.tester.pump();
         assert!(focused.get());
-        assert!(node.has_focus(&mut fixture.tester.cell.borrow_mut()));
+        assert!(node.has_focus(&fixture.tester.cell.borrow_mut()));
 
         node.unfocus(
             &mut fixture.tester.cell.borrow_mut(),
@@ -2703,7 +2703,7 @@ mod tests {
         );
         fixture.tester.pump();
         assert!(!focused.get());
-        assert!(!node.has_focus(&mut fixture.tester.cell.borrow_mut()));
+        assert!(!node.has_focus(&fixture.tester.cell.borrow_mut()));
     }
 
     /// The fill under the outline and the outline itself.

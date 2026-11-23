@@ -663,6 +663,7 @@ impl MenuAnchor {
     }
 
     /// Dart `MenuAnchor(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> MenuAnchor {
         self.child = Some(child.into_widget());
         self
@@ -1851,12 +1852,14 @@ impl MenuItemButton {
     }
 
     /// Dart `MenuItemButton(leadingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading_icon<K>(mut self, leading_icon: impl IntoWidget<K>) -> MenuItemButton {
         self.leading_icon = Some(leading_icon.into_widget());
         self
     }
 
     /// Dart `MenuItemButton(trailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing_icon<K>(mut self, trailing_icon: impl IntoWidget<K>) -> MenuItemButton {
         self.trailing_icon = Some(trailing_icon.into_widget());
         self
@@ -1875,6 +1878,7 @@ impl MenuItemButton {
     }
 
     /// Dart `MenuItemButton(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> MenuItemButton {
         self.child = Some(child.into_widget());
         self
@@ -2490,6 +2494,7 @@ impl CheckboxMenuButton {
     ///
     /// The [`child`](Self::child), [`value`](Self::value), and
     /// [`on_changed`](Self::on_changed) attributes are required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         value: Option<bool>,
         on_changed: Option<ValueChanged<Option<bool>>>,
@@ -2510,7 +2515,10 @@ impl CheckboxMenuButton {
             clip_behavior: Clip::None,
             trailing_icon: None,
             close_on_activate: true,
-            child: child.map(IntoWidget::into_widget),
+            child: match child {
+                Some(child) => Some(child.into_widget()),
+                None => None,
+            },
         }
     }
 
@@ -2578,6 +2586,7 @@ impl CheckboxMenuButton {
     }
 
     /// Dart `CheckboxMenuButton(trailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing_icon<K>(mut self, trailing_icon: impl IntoWidget<K>) -> CheckboxMenuButton {
         self.trailing_icon = Some(trailing_icon.into_widget());
         self
@@ -2777,6 +2786,7 @@ impl<T: Clone + PartialEq + Debug + 'static> RadioMenuButton<T> {
     /// Creates a const [`RadioMenuButton`].
     ///
     /// The [`child`](Self::child) attribute is required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         value: T,
         group_value: Option<T>,
@@ -2798,7 +2808,10 @@ impl<T: Clone + PartialEq + Debug + 'static> RadioMenuButton<T> {
             clip_behavior: Clip::None,
             trailing_icon: None,
             close_on_activate: true,
-            child: child.map(IntoWidget::into_widget),
+            child: match child {
+                Some(child) => Some(child.into_widget()),
+                None => None,
+            },
         }
     }
 
@@ -2860,6 +2873,7 @@ impl<T: Clone + PartialEq + Debug + 'static> RadioMenuButton<T> {
     }
 
     /// Dart `RadioMenuButton(trailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing_icon<K>(mut self, trailing_icon: impl IntoWidget<K>) -> RadioMenuButton<T> {
         self.trailing_icon = Some(trailing_icon.into_widget());
         self
@@ -3113,6 +3127,7 @@ impl SubmenuButton {
     ///
     /// The [`child`](Self::child) and [`menu_children`](Self::menu_children) attributes are
     /// required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         menu_children: Vec<WidgetRef>,
         child: Option<impl IntoWidget<K>>,
@@ -3138,7 +3153,10 @@ impl SubmenuButton {
             animated: false,
             on_animation_status_changed: None,
             menu_children,
-            child: child.map(IntoWidget::into_widget),
+            child: match child {
+                Some(child) => Some(child.into_widget()),
+                None => None,
+            },
         }
     }
 
@@ -3218,12 +3236,14 @@ impl SubmenuButton {
     }
 
     /// Dart `SubmenuButton(leadingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading_icon<K>(mut self, leading_icon: impl IntoWidget<K>) -> SubmenuButton {
         self.leading_icon = Some(leading_icon.into_widget());
         self
     }
 
     /// Dart `SubmenuButton(trailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing_icon<K>(mut self, trailing_icon: impl IntoWidget<K>) -> SubmenuButton {
         self.trailing_icon = Some(trailing_icon.into_widget());
         self
@@ -4586,6 +4606,7 @@ impl MenuAcceleratorCallbackBinding {
     /// Create a const [`MenuAcceleratorCallbackBinding`].
     ///
     /// The [`child`](Self::child) parameter is required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> MenuAcceleratorCallbackBinding {
         MenuAcceleratorCallbackBinding {
             key: None,
@@ -11170,12 +11191,12 @@ mod tests {
 
                 focus_node.request_focus(&mut tester.cell.borrow_mut(), None);
                 pump(tester);
-                assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
                 assert_eq!(on_focus_change_called.get(), 1);
 
                 focus_node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
                 pump(tester);
-                assert!(!focus_node.has_focus(&mut tester.cell.borrow_mut()));
+                assert!(!focus_node.has_focus(&tester.cell.borrow_mut()));
                 assert_eq!(on_focus_change_called.get(), 2);
             });
         }
@@ -11974,7 +11995,7 @@ mod tests {
         }
 
         fn has_focus(tester: &WidgetTester, node: AnyFocusNode) -> bool {
-            node.has_focus(&mut tester.cell.borrow_mut())
+            node.has_focus(&tester.cell.borrow_mut())
         }
 
         fn has_primary_focus(tester: &WidgetTester, node: AnyFocusNode) -> bool {

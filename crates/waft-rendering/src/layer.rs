@@ -2120,19 +2120,8 @@ impl AnyOffsetLayer {
     /// (`Platform::picture_to_image_sync`). A composition layer in it, such as a video's, shows
     /// as the room made for it.
     pub fn to_picture(self, app: &mut App, bounds: Rect, pixel_ratio: f64) -> Picture {
-        let scene = self
-            .as_container_layer()
-            .build_scene(app, SceneBuilder::new());
-        let painted = slices(&scene, |_| None).picture_with_room();
         let offset = self.offset(app);
-        let mut canvas = Canvas::new();
-        canvas.scale(pixel_ratio as f32, pixel_ratio as f32);
-        canvas.translate(
-            -(bounds.left + offset.dx()) as f32,
-            -(bounds.top + offset.dy()) as f32,
-        );
-        canvas.draw_display_list(&Arc::new(painted));
-        canvas.build()
+        scene_picture(app, self.as_container_layer(), bounds, offset, pixel_ratio)
     }
 
     /// See [`OffsetLayerMixin::set_offset`].
@@ -4266,6 +4255,29 @@ fn describe_engine_layer(engine_layer: &EngineLayer) -> String {
         &format!("{kind}EngineLayer"),
         (std::sync::Arc::as_ptr(engine_layer) as usize as u64) >> 4,
     )
+}
+
+/// What `container` and its children paint within `bounds`, scaled by `pixel_ratio`: one picture
+/// whose origin is `bounds`' top-left, where the scene's point `origin` is `bounds`' origin.
+/// [`AnyOffsetLayer::to_picture`]'s body, and the widget inspector's screenshot's, whose root
+/// adds its children at its parent's origin, as Dart's `_ScreenshotContainerLayer` does.
+pub(crate) fn scene_picture(
+    app: &mut App,
+    container: AnyContainerLayer,
+    bounds: Rect,
+    origin: Offset,
+    pixel_ratio: f64,
+) -> Picture {
+    let scene = container.build_scene(app, SceneBuilder::new());
+    let painted = slices(&scene, |_| None).picture_with_room();
+    let mut canvas = Canvas::new();
+    canvas.scale(pixel_ratio as f32, pixel_ratio as f32);
+    canvas.translate(
+        -(bounds.left + origin.dx()) as f32,
+        -(bounds.top + origin.dy()) as f32,
+    );
+    canvas.draw_display_list(&Arc::new(painted));
+    canvas.build()
 }
 
 #[cfg(test)]

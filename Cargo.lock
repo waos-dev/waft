@@ -5190,6 +5190,7 @@ name = "waft-cli"
 version = "0.9.1"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "brotli",
  "cargo-packager",
  "cargo_metadata 0.23.1",
@@ -5204,6 +5205,7 @@ dependencies = [
  "serde_json",
  "tar",
  "ureq 3.4.1",
+ "waft-service-protocol",
  "x509-parser",
  "zip 2.4.2",
 ]
@@ -5369,6 +5371,7 @@ dependencies = [
  "objc2-uniform-type-identifiers",
  "png 0.18.1",
  "pollster",
+ "serde_json",
  "sys-locale",
  "valo",
  "valo-codec",
@@ -5378,6 +5381,7 @@ dependencies = [
  "waft-embedder",
  "waft-embedder-apple",
  "waft-embedder-winit",
+ "waft-service-protocol",
  "wayland-backend",
  "wayland-client",
  "wayland-protocols",
@@ -5397,6 +5401,7 @@ version = "0.9.1"
 dependencies = [
  "async-task",
  "indexmap",
+ "serde_json",
  "slotmap",
  "waft-embedder",
  "web-time",
@@ -5471,6 +5476,7 @@ version = "0.9.1"
 dependencies = [
  "http",
  "indexmap",
+ "serde_json",
  "valo",
  "valo-system-fonts",
  "waft-embedder",
@@ -5517,6 +5523,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "waft-service-protocol"
+version = "0.9.1"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "waft-services"
 version = "0.9.1"
 dependencies = [
@@ -5533,6 +5546,7 @@ dependencies = [
 name = "waft-shell"
 version = "0.9.1"
 dependencies = [
+ "serde_json",
  "waft-embedder",
  "waft-foundation",
  "waft-gestures",
@@ -5557,7 +5571,6 @@ version = "0.9.1"
 dependencies = [
  "http",
  "pollster",
- "valo-codec-software",
  "valo-system-fonts",
  "waft-embedder",
  "waft-foundation",
@@ -5568,8 +5581,10 @@ dependencies = [
 name = "waft-widgets"
 version = "0.9.1"
 dependencies = [
+ "base64 0.22.1",
  "indexmap",
  "pollster",
+ "serde_json",
  "valo-system-fonts",
  "waft-animation",
  "waft-embedder",

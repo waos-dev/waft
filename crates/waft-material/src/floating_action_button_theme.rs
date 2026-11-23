@@ -484,6 +484,7 @@ pub struct FloatingActionButtonTheme {
 impl FloatingActionButtonTheme {
     /// Creates a floating action button theme that controls the configurations for
     /// `FloatingActionButton`s in its widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         data: FloatingActionButtonThemeData,
         child: impl IntoWidget<K>,

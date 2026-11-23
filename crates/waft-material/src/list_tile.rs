@@ -3641,7 +3641,7 @@ pub(crate) mod tests {
             node.request_focus(&mut tester.cell.borrow_mut(), None);
             tester.pump();
             assert!(got_focus.get());
-            assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(node.has_focus(&tester.cell.borrow_mut()));
 
             node.unfocus(
                 &mut tester.cell.borrow_mut(),
@@ -3649,7 +3649,7 @@ pub(crate) mod tests {
             );
             tester.pump();
             assert!(!got_focus.get());
-            assert!(!node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(!node.has_focus(&tester.cell.borrow_mut()));
         });
     }
 

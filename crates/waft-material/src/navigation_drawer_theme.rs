@@ -287,6 +287,7 @@ pub struct NavigationDrawerTheme {
 impl NavigationDrawerTheme {
     /// Creates a navigation rail theme that controls the
     /// [`NavigationDrawerThemeData`] properties for a `NavigationDrawer`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         data: NavigationDrawerThemeData,
         child: impl IntoWidget<K>,

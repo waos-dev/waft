@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::ops::Add;
 
-use waft_embedder::{Clip, Offset, Size, TextBaseline, TextDirection};
+use waft_embedder::{Clip, Offset, Rect, Size, TextBaseline, TextDirection};
 use waft_foundation::{
     App, DiagnosticPropertiesBuilder, DoubleProperty, EnumProperty, Handle,
     PRECISION_ERROR_TOLERANCE, describe_enum, display_or_null,
@@ -1350,6 +1350,21 @@ pub trait RenderFlexMixin:
         crate::object::RenderObjectBase::dispose(self, app);
     }
 
+    /// Dart's `describeApproximatePaintClip`: the main axis overflow is clipped to the flex's
+    /// bounds, and only when it overflowed.
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        _child: AnyRenderObject,
+    ) -> Option<Rect> {
+        match self.clip_behavior(app) {
+            Clip::None => None,
+            Clip::HardEdge | Clip::AntiAlias | Clip::AntiAliasWithSaveLayer => self
+                .has_overflow(app)
+                .then(|| Offset::ZERO & self.size(app)),
+        }
+    }
+
     /// A flex child gets a [`FlexParentData`].
     fn setup_parent_data(self: RenderHandle<Self>, app: &mut App, child: AnyRenderObject) {
         if !child.parent_data_is::<FlexParentData>(app) {
@@ -1918,6 +1933,14 @@ impl RenderObject for RenderFlex {
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         RenderFlexMixin::dispose(self, app)
     }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
+    }
 }
 
 impl RenderBox for RenderFlex {
@@ -2396,6 +2419,48 @@ mod tests {
             assert_eq!(flex.size(&app), Size::new(100.0, 20.0));
             let clipped = picture_has_clip(&mut app, flex.as_object());
             assert_eq!(clipped, clips, "{clip_behavior:?}");
+        }
+    }
+
+    /// `RenderFlex.describeApproximatePaintClip`: an overflowing flex is clipped to its bounds,
+    /// and only when the clip behavior asks for a clip; a flex that fits is never clipped.
+    #[test]
+    fn describe_approximate_paint_clip_answers_an_overflowing_flex_only() {
+        for (clip_behavior, overflow) in [
+            (Clip::None, true),
+            (Clip::HardEdge, true),
+            (Clip::HardEdge, false),
+        ] {
+            let cell = AppCell::new();
+            let mut app = cell.borrow_mut();
+            let extents = if overflow {
+                vec![Size::new(80.0, 20.0), Size::new(80.0, 20.0)]
+            } else {
+                vec![Size::new(80.0, 20.0)]
+            };
+            let children = extents
+                .into_iter()
+                .map(|size| sized_box(&mut app, size))
+                .collect();
+            let flex = row(&mut app, children);
+            flex.set_clip_behavior(&mut app, clip_behavior);
+            layout_with(
+                &mut app,
+                flex.as_box(),
+                Some(BoxConstraints::tight(Size::new(100.0, 20.0))),
+                AlignmentGeometry::CENTER,
+                EnginePhase::Paint,
+            );
+
+            let child = flex.first_child(&app).expect("a child");
+            let expected =
+                (clip_behavior != Clip::None && overflow).then(|| Offset::ZERO & flex.size(&app));
+            assert_eq!(
+                flex.as_object()
+                    .describe_approximate_paint_clip(&app, child.as_object()),
+                expected,
+                "{clip_behavior:?}, overflow: {overflow}"
+            );
         }
     }
 

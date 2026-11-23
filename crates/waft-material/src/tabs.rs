@@ -224,6 +224,7 @@ impl Tab {
     }
 
     /// Dart `Tab(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> Tab {
         self.icon = Some(icon.into_widget());
         self
@@ -242,6 +243,7 @@ impl Tab {
     }
 
     /// Dart `Tab(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Tab {
         self.child = Some(child.into_widget());
         self
@@ -682,6 +684,14 @@ impl RenderObject for TabLabelBarRenderer {
 
     fn dispose(self: RenderHandle<Self>, app: &mut App) {
         RenderFlexMixin::dispose(self, app)
+    }
+
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        RenderFlexMixin::describe_approximate_paint_clip(self, app, child)
     }
 }
 
@@ -14361,12 +14371,12 @@ pub(crate) mod tests {
                         node = Some(focus_node);
                     }
                     let node = node.expect("the third tab's node");
-                    assert!(node.has_focus(&mut tester.cell.borrow_mut()));
+                    assert!(node.has_focus(&tester.cell.borrow_mut()));
 
                     node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
                     tester.pump();
 
-                    assert!(!node.has_focus(&mut tester.cell.borrow_mut()));
+                    assert!(!node.has_focus(&tester.cell.borrow_mut()));
                     expected.push((false, 2));
                     assert_eq!(*focus_events.borrow(), expected);
                 }

@@ -93,6 +93,7 @@ pub struct ElevatedButton {
 
 impl ElevatedButton {
     /// Create an ElevatedButton.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         on_pressed: Option<Listener>,
         child: Option<impl IntoWidget<K>>,
@@ -100,7 +101,10 @@ impl ElevatedButton {
         ElevatedButton {
             button_style_button: ButtonStyleButtonData::new(
                 on_pressed,
-                child.map(|child| child.into_widget()),
+                match child {
+                    Some(child) => Some(child.into_widget()),
+                    None => None,
+                },
             ),
             add_padding: false,
         }
@@ -121,6 +125,7 @@ impl ElevatedButton {
     ///
     /// The alignment of the icon within the button is set by
     /// [`icon_alignment`](ElevatedButtonIcon::icon_alignment); see [`IconAlignment`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(on_pressed: Option<Listener>, label: impl IntoWidget<K>) -> ElevatedButtonIcon {
         let mut button_style_button = ButtonStyleButtonData::new(on_pressed, None);
         button_style_button.clip_behavior = Some(Clip::None);
@@ -809,6 +814,7 @@ impl ElevatedButtonIcon {
     );
 
     /// Dart `ElevatedButton.icon(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> ElevatedButtonIcon {
         self.icon = Some(icon.into_widget());
         self
@@ -821,6 +827,7 @@ impl ElevatedButtonIcon {
     }
 
     /// The [`ElevatedButton`] these arguments describe.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn build(self) -> ElevatedButton {
         let mut button_style_button = self.button_style_button;
         let add_padding = self.icon.is_some();
@@ -842,6 +849,7 @@ impl ElevatedButtonIcon {
 }
 
 impl IntoWidget<StatefulKind> for ElevatedButtonIcon {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }
@@ -1566,13 +1574,13 @@ mod tests {
                 node.request_focus(&mut tester.cell.borrow_mut(), None);
                 tester.pump();
                 assert_eq!(got_focus.get(), enabled);
-                assert_eq!(node.has_focus(&mut tester.cell.borrow_mut()), enabled);
+                assert_eq!(node.has_focus(&tester.cell.borrow_mut()), enabled);
 
                 if enabled {
                     node.unfocus(&mut tester.cell.borrow_mut(), UnfocusDisposition::Scope);
                     tester.pump();
                     assert!(!got_focus.get());
-                    assert!(!node.has_focus(&mut tester.cell.borrow_mut()));
+                    assert!(!node.has_focus(&tester.cell.borrow_mut()));
                 }
             }
         });
@@ -2230,10 +2238,10 @@ mod tests {
             };
             build(tester, Some(self::icon()));
             tester.pump_and_settle();
-            assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
             build(tester, None);
             tester.pump_and_settle();
-            assert!(focus_node.has_focus(&mut tester.cell.borrow_mut()));
+            assert!(focus_node.has_focus(&tester.cell.borrow_mut()));
         });
     }
 

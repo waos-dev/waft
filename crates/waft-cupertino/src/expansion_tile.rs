@@ -105,6 +105,7 @@ impl CupertinoExpansionTile {
     /// Creates a single-line [`CupertinoListTile`] with an expansion arrow icon
     /// that expands or collapses the tile to reveal or hide the
     /// [`child`](Self::child); Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<T, C>(
         title: impl IntoWidget<T>,
         child: impl IntoWidget<C>,

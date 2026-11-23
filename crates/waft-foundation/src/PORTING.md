@@ -9,9 +9,9 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 ## diagnostics.rs → diagnostics.dart
 
-- Change: `DiagnosticableNode` and `DiagnosticableTreeNode` hold a short description, a filled `DiagnosticPropertiesBuilder`, and already-built children, instead of the live `Diagnosticable`.
+- Change: `DiagnosticableNode` and `DiagnosticableTreeNode` hold a short description, a filled `DiagnosticPropertiesBuilder`, already-built children, and optionally the `HandleId` of the object they were read from, instead of the live `Diagnosticable`.
   Reason: language — render objects and layers live in the arena and are read with `&App`, so a node cannot keep the value and ask it for properties when it renders.
-  Affect: the rendering crate builds the node once with `DiagnosticableTreeNode::from_parts`; `to_string_deep` prints the same tree Dart prints for a `DiagnosticableTreeNode`, while `value()` on a snapshot node answers none where Dart returns the value.
+  Affect: the rendering crate builds the node once with `DiagnosticableTreeNode::from_parts`; `to_string_deep` prints the same tree Dart prints for a `DiagnosticableTreeNode`, while `value()` on a snapshot node answers none where Dart returns the value, and a serialization delegate reads the object's id from `value_id()` instead.
 
 - Change: a lazily computed property's callback is not guarded: where Dart catches what `computeValue` throws and shows `EXCEPTION (…)` at the error level, a panic in it ends the program.
   Reason: language — there is no catchable exception; a panic ends the program anywhere else in Waft too.
@@ -36,6 +36,22 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - Change: Dart's `identityHashCode`, which diagnostics name an object by (`RenderPadding#00007`), is the object's slot in the `App`'s arena (`HandleId::identity_hash`).
   Reason: language — Rust has no identity hash; the arena slot is what tells two live objects apart.
   Affect: the numbers are small and a freed object's slot is reused, so a hash names an object only while it lives, as Dart's may collide too.
+
+- Change: `to_json_map` is a required trait method, where Dart's base class gives its body; a node class starts from `base_json_map(self, delegate)` (`super.toJsonMap`) or from the JSON of the property it wraps.
+  Reason: language — a provided method cannot hand `&self` to the delegate as the `&dyn DiagnosticsNode` its hooks take.
+  Affect: a node class outside this crate writes the one line Dart inherits; painting's `ColorProperty` adds `valueProperties` as Dart's does.
+
+- Change: JSON's `type` is the Rust type name without generic arguments, and a property's `propertyType` is the Rust type name of its value.
+  Reason: language — Rust has no `runtimeType`, and its type names are its own: Dart's `int` and `double` are `i64` and `f64`, `Iterable<T>` is `Vec<T>`, and a flags map is `IndexMap`.
+  Affect: a client that keys off `propertyType` reads Rust names — a node value's is `Rc` — and a generic property class prints `DiagnosticsProperty` where Dart prints `DiagnosticsProperty<Object>`.
+
+- Change: a property's JSON never has an `exception` field, and a delegate answers the delegate to use for a node as an owned `Rc<dyn DiagnosticsSerializationDelegate>` rather than as `this`.
+  Reason: language — a computed value cannot throw (a panic ends the program), and a method taking `&self` cannot return the same object.
+  Affect: no property reports an exception, and each node's serialization allocates one delegate copy.
+
+- Change: `isDiagnosticableValue` is set, and `expandPropertyValues` expands a property, only when the property's value is an `Rc<dyn DiagnosticsNode>`.
+  Reason: language — Rust cannot test a generic `T` for `Diagnosticable`; a snapshot holds a node where Dart holds the `Diagnosticable` itself.
+  Affect: a property holding a `Diagnosticable` that is not given as its node omits `isDiagnosticableValue` and is not expanded; give the property the value's `Rc<dyn DiagnosticsNode>` (`Rc::new(value.to_diagnostics_node())`) when a client should expand it.
 
 ## app.rs
 
@@ -149,6 +165,24 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — a Rust closure cannot name itself, and one that held its own listener strongly would be a ring of `Rc`s that outlives its removal, where Dart's `late` local names the closure and the collector frees it.
   Affect: a self-removing listener holds a weak copy of itself and removes what that upgrades to; once nothing else holds the listener, the upgrade answers `None`.
 
+## service_extensions.rs → binding.dart (`registerServiceExtension`) and `dart:developer` (`registerExtension`)
+
+- Change: the framework keeps the table of extensions (`ServiceExtensions`), which Dart's VM keeps, and a host carries a call to `ServiceExtensions::call`.
+  Reason: platform — there is no VM; a host never calls into the app except through its client, so the callbacks live where the app is.
+  Affect: a host is only a transport; `ext.waft.listServiceExtensions` answers the names an isolate's `extensionRPCs` lists.
+
+- Change: `register` takes the whole name (`ext.waft.debugDumpApp`), where Dart's `registerServiceExtension` prefixes `ext.flutter.`; the framework's extensions are named `ext.waft.…`.
+  Reason: other — one function for the framework's and an app's own extensions, as `dart:developer`'s `registerExtension` takes a whole name.
+  Affect: a client asks for `ext.waft.debugDumpApp` where Flutter's asks for `ext.flutter.debugDumpApp`.
+
+- Change: the bindings register their extensions in a debug build only, where Dart's register in debug and profile builds (`!kReleaseMode`).
+  Reason: platform — a Rust build has no profile mode.
+  Affect: a release build serves none, as Flutter's release builds do.
+
+- Change: a callback answers a `Task` of a `Result`, where Dart's returns a `Future` of a map and a thrown exception becomes the error.
+  Reason: language — no exceptions; `ServiceExtensionError` is Dart's `ServiceExtensionResponse.error` kinds.
+  Affect: none.
+
 ## Not ported
 
 - collections.rs: `listEquals`, `setEquals` and `mapEquals`, because Rust's `==` already compares slices, `HashSet`s, `HashMap`s and `Option`s by their contents, which is what they exist for in Dart, where `==` on a `List` is identity.
@@ -158,7 +192,7 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 - date_time.rs: `parse` / `tryParse`, `difference`. Trigger: a caller that parses a date or measures between two (`difference` would return a `SignedDuration`).
 - `ChangeNotifier.maybeDispatchObjectCreation` / `memory_allocations`. Trigger: leak tracker / devtools.
 - `FlutterError` structured trees; messages are `debug_assert!` strings meanwhile. Trigger: porting assertions.
-- diagnostics.rs: JSON serialization (`toJsonMap`, `toJsonList`, `toJsonMapIterative`, `DiagnosticsSerializationDelegate`, `_DefaultDiagnosticsSerializationDelegate`). Trigger: an inspector over the dev protocol.
+- diagnostics.rs: `toJsonMapIterative` and the `fullDetails = false` argument to `additionalNodeProperties`, which only it uses. Trigger: `getRootWidgetTree(fullDetails: false)`.
 - diagnostics.rs: `DiagnosticableNode.builder`, Dart's cached builder getter; the snapshot keeps the collected properties instead. Trigger: an inspector that reads the builder itself.
 - `IterableFilter`. Trigger: the first iterable-filter call site.
 - Waking a task from another thread; it would need a `Send` poke into the host's event loop. Trigger: the first background executor or platform callback off the main thread.

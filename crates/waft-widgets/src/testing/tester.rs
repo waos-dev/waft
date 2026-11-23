@@ -296,6 +296,7 @@ impl WidgetTester {
 
     /// Dart's `tester.pumpWidget(widget)`: makes `widget` the view's child, schedules a frame
     /// and pumps once.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn pump_widget<K>(&mut self, widget: impl IntoWidget<K>) {
         self.attach_and_schedule(widget);
         self.pump();
@@ -303,6 +304,7 @@ impl WidgetTester {
 
     /// Dart's `binding.attachRootWidget(binding.wrapWithDefaultView(widget))` and
     /// `binding.scheduleFrame()`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn attach_and_schedule<K>(&mut self, widget: impl IntoWidget<K>) {
         self.in_pump = true;
         let view = Rc::clone(self.view()) as ViewRef;
@@ -315,11 +317,13 @@ impl WidgetTester {
 
     /// Dart's `tester.pumpFrames(target, maxDuration)`: makes `widget` the view's child,
     /// schedules a frame, and pumps frames 16.683ms apart until `max_duration` has passed.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn pump_frames<K>(&mut self, widget: impl IntoWidget<K>, max_duration: Duration) {
         self.pump_frames_every(widget, max_duration, Duration::from_micros(16_683));
     }
 
     /// Dart's `tester.pumpFrames(target, maxDuration, interval)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn pump_frames_every<K>(
         &mut self,
         widget: impl IntoWidget<K>,

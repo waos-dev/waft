@@ -298,6 +298,7 @@ pub struct ToggleButtonsTheme {
 impl ToggleButtonsTheme {
     /// Creates a toggle buttons theme that controls the color and border parameters for
     /// `ToggleButtons`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: ToggleButtonsThemeData, child: impl IntoWidget<K>) -> ToggleButtonsTheme {
         ToggleButtonsTheme {
             key: None,

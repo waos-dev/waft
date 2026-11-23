@@ -32,6 +32,7 @@ pub(crate) struct TabScrollViewer {
 
 impl TabScrollViewer {
     /// Wraps the tab header list in its source scroll-button template.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         controller: Ref<ScrollViewportController>,
         scrolling_child: impl IntoWidget<K>,
