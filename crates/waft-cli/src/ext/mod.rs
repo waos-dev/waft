@@ -9,7 +9,7 @@ mod outline;
 mod waos;
 
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
@@ -30,24 +30,33 @@ pub(crate) enum ExtCommand {
         #[arg(value_enum)]
         tree: DumpedTree,
     },
-    /// The widget tree as an outline: each widget your project made, with its key properties,
-    /// the file and line that made it, and the id `screenshot` takes.
+    /// The widget tree as an outline, one widget a line: the widgets your project made, each with
+    /// the text it shows, the file and line that made it, and the id `screenshot` takes; or, from
+    /// a widget's id, its subtree with every widget's properties.
     Tree {
+        /// The widget whose subtree is shown, by its id; the whole tree without one.
+        id: Option<String>,
+        /// How many levels below the widget the subtree goes.
+        #[arg(long, requires = "id", default_value_t = 2)]
+        depth: u32,
         /// Every widget, the framework's among them.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "id")]
         all: bool,
         /// The inspector's JSON, as a tool reads it.
         #[arg(long)]
         json: bool,
     },
-    /// A PNG of one widget alone, by its id from `tree`, or of the whole view; written to
-    /// standard output.
+    /// A PNG of one widget alone, by its id from `tree`, or of the whole view, written to a file:
+    /// `waft_01.png`, then `waft_02.png`, … in this folder, or the one `--out` names.
     Screenshot {
         /// The widget's id, as `inspector-4294967303`; the whole view without one.
         id: Option<String>,
         /// Pixels to a point: 2 for a widget, and the view's own for the whole view, by default.
         #[arg(long)]
         scale: Option<f64>,
+        /// The file to write.
+        #[arg(short, long)]
+        out: Option<PathBuf>,
     },
     /// Any service extension, an app's own included, as `call ext.notes.openNoteCount`.
     Call {
@@ -92,8 +101,13 @@ pub(crate) fn run(app: Option<&str>, command: ExtCommand) -> Result<()> {
             print!("{}", answer["data"].as_str().unwrap_or_default());
             Ok(())
         }
-        ExtCommand::Tree { all, json } => tree(app, all, json),
-        ExtCommand::Screenshot { id, scale } => screenshot(app, id, scale),
+        ExtCommand::Tree {
+            id,
+            depth,
+            all,
+            json,
+        } => tree(app, id, depth, all, json),
+        ExtCommand::Screenshot { id, scale, out } => screenshot(app, id, scale, out),
         ExtCommand::Call { extension, params } => call(app, &extension, &params),
     }
 }
@@ -115,24 +129,47 @@ fn list() -> Result<()> {
     Ok(())
 }
 
-fn tree(app: Option<&str>, all: bool, json: bool) -> Result<()> {
+/// Prints the tree from the root, as Flutter's tools ask for it: the summary tree of the widgets
+/// the project made (every widget with `all`), each paragraph's text previewed; or, from the
+/// widget `id`, its details `depth` levels down, properties included.
+fn tree(app: Option<&str>, id: Option<String>, depth: u32, all: bool, json: bool) -> Result<()> {
     let mut connected = Connected::to(app)?;
-    let root = connected.root_id()?;
-    let params = BTreeMap::from([
-        ("arg".to_owned(), root),
-        ("objectGroup".to_owned(), "cli".to_owned()),
-        ("subtreeDepth".to_owned(), "1000000".to_owned()),
-    ]);
-    let details = connected.call("ext.waft.inspector.getDetailsSubtree", params)?;
+    let tree = match id {
+        None => {
+            let params = BTreeMap::from([
+                ("groupName".to_owned(), "cli".to_owned()),
+                ("isSummaryTree".to_owned(), (!all).to_string()),
+                ("withPreviews".to_owned(), "true".to_owned()),
+            ]);
+            connected.call("ext.waft.inspector.getRootWidgetTree", params)?
+        }
+        Some(id) => {
+            let params = BTreeMap::from([
+                ("arg".to_owned(), id.clone()),
+                ("objectGroup".to_owned(), "cli".to_owned()),
+                ("subtreeDepth".to_owned(), depth.to_string()),
+            ]);
+            let details = connected.call("ext.waft.inspector.getDetailsSubtree", params)?;
+            if details["result"].is_null() {
+                bail!("{id} names no widget now; `cargo waft ext tree` gives the ids of this run");
+            }
+            details
+        }
+    };
     if json {
-        println!("{}", serde_json::to_string_pretty(&details["result"])?);
+        println!("{}", serde_json::to_string_pretty(&tree["result"])?);
     } else {
-        print!("{}", outline::outline(&details["result"], all));
+        print!("{}", outline::outline(&tree["result"]));
     }
     Ok(())
 }
 
-fn screenshot(app: Option<&str>, id: Option<String>, scale: Option<f64>) -> Result<()> {
+fn screenshot(
+    app: Option<&str>,
+    id: Option<String>,
+    scale: Option<f64>,
+    out: Option<PathBuf>,
+) -> Result<()> {
     let mut connected = Connected::to(app)?;
     // A view paints in its own pixels, so the whole view is taken at its own scale.
     let (id, scale) = match id {
@@ -149,13 +186,34 @@ fn screenshot(app: Option<&str>, id: Option<String>, scale: Option<f64>) -> Resu
     let Some(png) = png_of(&answer) else {
         bail!("{id} cannot be pictured now: it is gone, not laid out, or paints nothing");
     };
-    std::io::stdout()
-        .write_all(&png)
-        .context("writing the PNG to standard output")
+    write_screenshot(&png, out)
+}
+
+/// Writes `png` to `out`, or to the first of `waft_01.png`, `waft_02.png`, … not yet in this
+/// folder, as `flutter screenshot` does, and says where: never to standard output, where a PNG
+/// would flood a terminal or an agent's context.
+fn write_screenshot(png: &[u8], out: Option<PathBuf>) -> Result<()> {
+    let path = match out {
+        Some(path) => path,
+        None => unused_file("waft", "png")?,
+    };
+    std::fs::write(&path, png).with_context(|| format!("writing {}", path.display()))?;
+    let kilobytes = png.len().div_ceil(1024);
+    println!("Screenshot written to {} ({kilobytes}kB).", path.display());
+    Ok(())
+}
+
+/// The first of `<base>_01.<extension>`, `<base>_02.<extension>`, … not in this folder: Flutter
+/// tool's `getUniqueFile`.
+fn unused_file(base: &str, extension: &str) -> Result<PathBuf> {
+    (1..=999)
+        .map(|number| PathBuf::from(format!("{base}_{number:02}.{extension}")))
+        .find(|path| !path.exists())
+        .context("every file name from waft_01.png to waft_999.png is taken here")
 }
 
 /// Calls `extension` with `params` (`name=value` each) and prints its answer: a dump's text as it
-/// is, a screenshot as its PNG, anything else as JSON.
+/// is, a screenshot written to a file as `screenshot` writes one, anything else as JSON.
 fn call(app: Option<&str>, extension: &str, params: &[String]) -> Result<()> {
     let params = params
         .iter()
@@ -168,9 +226,7 @@ fn call(app: Option<&str>, extension: &str, params: &[String]) -> Result<()> {
         .collect::<Result<BTreeMap<_, _>>>()?;
     let answer = Connected::to(app)?.call(extension, params)?;
     match png_of(&answer) {
-        Some(png) => std::io::stdout()
-            .write_all(&png)
-            .context("writing the PNG to standard output"),
+        Some(png) => write_screenshot(&png, None),
         None => {
             print!("{}", answer_text(&answer));
             Ok(())
