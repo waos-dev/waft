@@ -67,3 +67,6 @@ prefixes a type of its own, as decided for WaOS's docs:
 - Change: the page stays 140 effective pixels lower and invisible for 150 ms, then slides up with opacity snapped on at 150 ms, where the WinUI storyboard registers a discrete opacity keyframe at that time.
   Reason: platform — the transition is a XAML storyboard, whose discrete keyframes are steps.
   Affect: a page appears rather than fading in; the movement is what is seen.
+- Change: the page a Navigator's `pages` take is `FluentRoutePage`, where Flutter's kits name theirs after the kit (`MaterialPage`, `CupertinoPage`). It makes a page-based route sharing `FluentRouteTransitionMixin` with `FluentPageRoute`, as theirs share their kit's mixin.
+  Reason: naming — `FluentPage` is WinUI's `Page` control (`controls/page.rs`).
+  Affect: none beyond the name.

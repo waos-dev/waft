@@ -13,21 +13,27 @@
 //!   over 300 ms on `(0.1, 0.9, 0.2, 1.0)`;
 //! - the page leaving by a back (`BackNavigatingAway`) slides down 140 pixels over 150 ms on
 //!   `(0.7, 0.0, 1.0, 0.5)` and is hidden at the end.
+//!
+//! As Flutter's Material and Cupertino routes are, the transition is a mixin
+//! ([`FluentRouteTransitionMixin`]) two routes share: [`FluentPageRoute`], pushed with a builder,
+//! and the route a Navigator makes from a [`FluentRoutePage`] of its `pages`, which reads the
+//! page's widget from its settings as it builds, so the page the Navigator last gave it is the one
+//! shown.
 
 use std::any::Any;
+use std::fmt::{self, Debug};
+use std::rc::Rc;
 use std::time::Duration;
 
 use waft_animation::{AnimationRef, AnimationStatus, Cubic, Curve};
-use waft_embedder::{Color, Offset};
-use waft_foundation::Ref;
-use waft_scheduler::TickerFuture;
+use waft_embedder::Offset;
+use waft_foundation::{App, Ref};
 use waft_widgets::{
-    AnimatedBuilder, AnyModalRoute, AnyPageRoute, AnyRoute, AnyTransitionRoute, BuildContext,
-    DelegatedTransitionBuilder, IntoWidget, LocalHistoryRoute, LocalHistoryRouteData, ModalRoute,
-    ModalRouteData, Opacity, OverlayEntry, OverlayRoute, OverlayRouteData, PageRoute,
-    PageRouteData, PredictiveBackRoute, Route, RouteData, RoutePopDisposition, RouteResult,
-    RouteSettingsRef, Semantics, Transform, TransitionRoute, TransitionRouteData, WidgetBuilder,
-    WidgetRef,
+    AnimatedBuilder, AnyTransitionRoute, BuildContext, IntoWidget, KeyRef, LocalHistoryRoute,
+    LocalHistoryRouteData, ModalRoute, ModalRouteData, Opacity, OverlayRoute, OverlayRouteData,
+    Page, PageRef, PageRoute, PageRouteData, PopInvokedWithResultCallback, PredictiveBackRoute,
+    Route, RouteData, RouteRef, RouteResult, RouteSettingsRef, Semantics, Transform,
+    TransitionRoute, TransitionRouteData, WidgetBuilder, WidgetRef,
 };
 
 /// A page in a Fluent app, entering and leaving with WinUI's `Frame` transition.
@@ -174,166 +180,46 @@ impl FluentPageRoute {
     }
 }
 
-impl Route for FluentPageRoute {
-    waft_widgets::route_accessors!();
-
-    fn as_transition_route(self: waft_foundation::Handle<Self>) -> Option<AnyTransitionRoute> {
-        Some(TransitionRoute::as_transition_route(self))
-    }
-
-    fn as_modal_route(self: waft_foundation::Handle<Self>) -> Option<AnyModalRoute> {
-        Some(ModalRoute::as_modal_route(self))
-    }
-
-    fn as_page_route(self: waft_foundation::Handle<Self>) -> Option<AnyPageRoute> {
-        Some(PageRoute::as_page_route(self))
-    }
-
-    fn interface(
-        self: waft_foundation::Handle<Self>,
-        _id: std::any::TypeId,
-    ) -> Option<Box<dyn Any>> {
-        let _ = self;
-        None
-    }
-
-    fn overlay_entries(
-        self: waft_foundation::Handle<Self>,
-        app: &waft_foundation::App,
-    ) -> Vec<waft_foundation::Handle<OverlayEntry>> {
-        OverlayRoute::overlay_entries(self, app)
-    }
-
-    fn install(self: waft_foundation::Handle<Self>, app: &mut waft_foundation::App) {
-        ModalRoute::install(self, app)
-    }
-
-    fn did_push(
+/// WinUI's `Frame` transition for a [`PageRoute`]: Flutter's `MaterialRouteTransitionMixin`, for
+/// WinUI. A route that implements it plays WinUI's entrance for its own page and the other
+/// storyboards for the page it covers or reveals; it gives the mixin's overrides to each route
+/// trait with [`fluent_route_transition_mixin_transition_route_overrides!`] and
+/// [`fluent_route_transition_mixin_modal_route_overrides!`].
+pub trait FluentRouteTransitionMixin: PageRoute {
+    /// Builds the primary contents of the route.
+    fn build_content(
         self: waft_foundation::Handle<Self>,
         app: &mut waft_foundation::App,
-    ) -> TickerFuture {
-        ModalRoute::did_push(self, app)
-    }
+        context: BuildContext,
+    ) -> WidgetRef;
 
-    fn did_add(self: waft_foundation::Handle<Self>, app: &mut waft_foundation::App) {
-        ModalRoute::did_add(self, app)
-    }
-
-    fn did_replace(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-        old_route: Option<AnyRoute>,
-    ) {
-        TransitionRoute::did_replace(self, app, old_route)
-    }
-
-    fn will_pop(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-    ) -> RoutePopDisposition {
-        LocalHistoryRoute::will_pop(self, app)
-    }
-
-    fn pop_disposition(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-    ) -> RoutePopDisposition {
-        ModalRoute::pop_disposition(self, app)
-    }
-
-    fn on_pop_invoked_with_result(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-        did_pop: bool,
-        result: RouteResult,
-    ) {
-        ModalRoute::on_pop_invoked_with_result(self, app, did_pop, result)
-    }
-
-    fn will_handle_pop_internally(
+    /// Whether this route introduces a route scope in the semantics tree.
+    ///
+    /// Defaults to true. When true, screen readers can treat pushes and pops of this route as
+    /// page-level navigation.
+    fn include_route_semantics(
         self: waft_foundation::Handle<Self>,
         app: &waft_foundation::App,
     ) -> bool {
-        LocalHistoryRoute::will_handle_pop_internally(self, app)
+        let _ = (self, app);
+        true
     }
 
-    fn did_pop(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-        result: RouteResult,
-    ) -> bool {
-        LocalHistoryRoute::did_pop(self, app, result)
-    }
-
-    fn did_pop_next(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-        next_route: AnyRoute,
-    ) {
-        ModalRoute::did_pop_next(self, app, next_route)
-    }
-
-    fn did_change_next(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-        next_route: Option<AnyRoute>,
-    ) {
-        ModalRoute::did_change_next(self, app, next_route)
-    }
-
-    fn did_change_previous(
-        self: waft_foundation::Handle<Self>,
-        app: &mut waft_foundation::App,
-        previous_route: Option<AnyRoute>,
-    ) {
-        ModalRoute::did_change_previous(self, app, previous_route)
-    }
-
-    fn changed_internal_state(self: waft_foundation::Handle<Self>, app: &mut waft_foundation::App) {
-        ModalRoute::changed_internal_state(self, app)
-    }
-
-    fn changed_external_state(self: waft_foundation::Handle<Self>, app: &mut waft_foundation::App) {
-        ModalRoute::changed_external_state(self, app)
-    }
-
-    fn dispose(self: waft_foundation::Handle<Self>, app: &mut waft_foundation::App) {
-        TransitionRoute::dispose(self, app)
-    }
-}
-
-impl OverlayRoute for FluentPageRoute {
-    waft_widgets::modal_overlay_route_overrides!();
-}
-
-impl PredictiveBackRoute for FluentPageRoute {
-    waft_widgets::page_predictive_back_route_overrides!();
-}
-
-impl TransitionRoute for FluentPageRoute {
-    waft_widgets::modal_transition_route_overrides!();
-
-    fn opaque(self: waft_foundation::Handle<Self>, app: &waft_foundation::App) -> bool {
-        PageRoute::opaque(self, app)
-    }
-
-    fn allow_snapshotting(self: waft_foundation::Handle<Self>, app: &waft_foundation::App) -> bool {
-        PageRoute::allow_snapshotting(self, app)
-    }
-
+    /// [`FluentPageRoute::TRANSITION_DURATION`].
     fn transition_duration(
         self: waft_foundation::Handle<Self>,
-        _app: &mut waft_foundation::App,
+        app: &mut waft_foundation::App,
     ) -> Duration {
-        let _ = self;
+        let _ = (self, app);
         FluentPageRoute::TRANSITION_DURATION
     }
 
+    /// [`FluentPageRoute::REVERSE_TRANSITION_DURATION`].
     fn reverse_transition_duration(
         self: waft_foundation::Handle<Self>,
-        _app: &mut waft_foundation::App,
+        app: &mut waft_foundation::App,
     ) -> Duration {
-        let _ = self;
+        let _ = (self, app);
         FluentPageRoute::REVERSE_TRANSITION_DURATION
     }
 
@@ -343,6 +229,7 @@ impl TransitionRoute for FluentPageRoute {
         app: &waft_foundation::App,
         next_route: AnyTransitionRoute,
     ) -> bool {
+        let _ = self;
         let next = next_route.as_route();
         match next.as_page_route(app) {
             Some(page) => !page.as_modal_route().fullscreen_dialog(app),
@@ -359,65 +246,16 @@ impl TransitionRoute for FluentPageRoute {
         previous_route.as_route().as_page_route(app).is_some()
             && !PageRoute::fullscreen_dialog(self, app)
     }
-}
 
-impl LocalHistoryRoute for FluentPageRoute {
-    waft_widgets::local_history_route_accessors!();
-}
-
-impl ModalRoute for FluentPageRoute {
-    waft_widgets::modal_route_accessors!();
-
-    fn barrier_dismissible(
-        self: waft_foundation::Handle<Self>,
-        app: &waft_foundation::App,
-    ) -> bool {
-        PageRoute::barrier_dismissible(self, app)
-    }
-
-    fn barrier_color(
-        self: waft_foundation::Handle<Self>,
-        _app: &waft_foundation::App,
-    ) -> Option<Color> {
-        let _ = self;
-        None
-    }
-
-    fn barrier_label(
-        self: waft_foundation::Handle<Self>,
-        _app: &waft_foundation::App,
-    ) -> Option<String> {
-        let _ = self;
-        None
-    }
-
-    fn delegated_transition(
-        self: waft_foundation::Handle<Self>,
-        _app: &waft_foundation::App,
-    ) -> Option<DelegatedTransitionBuilder> {
-        let _ = self;
-        None
-    }
-
-    fn maintain_state(self: waft_foundation::Handle<Self>, app: &waft_foundation::App) -> bool {
-        app.get(self).maintain_state
-    }
-
-    fn fullscreen_dialog(self: waft_foundation::Handle<Self>, app: &waft_foundation::App) -> bool {
-        PageRoute::fullscreen_dialog(self, app)
-    }
-
+    /// The content, in a route scope of the semantics tree unless
+    /// [`include_route_semantics`](Self::include_route_semantics) says otherwise.
     fn build_page(
         self: waft_foundation::Handle<Self>,
         app: &mut waft_foundation::App,
         context: BuildContext,
-        animation: AnimationRef<f64>,
-        secondary_animation: AnimationRef<f64>,
     ) -> WidgetRef {
-        let _ = (animation, secondary_animation);
-        let builder = std::rc::Rc::clone(&app.get(self).builder);
-        let result = builder(app, context);
-        if !app.get(self).include_route_semantics {
+        let result = FluentRouteTransitionMixin::build_content(self, app, context);
+        if !FluentRouteTransitionMixin::include_route_semantics(self, app) {
             return result;
         }
         Semantics::new()
@@ -427,10 +265,11 @@ impl ModalRoute for FluentPageRoute {
             .into_widget()
     }
 
+    /// The entrance on the route's own animation and the covered page's fade on its secondary
+    /// one.
     fn build_transitions(
         self: waft_foundation::Handle<Self>,
         app: &mut waft_foundation::App,
-        _context: BuildContext,
         animation: AnimationRef<f64>,
         secondary_animation: AnimationRef<f64>,
         child: WidgetRef,
@@ -440,8 +279,451 @@ impl ModalRoute for FluentPageRoute {
     }
 }
 
+/// The `TransitionRoute` overrides a [`FluentRouteTransitionMixin`] route inherits. Write it
+/// inside `impl TransitionRoute for MyRoute { .. }`, with `opaque`.
+#[macro_export]
+macro_rules! fluent_route_transition_mixin_transition_route_overrides {
+    () => {
+        ::waft_widgets::modal_transition_route_overrides!();
+
+        fn allow_snapshotting(
+            self: ::waft_foundation::Handle<Self>,
+            app: &::waft_foundation::App,
+        ) -> bool {
+            ::waft_widgets::PageRoute::allow_snapshotting(self, app)
+        }
+
+        fn transition_duration(
+            self: ::waft_foundation::Handle<Self>,
+            app: &mut ::waft_foundation::App,
+        ) -> ::std::time::Duration {
+            $crate::FluentRouteTransitionMixin::transition_duration(self, app)
+        }
+
+        fn reverse_transition_duration(
+            self: ::waft_foundation::Handle<Self>,
+            app: &mut ::waft_foundation::App,
+        ) -> ::std::time::Duration {
+            $crate::FluentRouteTransitionMixin::reverse_transition_duration(self, app)
+        }
+
+        fn can_transition_to(
+            self: ::waft_foundation::Handle<Self>,
+            app: &::waft_foundation::App,
+            next_route: ::waft_widgets::AnyTransitionRoute,
+        ) -> bool {
+            $crate::FluentRouteTransitionMixin::can_transition_to(self, app, next_route)
+        }
+
+        fn can_transition_from(
+            self: ::waft_foundation::Handle<Self>,
+            app: &::waft_foundation::App,
+            previous_route: ::waft_widgets::AnyTransitionRoute,
+        ) -> bool {
+            $crate::FluentRouteTransitionMixin::can_transition_from(self, app, previous_route)
+        }
+    };
+}
+
+/// The `ModalRoute` overrides a [`FluentRouteTransitionMixin`] route inherits. Write it inside
+/// `impl ModalRoute for MyRoute { .. }`, with `maintain_state` and `fullscreen_dialog`.
+#[macro_export]
+macro_rules! fluent_route_transition_mixin_modal_route_overrides {
+    () => {
+        ::waft_widgets::modal_route_accessors!();
+
+        fn barrier_dismissible(
+            self: ::waft_foundation::Handle<Self>,
+            app: &::waft_foundation::App,
+        ) -> bool {
+            ::waft_widgets::PageRoute::barrier_dismissible(self, app)
+        }
+
+        fn barrier_color(
+            self: ::waft_foundation::Handle<Self>,
+            _app: &::waft_foundation::App,
+        ) -> ::std::option::Option<::waft_embedder::Color> {
+            let _ = self;
+            ::std::option::Option::None
+        }
+
+        fn barrier_label(
+            self: ::waft_foundation::Handle<Self>,
+            _app: &::waft_foundation::App,
+        ) -> ::std::option::Option<::std::string::String> {
+            let _ = self;
+            ::std::option::Option::None
+        }
+
+        fn delegated_transition(
+            self: ::waft_foundation::Handle<Self>,
+            _app: &::waft_foundation::App,
+        ) -> ::std::option::Option<::waft_widgets::DelegatedTransitionBuilder> {
+            let _ = self;
+            ::std::option::Option::None
+        }
+
+        fn build_page(
+            self: ::waft_foundation::Handle<Self>,
+            app: &mut ::waft_foundation::App,
+            context: ::waft_widgets::BuildContext,
+            _animation: ::waft_animation::AnimationRef<f64>,
+            _secondary_animation: ::waft_animation::AnimationRef<f64>,
+        ) -> ::waft_widgets::WidgetRef {
+            $crate::FluentRouteTransitionMixin::build_page(self, app, context)
+        }
+
+        fn build_transitions(
+            self: ::waft_foundation::Handle<Self>,
+            app: &mut ::waft_foundation::App,
+            _context: ::waft_widgets::BuildContext,
+            animation: ::waft_animation::AnimationRef<f64>,
+            secondary_animation: ::waft_animation::AnimationRef<f64>,
+            child: ::waft_widgets::WidgetRef,
+        ) -> ::waft_widgets::WidgetRef {
+            $crate::FluentRouteTransitionMixin::build_transitions(
+                self,
+                app,
+                animation,
+                secondary_animation,
+                child,
+            )
+        }
+    };
+}
+
+impl Route for FluentPageRoute {
+    waft_widgets::page_route_overrides!();
+}
+
+impl OverlayRoute for FluentPageRoute {
+    waft_widgets::modal_overlay_route_overrides!();
+}
+
+impl PredictiveBackRoute for FluentPageRoute {
+    waft_widgets::page_predictive_back_route_overrides!();
+}
+
+impl TransitionRoute for FluentPageRoute {
+    crate::fluent_route_transition_mixin_transition_route_overrides!();
+
+    fn opaque(self: waft_foundation::Handle<Self>, app: &waft_foundation::App) -> bool {
+        PageRoute::opaque(self, app)
+    }
+}
+
+impl LocalHistoryRoute for FluentPageRoute {
+    waft_widgets::local_history_route_accessors!();
+}
+
+impl ModalRoute for FluentPageRoute {
+    crate::fluent_route_transition_mixin_modal_route_overrides!();
+
+    fn maintain_state(self: waft_foundation::Handle<Self>, app: &waft_foundation::App) -> bool {
+        app.get(self).maintain_state
+    }
+
+    fn fullscreen_dialog(self: waft_foundation::Handle<Self>, app: &waft_foundation::App) -> bool {
+        PageRoute::fullscreen_dialog(self, app)
+    }
+}
+
 impl PageRoute for FluentPageRoute {
     waft_widgets::page_route_accessors!();
+}
+
+impl FluentRouteTransitionMixin for FluentPageRoute {
+    fn build_content(
+        self: waft_foundation::Handle<Self>,
+        app: &mut waft_foundation::App,
+        context: BuildContext,
+    ) -> WidgetRef {
+        let builder = Rc::clone(&app.get(self).builder);
+        builder(app, context)
+    }
+
+    fn include_route_semantics(
+        self: waft_foundation::Handle<Self>,
+        app: &waft_foundation::App,
+    ) -> bool {
+        app.get(self).include_route_semantics
+    }
+}
+
+/// A page of a Navigator's `pages`, shown by a [`FluentPageRoute`]: what Flutter's
+/// `MaterialPage` and `CupertinoPage` are to their routes. A Navigator built from pages enters
+/// and leaves each with WinUI's `Frame` transition as its pages change, and the page given
+/// later under the same key is the one shown.
+#[derive(Clone)]
+pub struct FluentRoutePage {
+    /// See [`Page::key`].
+    pub key: Option<KeyRef>,
+    /// See [`Page::name`].
+    pub name: Option<String>,
+    /// See [`Page::arguments`].
+    pub arguments: Option<Rc<dyn Any>>,
+    /// See [`Page::restoration_id`].
+    pub restoration_id: Option<String>,
+    /// See [`Page::can_pop`].
+    pub can_pop: bool,
+    /// See [`Page::on_pop_invoked`].
+    pub on_pop_invoked: Option<PopInvokedWithResultCallback>,
+    /// The page's content.
+    pub child: WidgetRef,
+    /// Whether the route keeps its page while another covers it.
+    pub maintain_state: bool,
+    /// Whether the page is a full-screen dialog, whose arrival the page beneath does not answer.
+    pub fullscreen_dialog: bool,
+    /// Whether the route may be snapshotted as it moves.
+    pub allow_snapshotting: bool,
+    /// Whether the page scopes the semantics tree as a screen of its own.
+    pub include_route_semantics: bool,
+}
+
+impl FluentRoutePage {
+    /// A page showing `child`; the rest are the setters, with `MaterialPage`'s defaults:
+    /// `maintain_state` true, `fullscreen_dialog` false, `allow_snapshotting` true,
+    /// `include_route_semantics` true, `can_pop` true.
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn new<K>(child: impl IntoWidget<K>) -> FluentRoutePage {
+        FluentRoutePage {
+            key: None,
+            name: None,
+            arguments: None,
+            restoration_id: None,
+            can_pop: true,
+            on_pop_invoked: None,
+            child: child.into_widget(),
+            maintain_state: true,
+            fullscreen_dialog: false,
+            allow_snapshotting: true,
+            include_route_semantics: true,
+        }
+    }
+
+    /// The page's key, by which the Navigator tells it is the same page as before.
+    pub fn key(mut self, key: KeyRef) -> FluentRoutePage {
+        self.key = Some(key);
+        self
+    }
+
+    /// The page's name, its route's.
+    pub fn name(mut self, name: impl Into<String>) -> FluentRoutePage {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The arguments its route carries.
+    pub fn arguments(mut self, arguments: Rc<dyn Any>) -> FluentRoutePage {
+        self.arguments = Some(arguments);
+        self
+    }
+
+    /// The id its route is restored by.
+    pub fn restoration_id(mut self, restoration_id: impl Into<String>) -> FluentRoutePage {
+        self.restoration_id = Some(restoration_id.into());
+        self
+    }
+
+    /// Whether a back may pop the page.
+    pub fn can_pop(mut self, can_pop: bool) -> FluentRoutePage {
+        self.can_pop = can_pop;
+        self
+    }
+
+    /// What hears a back the page was asked to take, popped or not.
+    pub fn on_pop_invoked(
+        mut self,
+        on_pop_invoked: PopInvokedWithResultCallback,
+    ) -> FluentRoutePage {
+        self.on_pop_invoked = Some(on_pop_invoked);
+        self
+    }
+
+    /// Whether the route keeps its page while another covers it.
+    pub fn maintain_state(mut self, maintain_state: bool) -> FluentRoutePage {
+        self.maintain_state = maintain_state;
+        self
+    }
+
+    /// Whether the page is a full-screen dialog.
+    pub fn fullscreen_dialog(mut self, fullscreen_dialog: bool) -> FluentRoutePage {
+        self.fullscreen_dialog = fullscreen_dialog;
+        self
+    }
+
+    /// Whether the route may be snapshotted as it moves.
+    pub fn allow_snapshotting(mut self, allow_snapshotting: bool) -> FluentRoutePage {
+        self.allow_snapshotting = allow_snapshotting;
+        self
+    }
+
+    /// Whether the page scopes the semantics tree as a screen of its own.
+    pub fn include_route_semantics(mut self, include: bool) -> FluentRoutePage {
+        self.include_route_semantics = include;
+        self
+    }
+}
+
+impl Debug for FluentRoutePage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FluentRoutePage")
+            .field("key", &self.key)
+            .field("name", &self.name)
+            .field("child", &self.child)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Page for FluentRoutePage {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn key(&self) -> Option<&KeyRef> {
+        self.key.as_ref()
+    }
+
+    fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    fn arguments(&self) -> Option<&Rc<dyn Any>> {
+        self.arguments.as_ref()
+    }
+
+    fn restoration_id(&self) -> Option<&str> {
+        self.restoration_id.as_deref()
+    }
+
+    fn can_pop(&self) -> bool {
+        self.can_pop
+    }
+
+    fn on_pop_invoked(&self, app: &mut App, did_pop: bool, result: RouteResult) {
+        if let Some(on_pop_invoked) = self.on_pop_invoked.clone() {
+            on_pop_invoked(app, did_pop, result);
+        }
+    }
+
+    fn create_route(&self, app: &mut App, context: BuildContext, this: &PageRef) -> RouteRef {
+        let _ = context;
+        PageBasedFluentPageRoute::new(app, Rc::clone(this), self.allow_snapshotting).into_erased()
+    }
+}
+
+/// A page-based version of [`FluentPageRoute`]: Dart's `_PageBasedMaterialPageRoute`, for WinUI.
+///
+/// This route reads its content and options from its [`FluentRoutePage`], kept in its settings,
+/// so they are up to date after page updates.
+struct PageBasedFluentPageRoute {
+    route: RouteData,
+    overlay_route: OverlayRouteData,
+    transition_route: TransitionRouteData,
+    local_history: LocalHistoryRouteData,
+    modal_route: ModalRouteData,
+    page_route: PageRouteData,
+}
+
+impl PageBasedFluentPageRoute {
+    fn new(
+        app: &mut App,
+        page: PageRef,
+        allow_snapshotting: bool,
+    ) -> Ref<PageBasedFluentPageRoute> {
+        let route = RouteData::new(app, Some(RouteSettingsRef::Page(page)), None);
+        let transition_route = TransitionRouteData::new(app);
+        let modal_route = ModalRouteData::new(app);
+        let mut page_route = PageRouteData::new();
+        page_route.allow_snapshotting = allow_snapshotting;
+        let this = app.create(PageBasedFluentPageRoute {
+            route,
+            overlay_route: OverlayRouteData::new(),
+            transition_route,
+            local_history: LocalHistoryRouteData::new(),
+            modal_route,
+            page_route,
+        });
+        debug_assert!(TransitionRoute::opaque(this.handle(), app));
+        this
+    }
+
+    /// Dart's `_page` getter, read in place.
+    fn with_page<T>(
+        self: waft_foundation::Handle<Self>,
+        app: &App,
+        read: impl FnOnce(&FluentRoutePage) -> T,
+    ) -> T {
+        match Route::settings(self, app) {
+            RouteSettingsRef::Page(page) => read(
+                page.as_any()
+                    .downcast_ref::<FluentRoutePage>()
+                    .expect("a page-based Fluent page route's settings are its FluentRoutePage"),
+            ),
+            RouteSettingsRef::Settings(_) => {
+                panic!("a page-based Fluent page route's settings are its FluentRoutePage")
+            }
+        }
+    }
+}
+
+impl Route for PageBasedFluentPageRoute {
+    waft_widgets::page_route_overrides!();
+}
+
+impl OverlayRoute for PageBasedFluentPageRoute {
+    waft_widgets::modal_overlay_route_overrides!();
+}
+
+impl PredictiveBackRoute for PageBasedFluentPageRoute {
+    waft_widgets::page_predictive_back_route_overrides!();
+}
+
+impl TransitionRoute for PageBasedFluentPageRoute {
+    crate::fluent_route_transition_mixin_transition_route_overrides!();
+
+    fn opaque(self: waft_foundation::Handle<Self>, app: &App) -> bool {
+        PageRoute::opaque(self, app)
+    }
+}
+
+impl LocalHistoryRoute for PageBasedFluentPageRoute {
+    waft_widgets::local_history_route_accessors!();
+}
+
+impl ModalRoute for PageBasedFluentPageRoute {
+    crate::fluent_route_transition_mixin_modal_route_overrides!();
+
+    fn maintain_state(self: waft_foundation::Handle<Self>, app: &App) -> bool {
+        self.with_page(app, |page| page.maintain_state)
+    }
+
+    fn fullscreen_dialog(self: waft_foundation::Handle<Self>, app: &App) -> bool {
+        PageRoute::fullscreen_dialog(self, app)
+    }
+}
+
+impl PageRoute for PageBasedFluentPageRoute {
+    waft_widgets::page_route_accessors!();
+
+    fn fullscreen_dialog(self: waft_foundation::Handle<Self>, app: &App) -> bool {
+        self.with_page(app, |page| page.fullscreen_dialog)
+    }
+}
+
+impl FluentRouteTransitionMixin for PageBasedFluentPageRoute {
+    fn build_content(
+        self: waft_foundation::Handle<Self>,
+        app: &mut App,
+        context: BuildContext,
+    ) -> WidgetRef {
+        let _ = context;
+        self.with_page(app, |page| page.child.clone())
+    }
+
+    fn include_route_semantics(self: waft_foundation::Handle<Self>, app: &App) -> bool {
+        self.with_page(app, |page| page.include_route_semantics)
+    }
 }
 
 /// The entrance on the route's own animation and the covered page's fade on its secondary one.
@@ -592,6 +874,114 @@ mod tests {
         assert!(erased.as_page_route(&app).is_some());
         assert!(erased.as_modal_route(&app).is_some());
         assert!(erased.as_transition_route(&app).is_some());
+    }
+
+    /// A Navigator built from `pages`, each a [`FluentRoutePage`] showing its name, that hears
+    /// the pages it removes in `removed`.
+    fn navigator(
+        pages: &[&str],
+        removed: &Rc<std::cell::RefCell<Vec<String>>>,
+    ) -> waft_widgets::WidgetRef {
+        let removed = Rc::clone(removed);
+        let pages: Vec<waft_widgets::PageRef> = pages
+            .iter()
+            .map(|name| {
+                let page = FluentRoutePage::new(waft_widgets::Text::new(*name))
+                    .key(waft_foundation::ValueKey::new((*name).to_owned()).into())
+                    .name(*name);
+                Rc::new(page) as waft_widgets::PageRef
+            })
+            .collect();
+        waft_widgets::Directionality::new(
+            waft_painting::TextDirection::Ltr,
+            waft_widgets::Navigator::new()
+                .pages(pages)
+                .on_did_remove_page(move |_app, page| {
+                    removed
+                        .borrow_mut()
+                        .push(page.name().unwrap_or_default().to_owned());
+                }),
+        )
+        .into_widget()
+    }
+
+    /// Where the text `text` is drawn and how visible, as the Navigator's transition has it now.
+    fn shown(tester: &mut waft_widgets::testing::WidgetTester, text: &str) -> Option<f64> {
+        let found = tester.update(|app| waft_widgets::testing::find::text(text).evaluate_in(app));
+        found.first().map(|_| {
+            tester
+                .get_top_left(waft_widgets::testing::find::text(text))
+                .dy()
+        })
+    }
+
+    /// A page added to a Navigator's pages enters as WinUI's `Frame` shows a page: 140 pixels
+    /// low and unseen for its first 150 ms, then up into place.
+    #[test]
+    fn a_page_added_to_the_pages_enters_with_winuis_transition() {
+        let removed = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut tester = waft_widgets::testing::WidgetTester::new();
+        tester.pump_widget(navigator(&["Home"], &removed));
+        let home_top = shown(&mut tester, "Home").expect("the home shows");
+        tester.pump_widget(navigator(&["Home", "Settings"], &removed));
+        tester.pump_by(Duration::from_millis(100));
+        let entering = shown(&mut tester, "Settings").expect("the page is pushed");
+        assert_eq!(
+            entering,
+            home_top + FluentPageRoute::TRANSLATION_OFFSET,
+            "still low"
+        );
+        tester.pump_and_settle();
+        assert_eq!(shown(&mut tester, "Settings"), Some(home_top), "in place");
+        assert!(removed.borrow().is_empty());
+    }
+
+    /// A page given again under its key shows what it holds now, as a page-based route reads
+    /// its page from its settings.
+    #[test]
+    fn a_page_given_again_shows_its_new_content() {
+        let removed = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut tester = waft_widgets::testing::WidgetTester::new();
+        tester.pump_widget(navigator(&["Home"], &removed));
+        let page = |text: &str| {
+            Rc::new(
+                FluentRoutePage::new(waft_widgets::Text::new(text))
+                    .key(waft_foundation::ValueKey::new("home".to_owned()).into()),
+            ) as waft_widgets::PageRef
+        };
+        let with = |text: &str| {
+            waft_widgets::Directionality::new(
+                waft_painting::TextDirection::Ltr,
+                waft_widgets::Navigator::new()
+                    .pages([page(text)])
+                    .on_did_remove_page(|_app, _page| {}),
+            )
+            .into_widget()
+        };
+        tester.pump_widget(with("First"));
+        tester.pump_and_settle();
+        tester.pump_widget(with("Second"));
+        assert!(
+            shown(&mut tester, "Second").is_some(),
+            "the new content shows"
+        );
+        assert!(shown(&mut tester, "First").is_none());
+    }
+
+    /// A page popped from the Navigator leaves with WinUI's back transition and is heard as
+    /// removed, so the state its pages come from can follow.
+    #[test]
+    fn a_popped_page_is_heard_as_removed() {
+        let removed = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut tester = waft_widgets::testing::WidgetTester::new();
+        tester.pump_widget(navigator(&["Home", "Settings"], &removed));
+        tester.pump_and_settle();
+        tester.update(|app| {
+            let settings = waft_widgets::testing::find::text("Settings").evaluate_in(app)[0];
+            waft_widgets::Navigator::pop(app, settings, None);
+        });
+        tester.pump_and_settle();
+        assert_eq!(*removed.borrow(), ["Settings"]);
     }
 
     #[test]
