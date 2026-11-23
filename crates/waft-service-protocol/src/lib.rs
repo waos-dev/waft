@@ -9,7 +9,9 @@
 //!   requests, each answered by one response in the order asked, with Dart's error codes. They
 //!   are JSON text, whatever carries them.
 //! - **Transports** ([`Connection`]): what carries one message's text at a time. [`TcpLines`]
-//!   carries them one to a line over TCP, for an app on this machine.
+//!   carries them one to a line over TCP, for an app on this machine; [`ChildLines`] over a
+//!   relay command's stdin and stdout, for a platform that carries them its own way, as WaOS
+//!   does for its programs.
 //! - **Listings and discovery** ([`ListedApp`], [`Discovery`]): a running app lists the one
 //!   address that reaches it, with what names it, and sources of listings are merged into one
 //!   list. [`ListingFolder`] reads this machine's folder, [`listing_dir`], which only its user
@@ -20,7 +22,7 @@ mod discovery;
 mod listing;
 mod message;
 
-pub use connection::{Client, Connection, TcpLines};
+pub use connection::{ChildLines, Client, Connection, TcpLines};
 pub use discovery::{Discovery, ListingFolder, discover};
 pub use listing::{Address, ListedApp, listing_dir};
 pub use message::{

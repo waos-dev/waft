@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{Value, json};
 
@@ -49,6 +50,63 @@ impl Connection for TcpLines {
     }
 }
 
+/// Messages one to a line over a relay's stdin and stdout: the command a listing's
+/// [`Address::Command`] names, run for as long as the connection is held, as ssh runs its
+/// `ProxyCommand`. Dropping the connection closes the relay's stdin, which ends it.
+pub struct ChildLines {
+    child: Child,
+    stdin: Option<ChildStdin>,
+    stdout: BufReader<ChildStdout>,
+}
+
+impl ChildLines {
+    /// Runs `arguments` (the command, then its own arguments) as a relay. What it writes to its
+    /// stderr reaches this process's, so a relay's own errors are seen.
+    pub fn spawn(arguments: &[String]) -> io::Result<ChildLines> {
+        let (program, rest) = arguments.split_first().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "a relay names a command")
+        })?;
+        let mut child = Command::new(program)
+            .args(rest)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+        let stdin = child.stdin.take();
+        let stdout = BufReader::new(child.stdout.take().expect("the relay's stdout is piped"));
+        Ok(ChildLines {
+            child,
+            stdin,
+            stdout,
+        })
+    }
+}
+
+impl Connection for ChildLines {
+    fn send(&mut self, text: &str) -> io::Result<()> {
+        let stdin = self.stdin.as_mut().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::BrokenPipe, "the relay's stdin is closed")
+        })?;
+        writeln!(stdin, "{text}")?;
+        stdin.flush()
+    }
+
+    fn receive(&mut self) -> io::Result<Option<String>> {
+        let mut line = String::new();
+        match self.stdout.read_line(&mut line)? {
+            0 => Ok(None),
+            _ => Ok(Some(line.trim_end_matches(['\r', '\n']).to_owned())),
+        }
+    }
+}
+
+impl Drop for ChildLines {
+    fn drop(&mut self) {
+        // The relay ends once its stdin closes.
+        drop(self.stdin.take());
+        let _ = self.child.wait();
+    }
+}
+
 /// A client's connection to one running app, by the transport its listing names.
 pub struct Client {
     connection: Box<dyn Connection>,
@@ -59,8 +117,9 @@ impl Client {
     /// Connects to `app` and says hello. An app that ended since it listed itself refuses the
     /// connection.
     pub fn connect(app: &ListedApp) -> io::Result<Client> {
-        let mut connection: Box<dyn Connection> = match app.address {
-            Address::Tcp(address) => Box::new(TcpLines::connect(address)?),
+        let mut connection: Box<dyn Connection> = match &app.address {
+            Address::Tcp(address) => Box::new(TcpLines::connect(*address)?),
+            Address::Command(arguments) => Box::new(ChildLines::spawn(arguments)?),
         };
         let hello = Message::Hello {
             token: app.token.clone(),
@@ -98,5 +157,28 @@ impl Client {
                 "the app's answer is not a JSON-RPC response",
             )),
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    /// A relay carries each message's text both ways: `cat` sends each line back.
+    #[test]
+    fn a_relay_carries_each_line_both_ways() {
+        let mut relay = ChildLines::spawn(&["cat".to_owned()]).expect("cat runs");
+        relay.send(r#"{"token":""}"#).expect("sent");
+        relay
+            .send(r#"{"jsonrpc":"2.0","id":1,"method":"ext.waft.debugDumpApp"}"#)
+            .expect("sent");
+        assert_eq!(
+            relay.receive().expect("read").as_deref(),
+            Some(r#"{"token":""}"#)
+        );
+        assert_eq!(
+            relay.receive().expect("read").as_deref(),
+            Some(r#"{"jsonrpc":"2.0","id":1,"method":"ext.waft.debugDumpApp"}"#)
+        );
     }
 }
