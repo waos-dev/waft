@@ -981,6 +981,18 @@ pub trait RenderObject: 'static + Sized {
         debug_assert!(child.parent(app).map(AnyRenderObject::id) == Some(self.id()));
     }
 
+    /// Dart's `describeApproximatePaintClip`: the rectangle, in this object's coordinates, that
+    /// it clips `child`'s painting to, or `None` where it does not clip it. An estimate, for the
+    /// inspector's screenshot bounds: a clip it may apply is enough.
+    fn describe_approximate_paint_clip(
+        self: RenderHandle<Self>,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        let _ = (self, app, child);
+        None
+    }
+
     /// Whether the given child would be painted if [`paint`](Self::paint) were called.
     ///
     /// Some RenderObjects skip painting their children if they are configured to
@@ -1323,6 +1335,7 @@ pub(crate) struct RenderObjectVTable {
     pub mark_needs_layout: fn(&mut App, HandleId),
     pub paint_bounds: fn(&App, HandleId) -> Rect,
     pub apply_paint_transform: fn(&App, HandleId, AnyRenderObject, &mut Matrix4),
+    pub describe_approximate_paint_clip: fn(&App, HandleId, AnyRenderObject) -> Option<Rect>,
     pub paints_child: fn(&App, HandleId, AnyRenderObject) -> bool,
     pub is_repaint_boundary: fn(&App, HandleId) -> bool,
     pub always_needs_compositing: fn(&App, HandleId) -> bool,
@@ -1370,6 +1383,9 @@ impl RenderObjectVTable {
             paint_bounds,
             apply_paint_transform,
             paints_child: |app, id, child| T::paints_child(resolve(id), app, child),
+            describe_approximate_paint_clip: |app, id, child| {
+                T::describe_approximate_paint_clip(resolve(id), app, child)
+            },
             is_repaint_boundary: |app, id| T::is_repaint_boundary(resolve(id), app),
             always_needs_compositing: |app, id| T::always_needs_compositing(resolve(id), app),
             mouse_tracker_annotation: |app, id| T::mouse_tracker_annotation(resolve(id), app),
@@ -2095,6 +2111,15 @@ impl AnyRenderObject {
     /// See [`RenderObject::apply_paint_transform`].
     pub fn apply_paint_transform(self, app: &App, child: AnyRenderObject, transform: &mut Matrix4) {
         (self.vtable.apply_paint_transform)(app, self.id, child, transform)
+    }
+
+    /// See [`RenderObject::describe_approximate_paint_clip`].
+    pub fn describe_approximate_paint_clip(
+        self,
+        app: &App,
+        child: AnyRenderObject,
+    ) -> Option<Rect> {
+        (self.vtable.describe_approximate_paint_clip)(app, self.id, child)
     }
 
     /// See [`RenderObject::paints_child`].

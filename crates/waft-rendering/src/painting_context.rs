@@ -1,5 +1,6 @@
 //! Flutter counterpart: `rendering/object.dart` (`PaintingContext`).
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 use waft_embedder::{Canvas, Clip, Matrix4, Offset, Path, RRect, Rect};
@@ -12,6 +13,7 @@ use crate::layer::{
     TransformLayer,
 };
 use crate::object::AnyRenderObject;
+use crate::screenshot::SharedRecording;
 
 /// A place to paint.
 ///
@@ -41,6 +43,9 @@ pub struct PaintingContext {
     canvas: Option<Canvas>,
     is_complex_hint: bool,
     will_change_hint: bool,
+    /// The widget inspector's screenshot this paint records, until its target is reached: Dart's
+    /// `_ScreenshotPaintingContext`, whose overrides are the branches on this field.
+    screenshot: Option<SharedRecording>,
 }
 
 impl PaintingContext {
@@ -55,7 +60,31 @@ impl PaintingContext {
             canvas: None,
             is_complex_hint: false,
             will_change_hint: false,
+            screenshot: None,
         }
+    }
+
+    /// A context that paints into `container_layer` as [`new`](Self::new)'s does, and records
+    /// `recording`'s screenshot: Dart's `_ScreenshotPaintingContext`.
+    pub(crate) fn recording_screenshot(
+        container_layer: AnyContainerLayer,
+        estimated_bounds: Rect,
+        recording: SharedRecording,
+    ) -> PaintingContext {
+        PaintingContext {
+            screenshot: Some(recording),
+            ..PaintingContext::new(container_layer, estimated_bounds)
+        }
+    }
+
+    /// Repaints the repaint boundary `child` through `context`, which need not be in need of
+    /// painting: Dart's `debugInstrumentRepaintCompositedChild`.
+    pub(crate) fn debug_instrument_repaint_composited_child(
+        app: &mut App,
+        child: AnyRenderObject,
+        context: PaintingContext,
+    ) {
+        Self::repaint_composited_child_inner(app, child, false, Some(context));
     }
 
     /// Repaint the given render object.
@@ -168,6 +197,34 @@ impl PaintingContext {
     /// into the layer subtree associated with this painting context. Otherwise,
     /// the child will be painted into the current PictureLayer for this context.
     pub fn paint_child(&mut self, app: &mut App, child: AnyRenderObject, offset: Offset) {
+        let is_screenshot_target = self
+            .screenshot
+            .as_ref()
+            .is_some_and(|recording| recording.borrow().target == child);
+        if is_screenshot_target {
+            // The target's drawing goes in pictures of its own, which the screenshot borrows.
+            self.stop_recording_if_needed(app);
+            self.recording().borrow_mut().start_target(offset);
+        }
+        self.paint_child_into_this_context(app, child, offset);
+        if is_screenshot_target {
+            self.stop_recording_if_needed(app);
+            self.recording().borrow_mut().end_target();
+        }
+    }
+
+    /// The screenshot this context records.
+    fn recording(&self) -> &SharedRecording {
+        self.screenshot.as_ref().expect("a screenshot is recording")
+    }
+
+    /// [`paint_child`](Self::paint_child)'s body: Dart's `PaintingContext.paintChild`.
+    fn paint_child_into_this_context(
+        &mut self,
+        app: &mut App,
+        child: AnyRenderObject,
+        offset: Offset,
+    ) {
         if child.is_repaint_boundary(app) {
             self.stop_recording_if_needed(app);
             self.composite_child(app, child, offset);
@@ -216,7 +273,18 @@ impl PaintingContext {
     fn append_layer(&mut self, app: &mut App, layer: AnyLayer) {
         debug_assert!(!self.is_recording());
         layer.remove(app);
+        self.append_to_container(app, layer);
+    }
+
+    /// Appends `layer` to this context's container, and to the screenshot when the target is
+    /// painting it.
+    fn append_to_container(&mut self, app: &mut App, layer: AnyLayer) {
         self.container_layer.append(app, layer);
+        if let Some(recording) = &self.screenshot
+            && recording.borrow().include_in_screenshot
+        {
+            recording.borrow().borrow_layer(app, layer);
+        }
     }
 
     fn is_recording(&self) -> bool {
@@ -263,7 +331,7 @@ impl PaintingContext {
         picture.set_will_change_hint(app, self.will_change_hint);
         self.is_complex_hint = false;
         self.will_change_hint = false;
-        self.container_layer.append(app, picture.as_layer());
+        self.append_to_container(app, picture.as_layer());
     }
 
     /// Hints that the painting in the current layer is complex and would benefit
@@ -344,7 +412,13 @@ impl PaintingContext {
         child_layer: AnyContainerLayer,
         bounds: Rect,
     ) -> PaintingContext {
-        PaintingContext::new(child_layer, bounds)
+        match &self.screenshot {
+            // Once the target is found, a plain context paints the rest.
+            Some(recording) if !recording.borrow().found_target => {
+                PaintingContext::recording_screenshot(child_layer, bounds, Rc::clone(recording))
+            }
+            _ => PaintingContext::new(child_layer, bounds),
+        }
     }
 
     /// Clip further painting using a rectangle.
