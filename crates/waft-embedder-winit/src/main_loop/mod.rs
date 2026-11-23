@@ -122,7 +122,7 @@ use crate::launch::StartApp;
 use crate::lifecycle::{AppLifecycle, LifecycleNotice};
 use crate::menus::MenuEvent;
 use crate::os::System;
-use crate::os::capabilities::NativeComposition;
+use crate::os::capabilities::{ApplicationIdentity, NativeComposition};
 use crate::platform::WinitPlatform;
 use crate::pointer::Pointer;
 use crate::service_extensions::{self, IncomingCall, ServiceExtensionServer};
@@ -264,6 +264,9 @@ impl<C: EmbedderClient> MainLoop<C> {
             create_image_loader,
             gpu_request,
         ));
+        // `[package.metadata.waft] identifier`, which `#[waft::main]` gives every desktop as
+        // Linux's app id, else the bundle's.
+        let identifier = linux.app_id.clone().or_else(System::bundle_identifier);
         let platform = Rc::new(WinitPlatform::new(Rc::clone(&state), proxy.clone()));
         let view_maker = ViewMaker::new(state.gpu().clone(), Rc::clone(state.requests()), linux);
         let client = start(platform.clone());
@@ -285,7 +288,7 @@ impl<C: EmbedderClient> MainLoop<C> {
             lifecycle: AppLifecycle::default(),
             events,
             started: false,
-            _service_extensions: ServiceExtensionServer::start(proxy.clone()),
+            _service_extensions: ServiceExtensionServer::start(proxy.clone(), identifier),
             proxy,
         }
     }

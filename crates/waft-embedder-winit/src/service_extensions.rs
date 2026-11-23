@@ -36,15 +36,19 @@ pub(crate) struct ServiceExtensionServer {
 }
 
 impl ServiceExtensionServer {
-    /// Starts serving through `proxy`'s loop, in a debug build. Where this machine lets the app
+    /// Starts serving through `proxy`'s loop, in a debug build, listing the app with its
+    /// `identifier` where it has one. Where this machine lets the app
     /// neither listen nor list itself, it goes without, as an app with no VM service would.
-    pub(crate) fn start(proxy: MainLoopProxy) -> Option<ServiceExtensionServer> {
+    pub(crate) fn start(
+        proxy: MainLoopProxy,
+        identifier: Option<String>,
+    ) -> Option<ServiceExtensionServer> {
         if !cfg!(debug_assertions) {
             return None;
         }
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).ok()?;
         let address = Address::Tcp(listener.local_addr().ok()?);
-        let app = ListedApp::new(app_name(), None, std::process::id(), address);
+        let app = ListedApp::new(app_name(), identifier, std::process::id(), address);
         let listing = app.write_in(&listing_dir()).ok()?;
         let to_the_loop = move |call| proxy.send(MainLoopEvent::ServiceExtensionCall(call));
         listen(listener, app.token, to_the_loop).ok()?;
