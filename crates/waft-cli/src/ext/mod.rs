@@ -1,10 +1,12 @@
 //! `cargo waft ext`: a running debug app's service extensions, as Flutter's tools reach an app's
 //! VM service: the apps running, their trees, a widget's picture, and any extension by name.
 //!
-//! Running apps are found through `waft_service_protocol`'s discovery; a listing whose app no
-//! longer answers was left by a process that ended without removing it, and is removed here.
+//! Running apps are found through `waft_service_protocol`'s discovery: this machine's listing
+//! folder, and the programs WaOS runs. A listing in the folder whose app no longer answers was
+//! left by a process that ended without removing it, and is removed here.
 
 mod outline;
+mod waos;
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -16,10 +18,12 @@ use clap::{Subcommand, ValueEnum};
 use serde_json::Value;
 use waft_service_protocol::{Client, ListedApp, ListingFolder, discover};
 
+use self::waos::WaosPrograms;
+
 /// What `cargo waft ext` does.
 #[derive(Subcommand)]
 pub(crate) enum ExtCommand {
-    /// The Waft apps running in a debug build on this machine.
+    /// The Waft apps running in a debug build on this machine, WaOS's programs among them.
     List,
     /// A tree as text, as Flutter's `debugDump…` prints it.
     Dump {
@@ -281,10 +285,11 @@ fn names(listed: &ListedApp, wanted: &str) -> bool {
         || listed.pid.to_string() == wanted
 }
 
-/// The apps listed that answer, each connected; the listings of those that do not are removed.
+/// The apps listed that answer, each connected; the folder's listings of those that do not are
+/// removed.
 fn running() -> Vec<(ListedApp, Client)> {
     let folder = ListingFolder::new();
-    discover(&[&folder])
+    discover(&[&folder, &WaosPrograms])
         .into_iter()
         .filter_map(|listed| match Client::connect(&listed) {
             Ok(client) => Some((listed, client)),

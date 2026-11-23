@@ -38,14 +38,12 @@ impl Discovery for ListingFolder {
     }
 }
 
-/// Every app the sources find, each once: an app is its device and process.
+/// Every app the sources find, each once: an app is the one address that reaches it, since apps
+/// a platform runs share its process (a WaOS program's is WaOS's).
 pub fn discover(sources: &[&dyn Discovery]) -> Vec<ListedApp> {
     let mut apps: Vec<ListedApp> = Vec::new();
     for app in sources.iter().flat_map(|source| source.apps()) {
-        if !apps
-            .iter()
-            .any(|known| known.device == app.device && known.pid == app.pid)
-        {
+        if !apps.iter().any(|known| known.address == app.address) {
             apps.push(app);
         }
     }
@@ -65,15 +63,30 @@ mod tests {
         }
     }
 
+    fn relay(id: &str) -> Address {
+        Address::Command(
+            ["waos", "ext", "--id", id, "--stdio"]
+                .map(String::from)
+                .to_vec(),
+        )
+    }
+
+    /// An app two sources find is listed once, and two programs a platform runs in its one
+    /// process are two apps.
     #[test]
-    fn an_app_two_sources_find_is_listed_once() {
-        let address = Address::Tcp("127.0.0.1:9000".parse().unwrap());
-        let notes = ListedApp::new("notes", None, 42, address);
-        let waos = ListedApp::new("waos", None, 43, address);
-        let both = discover(&[
+    fn an_app_is_the_address_that_reaches_it() {
+        let notes = ListedApp::new(
+            "notes",
+            None,
+            42,
+            Address::Tcp("127.0.0.1:9000".parse().unwrap()),
+        );
+        let clock = ListedApp::new("clock", None, 7, relay("dev.example.clock"));
+        let timer = ListedApp::new("timer", None, 7, relay("dev.example.timer"));
+        let found = discover(&[
             &Fixed(vec![notes.clone()]),
-            &Fixed(vec![notes.clone(), waos.clone()]),
+            &Fixed(vec![notes.clone(), clock.clone(), timer.clone()]),
         ]);
-        assert_eq!(both, [notes, waos]);
+        assert_eq!(found, [notes, clock, timer]);
     }
 }

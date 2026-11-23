@@ -6,11 +6,20 @@ A debug build of a Waft app answers questions about itself while it runs, as a d
 
 ```bash
 cargo waft run                      # a debug build, in one terminal
-cargo waft ext list                 # the Waft apps running on this machine
+cargo waft ext list                 # the Waft apps running on this machine, WaOS's programs among them
 cargo waft ext tree                 # your widgets: properties, the line that made each, its id
 ```
 
 With more than one app running, name one with `--app`: its executable's name, its identifier (`[package.metadata.waft] identifier`) or its process id. A release build answers nothing.
+
+## WaOS programs
+
+A Waft program WaOS runs is listed too, when `waos` is on the `PATH`, as a phone's apps are listed through its tools: its identifier is its WaOS id, and its device is `WaOS`. Name it by that id, since WaOS's programs share WaOS's process:
+
+```bash
+waos run                                                   # a debug build of the program, installed as dev.example.notes.development
+cargo waft ext tree --app dev.example.notes.development
+```
 
 ## The widget tree
 
@@ -70,4 +79,8 @@ A test calls one directly with `ServiceExtensions::call(app, name, params)`.
 
 ## How it is carried
 
-The framework keeps the extensions and does no I/O; the host carries the calls. On the desktop, a debug build listens on a loopback port and lists itself, with its address and a token, in a folder only its user can read. A client reads the folder, says hello with the token, and speaks JSON-RPC 2.0, an extension's name as the method. `waft-service-protocol` has the listing, the messages and the transport, for another tool to speak it too.
+The framework keeps the extensions and does no I/O; the host carries the calls. On the desktop, a debug build listens on a loopback port and lists itself, with its address and a token, in a folder only its user can read. A client reads the folder, says hello with the token, and speaks JSON-RPC 2.0, an extension's name as the method.
+
+A platform with a protocol of its own lists a command instead of a port, as ssh's `ProxyCommand` does: `waos ext list --json` lists each program with `command:["waos","ext","--id","dev.example.notes.development","--stdio"]`, and the client runs that command and speaks the same messages, one to a line, on its stdin and stdout, while `waos` carries them to the program. Apps are told apart by the address that reaches them.
+
+`waft-service-protocol` has the listing, the messages and the transports, for another tool to speak it too.

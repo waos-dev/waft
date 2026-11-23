@@ -40,17 +40,23 @@ fn per_user_name() -> String {
     "waft".to_owned()
 }
 
-/// The one way to reach a running app.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The one way to reach a running app, as its listing writes it: `tcp://127.0.0.1:52341`, or
+/// `command:["waos","ext","--id","dev.example.notes","--stdio"]`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Address {
     /// Messages one to a line over TCP (`TcpLines`), on this machine's loopback.
     Tcp(SocketAddr),
+    /// A command that relays messages one to a line on its stdin and stdout (`ChildLines`), as
+    /// ssh's `ProxyCommand` does: how a platform with a protocol of its own carries them, as
+    /// `waos` carries a WaOS program's. Its arguments are written as a JSON array.
+    Command(Vec<String>),
 }
 
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Address::Tcp(address) => write!(f, "tcp://{address}"),
+            Address::Command(arguments) => write!(f, "command:{}", json!(arguments)),
         }
     }
 }
@@ -59,6 +65,15 @@ impl FromStr for Address {
     type Err = String;
 
     fn from_str(text: &str) -> Result<Address, String> {
+        if let Some(arguments) = text.strip_prefix("command:") {
+            let arguments: Vec<String> = serde_json::from_str(arguments).map_err(|error| {
+                format!("`{text}`: the command is a JSON array of text: {error}")
+            })?;
+            if arguments.is_empty() {
+                return Err(format!("`{text}` names no command"));
+            }
+            return Ok(Address::Command(arguments));
+        }
         match text.split_once("://") {
             Some(("tcp", address)) => address
                 .parse()
@@ -134,7 +149,8 @@ impl ListedApp {
         Ok(path)
     }
 
-    fn to_json(&self) -> Value {
+    /// The listing as JSON, as a listing file or a platform's list holds it.
+    pub fn to_json(&self) -> Value {
         json!({
             "app": self.app,
             "identifier": self.identifier,
@@ -145,7 +161,9 @@ impl ListedApp {
         })
     }
 
-    fn from_json(text: &str) -> Option<ListedApp> {
+    /// The listing `text` holds, as [`to_json`](Self::to_json) writes it, or `None` for text that
+    /// is none.
+    pub fn from_json(text: &str) -> Option<ListedApp> {
         let value: Value = serde_json::from_str(text).ok()?;
         let text_of = |name| value.get(name).and_then(Value::as_str).map(str::to_owned);
         Some(ListedApp {
@@ -220,6 +238,26 @@ mod tests {
         assert_eq!(address.to_string(), "tcp://127.0.0.1:52341");
         assert_eq!("tcp://127.0.0.1:52341".parse(), Ok(address));
         assert!("ws://127.0.0.1:8080/ext".parse::<Address>().is_err());
+    }
+
+    /// A relay's arguments survive spaces and quotes, written as a JSON array.
+    #[test]
+    fn a_command_address_keeps_its_arguments_apart() {
+        let relay = Address::Command(vec![
+            "waos".into(),
+            "ext".into(),
+            "--id".into(),
+            "dev.example.my notes".into(),
+            "--stdio".into(),
+        ]);
+        let text = relay.to_string();
+        assert_eq!(
+            text,
+            r#"command:["waos","ext","--id","dev.example.my notes","--stdio"]"#
+        );
+        assert_eq!(text.parse(), Ok(relay));
+        assert!("command:[]".parse::<Address>().is_err());
+        assert!("command:waos ext".parse::<Address>().is_err());
     }
 
     #[test]
