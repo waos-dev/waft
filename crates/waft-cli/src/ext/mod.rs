@@ -1,10 +1,12 @@
 //! `cargo waft ext`: a running debug app's service extensions, as Flutter's tools reach an app's
-//! VM service: the apps running, their trees, a widget's picture, and any extension by name.
+//! VM service: the apps running, their trees, a widget's picture, driving it as its user would,
+//! and any extension by name.
 //!
 //! Running apps are found through `waft_service_protocol`'s discovery: this machine's listing
 //! folder, and the programs WaOS runs. A listing in the folder whose app no longer answers was
 //! left by a process that ended without removing it, and is removed here.
 
+mod drive;
 mod outline;
 mod waos;
 
@@ -58,6 +60,55 @@ pub(crate) enum ExtCommand {
         #[arg(short, long)]
         out: Option<PathBuf>,
     },
+    /// The widgets WIDGET names, one a line, as `tree` prints them.
+    Find {
+        /// A CSS selector, as `ListTile:has([text="Wi-Fi"]) Switch`, or an id `tree` printed.
+        widget: String,
+    },
+    /// Taps the one widget WIDGET names, at its centre, once the app has settled.
+    Tap {
+        /// A CSS selector, as `ListTile:has([text="Wi-Fi"]) Switch`, or an id `tree` printed.
+        widget: String,
+    },
+    /// Types TEXT into the field WIDGET names, replacing its text; into the focused field, given
+    /// TEXT alone.
+    EnterText {
+        /// The field, by a CSS selector or an id `tree` printed; or, alone, the text.
+        #[arg(value_name = "WIDGET")]
+        first: String,
+        /// The text to type.
+        text: Option<String>,
+    },
+    /// Drags the one widget WIDGET names by DX, DY logical pixels, as a finger scrolls it.
+    Scroll {
+        /// A CSS selector, as `ListView`, or an id `tree` printed.
+        widget: String,
+        /// Pixels across: negative drags left, showing what is to the right.
+        #[arg(long, default_value_t = 0.0, allow_negative_numbers = true)]
+        dx: f64,
+        /// Pixels down: negative drags up, showing what is below.
+        #[arg(long, default_value_t = 0.0, allow_negative_numbers = true)]
+        dy: f64,
+        /// How long the drag takes, in milliseconds.
+        #[arg(long, default_value_t = 300)]
+        duration: u64,
+    },
+    /// Waits until WIDGET names a widget, or with `--absent` none, and prints what it names.
+    WaitFor {
+        /// A CSS selector, as `[text="Saved"]`, or an id `tree` printed.
+        widget: String,
+        /// Wait until it names none.
+        #[arg(long)]
+        absent: bool,
+        /// How long to wait, in milliseconds.
+        #[arg(long, default_value_t = 5000)]
+        timeout: u64,
+    },
+    /// The text the one widget WIDGET names shows, or the first text inside it.
+    GetText {
+        /// A CSS selector, as `AppBar Text`, or an id `tree` printed.
+        widget: String,
+    },
     /// Any service extension, an app's own included, as `call ext.notes.openNoteCount`.
     Call {
         /// The extension's whole name.
@@ -108,6 +159,24 @@ pub(crate) fn run(app: Option<&str>, command: ExtCommand) -> Result<()> {
             json,
         } => tree(app, id, depth, all, json),
         ExtCommand::Screenshot { id, scale, out } => screenshot(app, id, scale, out),
+        ExtCommand::Find { widget } => drive::find(app, &widget),
+        ExtCommand::Tap { widget } => drive::tap(app, &widget),
+        ExtCommand::EnterText { first, text } => match text {
+            Some(text) => drive::enter_text(app, Some(&first), &text),
+            None => drive::enter_text(app, None, &first),
+        },
+        ExtCommand::Scroll {
+            widget,
+            dx,
+            dy,
+            duration,
+        } => drive::scroll(app, &widget, dx, dy, duration),
+        ExtCommand::WaitFor {
+            widget,
+            absent,
+            timeout,
+        } => drive::wait_for(app, &widget, absent, timeout),
+        ExtCommand::GetText { widget } => drive::get_text(app, &widget),
         ExtCommand::Call { extension, params } => call(app, &extension, &params),
     }
 }

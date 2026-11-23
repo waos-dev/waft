@@ -1,6 +1,6 @@
 ---
 title: Inspecting a running app
-description: Ask a running debug app for its widget tree, its render and layer trees, and pictures of its widgets, with cargo waft ext.
+description: Ask a running debug app for its widget tree, its render and layer trees and pictures of its widgets, and drive it as its user would, with cargo waft ext.
 ---
 A debug build of a Waft app answers questions about itself while it runs, as a debug Flutter app does through its VM service: what its widget tree is, where each widget was made, what a widget looks like on its own. `cargo waft ext` asks, from a terminal or an agent:
 
@@ -59,6 +59,34 @@ cargo waft ext screenshot -o window.png          # the first window's whole view
 
 A picture is written to a file, as `flutter screenshot` writes one: `waft_01.png`, then `waft_02.png` and so on in the current folder, or the file `-o` names. A widget is pictured without what paints around it. `--scale` sets the pixels to a point.
 
+## Driving the app
+
+A debug build can be driven as its user would drive it, as Flutter's `flutter_driver` drives an app: a tap, typing, a scroll, waiting for something to show, reading a text. Each command names its widget by a **CSS selector**, or by an id `tree` printed:
+
+```bash
+cargo waft ext find 'ListTile:has([text="Wi-Fi"]) Switch'   # what a selector names, one a line
+cargo waft ext tap 'ListTile:has([text="Wi-Fi"]) Switch'
+cargo waft ext enter-text 'EditableText' groceries          # types into that field, replacing its text
+cargo waft ext scroll ListView --dy -400                     # drags up 400 pixels, showing what is below
+cargo waft ext wait-for '[text="Saved"]'                     # until something says Saved, 5 seconds at most
+cargo waft ext get-text 'AppBar Text'
+cargo waft ext tap inspector-4294967318                      # the id tree printed
+```
+
+A selector reads as on a web page, over the widget tree:
+
+| Selector | Names |
+|---|---|
+| `IconButton` | widgets of that type |
+| `#save` | the widget keyed `save` (a `ValueKey` of text or a number) |
+| `[tooltip="Back"]`, `Switch[value=true]` | by a property, as `tree <id>` prints it |
+| `[text="Settings"]`, `[text^=Sett]` | by the text a `Text` or a field shows |
+| `AppBar IconButton` | inside: an `IconButton` anywhere in an `AppBar` |
+| `ListTile:has([text="Wi-Fi"])` | containing: the tile that shows Wi-Fi |
+| `Column > ListTile:nth-child(2)`, `:not(…)`, `A, B` | the rest of CSS |
+
+The tree is the whole element tree, so `>` counts the widgets the framework puts between yours; "inside", a space, is usually what you mean. A command that acts on one widget refuses a selector naming several, and lists each with its id, so you can name one exactly. Each command waits until the app has settled before it acts, and again before it answers, so a `screenshot` after a `tap` shows what the tap did; an app that keeps drawing, as a spinner does, is acted on after 5 seconds regardless, and the command says so.
+
 ## The other trees
 
 A dump prints a whole tree as text, as Flutter's `debugDump…` functions do, and as `flutter run` prints the widget tree on `w`. A dump of a real app runs to hundreds of kilobytes, so start from `tree`, and use a dump for what it alone shows, such as each render object's constraints and size.
@@ -74,7 +102,7 @@ In a test, the same text comes from `debug_dump_app(app)`, `debug_dump_render_tr
 
 ## Any extension
 
-The commands above call the app's **service extensions**, named calls answering JSON, as Flutter's do. `call` reaches any of them by name, an app's own included:
+The commands above call the app's **service extensions** (`ext.waft.driver` for driving it), named calls answering JSON, as Flutter's do. `call` reaches any of them by name, an app's own included:
 
 ```bash
 cargo waft ext call ext.waft.listServiceExtensions
