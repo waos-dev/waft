@@ -161,6 +161,19 @@ pub enum PickedFolder {
     Handle(Box<dyn FolderHandle>),
 }
 
+impl PickedFolder {
+    /// The URL the system names the folder by, where it has one: a `file:` URL for a path,
+    /// absolute and percent-encoded; Android's `content:` URI of the folder in the tree the user
+    /// picked, from which an embedder may tell where on the device it is. The web's directory
+    /// handle has none.
+    pub fn url(&self) -> Option<String> {
+        match self {
+            PickedFolder::Path(path) => Some(crate::opener::file_uri(path)),
+            PickedFolder::Handle(handle) => handle.url(),
+        }
+    }
+}
+
 impl fmt::Debug for PickedFolder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -175,6 +188,9 @@ impl fmt::Debug for PickedFolder {
 pub trait FolderHandle {
     /// The folder's name, which the user sees.
     fn name(&self) -> &str;
+
+    /// The URL the system names the folder by, where it has one (`PickedFolder::url`).
+    fn url(&self) -> Option<String>;
 
     /// What is in the folder, in no particular order.
     fn entries(&self) -> FolderEntriesFuture;
@@ -364,6 +380,53 @@ mod tests {
     fn a_handle_answers_the_url_it_holds() {
         let picked = PickedFile::Handle(Box::new(Bytes(RefCell::new(Vec::new()))));
         assert_eq!(picked.url(), "memory:bytes");
+    }
+
+    #[test]
+    fn a_picked_folder_answers_its_url_where_it_has_one() {
+        let path = std::env::temp_dir().join("a folder");
+        assert_eq!(
+            PickedFolder::Path(path.clone()).url(),
+            Some(crate::opener::file_uri(&path))
+        );
+        assert_eq!(
+            PickedFolder::Handle(Box::new(Unnamed)).url(),
+            None,
+            "a handle with no URL, as the web's"
+        );
+    }
+
+    /// A folder handle with no URL, as the web's directory handles are.
+    struct Unnamed;
+
+    impl FolderHandle for Unnamed {
+        fn name(&self) -> &str {
+            "unnamed"
+        }
+
+        fn url(&self) -> Option<String> {
+            None
+        }
+
+        fn entries(&self) -> FolderEntriesFuture {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+
+        fn open_file(&self, _name: &str) -> FileOpenFuture<PickedFile> {
+            Box::pin(async { Err(io::Error::from(io::ErrorKind::NotFound)) })
+        }
+
+        fn open_folder(&self, _name: &str) -> FileOpenFuture<PickedFolder> {
+            Box::pin(async { Err(io::Error::from(io::ErrorKind::NotFound)) })
+        }
+
+        fn create_file(&self, _name: &str) -> Option<FileOpenFuture<PickedFile>> {
+            None
+        }
+
+        fn create_folder(&self, _name: &str) -> Option<FileOpenFuture<PickedFolder>> {
+            None
+        }
     }
 
     #[test]

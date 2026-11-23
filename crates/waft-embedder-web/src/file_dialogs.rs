@@ -425,6 +425,11 @@ impl FolderHandle for SystemFolder {
         &self.name
     }
 
+    /// A directory handle has no URL.
+    fn url(&self) -> Option<String> {
+        None
+    }
+
     /// The folder's `values()`, an asynchronous iterator, read to its end.
     fn entries(&self) -> FolderEntriesFuture {
         let handle = self.handle.clone();
