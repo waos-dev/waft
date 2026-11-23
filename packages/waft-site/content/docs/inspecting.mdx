@@ -55,9 +55,23 @@ Ids name widgets for one run of the app: after a restart, ask for the tree again
 ```bash
 cargo waft ext screenshot inspector-4294967322   # that widget alone, at 2 pixels a point
 cargo waft ext screenshot -o window.png          # the first window's whole view, in its own pixels
+cargo waft ext screenshot --view 2               # another window's
 ```
 
 A picture is written to a file, as `flutter screenshot` writes one: `waft_01.png`, then `waft_02.png` and so on in the current folder, or the file `-o` names. A widget is pictured without what paints around it. `--scale` sets the pixels to a point.
+
+## A widget's layout
+
+```bash
+cargo waft ext layout 'AppBar'
+```
+
+```text
+AppBar  800.0×56.0  BoxConstraints(w=800.0, 0.0<=h<=Infinity)  at (0.0, 0.0)  RenderConstrainedBox#1f2a3  crates/notes/src/home.rs:18  inspector-4294967311
+ Text  120.0×20.0  BoxConstraints(0.0<=w<=704.0, 0.0<=h<=56.0)  at (16.0, 18.0)  RenderParagraph#2b3c4  crates/notes/src/home.rs:19  inspector-4294967312
+```
+
+A widget's size, the constraints its parent gave it, and where its parent placed it, or its flex factor and fit in a `Row` or `Column`, for it and its children: what DevTools' layout explorer shows, a line a widget, where `dump render` prints the whole render tree.
 
 ## Driving the app
 
@@ -68,9 +82,13 @@ cargo waft ext find 'ListTile:has([text="Wi-Fi"]) Switch'   # what a selector na
 cargo waft ext tap 'ListTile:has([text="Wi-Fi"]) Switch'
 cargo waft ext enter-text 'EditableText' groceries          # types into that field, replacing its text
 cargo waft ext scroll ListView --dy -400                     # drags up 400 pixels, showing what is below
+cargo waft ext text-input-action search                     # the keyboard's search key, on the focused field
+cargo waft ext long-press 'ListTile:has([text="Notes"])'
 cargo waft ext wait-for '[text="Saved"]'                     # until something says Saved, 5 seconds at most
 cargo waft ext get-text 'AppBar Text'
 cargo waft ext tap inspector-4294967318                      # the id tree printed
+cargo waft ext scroll-until-visible '[text="Privacy"]' --in ListView --dy -300
+cargo waft ext health                                        # whether the app answers
 ```
 
 A selector reads as on a web page, over the widget tree:
@@ -78,18 +96,18 @@ A selector reads as on a web page, over the widget tree:
 | Selector | Names |
 |---|---|
 | `IconButton` | widgets of that type |
-| `#save` | the widget keyed `save` (a `ValueKey` of text or a number) |
-| `[tooltip="Back"]`, `Switch[value=true]` | by a property, as `tree <id>` prints it |
+| `#save`, `[key="42"]` | the widget keyed `save`, or 42 (a `ValueKey` of text or a number) |
+| `[tooltip=Back]`, `Switch[value=on]` | by a property, its value as `tree <id>` prints it, a text without its quotes |
 | `[text="Settings"]`, `[text^=Sett]` | by the text a `Text` or a field shows |
 | `AppBar IconButton` | inside: an `IconButton` anywhere in an `AppBar` |
 | `ListTile:has([text="Wi-Fi"])` | containing: the tile that shows Wi-Fi |
 | `Column > ListTile:nth-child(2)`, `:not(…)`, `A, B` | the rest of CSS |
 
-The tree is the whole element tree, so `>` counts the widgets the framework puts between yours; "inside", a space, is usually what you mean. A command that acts on one widget refuses a selector naming several, and lists each with its id, so you can name one exactly. Each command waits until the app has settled before it acts, as `flutter_driver`'s frame sync does, and again before it answers, so a `screenshot` after a `tap` shows what the tap did. On a screen that never settles, as one with a spinner, a command fails after 5 seconds rather than act on a moving screen; `--unsynchronized` acts at once, as `flutter_driver`'s `runUnsynchronized`.
+A selector sees what is on screen, as `flutter_driver`'s finders do: a page behind the one showing, or a list's item outside its viewport, is not there, though `tree` lists it. The tree is the element tree, so `>` counts the widgets the framework puts between yours; "inside", a space, is usually what you mean. A command waits up to 5 seconds for the widget it names to appear; one that acts on one widget refuses a selector naming several, and lists each with its id, so you can name one exactly. A tap acts only on a widget a touch at its centre would reach, as `flutter_test`'s `hitTestable`: one covered by a dialog, outside its view or ignoring touches is refused with what the touch would land on. `scroll-into-view` brings a partly visible widget into view; for an item a lazy list has not built yet, `scroll-until-visible` drags the list a step at a time until it shows, as `flutter_driver`'s `scrollUntilVisible`. Each command waits until the app has settled before it acts, as `flutter_driver`'s frame sync does, and again before it answers, so a `screenshot` after a `tap` shows what the tap did. On a screen that never settles, as one with a spinner, a command fails after 5 seconds rather than act on a moving screen; `--unsynchronized` acts at once, as `flutter_driver`'s `runUnsynchronized`.
 
 ## The other trees
 
-A dump prints a whole tree as text, as Flutter's `debugDump…` functions do, and as `flutter run` prints the widget tree on `w`. A dump of a real app runs to hundreds of kilobytes, so start from `tree`, and use a dump for what it alone shows, such as each render object's constraints and size.
+A dump prints a whole tree as text, as Flutter's `debugDump…` functions do, and as `flutter run` prints the widget tree on `w`. A dump of a real app runs to hundreds of kilobytes, so start from `tree`, and `layout` for one widget's size and constraints.
 
 ```bash
 cargo waft ext dump app      # the element tree, as Flutter's debugDumpApp prints it

@@ -18,7 +18,7 @@ use anyhow::{Context, Result, bail};
 use base64::Engine;
 use clap::{Subcommand, ValueEnum};
 use serde_json::Value;
-use waft_service_protocol::{Client, ListedApp, ListingFolder, discover};
+use waft_service_protocol::{Client, ListedApp, ListingFolder, METHOD_NOT_FOUND, discover};
 
 use self::waos::WaosPrograms;
 
@@ -48,11 +48,15 @@ pub(crate) enum ExtCommand {
         #[arg(long)]
         json: bool,
     },
-    /// A PNG of one widget alone, by its id from `tree`, or of the whole view, written to a file:
+    /// A PNG of one widget alone, by its id from `tree`, or of a whole view, written to a file:
     /// `waft_01.png`, then `waft_02.png`, … in this folder, or the one `--out` names.
     Screenshot {
-        /// The widget's id, as `inspector-4294967303`; the whole view without one.
+        /// The widget's id, as `inspector-4294967303`; a whole view without one.
+        #[arg(conflicts_with = "view")]
         id: Option<String>,
+        /// The view to picture whole, by its id; the app's first view without one.
+        #[arg(long)]
+        view: Option<u64>,
         /// Pixels to a point: 2 for a widget, and the view's own for the whole view, by default.
         #[arg(long)]
         scale: Option<f64>,
@@ -74,6 +78,15 @@ pub(crate) enum ExtCommand {
         #[arg(long)]
         unsynchronized: bool,
     },
+    /// Holds a touch on the one widget WIDGET names past the long-press timeout.
+    LongPress {
+        /// A CSS selector, as `ListTile:has([text="Wi-Fi"])`, or an id `tree` printed.
+        widget: String,
+        /// Act at once, without waiting for the app to settle first: for a screen that never
+        /// does, as one with a spinner (flutter_driver's `runUnsynchronized`).
+        #[arg(long)]
+        unsynchronized: bool,
+    },
     /// Types TEXT into the field WIDGET names, replacing its text; into the focused field, given
     /// TEXT alone.
     EnterText {
@@ -82,6 +95,16 @@ pub(crate) enum ExtCommand {
         first: String,
         /// The text to type.
         text: Option<String>,
+        /// Act at once, without waiting for the app to settle first: for a screen that never
+        /// does, as one with a spinner (flutter_driver's `runUnsynchronized`).
+        #[arg(long)]
+        unsynchronized: bool,
+    },
+    /// Sends the focused field the keyboard's action key: `done`, `search`, `next`, `go`, `send`,
+    /// `newline`, …, as pressing it submits a search or moves to the next field.
+    TextInputAction {
+        /// The action, by Flutter's `TextInputAction` name.
+        action: String,
         /// Act at once, without waiting for the app to settle first: for a screen that never
         /// does, as one with a spinner (flutter_driver's `runUnsynchronized`).
         #[arg(long)]
@@ -105,6 +128,37 @@ pub(crate) enum ExtCommand {
         #[arg(long)]
         unsynchronized: bool,
     },
+    /// Scrolls the lists around the one widget WIDGET names until it shows: for a widget already
+    /// partly on screen (flutter_driver's `scrollIntoView`).
+    ScrollIntoView {
+        /// A CSS selector, as `[key="item-12"]`, or an id `tree` printed.
+        widget: String,
+        /// Where along the list it shows: 0 at the start, 1 at the end.
+        #[arg(long, default_value_t = 0.0)]
+        alignment: f64,
+    },
+    /// Drags the list SCROLLABLE by DX, DY at a time until ITEM is on screen, then scrolls it
+    /// into view: for an item a lazy list has not built yet (flutter_driver's
+    /// `scrollUntilVisible`).
+    ScrollUntilVisible {
+        /// The item, by a CSS selector, as `[text="Settings"]`.
+        item: String,
+        /// The list to drag, by a CSS selector, as `ListView`, or an id `tree` printed.
+        #[arg(long = "in", value_name = "SCROLLABLE")]
+        scrollable: String,
+        /// Pixels across a step: negative drags left, showing what is to the right.
+        #[arg(long, default_value_t = 0.0, allow_negative_numbers = true)]
+        dx: f64,
+        /// Pixels down a step: negative drags up, showing what is below.
+        #[arg(long, default_value_t = 0.0, allow_negative_numbers = true)]
+        dy: f64,
+        /// Where along the list the item shows: 0 at the start, 1 at the end.
+        #[arg(long, default_value_t = 0.0)]
+        alignment: f64,
+        /// How long to keep scrolling, in milliseconds.
+        #[arg(long, default_value_t = 10000)]
+        timeout: u64,
+    },
     /// Waits until WIDGET names a widget, or with `--absent` none, and prints what it names.
     WaitFor {
         /// A CSS selector, as `[text="Saved"]`, or an id `tree` printed.
@@ -121,6 +175,17 @@ pub(crate) enum ExtCommand {
         /// A CSS selector, as `AppBar Text`, or an id `tree` printed.
         widget: String,
     },
+    /// The layout of the one widget WIDGET names and of its children: each one's size,
+    /// constraints and place in its parent, as DevTools' layout explorer shows them.
+    Layout {
+        /// A CSS selector, as `AppBar`, or an id `tree` printed.
+        widget: String,
+        /// The inspector's JSON, as a tool reads it.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Whether the app answers, as flutter_driver's `checkHealth`.
+    Health,
     /// Any service extension, an app's own included, as `call ext.notes.openNoteCount`.
     Call {
         /// The extension's whole name.
@@ -170,7 +235,33 @@ pub(crate) fn run(app: Option<&str>, command: ExtCommand) -> Result<()> {
             all,
             json,
         } => tree(app, id, depth, all, json),
-        ExtCommand::Screenshot { id, scale, out } => screenshot(app, id, scale, out),
+        ExtCommand::Screenshot {
+            id,
+            view,
+            scale,
+            out,
+        } => screenshot(app, id, view, scale, out),
+        ExtCommand::LongPress {
+            widget,
+            unsynchronized,
+        } => drive::long_press(app, &widget, unsynchronized),
+        ExtCommand::TextInputAction {
+            action,
+            unsynchronized,
+        } => drive::text_input_action(app, &action, unsynchronized),
+        ExtCommand::ScrollIntoView { widget, alignment } => {
+            drive::scroll_into_view(app, &widget, alignment)
+        }
+        ExtCommand::ScrollUntilVisible {
+            item,
+            scrollable,
+            dx,
+            dy,
+            alignment,
+            timeout,
+        } => drive::scroll_until_visible(app, &item, &scrollable, (dx, dy), alignment, timeout),
+        ExtCommand::Layout { widget, json } => drive::layout(app, &widget, json),
+        ExtCommand::Health => drive::health(app),
         ExtCommand::Find { widget } => drive::find(app, &widget),
         ExtCommand::Tap {
             widget,
@@ -256,24 +347,34 @@ fn tree(app: Option<&str>, id: Option<String>, depth: u32, all: bool, json: bool
 fn screenshot(
     app: Option<&str>,
     id: Option<String>,
+    view: Option<u64>,
     scale: Option<f64>,
     out: Option<PathBuf>,
 ) -> Result<()> {
     let mut connected = Connected::to(app)?;
-    // A view paints in its own pixels, so the whole view is taken at its own scale.
-    let (id, scale) = match id {
-        Some(id) => (id, scale.unwrap_or(2.0)),
-        None => (connected.first_view_id()?, scale.unwrap_or(1.0)),
-    };
-    let params = BTreeMap::from([
-        ("id".to_owned(), id.clone()),
-        ("width".to_owned(), "100000".to_owned()),
-        ("height".to_owned(), "100000".to_owned()),
-        ("maxPixelRatio".to_owned(), scale.to_string()),
-    ]);
-    let answer = connected.call("ext.waft.inspector.screenshot", params)?;
-    let Some(png) = png_of(&answer) else {
-        bail!("{id} cannot be pictured now: it is gone, not laid out, or paints nothing");
+    let png = match id {
+        Some(id) => {
+            let params = BTreeMap::from([
+                ("id".to_owned(), id.clone()),
+                ("width".to_owned(), "100000".to_owned()),
+                ("height".to_owned(), "100000".to_owned()),
+                ("maxPixelRatio".to_owned(), scale.unwrap_or(2.0).to_string()),
+            ]);
+            let answer = connected.call("ext.waft.inspector.screenshot", params)?;
+            let Some(png) = png_of(&answer) else {
+                bail!("{id} cannot be pictured now: it is gone, not laid out, or paints nothing");
+            };
+            png
+        }
+        // A whole view, in its own pixels, as flutter_driver's `screenshot` pictures one.
+        None => {
+            let mut params = BTreeMap::from([("command".to_owned(), "screenshot".to_owned())]);
+            if let Some(view) = view {
+                params.insert("view".to_owned(), view.to_string());
+            }
+            let answer = connected.call("ext.waft.driver", params)?;
+            png_of(&answer).context("the app answered no PNG")?
+        }
     };
     write_screenshot(&png, out)
 }
@@ -331,75 +432,60 @@ struct Connected {
 
 impl Connected {
     fn to(app: Option<&str>) -> Result<Connected> {
-        let (listed, mut client) = chosen(app)?;
-        wait_for_the_first_frame(&mut client);
-        Ok(Connected { listed, client })
+        let (listed, client) = chosen(app)?;
+        let mut connected = Connected { listed, client };
+        connected.wait_for_the_first_frame()?;
+        Ok(connected)
     }
 
-    /// `extension`'s answer, or why it gave none.
+    /// `extension`'s answer, or why it gave none: where the app stopped while answering, as when
+    /// it crashed, that it stopped.
     fn call(&mut self, extension: &str, params: BTreeMap<String, String>) -> Result<Value> {
-        let answer = self.client.call(extension, params).with_context(|| {
-            format!("calling {} (process {})", self.listed.app, self.listed.pid)
-        })?;
-        answer.map_err(|error| anyhow::anyhow!("{} answered: {error}", self.listed.app))
-    }
-
-    /// The root element's id, where the inspector's other calls start.
-    fn root_id(&mut self) -> Result<String> {
-        let params = BTreeMap::from([("objectGroup".to_owned(), "cli".to_owned())]);
-        let root = self.call("ext.waft.inspector.getRootWidget", params)?;
-        match root["result"]["valueId"].as_str() {
-            Some(id) => Ok(id.to_owned()),
-            None => bail!("{} has no widget tree yet", self.listed.app),
+        let answer = self.client.call(extension, params);
+        let name = format!("{} (process {})", self.listed.app, self.listed.pid);
+        match answer {
+            Ok(Ok(answer)) => Ok(answer),
+            _ if !self.still_answers() => bail!(
+                "{name} stopped while answering; its own output says why, as a crash's message"
+            ),
+            Ok(Err(error)) => bail!("{} answered: {error}", self.listed.app),
+            Err(error) => Err(error).with_context(|| format!("calling {name}")),
         }
     }
 
-    /// The id of the app's first view, its first window's: what the whole view is. An app's
-    /// root holds its views (`MultiViewApp`, a `ViewCollection`, each window's `View`), and a
-    /// root of several views is no picture alone.
-    fn first_view_id(&mut self) -> Result<String> {
-        let params = BTreeMap::from([
-            ("arg".to_owned(), self.root_id()?),
-            ("objectGroup".to_owned(), "cli".to_owned()),
-            ("subtreeDepth".to_owned(), VIEW_DEPTH.to_string()),
-        ]);
-        let details = self.call("ext.waft.inspector.getDetailsSubtree", params)?;
-        match first_view(&details["result"]) {
-            Some(id) => Ok(id.to_owned()),
-            None => bail!("{} shows no view", self.listed.app),
+    /// Whether the app still answers a new connection.
+    fn still_answers(&self) -> bool {
+        Client::connect(&self.listed)
+            .and_then(|mut client| client.call(FIRST_FRAME, BTreeMap::new()))
+            .is_ok()
+    }
+
+    /// Waits until the app has drawn its first frame, as Flutter's tools wait before they call
+    /// an app: an app just started answers a dump before its tree is built, and may not have
+    /// registered its extensions yet, which its tools wait for. An app that does not say, or has
+    /// not drawn one in ten seconds, is called without waiting longer; one that does not answer
+    /// at all is not called.
+    fn wait_for_the_first_frame(&mut self) -> Result<()> {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            match self.client.call(FIRST_FRAME, BTreeMap::new()) {
+                Ok(Ok(answer)) if answer["enabled"] == "false" => {}
+                Ok(Err(error)) if error.code == METHOD_NOT_FOUND => {}
+                Ok(_) => return Ok(()),
+                Err(error) => bail!(
+                    "{} (process {}) does not answer: {error}; it may have ended",
+                    self.listed.app,
+                    self.listed.pid
+                ),
+            }
+            std::thread::sleep(Duration::from_millis(100));
         }
+        Ok(())
     }
-}
-
-/// How deep below the root an app's views are: `[root]`, `MultiViewApp`, `ViewCollection`, then
-/// each `View`, with one to spare.
-const VIEW_DEPTH: usize = 4;
-
-/// The id of the first `View` in `node`'s tree, depth first.
-fn first_view(node: &Value) -> Option<&str> {
-    if node["widgetRuntimeType"] == "View" {
-        return node["valueId"].as_str();
-    }
-    node["children"].as_array()?.iter().find_map(first_view)
 }
 
 /// The extension that says whether the app has drawn its first frame, as Flutter's does.
 const FIRST_FRAME: &str = "ext.waft.didSendFirstFrameEvent";
-
-/// Waits until the app has drawn its first frame, as Flutter's tools wait before they call an
-/// app: an app just started answers a dump before its tree is built. An app that does not say,
-/// or has not drawn one in ten seconds, is called without waiting longer.
-fn wait_for_the_first_frame(client: &mut Client) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while Instant::now() < deadline {
-        match client.call(FIRST_FRAME, BTreeMap::new()) {
-            Ok(Ok(answer)) if answer["enabled"] == "false" => {
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            _ => return,
-        }
-    }
-}
 
 /// The PNG a screenshot answers, `{"result": base64}`, decoded.
 fn png_of(result: &Value) -> Option<Vec<u8>> {
@@ -426,10 +512,7 @@ fn answer_text(result: &Value) -> String {
 /// The app `app` names, by its name, its identifier or its process id, or the only one running,
 /// connected.
 fn chosen(app: Option<&str>) -> Result<(ListedApp, Client)> {
-    let mut apps = running();
-    if let Some(wanted) = app {
-        apps.retain(|(listed, _)| names(listed, wanted));
-    }
+    let mut apps = answering(|listed| app.is_none_or(|wanted| names(listed, wanted)));
     match apps.len() {
         1 => Ok(apps.remove(0)),
         0 => match app {
@@ -461,9 +544,17 @@ fn names(listed: &ListedApp, wanted: &str) -> bool {
 /// The apps listed that answer, each connected; the folder's listings of those that do not are
 /// removed.
 fn running() -> Vec<(ListedApp, Client)> {
+    answering(|_| true)
+}
+
+/// The apps listed that `wanted` keeps and that answer, each connected: only those are
+/// connected to, so naming one app does not reach the others. The folder's listings of those
+/// that do not answer are removed.
+fn answering(wanted: impl Fn(&ListedApp) -> bool) -> Vec<(ListedApp, Client)> {
     let folder = ListingFolder::new();
     discover(&[&folder, &WaosPrograms])
         .into_iter()
+        .filter(|listed| wanted(listed))
         .filter_map(|listed| match Client::connect(&listed) {
             Ok(client) => Some((listed, client)),
             Err(_) => {
@@ -500,27 +591,6 @@ mod tests {
             answer_text(&json!({ "extensions": ["ext.waft.debugDumpApp"] })),
             "{\n  \"extensions\": [\n    \"ext.waft.debugDumpApp\"\n  ]\n}\n"
         );
-    }
-
-    /// The whole view is the first window's `View`, below the root of views a running app has.
-    #[test]
-    fn the_whole_view_is_the_first_windows_view() {
-        let view = |id: &str| json!({ "widgetRuntimeType": "View", "valueId": id });
-        let root = json!({
-            "description": "[root]",
-            "valueId": "inspector-1",
-            "children": [{
-                "widgetRuntimeType": "MultiViewApp",
-                "valueId": "inspector-2",
-                "children": [{
-                    "widgetRuntimeType": "ViewCollection",
-                    "valueId": "inspector-3",
-                    "children": [view("inspector-4"), view("inspector-5")],
-                }],
-            }],
-        });
-        assert_eq!(first_view(&root), Some("inspector-4"));
-        assert_eq!(first_view(&json!({ "description": "[root]" })), None);
     }
 
     #[test]
