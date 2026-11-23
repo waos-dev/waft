@@ -1,46 +1,60 @@
 ---
 title: Inspecting a running app
-description: Ask a running debug app for its widget, render and layer trees and for pictures of its widgets, with cargo waft ext.
+description: Ask a running debug app for its widget tree, its render and layer trees, and pictures of its widgets, with cargo waft ext.
 ---
-A debug build of a Waft app serves **service extensions**, as a debug Flutter app does through its VM service: named calls that answer what the app is doing right now. `cargo waft ext` calls them, from a terminal or an agent, while the app runs:
+A debug build of a Waft app answers questions about itself while it runs, as a debug Flutter app does through its VM service: what its widget tree is, where each widget was made, what a widget looks like on its own. `cargo waft ext` asks, from a terminal or an agent:
 
 ```bash
-cargo waft run                                   # in one terminal: a debug build
-cargo waft ext --list                            # the Waft apps running on this machine
-cargo waft ext ext.waft.debugDumpApp             # the widget tree, as Flutter's debugDumpApp prints it
+cargo waft run                      # a debug build, in one terminal
+cargo waft ext list                 # the Waft apps running on this machine
+cargo waft ext tree                 # your widgets: properties, the line that made each, its id
 ```
 
-With more than one app running, name one with `--app` (its executable's name or its process id). A release build serves none.
+With more than one app running, name one with `--app`: its executable's name, its identifier (`[package.metadata.waft] identifier`) or its process id. A release build answers nothing.
 
-## The trees
+## The widget tree
 
-| Extension | Answers |
-| --- | --- |
-| `ext.waft.debugDumpApp` | The element tree, each widget with its properties, what it depends on, and its state or render object |
-| `ext.waft.debugDumpRenderTree` | The render tree: each object's constraints, size, parent data and properties |
-| `ext.waft.debugDumpLayerTree` | The layer tree the frame is composited from |
-| `ext.waft.debugDumpFocusTree` | The focus tree, and which node has focus |
-| `ext.waft.listServiceExtensions` | Every extension this app serves |
+`cargo waft ext tree` prints one widget a line: the widgets your project made, each with its key properties, the file and line of your code that made it, and its id:
 
-A dump is printed as text. In a test, the same text comes from `debug_dump_app(app)`, `debug_dump_render_tree(app)` and `debug_dump_layer_tree(app)`.
+```text
+Home  crates/notes/src/app.rs:12  inspector-4294967302
+ Scaffold  crates/notes/src/home.rs:18  inspector-4294967307
+  Padding (padding: EdgeInsets(16.0, 20.0, 8.0, 8.0))  crates/notes/src/home.rs:24  inspector-4294967310
+   TextField (decoration: InputDecoration(hintText: "Search"))  crates/notes/src/home.rs:41  inspector-4294967322
+```
 
-## One widget: its details and its picture
+`--all` adds the widgets the framework builds inside yours, and `--json` prints the inspector's JSON, as Flutter's DevTools reads it.
 
-The inspector's extensions name each element and render object by an id, as Flutter's DevTools does. Ask for the tree, find the widget, and pass its `valueId` back:
+## A widget's picture
 
 ```bash
-cargo waft ext ext.waft.inspector.getRootWidgetTree groupName=g isSummaryTree=true
-cargo waft ext ext.waft.inspector.getDetailsSubtree arg=inspector-4294967303 objectGroup=g
-cargo waft ext ext.waft.inspector.screenshot id=inspector-4294967303 width=1000 height=1000 maxPixelRatio=2 > field.png
+cargo waft ext screenshot inspector-4294967322 > field.png   # that widget alone, at 2 pixels a point
+cargo waft ext screenshot > window.png                       # the whole view, in its own pixels
 ```
 
-- **The tree** is JSON. Each node carries its `description`, its `widgetRuntimeType`, its `valueId`, and in a debug build its `creationLocation`: the file and line of your code that made the widget. `isSummaryTree=true` keeps only the widgets your own code made, leaving out those the framework builds inside them.
-- **The details** of one node add its properties, `subtreeDepth` levels down (2 by default).
-- **The screenshot** is that widget alone, without what paints around it, fit within `width` by `height` pixels at no more than `maxPixelRatio`, with `margin` around it. `cargo waft ext` writes its PNG to standard output. A view's root id pictures the whole view.
+A widget is pictured without what paints around it. `--scale` sets the pixels to a point.
 
-## Adding your own
+## The other trees
 
-An app or a package registers its own extensions the way the framework does, with a whole name beginning `ext.`:
+```bash
+cargo waft ext dump app      # the element tree, as Flutter's debugDumpApp prints it
+cargo waft ext dump render   # each render object's constraints, size and properties
+cargo waft ext dump layer    # the layers the frame is composited from
+cargo waft ext dump focus    # the focus tree, and which node has focus
+```
+
+In a test, the same text comes from `debug_dump_app(app)`, `debug_dump_render_tree(app)` and `debug_dump_layer_tree(app)`.
+
+## Any extension
+
+The commands above call the app's **service extensions**, named calls answering JSON, as Flutter's do. `call` reaches any of them by name, an app's own included:
+
+```bash
+cargo waft ext call ext.waft.listServiceExtensions
+cargo waft ext call ext.waft.inspector.getDetailsSubtree arg=inspector-4294967310 objectGroup=g
+```
+
+An app or a package adds its own with a whole name beginning `ext.`:
 
 ```rust
 use std::rc::Rc;
@@ -52,8 +66,8 @@ ServiceExtensions::register(app, "ext.notes.openNoteCount", Rc::new(|app, _param
 }));
 ```
 
-A test calls an extension directly with `ServiceExtensions::call(app, name, params)`, without a host.
+A test calls one directly with `ServiceExtensions::call(app, name, params)`.
 
 ## How it is carried
 
-The framework keeps the extensions and does no I/O. A host carries the calls: the desktop host listens on a loopback port in a debug build and lists the app in a folder only its user can read, speaking JSON-RPC 2.0 with an extension's name as the method, after a first line carrying the listing's token. Another tool can speak it too; `waft-service-protocol` has the listing, the hello and the messages.
+The framework keeps the extensions and does no I/O; the host carries the calls. On the desktop, a debug build listens on a loopback port and lists itself, with its address and a token, in a folder only its user can read. A client reads the folder, says hello with the token, and speaks JSON-RPC 2.0, an extension's name as the method. `waft-service-protocol` has the listing, the messages and the transport, for another tool to speak it too.

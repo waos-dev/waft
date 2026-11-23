@@ -13,7 +13,7 @@ description: Configure [package.metadata.waft], run on simulators, and sign inst
 | `cargo waft devices` | List available desktop, web, iOS simulator/device, and Android emulator/device targets |
 | `cargo waft run [-d <device>] [--release]` | Build and launch on desktop (default), `ios`, `android`, `web`, `chrome`, or a specific device ID |
 | `cargo waft build <target> [--debug]` | Build a distributable under `target/waft/`: `macos`, `dmg`, `windows`, `msi`, `nsis`, `linux`, `deb`, `appimage`, `ios`, `ipa`, `apk`, `web`, or `wasm` |
-| `cargo waft ext [--app <name>] <extension> [name=value…]` | Call a service extension of a running debug app: its widget, render or layer tree, or a widget's picture ([Inspecting a running app](/docs/inspecting)); `--list` lists the apps running |
+| `cargo waft ext list\|tree\|screenshot\|dump\|call [--app <name>]` | Ask a running debug app: the apps running, its widget tree with each widget's line and id, a widget's picture, its other trees, or any service extension ([Inspecting a running app](/docs/inspecting)) |
 
 ## `[package.metadata.waft]`
 
