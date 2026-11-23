@@ -35,7 +35,10 @@ pub struct StatusTransition<W: StatusTransitionWidget>(pub W);
 
 impl<W: StatusTransitionWidget> IntoWidget<StatusTransitionKind> for W {
     fn into_widget(self) -> WidgetRef {
-        Rc::new(Stateful(StatusTransition(self)))
+        Rc::new(Stateful(
+            StatusTransition(self),
+            crate::CreationLocation::of_caller(),
+        ))
     }
 }
 

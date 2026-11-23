@@ -118,7 +118,10 @@ pub struct Animated<W: AnimatedWidget>(pub W);
 
 impl<W: AnimatedWidget> IntoWidget<AnimatedKind> for W {
     fn into_widget(self) -> WidgetRef {
-        Rc::new(Stateful(Animated(self)))
+        Rc::new(Stateful(
+            Animated(self),
+            crate::CreationLocation::of_caller(),
+        ))
     }
 }
 

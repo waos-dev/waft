@@ -448,6 +448,16 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
 
 - Deferred: `getRootWidgetTree`'s `withPreviews` (a paragraph's `textPreview`) and `fullDetails=false` (`toJsonMapIterative`), `DisableWidgetInspectorScope`, and the inspector's other extensions (`getProperties`, `getChildren`, selection, layout explorer). Trigger: a client that asks for them.
 
+- Change: a widget's creation location is the line that turned it into a `WidgetRef` (`into_widget`, `#[track_caller]` in a debug build), which a setter or constructor taking a child passes on from its own caller, where Dart's compiler records each constructor call (`--track-widget-creation`).
+  Reason: language — Rust records a caller's location only through `#[track_caller]` functions, and every widget becomes a tree node through `into_widget`.
+  Affect: a widget made in one place and converted in another names where it was converted.
+
+- Change: the app's own widgets (`createdByLocalProject`, the summary tree) are those whose file Rust names relative to the workspace being built, where Dart's are those under the roots its tool sets (`addPubRootDirectories`).
+  Reason: platform — Cargo names a workspace file by a relative path and a dependency's (registry, checkout) by an absolute one, which needs no root from a client.
+  Affect: Waft's own examples, in Waft's workspace, count the framework's widgets as their own.
+
+- Deferred: `locationId` and the extensions that read locations (`addPubRootDirectories`, rebuild and repaint counts, `trackRebuildDirtyWidgets`). Trigger: a client that asks for them.
+
 - Change: the screenshot's PNG is encoded by valo's software encoder (`waft_embedder::encode_png`), where Dart's `toByteData(png)` is the engine's.
   Reason: platform — the winit host's Windows and Linux systems have no image codecs here; one encoder makes the same file on every host.
   Affect: none.

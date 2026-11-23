@@ -4,6 +4,7 @@
 
 use std::any::Any;
 use std::fmt;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_foundation::{
@@ -21,6 +22,24 @@ pub struct ElementFacts {
     pub widget_runtime_type: Option<&'static str>,
     /// Whether the element is a `StatefulElement`.
     pub stateful: bool,
+    /// Where its widget was made, in a debug build.
+    pub creation_location: Option<&'static Location<'static>>,
+}
+
+impl ElementFacts {
+    /// Whether the app's own code made the widget: Dart's `_isValueCreatedByLocalProject`. Rust
+    /// names a file of the workspace being built by a path relative to it, and a dependency's,
+    /// from Cargo's registry or a checkout beside the workspace, by an absolute one.
+    pub fn created_by_local_project(&self) -> bool {
+        self.creation_location
+            .is_some_and(|location| is_local_file(location.file()))
+    }
+}
+
+/// Whether `file`, as a creation location names it, is the app's own: a path relative to the
+/// workspace being built.
+pub(crate) fn is_local_file(file: &str) -> bool {
+    std::path::Path::new(file).is_relative()
 }
 
 /// Dart's `_ElementDiagnosticableTreeNode`: an element's node, which answers its

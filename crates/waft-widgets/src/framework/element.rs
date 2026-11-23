@@ -889,6 +889,7 @@ impl AnyElement {
         let facts = ElementFacts {
             widget_runtime_type: widget.map(|widget| widget.type_name()),
             stateful: widget.is_some_and(|widget| widget.kind() == WidgetKind::Stateful),
+            creation_location: widget.and_then(|widget| widget.creation_location()),
         };
         ElementDiagnosticsNode::new(node, facts)
     }

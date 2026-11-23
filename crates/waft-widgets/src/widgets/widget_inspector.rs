@@ -13,7 +13,7 @@ use waft_foundation::{
 };
 use waft_rendering::{AnyRenderObject, RendererBinding, screenshot_picture, subtree_bounds};
 
-use crate::{AnyElement, WidgetsBinding};
+use crate::{AnyElement, ElementFacts, WidgetsBinding};
 
 /// Dart's `WidgetInspectorService.initServiceExtensions`, as far as it is ported.
 pub(crate) fn init_service_extensions(app: &mut App) {
@@ -28,6 +28,15 @@ pub(crate) fn init_service_extensions(app: &mut App) {
         Rc::new(get_details_subtree),
     );
     ServiceExtensions::register(app, "ext.waft.inspector.screenshot", Rc::new(screenshot));
+    // Dart's signal extension: whether widgets carry their creation locations, which a debug
+    // build's do.
+    ServiceExtensions::register(
+        app,
+        "ext.waft.inspector.isWidgetCreationTracked",
+        Rc::new(|_app, _params| {
+            Task::ready(Ok(serde_json::json!({ "result": cfg!(debug_assertions) })))
+        }),
+    );
 }
 
 /// `ext.waft.inspector.getRootWidgetTree`: the element tree from the root as the inspector's
@@ -125,6 +134,24 @@ impl DiagnosticsSerializationDelegate for InspectorSerializationDelegate {
             let value_id = node.value_id().map(inspector_id);
             result.insert("valueId".to_owned(), value_id.into());
         }
+        if let Some(facts) = element_facts(node)
+            && let Some(location) = facts.creation_location
+        {
+            if full_details {
+                result.insert(
+                    "creationLocation".to_owned(),
+                    serde_json::json!({
+                        "file": location.file(),
+                        "line": location.line(),
+                        "column": location.column(),
+                        "name": facts.widget_runtime_type,
+                    }),
+                );
+            }
+            if facts.created_by_local_project() {
+                result.insert("createdByLocalProject".to_owned(), true.into());
+            }
+        }
         result
     }
 
@@ -149,14 +176,22 @@ impl DiagnosticsSerializationDelegate for InspectorSerializationDelegate {
         self.children_shown(nodes)
     }
 
+    /// The app's own widgets show their fine properties too.
     fn filter_properties(
         &self,
         nodes: Vec<Rc<dyn DiagnosticsNode>>,
-        _owner: &dyn DiagnosticsNode,
+        owner: &dyn DiagnosticsNode,
     ) -> Vec<Rc<dyn DiagnosticsNode>> {
+        let created_by_local_project =
+            element_facts(owner).is_some_and(ElementFacts::created_by_local_project);
+        let level = if created_by_local_project {
+            DiagnosticLevel::Fine
+        } else {
+            DiagnosticLevel::Info
+        };
         nodes
             .into_iter()
-            .filter(|node| !node.is_filtered(DiagnosticLevel::Info))
+            .filter(|node| !node.is_filtered(level))
             .collect()
     }
 
@@ -166,13 +201,28 @@ impl DiagnosticsSerializationDelegate for InspectorSerializationDelegate {
         owner: Option<&dyn DiagnosticsNode>,
     ) -> Vec<Rc<dyn DiagnosticsNode>> {
         let limit = self.max_descendants_truncatable_node;
-        if limit >= 0
+        let truncates = limit >= 0
             && owner.is_some_and(|owner| owner.allow_truncate())
-            && nodes.len() > limit as usize
-        {
-            return nodes.into_iter().take(limit as usize).collect();
+            && nodes.len() > limit as usize;
+        if !truncates {
+            return nodes;
         }
-        nodes
+        // Dart's `_truncateNodes`: of elements whose locations are tracked, the app's own.
+        let facts_of = |node: &Rc<dyn DiagnosticsNode>| element_facts(&**node).cloned();
+        if nodes
+            .iter()
+            .all(|node| facts_of(node).is_some_and(|facts| facts.creation_location.is_some()))
+        {
+            let local: Vec<_> = nodes
+                .iter()
+                .filter(|node| facts_of(node).is_some_and(|facts| facts.created_by_local_project()))
+                .cloned()
+                .collect();
+            if !local.is_empty() {
+                return local;
+            }
+        }
+        nodes.into_iter().take(limit as usize).collect()
     }
 
     fn subtree_depth(&self) -> i32 {
@@ -216,11 +266,22 @@ impl InspectorSerializationDelegate {
     }
 }
 
-/// Dart's `_shouldShowInSummaryTree`: whether the app's own code made the node's widget. Every
-/// node is shown until creation locations are tracked, as in Dart when they are not.
+/// Dart's `_shouldShowInSummaryTree`: an error, a node that is not an element's, and an element
+/// whose widget's location is not tracked (a release build) are shown; an element otherwise when
+/// the app's own code made its widget.
 fn should_show_in_summary_tree(node: &dyn DiagnosticsNode) -> bool {
-    let _ = node;
-    true
+    if node.level() == DiagnosticLevel::Error {
+        return true;
+    }
+    match element_facts(node) {
+        Some(facts) if facts.creation_location.is_some() => facts.created_by_local_project(),
+        _ => true,
+    }
+}
+
+/// What `node` knows of its element, when it is an element's: Dart's `node.value is Element`.
+fn element_facts(node: &dyn DiagnosticsNode) -> Option<&ElementFacts> {
+    node.value()?.downcast_ref::<ElementFacts>()
 }
 
 /// The id the inspector names `id`'s object by: Dart's `toId`.
@@ -536,6 +597,49 @@ mod tests {
             assert!(properties.contains(&("width", "10.0")), "{properties:?}");
             assert!(properties.contains(&("height", "20.0")), "{properties:?}");
         });
+    }
+
+    #[derive(Debug)]
+    struct Greeting;
+
+    impl crate::StatelessWidget for Greeting {
+        fn build(&self, _app: &mut App, _context: crate::BuildContext) -> crate::WidgetRef {
+            crate::IntoWidget::into_widget(SizedBox::new())
+        }
+    }
+
+    /// In a debug build a widget carries the line that made it, which the tree names, and the
+    /// app's own code made it: Dart's `creationLocation` and `createdByLocalProject`.
+    #[test]
+    fn the_tree_names_where_each_widget_was_made() {
+        let mut tester = WidgetTester::new();
+        let line = line!() + 1;
+        let greeting = crate::IntoWidget::into_widget(Greeting);
+        tester.pump_widget(greeting);
+        tester.update(|app| {
+            let tree = answered_now(
+                app,
+                "ext.waft.inspector.getRootWidgetTree",
+                &[("groupName", "g")],
+            );
+            let node = find_node(&tree["result"], "Greeting").expect("the Greeting is in the tree");
+            assert_eq!(node["creationLocation"]["file"], file!());
+            assert_eq!(node["creationLocation"]["line"], line);
+            assert_eq!(node["creationLocation"]["name"], "Greeting");
+            assert_eq!(node["createdByLocalProject"], true);
+        });
+    }
+
+    /// A file Cargo names by a path relative to the workspace is the app's own; a dependency's,
+    /// from its registry or a checkout, has an absolute one.
+    #[test]
+    fn only_the_workspaces_files_are_the_apps_own() {
+        assert!(crate::framework::is_local_file(
+            "crates/waos-design/src/sketch/home.rs"
+        ));
+        assert!(!crate::framework::is_local_file(
+            "/Users/me/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/waft-widgets-0.9.1/src/widgets/basic.rs"
+        ));
     }
 
     #[test]

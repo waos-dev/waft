@@ -192,20 +192,28 @@ fn find_models<T: InheritedModel>(
 pub struct InheritedModelKind;
 
 /// The erased form of an [`InheritedModel`].
-pub struct InheritedModelWrapper<W: InheritedModel>(pub W);
+pub struct InheritedModelWrapper<W: InheritedModel>(pub W, pub(crate) crate::CreationLocation);
 
 impl<W: InheritedModel> IntoWidget<InheritedModelKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             InheritedWidget::debug_check_constructor(&self);
         }
-        Rc::new(InheritedModelWrapper(self))
+        Rc::new(InheritedModelWrapper(
+            self,
+            crate::CreationLocation::of_caller(),
+        ))
     }
 }
 
 impl<W: InheritedModel> Widget for InheritedModelWrapper<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        self.1.location()
     }
 
     fn debug_fill_properties(
