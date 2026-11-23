@@ -187,8 +187,11 @@ impl GestureSettings {
 /// A stable handle to one host-provided view.
 ///
 /// [`present`](View::present) is Flutter `FlutterView.render`. The host owns
-/// the surface; the framework builds a [`crate::Scene`] and hands it over.
-pub trait View: 'static {
+/// the surface; the framework builds a [`crate::Scene`] and hands it over. It is [`Any`], so
+/// whoever made a view of its own type, a test among them, finds it again among the platform's.
+///
+/// [`Any`]: std::any::Any
+pub trait View: std::any::Any {
     fn id(&self) -> ViewId;
     fn metrics(&self) -> ViewMetrics;
 

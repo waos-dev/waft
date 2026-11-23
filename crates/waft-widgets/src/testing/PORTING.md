@@ -15,23 +15,35 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: platform — the host draws a picture into an image at the call, so there is nothing to wait for.
   Affect: `None` where the platform has no renderer, as a test platform until given a GPU (`TestPlatform::with_gpu`); a test reads the image's pixels with `Platform::read_image_pixels` and encodes them with `waft_test::encode_png`. `matchesGoldenFile` and its `GoldenFileComparator` are not ported. Trigger: the golden tests the Material notes list.
 
-## tester.rs → widget_tester.dart, binding.dart (`AutomatedTestWidgetsFlutterBinding`)
+## tester.rs → widget_tester.dart, binding.dart (`AutomatedTestWidgetsFlutterBinding`, `_TestWindowingOwner`)
 
-- Change: the tester installs the platform's fonts (`install_platform_fonts`), which on a `TestPlatform` are flutter_test's, every family FlutterTest, unless a case gives the platform others (`TestPlatform::with_system_fonts`).
-  Reason: platform — the test platform says what fonts there are, as a host does, where flutter_test's binding loads its fonts itself.
-  Affect: a case that looks at what its text draws as gives its platform the system's fonts.
+- Change: `WidgetTester` owns a real `waft_shell::Shell` over its `TestPlatform`, so every frame (`frame`), view arrival/removal (`view_added`/`view_removed`), pointer report (`pointer_reports`), key (`key_data`), text input update/action, and event sent through `tester.shell()` (`pop_route`, `view_close_requested`, `view_focus_changed`, `app_lifecycle_state_changed`, `edit_command`, …) goes through the same `EmbedderClient` path a real host uses; `Shell::new` installs the platform's fonts (`TestFontSource` unless the test gives the platform others via `TestPlatform::with_system_fonts`).
+  Reason: platform — Waft has one `EmbedderClient` (`Shell`) between any host and the framework, where flutter_test replaces the engine hooks on its test binding.
+  Affect: a test sends host events through `tester.shell()` without wrapper methods, and pointer reports pass through `Shell`'s `PointerDataPacketConverter` as on a real device.
 
-- Change: `WidgetTester::pump()` and `pump_by(duration)` frame only the views that asked for a frame since the last pump, each frame of them at once.
-  Reason: platform — a host frames the views that asked (`Platform::request_frame` names its view), where flutter_test's binding has one `hasScheduledFrame` for the app.
-  Affect: a pump after a change to one view's tree runs no frame of the others.
+- Change: `WidgetTester::for_app(platform)` starts with no implicit view and no pre-test tree, for an app that bootstraps itself via `update(|app| run_app(..))` / `run_widget(..)`; on each `pump()` / `pump_by()`, windows requested through `Platform::request_view` (`TestPlatform::with_windows`) given unasked (`TestPlatform::give_view`), or added on a layer (`ViewEmbedder::add_view`) reach the app via `Shell::view_added`, and closed or removed views via `Shell::view_removed`.
+  Reason: platform — Waft apps manage windows through `Platform::request_view` and `HostWindow::close` rather than Flutter's `WindowingOwner` / `WindowController`.
+  Affect: multi-window apps run their real startup and window-creation paths in tests and see new or closed windows at the next pump, where flutter_test's `_TestWindowingOwner` creates stub window controllers directly.
 
-- Change: dropping a tester after a case that did not panic disposes the tree and checks that no timer is pending; flutter_test's checks that debug variables are unset have no counterpart.
+- Change: `WidgetTester::view_of(&self, target)` answers the `TestView` the widget found is in, as Dart's `viewOf` answers its `TestFlutterView`, and `TestPointer` carries `view: ViewId` (set with `in_view(view)`, defaulting to `IMPLICIT_VIEW_ID`); the platform's views are `tester.platform().views()`, as Dart's are `tester.platformDispatcher.views`, and any `TestView` among them is `TestPlatform::test_view(id)`, the embedder's `View` being `Any`.
+  Reason: platform — Waft names a view by its `ViewId` in `EmbedderClient` and `PointerReport`, where Dart passes the `FlutterView`.
+  Affect: `tap`, `drag`, `long_press` and `fling` target the view of the widget found, and `tap_at`, `drag_from`, `long_press_at` and `fling_from` take a pointer id (`i64`) or a `TestPointer` with `in_view(view.id())`.
+
+- Change: `WidgetTester::pump_until(what, done)` pumps tasks, view changes and frames until `done` returns `true`, sleeping between pumps until work on another thread wakes the app (`TestPlatform::wait_for_wake`), as a host's event loop does, and failing after 60 real seconds; it stands in for flutter_test's `runAsync` when waiting on work on other threads, and as `runAsync` does, leaves the app's clock where it is.
+  Reason: language — Rust widget tests are synchronous rather than running inside a Dart `FakeAsync` zone that can escape into a root zone via `runAsync`.
+  Affect: a test waiting on a background thread calls `pump_until` instead of `await tester.runAsync(...)`; what waits on a timer still needs `pump_by`.
+
+- Change: `WidgetTester::pump()` and `pump_by(duration)` frame only the views that asked for a frame since the last pump, each frame of them at once, advancing `TestPlatform`'s fake clock together with the app's clock on `pump_by`.
+  Reason: platform — a host frames the views that asked (`Platform::request_frame` names its view) and stamps frames with its clock, where flutter_test's binding has one `hasScheduledFrame` for the app.
+  Affect: a pump after a change to one view's tree runs no frame of the others, and `Platform::now()` moves only as `pump_by` advances test time.
+
+- Change: dropping a tester after a case that did not panic tears down whatever root widget was attached across every view and checks that no timer is pending; flutter_test's checks that debug variables are unset have no counterpart.
   Reason: language — each case has its own `App`, which holds its debug flags, clock and singletons, where flutter_test's isolate-global ones are reset and checked between tests.
-  Affect: a case that leaves a flag set or a singleton changed cannot affect the next, and is not reported for it.
+  Affect: a case that leaves a flag set or a singleton changed cannot affect the next, and is not reported for it; a timer left pending in any window still fails teardown.
 
-- Change: a view metric a case sets (`tester.view().set_physical_size(..)` and the rest) reaches the framework at once, through a listener the tester installs on its `TestView`, as the shell's `view_metrics_changed` does: `RendererBinding::handle_metrics_changed`, then the checkpoint.
-  Reason: platform — `TestFlutterView`'s setters call the dispatcher's `onMetricsChanged`; here the tester stands in for the shell, which hands a view's changes to the framework.
-  Affect: a case sets a metric while it does not hold the app, and needs no `addTearDown(tester.view.reset)`, since each case has its own view.
+- Change: a view metric a case sets (`tester.view().set_physical_size(..)` and the rest, or on any of the platform's `TestView`s, given or made by `TestWindows`) reaches the framework at once, through a listener the tester installs on each `TestView`, as the shell's `view_metrics_changed` does: `RendererBinding::handle_metrics_changed`, then the checkpoint.
+  Reason: platform — `TestFlutterView`'s setters call the dispatcher's `onMetricsChanged`; here the listener delivers the view's change while the caller borrows the view.
+  Affect: a case sets a metric while it does not hold the app, and needs no `addTearDown(tester.view.reset)`, since each case has its own views.
 
 - Change: a tester whose pump panicked (a case that catches the panic of a build, a layout or a paint) skips the end-of-test disposal and timer check when dropped.
   Reason: language — a panic unwinds out of the frame and leaves the tree half built, where Dart's framework reports the error through `FlutterError.reportError`, finishes the frame, and the case reads it with `takeException`.

@@ -5,13 +5,17 @@
 //! tester as this crate's own.
 //!
 //! The defaults are flutter_test's: an 800x600 logical view at a device pixel ratio of 3.0, on
-//! Android, with every font family FlutterTest, whose glyphs are squares of the font size. A case
-//! changes the view's metrics through [`WidgetTester::view`], as Dart's sets `tester.view.*`, and
-//! the framework hears of each change at once. The
-//! frame rules are flutter_test's too: [`WidgetTester::pump_widget`] attaches the widget,
-//! schedules a frame and pumps once; [`WidgetTester::pump`] fires no timer, and
-//! [`WidgetTester::pump_by`] lets time pass first; either runs a frame only of the views that
-//! asked for one.
+//! Android, with every font family FlutterTest, whose glyphs are squares of the font size, driven
+//! through [`waft_shell::Shell`]. A multi-window or desktop app starts with
+//! [`WidgetTester::for_app`] and runs its own `run_app` / `run_widget` through
+//! [`WidgetTester::update`]; windows requested through `Platform::request_view` arrive at the next
+//! pump, and [`WidgetTester::shell`] sends host events directly. A case changes a view's metrics
+//! through [`WidgetTester::view`] (or a `TestView` from `give_view` / `TestWindows`), as Dart's
+//! sets `tester.view.*`, and the framework hears of each change at once. The frame rules are
+//! flutter_test's too: [`WidgetTester::pump_widget`] attaches the widget, schedules a frame and
+//! pumps once; [`WidgetTester::pump`] fires no timer, and [`WidgetTester::pump_by`] lets time pass
+//! on both the platform's and app's clock first; either runs a frame only of the views that asked
+//! for one.
 //!
 //! Each case has its own `App`, so nothing a case sets (a debug flag, the clock, a singleton)
 //! reaches another; flutter_test's resets between tests have no counterpart.

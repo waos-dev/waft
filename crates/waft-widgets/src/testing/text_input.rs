@@ -7,7 +7,7 @@
 //! client the app attached last, through [`TextInput`](waft_services::TextInput), as a
 //! platform's message does.
 
-use waft_embedder::{TextAffinity, TextInputAction};
+use waft_embedder::{EmbedderClient, TextAffinity, TextInputAction};
 use waft_services::{TextEditingValue, TextInput};
 
 use super::find;
@@ -36,23 +36,24 @@ impl WidgetTester {
     }
 
     /// Dart's `tester.testTextInput`: the stub keyboard the app's text input reaches.
-    pub fn test_text_input(&self) -> TestTextInput<'_> {
+    pub fn test_text_input(&mut self) -> TestTextInput<'_> {
         TestTextInput { tester: self }
     }
 }
 
 /// flutter_test's `TestTextInput`: the keyboard a case types on.
 ///
-/// The methods send what a platform sends to the client the app attached last; a field that
-/// never asked for the keyboard drops them, as Dart's stub does without a client.
+/// The methods send what a platform sends to the client the app attached last, through the
+/// shell's text-input methods; a field that never asked for the keyboard drops them, as Dart's
+/// stub does without a client.
 pub struct TestTextInput<'a> {
-    tester: &'a WidgetTester,
+    tester: &'a mut WidgetTester,
 }
 
 impl TestTextInput<'_> {
     /// Dart's `testTextInput.enterText(text)`: replaces the connected field's content with
     /// `text`, the caret at its end.
-    pub fn enter_text(&self, text: &str) {
+    pub fn enter_text(&mut self, text: &str) {
         let length = text.encode_utf16().count() as i32;
         self.update_editing_value(TextEditingValue::new().text(text).selection(
             waft_embedder::TextSelection::collapsed(length, TextAffinity::Downstream),
@@ -60,19 +61,15 @@ impl TestTextInput<'_> {
     }
 
     /// Dart's `testTextInput.updateEditingValue(value)`: the connected field takes `value`.
-    pub fn update_editing_value(&self, value: TextEditingValue) {
-        let mut app = self.tester.cell.borrow_mut();
-        TextInput::instance(&mut app).update_editing_value(&mut app, value);
-        drop(app);
-        self.tester.cell.checkpoint();
+    pub fn update_editing_value(&mut self, value: TextEditingValue) {
+        let view = self.tester.default_view_id();
+        self.tester.shell().text_input_editing_value(view, value);
     }
 
     /// Dart's `testTextInput.receiveAction(action)`: the connected field performs `action`.
-    pub fn receive_action(&self, action: TextInputAction) {
-        let mut app = self.tester.cell.borrow_mut();
-        TextInput::instance(&mut app).perform_action(&mut app, action);
-        drop(app);
-        self.tester.cell.checkpoint();
+    pub fn receive_action(&mut self, action: TextInputAction) {
+        let view = self.tester.default_view_id();
+        self.tester.shell().text_input_action(view, action);
     }
 
     /// Dart's `testTextInput.hasAnyClients`: whether a field has the input connection.

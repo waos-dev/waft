@@ -1,28 +1,42 @@
-//! [`WidgetTester`]: the app a case runs, its view, and the frames and time it pumps.
+//! [`WidgetTester`]: the app a case runs through [`waft_shell::Shell`], its views, and the
+//! frames and time it pumps.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use waft_embedder::{RestorationMap, RestorationUpdate, Size, TargetPlatform, ViewRef};
+use waft_embedder::{
+    EmbedderClient, Frame, Platform, RestorationMap, RestorationUpdate, Size, TargetPlatform,
+    View as EmbedderView, ViewId, ViewRef,
+};
 use waft_foundation::{App, AppCell};
 use waft_rendering::RendererBinding;
 use waft_scheduler::{FrameTarget, SchedulerBinding};
-use waft_test::{TestPlatform, TestView};
+use waft_shell::Shell;
+use waft_test::{IMPLICIT_VIEW_ID, TestPlatform, TestView};
 
-use crate::{Center, Container, IntoWidget, SizedBox, Text, View, WidgetsBinding};
+use crate::{Center, Container, IntoWidget, RootWidget, Text, View, WidgetsBinding};
 
-/// Dart's `WidgetTester`: an app on a [`TestPlatform`] with one view, and the frames, time and
-/// input a case gives it.
+/// The real-time deadline for [`WidgetTester::pump_until`].
+const PUMP_UNTIL_DEADLINE: Duration = Duration::from_secs(60);
+
+/// Dart's `WidgetTester`: an app driven through [`Shell`] over a [`TestPlatform`], with one
+/// implicit view by default or none ([`for_app`](Self::for_app)), and the frames,
+/// windows, time and input a case gives it.
 ///
-/// Dropped after a case that did not panic, it disposes the tree and checks that no timer is
-/// still pending, as flutter_test does after each test. A case that caught a panic out of a
-/// pump skips both: the frame unwound and left the tree half built (`PORTING.md`).
+/// Dropped after a case that did not panic, it disposes whatever root the app attached across
+/// every view and checks that no timer is still pending, as flutter_test does after each test. A
+/// case that caught a panic out of a pump skips both: the frame unwound and left the tree half
+/// built (`PORTING.md`).
 pub struct WidgetTester {
     /// The app under test, which the case borrows to read and change the tree.
     pub cell: Rc<AppCell>,
+    shell: Shell,
     platform: Rc<TestPlatform>,
-    view: Rc<TestView>,
+    view: Option<Rc<TestView>>,
+    /// The views the framework has been told about (launch views plus reported `view_added` minus
+    /// reported `view_removed`), so each pump reports newly created or closed views once.
+    known_views: Vec<ViewId>,
     restoration: Option<Rc<TestRestoration>>,
     /// Whether a pump is running, or began and unwound: a pump that panicked never clears it.
     in_pump: bool,
@@ -75,28 +89,61 @@ impl WidgetTester {
     /// metrics sets them on [`view`](Self::view), as Dart's does.
     pub fn with_view(platform: TestPlatform, view: TestView) -> WidgetTester {
         let view = Rc::new(view);
-        let platform = Rc::new(platform.with_view(Rc::clone(&view) as ViewRef));
-        let cell = AppCell::with_platform(Rc::clone(&platform) as waft_embedder::PlatformRef);
-        let mut tester = WidgetTester {
-            cell,
-            platform,
-            view,
-            restoration: None,
-            in_pump: false,
-            next_pointer: std::cell::Cell::new(1),
-        };
-        tester.report_view_metrics_changes();
-        tester.install_platform_fonts();
+        let platform = platform.with_view(Rc::clone(&view) as ViewRef);
+        let mut tester = Self::build(platform, Some(view));
         tester.pump_pre_test_tree();
         tester
     }
 
-    /// Makes the view's metrics changes reach the framework as a host's do: dart:ui's
+    /// A tester of an app that sets itself up, as Flutter's integration tests run `app.main()`:
+    /// on `platform` with only the windows the platform has, or makes as the app asks for them
+    /// ([`TestPlatform::with_windows`]), and no view or pre-test tree of the tester's own. The
+    /// app's setup runs through [`update`](Self::update), calling `run_app` or `run_widget`; a
+    /// window the platform gives later ([`TestPlatform::give_view`]) reaches it at the next
+    /// [`pump`](Self::pump).
+    pub fn for_app(platform: TestPlatform) -> WidgetTester {
+        Self::build(platform, None)
+    }
+
+    fn build(platform: TestPlatform, view: Option<Rc<TestView>>) -> WidgetTester {
+        let platform = Rc::new(platform);
+        let known_views: Vec<ViewId> = platform.views().into_iter().map(|view| view.id()).collect();
+        let shell = Shell::new(Rc::clone(&platform) as waft_embedder::PlatformRef, |app| {
+            WidgetsBinding::instance(app);
+        });
+        let cell = Rc::clone(shell.cell());
+        let tester = WidgetTester {
+            cell,
+            shell,
+            platform,
+            view,
+            known_views,
+            restoration: None,
+            in_pump: false,
+            next_pointer: std::cell::Cell::new(1),
+        };
+        tester.listen_to_metrics_of(&tester.known_views);
+        tester
+    }
+
+    /// Makes the metrics changes of each of the platform's [`TestView`]s numbered among `ids`
+    /// reach the framework, as a host hands its views' changes to its client.
+    fn listen_to_metrics_of(&self, ids: &[ViewId]) {
+        for view in self.platform.views() {
+            if ids.contains(&view.id())
+                && let Ok(view) = (view as Rc<dyn std::any::Any>).downcast::<TestView>()
+            {
+                self.listen_to_view_metrics(&view);
+            }
+        }
+    }
+
+    /// Makes `view`'s metrics changes reach the framework as a host's do: dart:ui's
     /// `onMetricsChanged`, which the framework sets to `RendererBinding.handleMetricsChanged`,
     /// as one platform event, the checkpoint after it.
-    fn report_view_metrics_changes(&self) {
+    fn listen_to_view_metrics(&self, view: &TestView) {
         let cell = Rc::downgrade(&self.cell);
-        self.view.set_metrics_listener(Rc::new(move |_view| {
+        view.set_metrics_listener(Rc::new(move |_view| {
             let Some(cell) = cell.upgrade() else {
                 return;
             };
@@ -158,35 +205,54 @@ impl WidgetTester {
         )
     }
 
-    /// The platform's fonts: flutter_test's, every family FlutterTest, unless the case gave the
-    /// platform others, as one that looks at its view's pixels gives it the system's
-    /// ([`TestPlatform::with_system_fonts`]).
-    fn install_platform_fonts(&self) {
-        let mut app = self.cell.borrow_mut();
-        let binding = waft_painting::PaintingBinding::instance(&mut app);
-        binding.install_platform_fonts(&mut app);
-    }
-
     /// The platform the app runs on, for a case that changes what the host reports while it
     /// runs: Dart's `tester.platformDispatcher.*TestValue`.
     pub fn platform(&self) -> &Rc<TestPlatform> {
         &self.platform
     }
 
+    /// The shell driving the app, for sending platform events directly: Back (`pop_route`),
+    /// close requests, focus, lifecycle, edit commands and the rest.
+    pub fn shell(&mut self) -> &mut Shell {
+        &mut self.shell
+    }
+
+    /// The ids of the views the platform has now, in order.
+    fn view_ids(&self) -> Vec<ViewId> {
+        self.platform
+            .views()
+            .into_iter()
+            .map(|view| view.id())
+            .collect()
+    }
+
     /// The view the tree is in, whose host records what the framework asks of it and whose
     /// metrics a case sets: Dart's `tester.view`. A metric set reaches the framework at once, so
     /// a case sets it while it does not hold the app.
+    ///
+    /// # Panics
+    ///
+    /// If the tester was made [`for_app`](Self::for_app).
     pub fn view(&self) -> &Rc<TestView> {
-        &self.view
+        self.view
+            .as_ref()
+            .expect("a tester made for_app has no view of its own")
+    }
+
+    /// The default view's id, or [`IMPLICIT_VIEW_ID`] when constructed without one.
+    pub(super) fn default_view_id(&self) -> ViewId {
+        self.view
+            .as_ref()
+            .map_or(IMPLICIT_VIEW_ID, |view| view.id())
     }
 
     /// Dart's `tester.binding.setSurfaceSize(size)`: the view's render view is laid out at `size`
     /// logical pixels, or at the view's own size again for `None`, while the view's metrics, and
     /// so the `MediaQuery`, stay as they are.
     pub fn set_surface_size(&self, size: Option<Size>) {
+        let view = self.view().id();
         {
             let mut app = self.cell.borrow_mut();
-            let view = waft_embedder::View::id(&*self.view);
             RendererBinding::instance(&mut app).set_surface_size(&mut app, view, size);
         }
         self.cell.checkpoint();
@@ -195,13 +261,15 @@ impl WidgetTester {
     /// The target platform the case runs on: Dart's `defaultTargetPlatform`, which a
     /// [`TargetPlatformVariant`](super::TargetPlatformVariant) sets.
     pub fn target_platform(&self) -> TargetPlatform {
-        waft_embedder::Platform::target_platform(&*self.platform)
+        self.platform.target_platform()
     }
 
     /// The view's device pixel ratio, which turns a case's logical positions into the physical
     /// ones the host reports.
     pub fn device_pixel_ratio(&self) -> f64 {
-        waft_embedder::View::metrics(&*self.view).device_pixel_ratio
+        self.view
+            .as_ref()
+            .map_or(1.0, |view| view.metrics().device_pixel_ratio)
     }
 
     /// Dart's `tester.hasRunningAnimations`: whether any transient callback is scheduled, which
@@ -237,9 +305,9 @@ impl WidgetTester {
     /// `binding.scheduleFrame()`.
     fn attach_and_schedule<K>(&mut self, widget: impl IntoWidget<K>) {
         self.in_pump = true;
-        let mut app = self.cell.borrow_mut();
-        let view = Rc::clone(&self.view) as ViewRef;
+        let view = Rc::clone(self.view()) as ViewRef;
         let view_id = view.id();
+        let mut app = self.cell.borrow_mut();
         let root = View::new(view, widget.into_widget()).into_widget();
         WidgetsBinding::instance(&mut app).attach_root_widget(&mut app, root);
         SchedulerBinding::schedule_frame(&mut app, FrameTarget::View(view_id));
@@ -273,17 +341,30 @@ impl WidgetTester {
         pointer
     }
 
-    /// Dart's `tester.pump()`: a frame now, if a view asked for one, with no time passing and
-    /// so no timer firing.
+    /// Dart's `tester.pump()`: flushes queued tasks, reports any windows added or closed since the
+    /// last pump, and runs a frame of every view that asked for one, with no time passing and so
+    /// no timer firing.
     pub fn pump(&mut self) {
-        self.frame_if_asked();
+        self.in_pump = true;
+        let elapsed = self.platform.elapsed();
+        self.shell.wake(elapsed);
+        let removed_any = self.sync_views();
+        self.frame_if_asked(removed_any);
+        self.in_pump = false;
     }
 
-    /// Dart's `tester.pump(duration)`: `duration` passes on the app's clock, firing the timers
-    /// due by then, and then a frame, if a view asked for one.
+    /// Dart's `tester.pump(duration)`: `duration` passes on the platform's and app's clock, firing
+    /// the timers due by then, reports any windows added or closed, and then runs a frame of every
+    /// view that asked for one.
     pub fn pump_by(&mut self, duration: Duration) {
+        self.in_pump = true;
+        self.platform.advance_clock(duration);
         self.cell.elapse(duration);
-        self.frame_if_asked();
+        let elapsed = self.platform.elapsed();
+        self.shell.wake(elapsed);
+        let removed_any = self.sync_views();
+        self.frame_if_asked(removed_any);
+        self.in_pump = false;
     }
 
     /// Dart's `tester.pumpAndSettle()`: 100ms frames until none is scheduled; answers how many
@@ -293,8 +374,8 @@ impl WidgetTester {
     }
 
     /// Dart's `tester.pumpAndSettle(duration)`: frames `duration` apart, at least one, until
-    /// none is scheduled, failing once its default 10 minutes of test time have passed; answers
-    /// how many frames it ran.
+    /// none is scheduled and no view changes remain, failing once its default 10 minutes of test
+    /// time have passed; answers how many frames it ran.
     pub fn pump_and_settle_by(&mut self, duration: Duration) -> u32 {
         let end_time = self.cell.borrow().clock() + Duration::from_secs(10 * 60);
         let mut count = 0;
@@ -305,30 +386,99 @@ impl WidgetTester {
             );
             self.pump_by(duration);
             count += 1;
-            if !SchedulerBinding::has_scheduled_frame(&mut self.cell.borrow_mut()) {
+            if !SchedulerBinding::has_scheduled_frame(&mut self.cell.borrow_mut())
+                && !self.has_pending_view_changes()
+            {
                 return count;
             }
         }
     }
 
-    /// A frame at the app's clock of every view that asked for one since the last, pumped as the
-    /// shell runs one: a checkpoint before the frame, between its two halves and after it,
-    /// standing in for flutter_test's microtask flush, so an awaited continuation resumes in the
-    /// frame it would in a running app.
-    fn frame_if_asked(&mut self) {
-        self.in_pump = true;
-        let (views, now) = {
-            let app = self.cell.borrow();
-            (self.platform.take_frame_requests(), app.clock())
-        };
-        self.cell.checkpoint();
-        if !views.is_empty() {
-            SchedulerBinding::handle_begin_frame(&mut self.cell.borrow_mut(), &views, Some(now));
-            self.cell.checkpoint();
-            SchedulerBinding::handle_draw_frame(&mut self.cell.borrow_mut(), &views);
+    /// Pumps (dispatched work, windows and frames) until `done` answers `true`, sleeping between
+    /// pumps until work on another thread wakes the app, as the host's event loop does, and
+    /// failing after 60 real seconds naming `what`: for work finishing on other threads, where
+    /// Flutter's tests use `runAsync`. The app's clock does not move meanwhile, as `runAsync`'s
+    /// does not: what waits on a timer needs [`pump_by`](Self::pump_by).
+    pub fn pump_until(&mut self, what: &str, mut done: impl FnMut(&mut App) -> bool) {
+        let deadline = std::time::Instant::now() + PUMP_UNTIL_DEADLINE;
+        loop {
+            let wake_count = self.platform.wake_now_requests();
+            self.pump();
+            if self.update(&mut done) {
+                return;
+            }
+            let now = std::time::Instant::now();
+            assert!(
+                now < deadline,
+                "timed out waiting for {what} after {}s",
+                PUMP_UNTIL_DEADLINE.as_secs()
+            );
+            // The event loop sleeps until work on another thread wakes the app.
+            self.platform
+                .wait_for_wake(wake_count, deadline.saturating_duration_since(now));
         }
-        self.cell.checkpoint();
-        self.in_pump = false;
+    }
+
+    fn has_pending_view_changes(&self) -> bool {
+        let current = self.view_ids();
+        self.known_views.iter().any(|id| !current.contains(id))
+            || current.iter().any(|id| !self.known_views.contains(id))
+    }
+
+    /// Reports every view added to or removed from the platform since the last sync through the
+    /// shell's `view_added` and `view_removed`, installing metrics listeners on new test views.
+    /// Returns whether any view was removed.
+    fn sync_views(&mut self) -> bool {
+        let mut removed_any = false;
+        let mut rounds = 0usize;
+        loop {
+            let current = self.view_ids();
+            let removed: Vec<ViewId> = self
+                .known_views
+                .iter()
+                .copied()
+                .filter(|id| !current.contains(id))
+                .collect();
+            let added: Vec<ViewId> = current
+                .iter()
+                .copied()
+                .filter(|id| !self.known_views.contains(id))
+                .collect();
+            if removed.is_empty() && added.is_empty() {
+                return removed_any;
+            }
+            rounds += 1;
+            assert!(
+                rounds <= 1024,
+                "view additions and removals did not settle after 1024 rounds"
+            );
+            self.known_views = current;
+            for id in removed {
+                removed_any = true;
+                self.shell.view_removed(id);
+            }
+            self.listen_to_metrics_of(&added);
+            for id in added {
+                self.shell.view_added(id);
+            }
+        }
+    }
+
+    /// A frame at the platform's clock of every view that asked for one since the last, driven
+    /// through [`Shell::frame`]. When a view was removed and none remains to ask for a frame, an
+    /// empty-view frame still runs the build and tree finalization that unmounts it.
+    fn frame_if_asked(&mut self, flush_removed_views: bool) {
+        let views = self.platform.take_frame_requests();
+        let elapsed = self.platform.elapsed();
+        if !views.is_empty() || flush_removed_views {
+            self.shell.frame(
+                &views,
+                Frame {
+                    elapsed,
+                    vsync: None,
+                },
+            );
+        }
     }
 
     /// What Flutter's leak tracking checks: `cycle` (say, opening and closing a route) leaves no
@@ -358,13 +508,34 @@ impl Default for WidgetTester {
     }
 }
 
-/// flutter_test's checks after a test: the tree is disposed, and then no timer may be pending.
+/// flutter_test's checks after a test: whatever root was attached across every view is disposed,
+/// and then no timer may be pending.
 impl Drop for WidgetTester {
     fn drop(&mut self) {
         if std::thread::panicking() || self.in_pump {
             return;
         }
-        self.pump_widget(SizedBox::shrink());
+        let has_root = {
+            let mut app = self.cell.borrow_mut();
+            let binding = WidgetsBinding::instance(&mut app);
+            if binding.is_root_widget_attached(&app) {
+                binding.attach_to_build_owner(&mut app, RootWidget::new());
+                true
+            } else {
+                false
+            }
+        };
+        if has_root {
+            let views = self.view_ids();
+            let elapsed = self.platform.elapsed();
+            self.shell.frame(
+                &views,
+                Frame {
+                    elapsed,
+                    vsync: None,
+                },
+            );
+        }
         assert!(
             !self.cell.borrow().has_pending_timers(),
             "A Timer is still pending even after the widget tree was disposed."

@@ -52,7 +52,7 @@ pub use hardware_buffers::{AskedAllocation, MockHardwareBuffer, MockHardwareBuff
 pub use http::{MockHttpClient, MockResponse, SentRequest};
 pub use image_codecs::{CodecCall, ImageAnswers, ImageFacts, MockImageCodecs};
 pub use media::{
-    AssetAnswers, FrameAsked, MadeLayer, MockCameras, MockCaptureSession, MockCompositor,
+    AssetAnswers, FrameAsked, MockCameras, MockCaptureSession, MockCompositor, MockLayer,
     MockMediaAsset, MockMediaAssets, MockPlayer, MockPlayers, MockVideoFrame,
     MockVideoFrameReaders, PlayerCall, VideoOutputKind,
 };

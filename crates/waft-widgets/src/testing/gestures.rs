@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use super::{RenderTarget, WidgetTester};
 
-/// One pointer a [`WidgetTester`] drives, as Dart's `TestGesture`: its device, buttons and
-/// where it is, in logical coordinates.
+/// One pointer a [`WidgetTester`] drives, as Dart's `TestGesture`: its device, buttons,
+/// where it is in logical coordinates, and which view it acts in.
 #[derive(Clone, Copy, Debug)]
 pub struct TestPointer {
     /// The pointer's device and identifier.
@@ -16,6 +16,9 @@ pub struct TestPointer {
     pub buttons: i64,
     /// Where it is, in logical coordinates.
     pub position: waft_embedder::Offset,
+    /// The view the pointer acts in; [`waft_test::IMPLICIT_VIEW_ID`] until
+    /// [`in_view`](Self::in_view) sets another.
+    pub view: waft_embedder::ViewId,
 }
 
 impl TestPointer {
@@ -26,6 +29,7 @@ impl TestPointer {
             kind: waft_embedder::PointerDeviceKind::Touch,
             buttons: waft_gestures::K_PRIMARY_BUTTON,
             position: waft_embedder::Offset::ZERO,
+            view: waft_test::IMPLICIT_VIEW_ID,
         }
     }
 
@@ -36,52 +40,75 @@ impl TestPointer {
             kind: waft_embedder::PointerDeviceKind::Mouse,
             buttons,
             position: waft_embedder::Offset::ZERO,
+            view: waft_test::IMPLICIT_VIEW_ID,
         }
+    }
+
+    /// The same pointer acting in `view`.
+    pub fn in_view(mut self, view: waft_embedder::ViewId) -> TestPointer {
+        self.view = view;
+        self
+    }
+}
+
+impl From<i64> for TestPointer {
+    fn from(id: i64) -> TestPointer {
+        TestPointer::touch(id)
     }
 }
 
 impl WidgetTester {
-    /// Sends one packet of `pointer` at its position, in logical coordinates, stamped
+    /// Sends one report of `pointer` at its position, in logical coordinates, stamped
     /// `Duration.zero` as Dart's `TestPointer` stamps an event it is given no time stamp for.
     pub fn send(&mut self, pointer: &TestPointer, change: waft_embedder::PointerChange) {
-        self.send_at(pointer, change, waft_embedder::Offset::ZERO, Duration::ZERO);
+        self.send_at(pointer, change, Duration::ZERO);
     }
 
-    /// [`send`](Self::send) with the packet's `delta` from the pointer's last position, in
-    /// logical coordinates, and stamped `time_stamp`, as Dart's `TestPointer` gives its events.
+    /// [`send`](Self::send) stamped `time_stamp`, delivered through the shell's
+    /// [`EmbedderClient::pointer_reports`](waft_embedder::EmbedderClient::pointer_reports), whose
+    /// converter computes the delta from the pointer's last position.
     pub fn send_at(
         &mut self,
         pointer: &TestPointer,
         change: waft_embedder::PointerChange,
-        delta: waft_embedder::Offset,
         time_stamp: Duration,
     ) {
-        use waft_embedder::{PointerChange, PointerData, PointerDataPacket};
-        let buttons = match change {
-            PointerChange::Down | PointerChange::Move => pointer.buttons,
-            _ => 0,
+        use waft_embedder::{
+            Contact, EmbedderClient, Platform, PointerChange, PointerReport, ReportedChange,
         };
-        let ratio = self.device_pixel_ratio();
-        let mut app = self.cell.borrow_mut();
-        waft_gestures::GestureBinding::instance(&mut app).handle_pointer_data_packet(
-            &mut app,
-            PointerDataPacket::new(vec![PointerData {
-                change,
-                kind: pointer.kind,
-                time_stamp,
-                device: pointer.id,
-                pointer_identifier: pointer.id,
-                buttons,
-                physical_x: pointer.position.dx() * ratio,
-                physical_y: pointer.position.dy() * ratio,
-                physical_delta_x: delta.dx() * ratio,
-                physical_delta_y: delta.dy() * ratio,
-                ..PointerData::default()
-            }]),
+        let ratio = self.platform().view(pointer.view).map_or_else(
+            || self.device_pixel_ratio(),
+            |view| view.metrics().device_pixel_ratio,
         );
-        app.drain_microtasks();
-        drop(app);
-        self.cell.checkpoint();
+        let reported = match change {
+            PointerChange::Add => ReportedChange::Add,
+            PointerChange::Remove => ReportedChange::Remove,
+            PointerChange::Hover => ReportedChange::Hover { buttons: 0 },
+            PointerChange::Down => ReportedChange::Down {
+                buttons: pointer.buttons,
+            },
+            PointerChange::Move => ReportedChange::Move {
+                buttons: pointer.buttons,
+            },
+            PointerChange::Up => ReportedChange::Up { buttons: 0 },
+            PointerChange::Cancel => ReportedChange::Cancel { buttons: 0 },
+            PointerChange::PanZoomStart => ReportedChange::PanZoomStart,
+            PointerChange::PanZoomUpdate => ReportedChange::PanZoomUpdate {
+                pan: [0.0, 0.0],
+                scale: 1.0,
+                rotation: 0.0,
+            },
+            PointerChange::PanZoomEnd => ReportedChange::PanZoomEnd,
+        };
+        self.shell().pointer_reports(vec![PointerReport {
+            view_id: pointer.view,
+            time_stamp,
+            device: pointer.id,
+            kind: pointer.kind,
+            position: [pointer.position.dx() * ratio, pointer.position.dy() * ratio],
+            change: reported,
+            contact: Contact::default(),
+        }]);
     }
 
     /// Dart's `startGesture(at)`: a pointer down at `at`.
@@ -95,14 +122,13 @@ impl WidgetTester {
 
     /// Dart's `gesture.moveTo(at)`: a move while down, a hover while up, stamped `Duration.zero`.
     pub fn move_to(&mut self, pointer: &mut TestPointer, at: waft_embedder::Offset, down: bool) {
-        let delta = at - pointer.position;
         pointer.position = at;
         let change = if down {
             waft_embedder::PointerChange::Move
         } else {
             waft_embedder::PointerChange::Hover
         };
-        self.send_at(pointer, change, delta, Duration::ZERO);
+        self.send_at(pointer, change, Duration::ZERO);
     }
 
     /// Dart's `gesture.up()`.
@@ -115,25 +141,10 @@ impl WidgetTester {
         self.send(pointer, waft_embedder::PointerChange::Cancel);
     }
 
-    /// Dart's `gesture.removePointer()`: a `PointerRemovedEvent` with the pointer's id handed
-    /// to the gesture binding, as `TestGesture` hands it, so a recognizer tracking the pointer
-    /// sees it even while the pointer is down.
+    /// Dart's `gesture.removePointer()`: removes the pointer through the shell's pointer
+    /// converter, which also cancels it if it is currently down.
     pub fn remove_pointer(&mut self, pointer: &TestPointer) {
-        use waft_gestures::{GestureBinding, PointerEvent, PointerRemovedEvent};
-        let mut app = self.cell.borrow_mut();
-        GestureBinding::instance(&mut app).handle_pointer_event(
-            &mut app,
-            PointerEvent::Removed(PointerRemovedEvent {
-                kind: pointer.kind,
-                device: pointer.id,
-                pointer: pointer.id,
-                position: pointer.position,
-                ..PointerRemovedEvent::default()
-            }),
-        );
-        app.drain_microtasks();
-        drop(app);
-        self.cell.checkpoint();
+        self.send(pointer, waft_embedder::PointerChange::Remove);
     }
 
     /// Dart's `gesture.addPointer()` for a mouse, at `at`.
@@ -148,14 +159,8 @@ impl WidgetTester {
         physical: waft_services::PhysicalKeyboardKey,
         logical: waft_services::LogicalKeyboardKey,
     ) {
-        use waft_embedder::KeyEventType;
-        let mut app = self.cell.borrow_mut();
-        for event_type in [KeyEventType::Down, KeyEventType::Up] {
-            handle_key_event(&mut app, event_type, physical, logical, None);
-        }
-        app.drain_microtasks();
-        drop(app);
-        self.cell.checkpoint();
+        self.send_key_down_event(physical, logical);
+        self.send_key_up_event(physical, logical);
     }
 
     /// Dart's `tester.sendKeyDownEvent(key)`: a key down of `physical` and `logical`.
@@ -192,7 +197,7 @@ impl WidgetTester {
         self.send_key_event_of(waft_embedder::KeyEventType::Up, physical, logical, None);
     }
 
-    /// One key event, then the microtasks it scheduled and the checkpoint after them.
+    /// One key event sent through the shell's `key_data`.
     fn send_key_event_of(
         &mut self,
         event_type: waft_embedder::KeyEventType,
@@ -200,24 +205,29 @@ impl WidgetTester {
         logical: waft_services::LogicalKeyboardKey,
         character: Option<&str>,
     ) {
-        let mut app = self.cell.borrow_mut();
-        handle_key_event(&mut app, event_type, physical, logical, character);
-        app.drain_microtasks();
-        drop(app);
-        self.cell.checkpoint();
+        use waft_embedder::{EmbedderClient, KeyData, KeyEventDeviceType};
+        self.shell().key_data(KeyData {
+            time_stamp: std::time::Duration::ZERO,
+            event_type,
+            device_type: KeyEventDeviceType::Keyboard,
+            physical: physical.usb_hid_usage,
+            logical: logical.key_id,
+            character: character.map(str::to_owned),
+            synthesized: false,
+        });
     }
 
-    /// Dart's `tester.tap(finder)`: a tap at the centre of the one widget `target` finds,
-    /// with the next pointer.
+    /// Dart's `tester.tap(finder)`: a tap at the centre of the one widget `target` finds, in the
+    /// view that widget renders into, with the next pointer.
     pub fn tap(&mut self, target: impl RenderTarget) {
-        let at = self.center_for(target, "tap");
-        let pointer = self.next_pointer();
+        let (at, view) = self.center_and_view_for(target, "tap");
+        let pointer = TestPointer::touch(self.next_pointer()).in_view(view);
         self.tap_at(at, pointer);
     }
 
-    /// Dart's `tester.tapAt(at)`: down and up with no frame between.
-    pub fn tap_at(&mut self, at: waft_embedder::Offset, pointer: i64) {
-        let mut touch = TestPointer::touch(pointer);
+    /// Dart's `tester.tapAt(at)`: down and up with no frame between, sent to `pointer`'s view.
+    pub fn tap_at(&mut self, at: waft_embedder::Offset, pointer: impl Into<TestPointer>) {
+        let mut touch = pointer.into();
         self.down(&mut touch, at);
         self.up(&touch);
     }
@@ -230,22 +240,23 @@ impl WidgetTester {
     }
 
     /// Dart's `tester.fling(finder, offset, speed)`: [`fling_from`](Self::fling_from) the
-    /// centre of the one widget `target` finds, with the next pointer.
+    /// centre of the one widget `target` finds, in the view that widget renders into, with the
+    /// next pointer.
     pub fn fling(&mut self, target: impl RenderTarget, offset: waft_embedder::Offset, speed: f64) {
-        let start = self.center_for(target, "fling");
-        let pointer = self.next_pointer();
+        let (start, view) = self.center_and_view_for(target, "fling");
+        let pointer = TestPointer::touch(self.next_pointer()).in_view(view);
         self.fling_from(start, offset, speed, pointer);
     }
 
-    /// Dart's `tester.flingFrom(start, offset, speed)`: a touch down at `start`, 51 moves to
-    /// `start + offset` stamped from zero at `speed` logical pixels a second, a frame after
-    /// every 16ms of stamps, and an up.
+    /// Dart's `tester.flingFrom(start, offset, speed)`: a touch down at `start` in `pointer`'s
+    /// view, 51 moves to `start + offset` stamped from zero at `speed` logical pixels a second, a
+    /// frame after every 16ms of stamps, and an up.
     pub fn fling_from(
         &mut self,
         start: waft_embedder::Offset,
         offset: waft_embedder::Offset,
         speed: f64,
-        pointer: i64,
+        pointer: impl Into<TestPointer>,
     ) {
         self.fling_from_after(
             start,
@@ -265,7 +276,7 @@ impl WidgetTester {
         start: waft_embedder::Offset,
         offset: waft_embedder::Offset,
         speed: f64,
-        pointer: i64,
+        pointer: impl Into<TestPointer>,
         initial_offset: waft_embedder::Offset,
         initial_offset_delay: Duration,
     ) {
@@ -273,27 +284,17 @@ impl WidgetTester {
         debug_assert!(offset.distance() > 0.0);
         debug_assert!(speed > 0.0); // speed is pixels/second
         let micros = |time_stamp: f64| Duration::from_micros(time_stamp as u64);
-        let mut touch = TestPointer::touch(pointer);
+        let mut touch = pointer.into();
         const K_MOVE_COUNT: u32 = 50; // Needs to be >= kHistorySize, see _LeastSquaresVelocityTrackerStrategy
         let frame_interval = Duration::from_millis(16).as_micros() as f64;
         let time_stamp_delta = 1000000.0 * offset.distance() / (K_MOVE_COUNT as f64 * speed);
         let mut time_stamp = 0.0_f64;
         let mut last_time_stamp = time_stamp;
         touch.position = start;
-        self.send_at(
-            &touch,
-            PointerChange::Down,
-            Offset::ZERO,
-            micros(time_stamp.round()),
-        );
+        self.send_at(&touch, PointerChange::Down, micros(time_stamp.round()));
         if initial_offset.distance() > 0.0 {
             touch.position = start + initial_offset;
-            self.send_at(
-                &touch,
-                PointerChange::Move,
-                initial_offset,
-                micros(time_stamp.round()),
-            );
+            self.send_at(&touch, PointerChange::Move, micros(time_stamp.round()));
             time_stamp += initial_offset_delay.as_micros() as f64;
             self.pump_by(initial_offset_delay);
         }
@@ -306,50 +307,39 @@ impl WidgetTester {
                     f64::from(i) / f64::from(K_MOVE_COUNT),
                 )
                 .expect("both ends are given");
-            let delta = location - touch.position;
             touch.position = location;
-            self.send_at(
-                &touch,
-                PointerChange::Move,
-                delta,
-                micros(time_stamp.round()),
-            );
+            self.send_at(&touch, PointerChange::Move, micros(time_stamp.round()));
             time_stamp += time_stamp_delta;
             if time_stamp - last_time_stamp > frame_interval {
                 self.pump_by(micros((time_stamp - last_time_stamp).trunc()));
                 last_time_stamp = time_stamp;
             }
         }
-        self.send_at(
-            &touch,
-            PointerChange::Up,
-            Offset::ZERO,
-            micros(time_stamp.round()),
-        );
+        self.send_at(&touch, PointerChange::Up, micros(time_stamp.round()));
     }
 
     /// Dart's `tester.drag(finder, offset)`: [`drag_from`](Self::drag_from) the centre of the
-    /// one widget `target` finds, with the next pointer.
+    /// one widget `target` finds, in the view that widget renders into, with the next pointer.
     pub fn drag(&mut self, target: impl RenderTarget, offset: waft_embedder::Offset) {
-        let start = self.center_for(target, "drag");
-        let pointer = self.next_pointer();
+        let (start, view) = self.center_and_view_for(target, "drag");
+        let pointer = TestPointer::touch(self.next_pointer()).in_view(view);
         self.drag_from(start, offset, pointer);
     }
 
-    /// Dart's `tester.dragFrom(start, offset)`: a touch down at `start`, moves that cross
-    /// flutter_test's 20 pixel drag slop box in separate steps, and an up, with no frame
-    /// between.
+    /// Dart's `tester.dragFrom(start, offset)`: a touch down at `start` in `pointer`'s view, moves
+    /// that cross flutter_test's 20 pixel drag slop box in separate steps, and an up, with no
+    /// frame between.
     pub fn drag_from(
         &mut self,
         start: waft_embedder::Offset,
         offset: waft_embedder::Offset,
-        pointer: i64,
+        pointer: impl Into<TestPointer>,
     ) {
         use waft_embedder::Offset;
         const K_DRAG_SLOP_DEFAULT: f64 = 20.0;
         let touch_slop_x = K_DRAG_SLOP_DEFAULT;
         let touch_slop_y = K_DRAG_SLOP_DEFAULT;
-        let mut gesture = TestPointer::touch(pointer);
+        let mut gesture = pointer.into();
         self.down(&mut gesture, start);
         let mut move_by = |tester: &mut WidgetTester, by: Offset| {
             let at = gesture.position + by;
@@ -447,16 +437,17 @@ impl WidgetTester {
     }
 
     /// Dart's `tester.longPress(finder)`: a long press at the centre of the one widget
-    /// `target` finds, with the next pointer.
+    /// `target` finds, in the view that widget renders into, with the next pointer.
     pub fn long_press(&mut self, target: impl RenderTarget) {
-        let at = self.center_for(target, "longPress");
-        let pointer = self.next_pointer();
+        let (at, view) = self.center_and_view_for(target, "longPress");
+        let pointer = TestPointer::touch(self.next_pointer()).in_view(view);
         self.long_press_at(at, pointer);
     }
 
-    /// Dart's `tester.longPressAt(at)`: down, a `kLongPressTimeout + kPressTimeout` wait, and up.
-    pub fn long_press_at(&mut self, at: waft_embedder::Offset, pointer: i64) {
-        let mut touch = TestPointer::touch(pointer);
+    /// Dart's `tester.longPressAt(at)`: down in `pointer`'s view, a
+    /// `kLongPressTimeout + kPressTimeout` wait, and up.
+    pub fn long_press_at(&mut self, at: waft_embedder::Offset, pointer: impl Into<TestPointer>) {
+        let mut touch = pointer.into();
         self.down(&mut touch, at);
         self.pump_by(waft_gestures::K_LONG_PRESS_TIMEOUT + waft_gestures::K_PRESS_TIMEOUT);
         self.up(&touch);
@@ -472,27 +463,4 @@ fn dart_sign(value: f64) -> f64 {
     } else {
         value
     }
-}
-
-/// Hands one key event to the framework, as the shell hands one a platform reports.
-fn handle_key_event(
-    app: &mut waft_foundation::App,
-    event_type: waft_embedder::KeyEventType,
-    physical: waft_services::PhysicalKeyboardKey,
-    logical: waft_services::LogicalKeyboardKey,
-    character: Option<&str>,
-) {
-    use waft_embedder::{KeyData, KeyEventDeviceType};
-    waft_services::KeyEventManager::instance(app).handle_key_data(
-        app,
-        KeyData {
-            time_stamp: std::time::Duration::ZERO,
-            event_type,
-            device_type: KeyEventDeviceType::Keyboard,
-            physical: physical.usb_hid_usage,
-            logical: logical.key_id,
-            character: character.map(str::to_owned),
-            synthesized: false,
-        },
-    );
 }

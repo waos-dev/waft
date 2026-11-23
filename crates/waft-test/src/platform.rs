@@ -2,17 +2,18 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 use waft_embedder::{
     AppExit, AppLifecycleState, Brightness, Cameras, CaptionSettings, Clipboard, CompositionLayer,
     Compositor, Dispatcher, DockMenu, FileDialogs, Files, FontSource, Haptics, HardwareBuffer,
     HardwareBufferAllocator, HttpClient, Image, ImageCodecFuture, ImageDecodeError, Instant,
-    MediaAssets, MenuBar, Notifications, Opener, Picture, Platform, Players, PointerReport,
-    PopupMenus, RequestId, Restoration, SignedDuration, SystemChrome, SystemContextMenu,
-    TargetPlatform, TextServices, TrayIcons, VideoFrame, VideoFrameReaders, View, ViewEmbedder,
-    ViewError, ViewFocusEvent, ViewHost, ViewId, ViewMetrics, ViewRef, WindowConfig,
+    MediaAssets, MenuBar, Notifications, Offset, Opener, Picture, Platform, Players, PointerReport,
+    PopupMenus, RequestId, Restoration, Screen, Screens, SignedDuration, SystemChrome,
+    SystemContextMenu, TargetPlatform, TextServices, TrayIcons, VideoFrame, VideoFrameReaders,
+    View, ViewEmbedder, ViewError, ViewFocusEvent, ViewHost, ViewId, ViewMetrics, ViewRef,
+    WindowConfig,
 };
 
 use waft_embedder::image_codecs::{ImageCodecs, ImageError, ImageErrorKind, ImageFuture};
@@ -46,11 +47,16 @@ pub struct TestPlatform {
     brightness: Cell<Brightness>,
     time_zone: RefCell<TestTimeZone>,
     default_route: String,
+    /// The real instant the platform's clock starts from; [`now`](Platform::now) moves only when
+    /// [`advance_clock`](Self::advance_clock) advances [`elapsed`](Self::elapsed).
+    clock_origin: Instant,
+    /// How far the test has moved the platform's clock since `clock_origin`.
+    elapsed: Cell<Duration>,
+    /// The screens the platform reports and where the pointer is on them; `None` in both means
+    /// [`Platform::screens`] answers `None`.
+    screens: TestScreens,
     /// The views the platform gave the app, as a phone gives its screen.
     views: RefCell<Vec<ViewRef>>,
-    /// The [`TestView`]s among them that [`with_views`](Self::with_views) made, which
-    /// [`test_view`](Self::test_view) answers.
-    test_views: Vec<Rc<TestView>>,
     /// The number the next request for a view takes, a window's or one on a layer.
     next_request: Cell<u64>,
     /// The views the app added on layers and has not removed, in the order it added them.
@@ -105,8 +111,10 @@ impl TestPlatform {
             brightness: Cell::new(Brightness::Light),
             time_zone: RefCell::default(),
             default_route: "/".into(),
+            clock_origin: Instant::now(),
+            elapsed: Cell::new(Duration::ZERO),
+            screens: TestScreens::default(),
             views: RefCell::default(),
-            test_views: Vec::new(),
             next_request: Cell::new(1),
             added_views: RefCell::default(),
             frame_requests: RefCell::default(),
@@ -161,24 +169,61 @@ impl TestPlatform {
 
     /// The same platform giving the app an 800 x 600 [`TestView`] numbered by each of `ids`, in
     /// that order, as a desktop gives one window to each.
-    pub fn with_views(mut self, ids: &[ViewId]) -> TestPlatform {
+    pub fn with_views(self, ids: &[ViewId]) -> TestPlatform {
         for &id in ids {
             let view = Rc::new(TestView::new(800.0, 600.0).with_id(id));
-            self.views.borrow_mut().push(Rc::clone(&view) as ViewRef);
-            self.test_views.push(view);
+            self.views.borrow_mut().push(view as ViewRef);
         }
         self
     }
 
-    /// The view numbered `id` that [`with_views`](Self::with_views) gave, to read what was
-    /// presented to it.
+    /// The [`TestView`] numbered `id` among the platform's views, however it came: given,
+    /// made for a window the app asked for, or added on a layer.
     ///
     /// # Panics
     ///
-    /// If `with_views` gave none numbered `id`.
+    /// If none of the platform's views numbered `id` is a [`TestView`].
     pub fn test_view(&self, id: ViewId) -> Rc<TestView> {
-        let view = self.test_views.iter().find(|view| view.id() == id);
-        Rc::clone(view.expect("a view with_views gave"))
+        self.views()
+            .into_iter()
+            .find(|view| view.id() == id)
+            .and_then(|view| (view as Rc<dyn std::any::Any>).downcast::<TestView>().ok())
+            .unwrap_or_else(|| panic!("no TestView numbered {id:?} among the platform's views"))
+    }
+
+    /// How far the test has moved the platform's clock since it was made.
+    pub fn elapsed(&self) -> Duration {
+        self.elapsed.get()
+    }
+
+    /// Advances the platform's clock by `duration`, so [`Platform::now`] moves only when the test
+    /// says so.
+    pub fn advance_clock(&self, duration: Duration) {
+        self.elapsed.set(self.elapsed.get() + duration);
+    }
+
+    /// The same platform reporting `screens` from [`Platform::screens`].
+    pub fn with_screens(self, screens: Vec<Screen>) -> TestPlatform {
+        self.set_screens(screens);
+        self
+    }
+
+    /// Changes the screens [`Platform::screens`] reports; the client hears of it through
+    /// `EmbedderClient::screens_changed`.
+    pub fn set_screens(&self, screens: Vec<Screen>) {
+        *self.screens.screens.borrow_mut() = Some(screens);
+    }
+
+    /// The same platform reporting the pointer at `location` from
+    /// [`Screens::pointer_location`].
+    pub fn with_pointer_location(self, location: Offset) -> TestPlatform {
+        self.set_pointer_location(Some(location));
+        self
+    }
+
+    /// Changes where [`Screens::pointer_location`] reports the pointer.
+    pub fn set_pointer_location(&self, location: Option<Offset>) {
+        self.screens.pointer_location.set(location);
     }
 
     /// The views the app added on layers and has not removed, in the order it added them.
@@ -518,6 +563,13 @@ impl TestPlatform {
         self.dispatcher.wake_now_requests()
     }
 
+    /// The host's event loop asleep: waits up to `timeout` until a ready task has asked to wake
+    /// the app more than `since` times ([`wake_now_requests`](Self::wake_now_requests)), as work
+    /// finishing on another thread does.
+    pub fn wait_for_wake(&self, since: usize, timeout: Duration) {
+        self.dispatcher.wait_for_wake(since, timeout);
+    }
+
     /// The number of a new request for a view.
     fn take_request_id(&self) -> RequestId {
         let id = RequestId(self.next_request.get());
@@ -542,7 +594,7 @@ impl Platform for TestPlatform {
     }
 
     fn now(&self) -> Instant {
-        Instant::now()
+        self.clock_origin + self.elapsed.get()
     }
 
     fn dispatcher(&self) -> Arc<dyn Dispatcher> {
@@ -644,6 +696,11 @@ impl Platform for TestPlatform {
         _device: &wgpu::Device,
     ) -> Option<wgpu::Texture> {
         None
+    }
+
+    fn screens(&self) -> Option<&dyn Screens> {
+        (self.screens.screens.borrow().is_some() || self.screens.pointer_location.get().is_some())
+            .then_some(&self.screens as &dyn Screens)
     }
 
     fn clipboard(&self) -> Option<&dyn Clipboard> {
@@ -785,13 +842,32 @@ impl ViewEmbedder for TestPlatform {
     fn send_view_focus_event(&self, _event: ViewFocusEvent) {}
 }
 
+#[derive(Default)]
+struct TestScreens {
+    screens: RefCell<Option<Vec<Screen>>>,
+    pointer_location: Cell<Option<Offset>>,
+}
+
+impl Screens for TestScreens {
+    fn screens(&self) -> Vec<Screen> {
+        self.screens.borrow().clone().unwrap_or_default()
+    }
+
+    fn pointer_location(&self) -> Option<Offset> {
+        self.pointer_location.get()
+    }
+}
+
 /// A host that records what it was asked for and never wakes the app. The test pumps the app
 /// instead, where a host would call `EmbedderClient::wake`, and work runs at once on the
 /// calling thread, so a test needs only a checkpoint to see its result.
 #[derive(Default)]
 pub struct TestDispatcher {
     timer_wakeups: Mutex<Vec<Option<Instant>>>,
-    wake_now_requests: AtomicUsize,
+    /// How often a ready task has asked the host to wake the app.
+    wakes: Mutex<usize>,
+    /// Told at each wake.
+    woken: Condvar,
 }
 
 impl TestDispatcher {
@@ -806,7 +882,22 @@ impl TestDispatcher {
 
     /// How often a ready task has asked the host to wake the app.
     pub fn wake_now_requests(&self) -> usize {
-        self.wake_now_requests.load(Ordering::Acquire)
+        *self.wakes()
+    }
+
+    /// Waits up to `timeout` until a ready task has asked to wake the app more than `since`
+    /// times.
+    pub(crate) fn wait_for_wake(&self, since: usize, timeout: Duration) {
+        let wakes = self.wakes();
+        let _ = self
+            .woken
+            .wait_timeout_while(wakes, timeout, |wakes| *wakes <= since);
+    }
+
+    fn wakes(&self) -> std::sync::MutexGuard<'_, usize> {
+        self.wakes
+            .lock()
+            .expect("the wake counter is never poisoned: nothing runs under its lock")
     }
 }
 
@@ -819,7 +910,8 @@ impl Dispatcher for TestDispatcher {
     }
 
     fn wake_now(&self) {
-        self.wake_now_requests.fetch_add(1, Ordering::AcqRel);
+        *self.wakes() += 1;
+        self.woken.notify_all();
     }
 
     fn dispatch(&self, work: Box<dyn FnOnce() + Send>) {
@@ -884,5 +976,61 @@ mod tests {
         assert!(!platform.briefly_show_password());
         platform.set_briefly_show_password(true);
         assert!(platform.briefly_show_password());
+    }
+
+    #[test]
+    fn the_clock_moves_only_when_advanced() {
+        use std::time::Duration;
+
+        let platform = TestPlatform::new();
+        let start = platform.now();
+        std::thread::sleep(Duration::from_millis(5));
+        assert_eq!(platform.now(), start);
+        assert_eq!(platform.elapsed(), Duration::ZERO);
+
+        platform.advance_clock(Duration::from_millis(16));
+        assert_eq!(platform.elapsed(), Duration::from_millis(16));
+        assert_eq!(
+            platform.now().duration_since(start),
+            Duration::from_millis(16)
+        );
+
+        platform.advance_clock(Duration::from_millis(4));
+        assert_eq!(platform.elapsed(), Duration::from_millis(20));
+        assert_eq!(
+            platform.now().duration_since(start),
+            Duration::from_millis(20)
+        );
+    }
+
+    #[test]
+    fn screens_and_pointer_location_are_absent_until_configured() {
+        use waft_embedder::{Offset, Rect, Screen, ScreenId};
+
+        let bare = TestPlatform::new();
+        assert!(bare.screens().is_none());
+
+        let main = Screen {
+            id: ScreenId(1),
+            name: "Main".to_owned(),
+            frame: Rect::from_ltwh(0.0, 0.0, 1440.0, 900.0),
+            visible_frame: Rect::from_ltwh(0.0, 25.0, 1440.0, 875.0),
+            scale: 2.0,
+            refresh_rate: Some(60.0),
+        };
+        let with_screens = TestPlatform::new()
+            .with_screens(vec![main.clone()])
+            .with_pointer_location(Offset::new(120.0, 340.0));
+        let screens = with_screens.screens().expect("configured screens");
+        assert_eq!(screens.screens(), [main]);
+        assert_eq!(screens.pointer_location(), Some(Offset::new(120.0, 340.0)));
+
+        with_screens.set_pointer_location(None);
+        assert_eq!(with_screens.screens().unwrap().pointer_location(), None);
+
+        let pointer_only = TestPlatform::new().with_pointer_location(Offset::new(5.0, 6.0));
+        let screens = pointer_only.screens().expect("pointer location configured");
+        assert!(screens.screens().is_empty());
+        assert_eq!(screens.pointer_location(), Some(Offset::new(5.0, 6.0)));
     }
 }
