@@ -122,6 +122,14 @@ pub trait Widget: Any + Debug {
         None
     }
 
+    /// Keeps where the widget was made, for [`creation_location`](Self::creation_location) to
+    /// answer: what `into_widget` calls on a widget that is its own tree node, which has no
+    /// wrapper to keep it in. Such a widget keeps it in a field
+    /// (`created: Option<CreationLocation>`); the default keeps nothing.
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        let _ = location;
+    }
+
     /// Dart's `toStringShort`: the type, then the key when there is one, as
     /// `Text-[<'title'>]`.
     fn to_string_short(&self) -> String {
@@ -363,7 +371,8 @@ pub struct TreeNodeKind;
 
 impl<W: Widget> IntoWidget<TreeNodeKind> for W {
     #[cfg_attr(debug_assertions, track_caller)]
-    fn into_widget(self) -> WidgetRef {
+    fn into_widget(mut self) -> WidgetRef {
+        self.record_creation_location(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
