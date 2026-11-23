@@ -2838,6 +2838,7 @@ impl InputDecorator {
     }
 
     /// Dart `InputDecorator(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> InputDecorator {
         self.child = Some(child.into_widget());
         self
@@ -5235,6 +5236,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> InputDecoration {
         self.icon = Some(icon.into_widget());
         self
@@ -5247,6 +5249,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(label:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn label<K>(mut self, label: impl IntoWidget<K>) -> InputDecoration {
         self.label = Some(label.into_widget());
         self
@@ -5280,6 +5283,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(helper:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn helper<K>(mut self, helper: impl IntoWidget<K>) -> InputDecoration {
         self.helper = Some(helper.into_widget());
         self
@@ -5310,6 +5314,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(hint:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn hint<K>(mut self, hint: impl IntoWidget<K>) -> InputDecoration {
         self.hint = Some(hint.into_widget());
         self
@@ -5361,6 +5366,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(error:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn error<K>(mut self, error: impl IntoWidget<K>) -> InputDecoration {
         self.error = Some(error.into_widget());
         self
@@ -5425,6 +5431,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(prefixIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prefix_icon<K>(mut self, prefix_icon: impl IntoWidget<K>) -> InputDecoration {
         self.prefix_icon = Some(prefix_icon.into_widget());
         self
@@ -5440,6 +5447,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(prefix:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prefix<K>(mut self, prefix: impl IntoWidget<K>) -> InputDecoration {
         self.prefix = Some(prefix.into_widget());
         self
@@ -5464,12 +5472,14 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(suffixIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn suffix_icon<K>(mut self, suffix_icon: impl IntoWidget<K>) -> InputDecoration {
         self.suffix_icon = Some(suffix_icon.into_widget());
         self
     }
 
     /// Dart `InputDecoration(suffix:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn suffix<K>(mut self, suffix: impl IntoWidget<K>) -> InputDecoration {
         self.suffix = Some(suffix.into_widget());
         self
@@ -5503,6 +5513,7 @@ impl InputDecoration {
     }
 
     /// Dart `InputDecoration(counter:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn counter<K>(mut self, counter: impl IntoWidget<K>) -> InputDecoration {
         self.counter = Some(counter.into_widget());
         self
@@ -6167,6 +6178,7 @@ impl InputDecorationTheme {
     }
 
     /// Dart `InputDecorationTheme(child:)`; the default is `SizedBox::shrink()`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> InputDecorationTheme {
         self.child = child.into_widget();
         self

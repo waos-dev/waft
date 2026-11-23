@@ -32,6 +32,7 @@ pub struct ComboBoxItem {
 
 impl ComboBoxItem {
     /// Creates an item showing `content`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(id: impl Into<String>, content: impl IntoWidget<K>) -> Self {
         Self {
             id: id.into(),

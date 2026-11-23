@@ -72,6 +72,7 @@ pub struct ExpansionPanel {
 impl ExpansionPanel {
     /// Creates an expansion panel to be used as a child for [`ExpansionPanelList`]; Dart's
     /// optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(header_builder: ExpansionPanelHeaderBuilder, body: impl IntoWidget<K>) -> Self {
         ExpansionPanel {
             header_builder,
@@ -149,6 +150,7 @@ pub struct ExpansionPanelRadio {
 impl ExpansionPanelRadio {
     /// An expansion panel that allows for radio functionality; Dart's optional named arguments
     /// are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         value: impl AnyEq,
         header_builder: ExpansionPanelHeaderBuilder,

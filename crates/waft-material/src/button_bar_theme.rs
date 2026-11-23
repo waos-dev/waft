@@ -197,6 +197,7 @@ pub struct ButtonBarTheme {
 
 impl ButtonBarTheme {
     /// Constructs a button bar theme that configures all descendant `ButtonBar` widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: ButtonBarThemeData, child: impl IntoWidget<K>) -> ButtonBarTheme {
         ButtonBarTheme {
             key: None,

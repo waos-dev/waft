@@ -202,6 +202,7 @@ impl NumberBox {
     }
 
     /// Sets Header.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.header = Some(value.into_widget());
         self
@@ -214,6 +215,7 @@ impl NumberBox {
     }
 
     /// Sets Description.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn description<K>(mut self, value: impl IntoWidget<K>) -> Self {
         self.description = Some(value.into_widget());
         self

@@ -39,6 +39,7 @@ pub struct ChipTheme {
 
 impl ChipTheme {
     /// Applies the given theme [`data`](Self::data) to [`child`](Self::child).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: ChipThemeData, child: impl IntoWidget<K>) -> ChipTheme {
         ChipTheme {
             key: None,

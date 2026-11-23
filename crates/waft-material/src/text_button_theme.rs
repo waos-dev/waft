@@ -94,6 +94,7 @@ pub struct TextButtonTheme {
 
 impl TextButtonTheme {
     /// Create a [`TextButtonTheme`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: TextButtonThemeData, child: impl IntoWidget<K>) -> TextButtonTheme {
         TextButtonTheme {
             key: None,

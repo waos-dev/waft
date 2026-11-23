@@ -984,6 +984,7 @@ impl GestureDetector {
     }
 
     /// Dart `GestureDetector(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> GestureDetector {
         self.child = Some(child.into_widget());
         self
@@ -1983,6 +1984,7 @@ impl RawGestureDetector {
     }
 
     /// Dart `RawGestureDetector(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> RawGestureDetector {
         self.child = Some(child.into_widget());
         self

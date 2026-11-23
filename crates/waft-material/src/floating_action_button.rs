@@ -434,6 +434,7 @@ impl FloatingActionButton {
     ///
     /// See also:
     ///  * <https://m3.material.io/components/extended-fab>
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn extended<K>(
         on_pressed: Option<Listener>,
         label: impl IntoWidget<K>,
@@ -455,6 +456,7 @@ impl FloatingActionButton {
     }
 
     /// Dart `FloatingActionButton(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> FloatingActionButton {
         self.child = Some(child.into_widget());
         self
@@ -639,6 +641,7 @@ impl FloatingActionButton {
 
     /// Dart `FloatingActionButton.extended(icon:)`, which the constructor stores as
     /// [`child`](Self::child).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> FloatingActionButton {
         self.debug_assert_extended("icon");
         self.child = Some(icon.into_widget());

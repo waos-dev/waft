@@ -83,11 +83,15 @@ pub struct TextButton {
 
 impl TextButton {
     /// Create a [`TextButton`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(on_pressed: Option<Listener>, child: Option<impl IntoWidget<K>>) -> TextButton {
         TextButton {
             button_style_button: ButtonStyleButtonData::new(
                 on_pressed,
-                child.map(|child| child.into_widget()),
+                match child {
+                    Some(child) => Some(child.into_widget()),
+                    None => None,
+                },
             ),
             add_padding: false,
         }
@@ -110,6 +114,7 @@ impl TextButton {
     ///
     /// The alignment of the icon within the button is set by
     /// [`icon_alignment`](TextButtonIcon::icon_alignment); see [`IconAlignment`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(on_pressed: Option<Listener>, label: impl IntoWidget<K>) -> TextButtonIcon {
         let mut button_style_button = ButtonStyleButtonData::new(on_pressed, None);
         button_style_button.clip_behavior = Some(Clip::None);
@@ -473,6 +478,7 @@ impl TextButtonIcon {
     );
 
     /// Dart `TextButton.icon(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> TextButtonIcon {
         self.icon = Some(icon.into_widget());
         self
@@ -485,6 +491,7 @@ impl TextButtonIcon {
     }
 
     /// The [`TextButton`] these arguments describe.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn build(self) -> TextButton {
         let mut button_style_button = self.button_style_button;
         let add_padding = self.icon.is_some();
@@ -506,6 +513,7 @@ impl TextButtonIcon {
 }
 
 impl IntoWidget<StatefulKind> for TextButtonIcon {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.build().into_widget()
     }

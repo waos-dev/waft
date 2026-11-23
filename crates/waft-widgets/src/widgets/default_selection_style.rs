@@ -43,6 +43,7 @@ impl DefaultSelectionStyle {
     /// Creates a default selection style widget that specifies the selection properties for
     /// all widgets below it in the widget tree; Dart's optional named arguments are the
     /// setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> DefaultSelectionStyle {
         DefaultSelectionStyle {
             key: None,
@@ -98,6 +99,7 @@ impl DefaultSelectionStyle {
     /// Any arguments that are not `None` replace the corresponding properties on the
     /// ambient default selection style. Dart's optional named arguments are the setters of
     /// the [`DefaultSelectionStyleMerge`] this returns.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn merge<K>(child: impl IntoWidget<K>) -> DefaultSelectionStyleMerge {
         DefaultSelectionStyleMerge {
             key: None,
@@ -212,6 +214,7 @@ impl DefaultSelectionStyleMerge {
 pub struct DefaultSelectionStyleMergeKind;
 
 impl IntoWidget<DefaultSelectionStyleMergeKind> for DefaultSelectionStyleMerge {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         Builder::new(move |app, context| {
             let parent = DefaultSelectionStyle::of(app, context);

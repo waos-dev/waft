@@ -78,11 +78,13 @@ pub struct ButtonTheme {
 
 impl ButtonTheme {
     /// Creates a button theme.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> ButtonTheme {
         ButtonTheme::from_button_theme_data(ButtonThemeData::new(), child)
     }
 
     /// Creates a button theme from `data`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_button_theme_data<K>(
         data: ButtonThemeData,
         child: impl IntoWidget<K>,

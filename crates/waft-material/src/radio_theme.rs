@@ -338,6 +338,7 @@ pub struct RadioTheme {
 
 impl RadioTheme {
     /// Constructs a radio theme that configures all descendant `Radio` widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: RadioThemeData, child: impl IntoWidget<K>) -> RadioTheme {
         RadioTheme {
             key: None,

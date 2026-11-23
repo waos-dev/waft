@@ -56,6 +56,7 @@ impl LookupBoundary {
     /// Creates a [`LookupBoundary`].
     ///
     /// A none-`None` `child` widget must be provided.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> LookupBoundary {
         LookupBoundary {
             key: None,

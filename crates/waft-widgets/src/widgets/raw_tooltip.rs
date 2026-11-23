@@ -238,6 +238,7 @@ struct ExclusiveMouseRegion {
 }
 
 impl ExclusiveMouseRegion {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(
         on_enter: PointerEnterEventListener,
         on_exit: PointerExitEventListener,
@@ -747,6 +748,7 @@ impl RawTooltip {
     ///
     /// The `semantics_tooltip`, `tooltip_builder`, and `child` arguments are
     /// required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         semantics_tooltip: Option<String>,
         tooltip_builder: impl Fn(&mut App, BuildContext, AnimationRef<f64>) -> WidgetRef + 'static,

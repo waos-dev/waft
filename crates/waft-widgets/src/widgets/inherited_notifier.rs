@@ -4,14 +4,15 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_foundation::{App, Handle, ListenableObject, Listener};
 
 use crate::framework::{
-    AnyElement, ComponentElement, ComponentElementData, Element, ElementBase, ElementData,
-    ElementLifecycle, InheritedWidget, IntoWidget, KeyRef, ProxyElement, Slot, Widget, WidgetKind,
-    WidgetRef, debug_check_owner_build_target_exists, downcast_widget, short_type_name,
+    AnyElement, ComponentElement, ComponentElementData, CreationLocation, Element, ElementBase,
+    ElementData, ElementLifecycle, InheritedWidget, IntoWidget, KeyRef, ProxyElement, Slot, Widget,
+    WidgetKind, WidgetRef, debug_check_owner_build_target_exists, downcast_widget, short_type_name,
 };
 
 /// An inherited widget for a [`Listenable`](waft_foundation::Listenable) [`notifier`](Self::notifier), which updates its
@@ -83,20 +84,28 @@ macro_rules! inherited_notifier_overrides {
 pub struct InheritedNotifierKind;
 
 /// The erased form of an [`InheritedNotifier`].
-pub struct InheritedNotifierWrapper<W: InheritedNotifier>(pub W);
+pub struct InheritedNotifierWrapper<W: InheritedNotifier>(pub W, pub(crate) CreationLocation);
 
 impl<W: InheritedNotifier> IntoWidget<InheritedNotifierKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             InheritedWidget::debug_check_constructor(&self);
         }
-        Rc::new(InheritedNotifierWrapper(self))
+        Rc::new(InheritedNotifierWrapper(
+            self,
+            CreationLocation::of_caller(),
+        ))
     }
 }
 
 impl<W: InheritedNotifier> Widget for InheritedNotifierWrapper<W> {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {

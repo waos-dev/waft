@@ -146,6 +146,7 @@ pub struct Step {
 
 impl Step {
     /// Creates a step for a [`Stepper`]; Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<T, C>(title: impl IntoWidget<T>, content: impl IntoWidget<C>) -> Step {
         Step {
             title: title.into_widget(),
@@ -159,6 +160,7 @@ impl Step {
     }
 
     /// Dart `Step(subtitle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn subtitle<K>(mut self, subtitle: impl IntoWidget<K>) -> Step {
         self.subtitle = Some(subtitle.into_widget());
         self
@@ -177,6 +179,7 @@ impl Step {
     }
 
     /// Dart `Step(label:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn label<K>(mut self, label: impl IntoWidget<K>) -> Step {
         self.label = Some(label.into_widget());
         self

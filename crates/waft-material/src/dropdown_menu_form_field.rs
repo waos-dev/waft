@@ -121,12 +121,14 @@ impl<T: Clone + PartialEq + 'static> DropdownMenuFormField<T> {
     }
 
     /// Dart `DropdownMenuFormField(leadingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading_icon<K>(mut self, leading_icon: impl IntoWidget<K>) -> DropdownMenuFormField<T> {
         self.dropdown_menu = self.dropdown_menu.leading_icon(leading_icon);
         self
     }
 
     /// Dart `DropdownMenuFormField(trailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing_icon<K>(
         mut self,
         trailing_icon: impl IntoWidget<K>,
@@ -153,6 +155,7 @@ impl<T: Clone + PartialEq + 'static> DropdownMenuFormField<T> {
     }
 
     /// Dart `DropdownMenuFormField(label:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn label<K>(mut self, label: impl IntoWidget<K>) -> DropdownMenuFormField<T> {
         self.label = Some(label.into_widget());
         self
@@ -171,6 +174,7 @@ impl<T: Clone + PartialEq + 'static> DropdownMenuFormField<T> {
     }
 
     /// Dart `DropdownMenuFormField(selectedTrailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_trailing_icon<K>(
         mut self,
         selected_trailing_icon: impl IntoWidget<K>,

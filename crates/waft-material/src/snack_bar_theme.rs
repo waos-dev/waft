@@ -457,6 +457,7 @@ pub struct SnackBarTheme {
 impl SnackBarTheme {
     /// Creates a snackbar theme that controls the configurations for
     /// `SnackBar`s in its widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: SnackBarThemeData, child: impl IntoWidget<K>) -> SnackBarTheme {
         SnackBarTheme {
             key: None,

@@ -620,6 +620,7 @@ impl CupertinoNavigationBar {
     }
 
     /// Dart `CupertinoNavigationBar.large(largeTitle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn large_title<K>(mut self, large_title: impl IntoWidget<K>) -> CupertinoNavigationBar {
         debug_assert!(self.middle.is_none());
         self.large_title = Some(large_title.into_widget());
@@ -627,6 +628,7 @@ impl CupertinoNavigationBar {
     }
 
     /// Dart `CupertinoNavigationBar(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> CupertinoNavigationBar {
         self.leading = Some(leading.into_widget());
         self
@@ -669,6 +671,7 @@ impl CupertinoNavigationBar {
     }
 
     /// Dart `CupertinoNavigationBar(middle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn middle<K>(mut self, middle: impl IntoWidget<K>) -> CupertinoNavigationBar {
         debug_assert!(self.large_title.is_none());
         self.middle = Some(middle.into_widget());
@@ -676,6 +679,7 @@ impl CupertinoNavigationBar {
     }
 
     /// Dart `CupertinoNavigationBar(trailing:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing<K>(mut self, trailing: impl IntoWidget<K>) -> CupertinoNavigationBar {
         self.trailing = Some(trailing.into_widget());
         self
@@ -1319,6 +1323,7 @@ impl CupertinoSliverNavigationBar {
     /// the 'top' of the navigation bar. A 'Cancel' button is presented next to the active search
     /// field, which when tapped, closes the search view, bringing the navigation bar back to its
     /// initial state.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn search<K>(search_field: impl IntoWidget<K>) -> CupertinoSliverNavigationBar {
         CupertinoSliverNavigationBar {
             search_field: Some(search_field.into_widget()),
@@ -1335,6 +1340,7 @@ impl CupertinoSliverNavigationBar {
     }
 
     /// Dart `CupertinoSliverNavigationBar(largeTitle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn large_title<K>(
         mut self,
         large_title: impl IntoWidget<K>,
@@ -1344,6 +1350,7 @@ impl CupertinoSliverNavigationBar {
     }
 
     /// Dart `CupertinoSliverNavigationBar(leading:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading<K>(mut self, leading: impl IntoWidget<K>) -> CupertinoSliverNavigationBar {
         self.leading = Some(leading.into_widget());
         self
@@ -1388,12 +1395,14 @@ impl CupertinoSliverNavigationBar {
     }
 
     /// Dart `CupertinoSliverNavigationBar(middle:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn middle<K>(mut self, middle: impl IntoWidget<K>) -> CupertinoSliverNavigationBar {
         self.middle = Some(middle.into_widget());
         self
     }
 
     /// Dart `CupertinoSliverNavigationBar(trailing:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing<K>(mut self, trailing: impl IntoWidget<K>) -> CupertinoSliverNavigationBar {
         self.trailing = Some(trailing.into_widget());
         self

@@ -266,6 +266,7 @@ impl PaginatedDataTable {
     }
 
     /// Dart `PaginatedDataTable(header:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> PaginatedDataTable {
         self.header = Some(header.into_widget());
         self

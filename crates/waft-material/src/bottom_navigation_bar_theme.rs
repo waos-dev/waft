@@ -366,6 +366,7 @@ pub struct BottomNavigationBarTheme {
 impl BottomNavigationBarTheme {
     /// Constructs a bottom navigation bar theme that configures all descendant
     /// `BottomNavigationBar` widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         data: BottomNavigationBarThemeData,
         child: impl IntoWidget<K>,

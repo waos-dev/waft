@@ -401,6 +401,7 @@ pub struct CheckboxTheme {
 impl CheckboxTheme {
     /// Constructs a checkbox theme that configures all descendant `Checkbox`
     /// widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: CheckboxThemeData, child: impl IntoWidget<K>) -> CheckboxTheme {
         CheckboxTheme {
             key: None,

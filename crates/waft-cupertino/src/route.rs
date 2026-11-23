@@ -1074,6 +1074,7 @@ impl CupertinoPage {
     ///
     /// Dart's defaults: `maintain_state` true, `fullscreen_dialog` false, `allow_snapshotting`
     /// true, `include_route_semantics` true, `can_pop` true.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> CupertinoPage {
         CupertinoPage {
             key: None,
@@ -1236,6 +1237,7 @@ pub struct CupertinoPageTransition {
 
 impl CupertinoPageTransition {
     /// Creates an iOS-style page transition.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         primary_route_animation: AnimationRef<f64>,
         secondary_route_animation: AnimationRef<f64>,
@@ -1470,6 +1472,7 @@ pub struct CupertinoFullscreenDialogTransition {
 
 impl CupertinoFullscreenDialogTransition {
     /// Creates an iOS-style transition used for summoning fullscreen dialogs.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         primary_route_animation: AnimationRef<f64>,
         secondary_route_animation: AnimationRef<f64>,

@@ -959,6 +959,7 @@ impl Chip {
     ///
     /// The [`elevation`](Self::elevation) must be null or non-negative. Dart's named
     /// arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>) -> Chip {
         Chip {
             key: None,
@@ -1144,6 +1145,7 @@ impl RawChip {
     /// The [`press_elevation`](Self::press_elevation) and [`elevation`](Self::elevation)
     /// must be null or non-negative. The [`delete_icon`](Self::delete_icon) defaults to an
     /// `Icon` of `Icons::cancel`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>) -> RawChip {
         RawChip {
             key: None,
@@ -1247,6 +1249,7 @@ impl RawChip {
     chip_non_negative_setters!(RawChip; press_elevation, elevation);
 
     /// Dart `RawChip(deleteIcon:)`, which falls back to the default delete icon when null.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn delete_icon<K>(mut self, delete_icon: impl IntoWidget<K>) -> RawChip {
         self.delete_icon = delete_icon.into_widget();
         self

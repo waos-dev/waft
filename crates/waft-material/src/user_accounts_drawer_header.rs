@@ -559,6 +559,7 @@ impl UserAccountsDrawerHeader {
     }
 
     /// Dart `UserAccountsDrawerHeader(currentAccountPicture:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn current_account_picture<K>(
         mut self,
         current_account_picture: impl IntoWidget<K>,

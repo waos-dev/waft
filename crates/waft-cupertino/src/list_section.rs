@@ -275,6 +275,7 @@ impl CupertinoListSection {
 
     /// Dart `CupertinoListSection(header:)`; an inset-grouped section that still has its
     /// default margin takes the with-header one, as Dart's initializer list does.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> CupertinoListSection {
         self.header = Some(header.into_widget());
         if self.margin_is_default && self.r#type == CupertinoListSectionType::InsetGrouped {
@@ -284,6 +285,7 @@ impl CupertinoListSection {
     }
 
     /// Dart `CupertinoListSection(footer:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn footer<K>(mut self, footer: impl IntoWidget<K>) -> CupertinoListSection {
         self.footer = Some(footer.into_widget());
         self

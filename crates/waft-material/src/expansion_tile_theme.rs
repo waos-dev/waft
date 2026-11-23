@@ -336,6 +336,7 @@ pub struct ExpansionTileTheme {
 
 impl ExpansionTileTheme {
     /// Applies the given theme [`data`](Self::data) to [`child`](Self::child).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: ExpansionTileThemeData, child: impl IntoWidget<K>) -> ExpansionTileTheme {
         ExpansionTileTheme {
             key: None,

@@ -111,6 +111,7 @@ pub struct MenuButtonTheme {
 
 impl MenuButtonTheme {
     /// Create a [`MenuButtonTheme`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: MenuButtonThemeData, child: impl IntoWidget<K>) -> MenuButtonTheme {
         MenuButtonTheme {
             key: None,

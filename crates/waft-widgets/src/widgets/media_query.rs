@@ -1153,6 +1153,7 @@ pub struct MediaQuery {
 
 impl MediaQuery {
     /// Creates a widget that provides [`MediaQueryData`] to its descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: MediaQueryData, child: impl IntoWidget<K>) -> MediaQuery {
         MediaQuery {
             key: None,
@@ -1197,6 +1198,7 @@ impl MediaQuery {
     ///    [`MediaQueryData::view_insets`].
     ///  * [`remove_view_padding`](Self::remove_view_padding), the same thing but for
     ///    [`MediaQueryData::view_padding`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn remove_padding<K>(
         app: &mut App,
         context: BuildContext,
@@ -1237,6 +1239,7 @@ impl MediaQuery {
     ///    [`MediaQueryData::padding`].
     ///  * [`remove_view_padding`](Self::remove_view_padding), the same thing but for
     ///    [`MediaQueryData::view_padding`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn remove_view_insets<K>(
         app: &mut App,
         context: BuildContext,
@@ -1278,6 +1281,7 @@ impl MediaQuery {
     ///    [`MediaQueryData::padding`].
     ///  * [`remove_view_insets`](Self::remove_view_insets), the same thing but for
     ///    [`MediaQueryData::view_insets`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn remove_view_padding<K>(
         app: &mut App,
         context: BuildContext,
@@ -1317,6 +1321,7 @@ impl MediaQuery {
     ///    [`MediaQueryData::word_spacing_override`],
     ///    [`MediaQueryData::paragraph_spacing_override`], the affected properties of the
     ///    [`MediaQueryData`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn apply_text_style_overrides<K>(
         key: Option<KeyRef>,
         line_height_scale_factor_override: Option<f64>,
@@ -1353,6 +1358,7 @@ impl MediaQuery {
     ///
     /// The injected [`MediaQuery`] updates when the surrounding [`MediaQuery`] or the `view`
     /// changes, and when the platform tells the binding's observers its data changed.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_view<K>(
         key: Option<KeyRef>,
         view: ViewRef,
@@ -1374,6 +1380,7 @@ impl MediaQuery {
     ///
     /// This can be used to prevent, for example, icon fonts from scaling as the user adjusts
     /// the platform's text scaling value.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_no_text_scaling<K>(key: Option<KeyRef>, child: impl IntoWidget<K>) -> WidgetRef {
         let child = child.into_widget();
         let builder = Builder::new(move |app, context| {
@@ -1400,6 +1407,7 @@ impl MediaQuery {
     /// `max_scale_factor`, the scaler becomes `TextScaler::linear(min_scale_factor)`.
     ///
     /// Dart accepts a `key` here and does not pass it to its `Builder`; neither does this.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_clamped_text_scaling<K>(
         _key: Option<KeyRef>,
         min_scale_factor: f64,
@@ -2254,6 +2262,7 @@ struct MediaQueryFromView {
 
 impl MediaQueryFromView {
     /// Creates a `MediaQueryFromView`; Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(view: ViewRef, child: impl IntoWidget<K>) -> MediaQueryFromView {
         MediaQueryFromView {
             key: None,

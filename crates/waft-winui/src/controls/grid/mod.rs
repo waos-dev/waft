@@ -228,6 +228,7 @@ pub struct GridCell {
 
 impl GridCell {
     /// Places a child in row zero, column zero, spanning one row and one column.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> GridCell {
         GridCell {
             key: None,

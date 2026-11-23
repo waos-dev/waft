@@ -84,6 +84,7 @@ impl RestorationScope {
     ///
     /// Providing `None` as the `restoration_id` turns off state restoration for the `child`
     /// and its descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(restoration_id: Option<String>, child: impl IntoWidget<K>) -> RestorationScope {
         RestorationScope {
             key: None,
@@ -263,6 +264,7 @@ impl UnmanagedRestorationScope {
     ///
     /// When [`bucket`](Self::bucket) is `None` state restoration is turned off for the `child`
     /// and its descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> UnmanagedRestorationScope {
         UnmanagedRestorationScope {
             key: None,
@@ -357,6 +359,7 @@ impl RootRestorationScope {
     ///
     /// Providing `None` as the `restoration_id` turns off state restoration for the `child` and
     /// its descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         restoration_id: Option<String>,
         child: impl IntoWidget<K>,

@@ -334,6 +334,7 @@ impl ReorderableListView {
     }
 
     /// Dart `ReorderableListView(prototypeItem:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prototype_item<K>(mut self, prototype_item: impl IntoWidget<K>) -> ReorderableListView {
         self.prototype_item = Some(prototype_item.into_widget());
         self
@@ -364,12 +365,14 @@ impl ReorderableListView {
     }
 
     /// Dart `ReorderableListView(header:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn header<K>(mut self, header: impl IntoWidget<K>) -> ReorderableListView {
         self.header = Some(header.into_widget());
         self
     }
 
     /// Dart `ReorderableListView(footer:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn footer<K>(mut self, footer: impl IntoWidget<K>) -> ReorderableListView {
         self.footer = Some(footer.into_widget());
         self

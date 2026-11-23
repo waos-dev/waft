@@ -16,6 +16,7 @@
 //! intents.
 
 use std::collections::HashMap;
+use std::panic::Location;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -33,8 +34,8 @@ use waft_services::{
 };
 
 use crate::framework::{
-    AnyElement, BuildOwner, Element, ElementBase, ElementData, IntoWidget, KeyRef, Slot, Widget,
-    WidgetKind, WidgetRef, downcast_widget,
+    AnyElement, BuildOwner, CreationLocation, Element, ElementBase, ElementData, IntoWidget,
+    KeyRef, Slot, Widget, WidgetKind, WidgetRef, downcast_widget,
 };
 use crate::multi_view_app::MultiViewApp;
 use crate::view::View;
@@ -1439,6 +1440,8 @@ pub struct RootWidget {
     pub child: Option<WidgetRef>,
     /// A short description of this widget used by debugging aids.
     pub debug_short_description: Option<String>,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl RootWidget {
@@ -1454,6 +1457,7 @@ impl RootWidget {
     }
 
     /// Dart `RootWidget(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> RootWidget {
         self.child = Some(child.into_widget());
         self
@@ -1476,12 +1480,14 @@ impl RootWidget {
     ///
     /// Used by [`WidgetsBinding::attach_to_build_owner`] (which is indirectly called by
     /// [`run_app`]) to bootstrap applications.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn attach(
-        self,
+        mut self,
         app: &mut App,
         owner: Handle<BuildOwner>,
         element: Option<Handle<RootElement>>,
     ) -> Handle<RootElement> {
+        self.created = Some(CreationLocation::of_caller());
         let widget: WidgetRef = Rc::new(self);
         match element {
             None => {
@@ -1513,6 +1519,14 @@ impl RootWidget {
 impl Widget for RootWidget {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn to_string_short(&self) -> String {

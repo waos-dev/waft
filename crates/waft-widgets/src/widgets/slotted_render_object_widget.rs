@@ -7,6 +7,7 @@
 use std::any::{Any, TypeId};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_foundation::{App, DiagnosticsNode, Handle, describe_enum};
@@ -15,7 +16,7 @@ use waft_rendering::{
 };
 
 use crate::framework::{
-    AnyElement, Element, ElementData, IntoWidget, KeyRef, RenderObjectElement,
+    AnyElement, CreationLocation, Element, ElementData, IntoWidget, KeyRef, RenderObjectElement,
     RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget, Slot, Widget,
     WidgetKind, WidgetRef, downcast_widget, short_type_name,
 };
@@ -63,7 +64,10 @@ where
 pub struct SlottedMultiChildRenderObjectKind;
 
 /// The erased form of a [`SlottedMultiChildRenderObjectWidget`].
-pub struct SlottedMultiChildRenderObject<W: SlottedMultiChildRenderObjectWidget>(pub W)
+pub struct SlottedMultiChildRenderObject<W: SlottedMultiChildRenderObjectWidget>(
+    pub W,
+    pub(crate) CreationLocation,
+)
 where
     W::RenderObject: SlottedContainerRenderObjectMixin<W::Slot>;
 
@@ -71,11 +75,15 @@ impl<W: SlottedMultiChildRenderObjectWidget> IntoWidget<SlottedMultiChildRenderO
 where
     W::RenderObject: SlottedContainerRenderObjectMixin<W::Slot>,
 {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         if cfg!(debug_assertions) {
             RenderObjectWidget::debug_check_constructor(&self);
         }
-        Rc::new(SlottedMultiChildRenderObject(self))
+        Rc::new(SlottedMultiChildRenderObject(
+            self,
+            CreationLocation::of_caller(),
+        ))
     }
 }
 
@@ -85,6 +93,10 @@ where
 {
     fn key(&self) -> Option<&KeyRef> {
         self.0.key()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.1.location()
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {

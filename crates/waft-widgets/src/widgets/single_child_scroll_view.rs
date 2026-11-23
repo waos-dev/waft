@@ -211,6 +211,7 @@ impl SingleChildScrollView {
     }
 
     /// Dart `SingleChildScrollView(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SingleChildScrollView {
         self.child = Some(child.into_widget());
         self
@@ -386,6 +387,7 @@ impl SingleChildViewport {
     }
 
     /// Dart `_SingleChildViewport(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SingleChildViewport {
         self.child = Some(child.into_widget());
         self

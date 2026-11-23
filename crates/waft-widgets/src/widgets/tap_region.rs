@@ -183,6 +183,7 @@ impl TapRegionSurface {
     /// Creates a [`TapRegionSurface`].
     ///
     /// The [`child`](Self::child) attribute is required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> TapRegionSurface {
         TapRegionSurface {
             key: None,
@@ -740,6 +741,7 @@ impl TapRegion {
     /// Creates a [`TapRegion`].
     ///
     /// The [`child`](Self::child) argument is required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> TapRegion {
         TapRegion {
             key: None,
@@ -1398,6 +1400,7 @@ impl TextFieldTapRegion {
     /// Creates a [`TextFieldTapRegion`].
     ///
     /// The [`child`](Self::child) field is required.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> TextFieldTapRegion {
         TextFieldTapRegion {
             key: None,

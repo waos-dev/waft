@@ -94,6 +94,7 @@ pub struct ItemContainer {
 
 impl ItemContainer {
     /// Creates a container showing `child`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Self {
         Self {
             child: child.into_widget(),

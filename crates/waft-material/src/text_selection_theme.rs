@@ -155,6 +155,7 @@ pub struct TextSelectionTheme {
 impl TextSelectionTheme {
     /// Creates a text selection theme widget that specifies the text
     /// selection properties for all widgets below it in the widget tree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: TextSelectionThemeData, child: impl IntoWidget<K>) -> TextSelectionTheme {
         let mut default_selection_style = DefaultSelectionStyle::new(child);
         if let Some(selection_color) = data.selection_color {

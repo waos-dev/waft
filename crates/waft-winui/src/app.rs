@@ -255,6 +255,7 @@ impl FluentApp {
     }
 
     /// Dart `WidgetsApp(home:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn home<K>(mut self, home: impl waft_widgets::IntoWidget<K>) -> FluentApp {
         self.home = Some(home.into_widget());
         self

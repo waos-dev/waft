@@ -94,6 +94,7 @@ pub struct OutlinedButtonTheme {
 
 impl OutlinedButtonTheme {
     /// Create a [`OutlinedButtonTheme`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: OutlinedButtonThemeData, child: impl IntoWidget<K>) -> OutlinedButtonTheme {
         OutlinedButtonTheme {
             key: None,

@@ -300,6 +300,7 @@ pub struct FlyoutTarget {
 
 impl FlyoutTarget {
     /// Wraps an opening target without taking ownership of its flyout content.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Self {
         Self {
             child: child.into_widget(),

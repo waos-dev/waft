@@ -327,6 +327,7 @@ pub struct ScrollbarTheme {
 impl ScrollbarTheme {
     /// Constructs a scrollbar theme that configures all descendant `Scrollbar`
     /// widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: ScrollbarThemeData, child: impl IntoWidget<K>) -> ScrollbarTheme {
         ScrollbarTheme {
             key: None,

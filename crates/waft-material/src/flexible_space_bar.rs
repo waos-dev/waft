@@ -155,12 +155,14 @@ impl FlexibleSpaceBar {
     }
 
     /// Dart `FlexibleSpaceBar(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> FlexibleSpaceBar {
         self.title = Some(title.into_widget());
         self
     }
 
     /// Dart `FlexibleSpaceBar(background:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn background<K>(mut self, background: impl IntoWidget<K>) -> FlexibleSpaceBar {
         self.background = Some(background.into_widget());
         self
@@ -222,6 +224,7 @@ impl FlexibleSpaceBar {
     ///
     /// Dart's optional named arguments are the setters of the builder; `build` fills
     /// `min_extent` and `max_extent` from `current_extent` and `toolbar_opacity` with 1.0.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn create_settings<K>(
         current_extent: f64,
         child: impl IntoWidget<K>,
@@ -610,6 +613,7 @@ impl FlexibleSpaceBarSettings {
     ///
     /// Used by `Scaffold` and `SliverAppBar`. `child` must have a
     /// [`FlexibleSpaceBar`] widget in its tree for the settings to take affect.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         toolbar_opacity: f64,
         min_extent: f64,
@@ -686,6 +690,7 @@ pub(crate) struct FlexibleSpaceHeaderOpacity {
 }
 
 impl FlexibleSpaceHeaderOpacity {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(opacity: f64, child: impl IntoWidget<K>) -> FlexibleSpaceHeaderOpacity {
         FlexibleSpaceHeaderOpacity {
             opacity,

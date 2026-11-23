@@ -48,6 +48,7 @@ pub struct CupertinoFocusHalo {
 
 impl CupertinoFocusHalo {
     /// Creates a rectangular [`CupertinoFocusHalo`] around the child.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_rect<K>(child: impl IntoWidget<K>) -> CupertinoFocusHalo {
         CupertinoFocusHalo {
             key: None,
@@ -58,6 +59,7 @@ impl CupertinoFocusHalo {
     }
 
     /// Creates a rounded rectangular [`CupertinoFocusHalo`] around the child.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_rrect<K>(
         border_radius: BorderRadiusGeometry,
         child: impl IntoWidget<K>,
@@ -76,6 +78,7 @@ impl CupertinoFocusHalo {
     ///
     /// * `RSuperellipse` and [`RoundedSuperellipseBorder`] for more introduction on
     ///   the rounded superellipse shape.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_rounded_superellipse<K>(
         border_radius: BorderRadiusGeometry,
         child: impl IntoWidget<K>,

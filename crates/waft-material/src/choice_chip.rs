@@ -97,6 +97,7 @@ impl ChoiceChip {
     /// Create a chip.
     ///
     /// The [`elevation`](Self::elevation) and [`press_elevation`](Self::press_elevation) must be null or non-negative. Dart's named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(label: impl IntoWidget<K>, selected: bool) -> ChoiceChip {
         ChoiceChip {
             key: None,
@@ -138,6 +139,7 @@ impl ChoiceChip {
     /// Create an elevated chip.
     ///
     /// The [`elevation`](Self::elevation) and [`press_elevation`](Self::press_elevation) must be null or non-negative. Dart's named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn elevated<K>(label: impl IntoWidget<K>, selected: bool) -> ChoiceChip {
         ChoiceChip {
             chip_variant: ChipVariant::Elevated,

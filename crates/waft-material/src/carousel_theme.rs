@@ -191,6 +191,7 @@ pub struct CarouselViewTheme {
 impl CarouselViewTheme {
     /// Creates a theme that controls the configurations for [`CarouselView`](crate::CarouselView)
     /// in its widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: CarouselViewThemeData, child: impl IntoWidget<K>) -> CarouselViewTheme {
         CarouselViewTheme {
             key: None,

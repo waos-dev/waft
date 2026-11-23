@@ -3,14 +3,15 @@
 use std::any::{Any, TypeId};
 use std::fmt;
 use std::marker::PhantomData;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_foundation::{App, Handle};
 
 use crate::framework::{
-    AnyElement, ComponentElement, ComponentElementData, Element, ElementData, IntoWidget, KeyRef,
-    Notification, NotificationNode, NotificationTarget, ProxyElement, Slot, Widget, WidgetKind,
-    WidgetRef, component_element_overrides, downcast_widget,
+    AnyElement, ComponentElement, ComponentElementData, CreationLocation, Element, ElementData,
+    IntoWidget, KeyRef, Notification, NotificationNode, NotificationTarget, ProxyElement, Slot,
+    Widget, WidgetKind, WidgetRef, component_element_overrides, downcast_widget,
 };
 
 /// Signature for [`NotificationListener::on_notification`].
@@ -47,15 +48,19 @@ pub struct NotificationListener<T: ?Sized + NotificationTarget> {
     /// since notifications bubble up the tree). For widgets that depend on layout, consider
     /// a `LayoutBuilder` instead.
     pub on_notification: Option<NotificationListenerCallback<T>>,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl<T: ?Sized + NotificationTarget> NotificationListener<T> {
     /// Creates a widget that listens for notifications.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> NotificationListener<T> {
         NotificationListener {
             key: None,
             child: child.into_widget(),
             on_notification: None,
+            created: None,
         }
     }
 
@@ -76,7 +81,9 @@ impl<T: ?Sized + NotificationTarget> NotificationListener<T> {
 
     /// The tree node: a `NotificationListener` is its own tree node, which [`IntoWidget`]
     /// converts.
-    pub fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn into_widget(mut self) -> WidgetRef {
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 }
@@ -93,6 +100,14 @@ impl<T: ?Sized + NotificationTarget> fmt::Debug for NotificationListener<T> {
 impl<T: ?Sized + NotificationTarget> Widget for NotificationListener<T> {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {

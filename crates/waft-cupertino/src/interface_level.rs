@@ -48,6 +48,7 @@ pub struct CupertinoUserInterfaceLevel {
 impl CupertinoUserInterfaceLevel {
     /// Creates a [`CupertinoUserInterfaceLevel`] to change descendant Cupertino widget's
     /// visual level.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         data: CupertinoUserInterfaceLevelData,
         child: impl IntoWidget<K>,

@@ -115,6 +115,7 @@ pub struct MenuBarTheme {
 impl MenuBarTheme {
     /// Creates a theme that controls the configurations for `MenuBar` and
     /// `MenuItemButton` in its widget subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: MenuBarThemeData, child: impl IntoWidget<K>) -> MenuBarTheme {
         MenuBarTheme {
             key: None,

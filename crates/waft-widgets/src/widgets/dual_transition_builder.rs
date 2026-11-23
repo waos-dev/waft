@@ -147,6 +147,7 @@ impl DualTransitionBuilder {
     }
 
     /// Dart `DualTransitionBuilder(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> DualTransitionBuilder {
         self.child = Some(child.into_widget());
         self

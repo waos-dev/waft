@@ -386,6 +386,7 @@ pub struct DataTableTheme {
 
 impl DataTableTheme {
     /// Constructs a data table theme that configures all descendant `DataTable` widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: DataTableThemeData, child: impl IntoWidget<K>) -> DataTableTheme {
         DataTableTheme {
             key: None,

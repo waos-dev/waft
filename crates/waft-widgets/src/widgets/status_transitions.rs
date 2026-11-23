@@ -34,6 +34,7 @@ pub struct StatusTransitionKind;
 pub struct StatusTransition<W: StatusTransitionWidget>(pub W);
 
 impl<W: StatusTransitionWidget> IntoWidget<StatusTransitionKind> for W {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         Rc::new(Stateful(
             StatusTransition(self),

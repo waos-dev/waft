@@ -323,6 +323,7 @@ pub struct SwitchTheme {
 
 impl SwitchTheme {
     /// Constructs a switch theme that configures all descendant `Switch` widgets.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(data: SwitchThemeData, child: impl IntoWidget<K>) -> SwitchTheme {
         SwitchTheme {
             key: None,

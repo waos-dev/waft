@@ -142,6 +142,7 @@ pub struct Button {
 
 impl Button {
     /// Creates a button with content and a Click callback.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(content: impl IntoWidget<K>, click: Listener) -> Button {
         Button {
             content: content.into_widget(),

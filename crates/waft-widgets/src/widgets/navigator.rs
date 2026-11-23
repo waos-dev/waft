@@ -1505,6 +1505,7 @@ pub struct HeroControllerScope {
 
 impl HeroControllerScope {
     /// Creates a widget to host the input `controller`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         controller: Ref<HeroController>,
         child: impl IntoWidget<K>,
@@ -1517,6 +1518,7 @@ impl HeroControllerScope {
     }
 
     /// Creates a widget to prevent the subtree from receiving the hero controller above.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn none<K>(child: impl IntoWidget<K>) -> HeroControllerScope {
         HeroControllerScope {
             key: None,

@@ -149,6 +149,7 @@ impl MenuFlyoutItem {
     }
 
     /// Sets the widget displayed by the template’s icon presenter.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> Self {
         self.icon = Some(icon.into_widget());
         self

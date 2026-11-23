@@ -363,6 +363,7 @@ impl ReorderableList {
     }
 
     /// Dart `ReorderableList(prototypeItem:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prototype_item<K>(mut self, prototype_item: impl IntoWidget<K>) -> ReorderableList {
         self.prototype_item = Some(prototype_item.into_widget());
         self
@@ -892,6 +893,7 @@ impl SliverReorderableList {
     }
 
     /// Dart `SliverReorderableList(prototypeItem:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn prototype_item<K>(
         mut self,
         prototype_item: impl IntoWidget<K>,
@@ -1971,6 +1973,7 @@ impl ReorderableDragStartListener {
     /// child widget.
     ///
     /// This is most commonly used to wrap part of a list item like a drag handle.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, index: i32) -> ReorderableDragStartListener {
         ReorderableDragStartListener {
             key: None,
@@ -2083,6 +2086,7 @@ impl ReorderableDelayedDragStartListener {
     /// widget.
     ///
     /// This is most commonly used to wrap an entire list item in a reorderable list.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>, index: i32) -> ReorderableDelayedDragStartListener {
         ReorderableDelayedDragStartListener {
             listener: ReorderableDragStartListener::new(child, index),

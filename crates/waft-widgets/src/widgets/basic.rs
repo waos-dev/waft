@@ -96,6 +96,7 @@ pub struct Directionality {
 
 impl Directionality {
     /// Creates a `Directionality`; Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(text_direction: TextDirection, child: impl IntoWidget<K>) -> Directionality {
         Directionality {
             key: None,
@@ -221,6 +222,7 @@ impl CompositedTransformTarget {
     }
 
     /// Dart `CompositedTransformTarget(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> CompositedTransformTarget {
         self.child = Some(child.into_widget());
         self
@@ -352,6 +354,7 @@ impl CompositedTransformFollower {
     }
 
     /// Dart `CompositedTransformFollower(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> CompositedTransformFollower {
         self.child = Some(child.into_widget());
         self
@@ -516,6 +519,7 @@ impl Opacity {
     }
 
     /// Dart `Opacity(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Opacity {
         self.child = Some(child.into_widget());
         self
@@ -666,6 +670,7 @@ impl CustomPaint {
     }
 
     /// Dart `CustomPaint(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> CustomPaint {
         self.child = Some(child.into_widget());
         self
@@ -837,6 +842,7 @@ impl ClipRect {
     }
 
     /// Dart `ClipRect(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ClipRect {
         self.child = Some(child.into_widget());
         self
@@ -994,6 +1000,7 @@ impl ClipRRect {
     }
 
     /// Dart `ClipRRect(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ClipRRect {
         self.child = Some(child.into_widget());
         self
@@ -1161,6 +1168,7 @@ impl ClipRSuperellipse {
     }
 
     /// Dart `ClipRSuperellipse(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ClipRSuperellipse {
         self.child = Some(child.into_widget());
         self
@@ -1304,6 +1312,7 @@ impl ClipOval {
     }
 
     /// Dart `ClipOval(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ClipOval {
         self.child = Some(child.into_widget());
         self
@@ -1451,6 +1460,7 @@ impl ClipPath {
     }
 
     /// Dart `ClipPath(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ClipPath {
         self.child = Some(child.into_widget());
         self
@@ -1550,6 +1560,7 @@ impl ClipPathShape {
     }
 
     /// Dart `ClipPath.shape(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ClipPathShape {
         self.child = Some(child.into_widget());
         self
@@ -1560,6 +1571,7 @@ impl ClipPathShape {
 pub struct ClipPathShapeKind;
 
 impl IntoWidget<ClipPathShapeKind> for ClipPathShape {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         let ClipPathShape {
             key,
@@ -1684,6 +1696,7 @@ impl PhysicalModel {
     }
 
     /// Dart `PhysicalModel(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> PhysicalModel {
         self.child = Some(child.into_widget());
         self
@@ -1838,6 +1851,7 @@ impl PhysicalShape {
     }
 
     /// Dart `PhysicalShape(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> PhysicalShape {
         self.child = Some(child.into_widget());
         self
@@ -2115,6 +2129,7 @@ impl Transform {
     }
 
     /// Dart `Transform(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Transform {
         self.child = Some(child.into_widget());
         self
@@ -2267,6 +2282,7 @@ impl FittedBox {
     }
 
     /// Dart `FittedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> FittedBox {
         self.child = Some(child.into_widget());
         self
@@ -2380,6 +2396,7 @@ impl FractionalTranslation {
     }
 
     /// Dart `FractionalTranslation(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> FractionalTranslation {
         self.child = Some(child.into_widget());
         self
@@ -2488,6 +2505,7 @@ impl Padding {
     }
 
     /// Dart `Padding(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Padding {
         self.child = Some(child.into_widget());
         self
@@ -2625,6 +2643,7 @@ impl Align {
     }
 
     /// Dart `Align(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Align {
         self.child = Some(child.into_widget());
         self
@@ -2797,6 +2816,7 @@ impl Center {
     }
 
     /// Dart `Center(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Center {
         self.child = Some(child.into_widget());
         self
@@ -2898,6 +2918,7 @@ impl CustomSingleChildLayout {
     }
 
     /// Dart `CustomSingleChildLayout(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> CustomSingleChildLayout {
         self.child = Some(child.into_widget());
         self
@@ -2951,6 +2972,7 @@ pub struct LayoutId {
 
 impl LayoutId {
     /// Marks a child with a layout identifier.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(id: ChildLayoutId, child: impl IntoWidget<K>) -> LayoutId {
         LayoutId {
             key: KeyRef::Local(Rc::clone(&id)),
@@ -3161,6 +3183,7 @@ impl SizedBox {
     }
 
     /// Dart `SizedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SizedBox {
         self.child = Some(child.into_widget());
         self
@@ -3350,6 +3373,7 @@ impl ConstrainedBox {
     }
 
     /// Dart `ConstrainedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ConstrainedBox {
         self.child = Some(child.into_widget());
         self
@@ -3511,6 +3535,7 @@ impl ConstraintsTransformBox {
     }
 
     /// Dart `ConstraintsTransformBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ConstraintsTransformBox {
         self.child = Some(child.into_widget());
         self
@@ -3765,6 +3790,7 @@ impl UnconstrainedBox {
     }
 
     /// Dart `UnconstrainedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> UnconstrainedBox {
         self.child = Some(child.into_widget());
         self
@@ -3904,6 +3930,7 @@ impl FractionallySizedBox {
     }
 
     /// Dart `FractionallySizedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> FractionallySizedBox {
         self.child = Some(child.into_widget());
         self
@@ -4027,6 +4054,7 @@ impl LimitedBox {
     }
 
     /// Dart `LimitedBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> LimitedBox {
         self.child = Some(child.into_widget());
         self
@@ -4185,6 +4213,7 @@ impl OverflowBox {
     }
 
     /// Dart `OverflowBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> OverflowBox {
         self.child = Some(child.into_widget());
         self
@@ -4319,6 +4348,7 @@ impl SizedOverflowBox {
     }
 
     /// Dart `SizedOverflowBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SizedOverflowBox {
         self.child = Some(child.into_widget());
         self
@@ -4427,6 +4457,7 @@ impl Offstage {
     }
 
     /// Dart `Offstage(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Offstage {
         self.child = Some(child.into_widget());
         self
@@ -4550,6 +4581,7 @@ impl AspectRatio {
     }
 
     /// Dart `AspectRatio(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AspectRatio {
         self.child = Some(child.into_widget());
         self
@@ -4677,6 +4709,7 @@ impl IntrinsicWidth {
     }
 
     /// Dart `IntrinsicWidth(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> IntrinsicWidth {
         self.child = Some(child.into_widget());
         self
@@ -4780,6 +4813,7 @@ impl IntrinsicHeight {
     }
 
     /// Dart `IntrinsicHeight(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> IntrinsicHeight {
         self.child = Some(child.into_widget());
         self
@@ -4848,6 +4882,7 @@ impl Baseline {
     }
 
     /// Dart `Baseline(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Baseline {
         self.child = Some(child.into_widget());
         self
@@ -4924,6 +4959,7 @@ impl SliverToBoxAdapter {
     }
 
     /// Dart `SliverToBoxAdapter(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SliverToBoxAdapter {
         self.child = Some(child.into_widget());
         self
@@ -4988,6 +5024,7 @@ impl SliverPadding {
     }
 
     /// Dart `SliverPadding(sliver:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn sliver<K>(mut self, sliver: impl IntoWidget<K>) -> SliverPadding {
         self.sliver = Some(sliver.into_widget());
         self
@@ -5171,6 +5208,7 @@ impl Listener {
     }
 
     /// Dart `Listener(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Listener {
         self.child = Some(child.into_widget());
         self
@@ -5503,6 +5541,7 @@ impl MouseRegion {
     }
 
     /// Dart `MouseRegion(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> MouseRegion {
         self.child = Some(child.into_widget());
         self
@@ -5688,6 +5727,7 @@ impl RepaintBoundary {
     }
 
     /// Dart `RepaintBoundary(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> RepaintBoundary {
         self.child = Some(child.into_widget());
         self
@@ -5759,6 +5799,7 @@ impl IgnorePointer {
     }
 
     /// Dart `IgnorePointer(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> IgnorePointer {
         self.child = Some(child.into_widget());
         self
@@ -5854,6 +5895,7 @@ impl AbsorbPointer {
     }
 
     /// Dart `AbsorbPointer(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> AbsorbPointer {
         self.child = Some(child.into_widget());
         self
@@ -5944,6 +5986,7 @@ impl MetaData {
     }
 
     /// Dart `MetaData(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> MetaData {
         self.child = Some(child.into_widget());
         self
@@ -6015,6 +6058,7 @@ pub struct BackdropGroup {
 
 impl BackdropGroup {
     /// Creates a group with a fresh [`BackdropKey`]; Dart's named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> BackdropGroup {
         BackdropGroup {
             key: None,
@@ -6139,6 +6183,7 @@ impl BackdropFilter {
     }
 
     /// Dart `BackdropFilter(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> BackdropFilter {
         self.child = Some(child.into_widget());
         self
@@ -6345,6 +6390,7 @@ impl Semantics {
     }
 
     /// Dart `Semantics(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Semantics {
         self.child = Some(child.into_widget());
         self
@@ -6960,6 +7006,7 @@ impl MergeSemantics {
     }
 
     /// Dart `MergeSemantics(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> MergeSemantics {
         self.child = Some(child.into_widget());
         self
@@ -7026,6 +7073,7 @@ impl BlockSemantics {
     }
 
     /// Dart `BlockSemantics(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> BlockSemantics {
         self.child = Some(child.into_widget());
         self
@@ -7111,6 +7159,7 @@ impl ExcludeSemantics {
     }
 
     /// Dart `ExcludeSemantics(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ExcludeSemantics {
         self.child = Some(child.into_widget());
         self
@@ -7192,6 +7241,7 @@ impl IndexedSemantics {
     }
 
     /// Dart `IndexedSemantics(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> IndexedSemantics {
         self.child = Some(child.into_widget());
         self
@@ -7240,6 +7290,7 @@ impl KeyedSubtree {
     ///
     /// This is useful when you want to preserve the state of a widget when it moves around in
     /// the widget tree by associating it with a consistent key.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> KeyedSubtree {
         KeyedSubtree {
             key: None,
@@ -7591,6 +7642,7 @@ impl ColoredBox {
     }
 
     /// Dart `ColoredBox(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> ColoredBox {
         self.child = Some(child.into_widget());
         self
@@ -7937,6 +7989,7 @@ pub struct Positioned {
 impl Positioned {
     /// Creates a widget that controls where a child of a [`Stack`] is positioned; Dart's
     /// optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Positioned {
         Positioned {
             key: None,
@@ -7955,6 +8008,7 @@ impl Positioned {
     /// This sets the [`left`](Self::left), [`top`](Self::top), [`width`](Self::width), and
     /// [`height`](Self::height) properties from the given `Rect`. The [`right`](Self::right)
     /// and [`bottom`](Self::bottom) properties are set to `None`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_rect<K>(rect: Rect, child: impl IntoWidget<K>) -> Positioned {
         Positioned {
             key: None,
@@ -7973,6 +8027,7 @@ impl Positioned {
     /// This sets the [`left`](Self::left), [`top`](Self::top), [`right`](Self::right), and
     /// [`bottom`](Self::bottom) properties from the given [`RelativeRect`]. The
     /// [`height`](Self::height) and [`width`](Self::width) properties are set to `None`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_relative_rect<K>(rect: RelativeRect, child: impl IntoWidget<K>) -> Positioned {
         Positioned {
             key: None,
@@ -7989,6 +8044,7 @@ impl Positioned {
     /// Creates a `Positioned` object with [`left`](Self::left), [`top`](Self::top),
     /// [`right`](Self::right), and [`bottom`](Self::bottom) set to 0.0 unless a value for them
     /// is passed.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn fill<K>(child: impl IntoWidget<K>) -> Positioned {
         Positioned {
             key: None,
@@ -8013,6 +8069,7 @@ impl Positioned {
     ///
     /// Dart `Positioned.directional(textDirection:, start:, end:, child:)`; `start` and `end`
     /// are arguments rather than setters because resolving them needs the text direction.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn directional<K>(
         text_direction: TextDirection,
         start: Option<f64>,
@@ -8337,6 +8394,7 @@ pub struct PositionedDirectional {
 impl PositionedDirectional {
     /// Creates a widget that controls where a child of a [`Stack`] is positioned; Dart's
     /// optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> PositionedDirectional {
         PositionedDirectional {
             key: None,
@@ -9204,6 +9262,7 @@ pub struct Flexible {
 impl Flexible {
     /// Creates a widget that controls how a child of a [`Row`], [`Column`], or [`Flex`] flexes;
     /// Dart's optional named arguments are the setters.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Flexible {
         Flexible {
             key: None,
@@ -9315,6 +9374,7 @@ pub struct Expanded {
 impl Expanded {
     /// Creates a widget that expands a child of a [`Row`], [`Column`], or [`Flex`] so that the
     /// child fills the available space along the flex widget's main axis.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> Expanded {
         Expanded {
             key: None,

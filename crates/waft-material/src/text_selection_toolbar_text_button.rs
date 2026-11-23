@@ -88,6 +88,7 @@ impl TextSelectionToolbarTextButton {
     const DEFAULT_BACKGROUND_COLOR_TRANSPARENT: Color = Color::new(0x00000000);
 
     /// Creates an instance of TextSelectionToolbarTextButton.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         child: impl IntoWidget<K>,
         padding: impl Into<EdgeInsetsGeometry>,
@@ -108,6 +109,7 @@ impl TextSelectionToolbarTextButton {
     }
 
     /// Dart `TextSelectionToolbarTextButton.copyWith(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> TextSelectionToolbarTextButton {
         self.child = child.into_widget();
         self

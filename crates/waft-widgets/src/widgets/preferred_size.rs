@@ -146,6 +146,7 @@ pub struct PreferredSizeWidgetRef {
 
 impl PreferredSizeWidgetRef {
     /// Erases `widget`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K, W: PreferredSizeWidget + IntoWidget<K>>(widget: W) -> PreferredSizeWidgetRef {
         PreferredSizeWidgetRef {
             widget: widget.into_widget(),
@@ -178,6 +179,7 @@ impl Debug for PreferredSizeWidgetRef {
 pub struct PreferredSizeWidgetRefKind;
 
 impl IntoWidget<PreferredSizeWidgetRefKind> for PreferredSizeWidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         self.widget
     }
@@ -213,6 +215,7 @@ pub struct PreferredSize {
 
 impl PreferredSize {
     /// Creates a widget that has a preferred size that the parent can query.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(preferred_size: impl Into<AnySize>, child: impl IntoWidget<K>) -> PreferredSize {
         PreferredSize {
             key: None,

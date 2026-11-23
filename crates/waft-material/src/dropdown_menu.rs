@@ -156,18 +156,21 @@ impl<T> DropdownMenuEntry<T> {
     }
 
     /// Dart `DropdownMenuEntry(labelWidget:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn label_widget<K>(mut self, label_widget: impl IntoWidget<K>) -> DropdownMenuEntry<T> {
         self.label_widget = Some(label_widget.into_widget());
         self
     }
 
     /// Dart `DropdownMenuEntry(leadingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading_icon<K>(mut self, leading_icon: impl IntoWidget<K>) -> DropdownMenuEntry<T> {
         self.leading_icon = Some(leading_icon.into_widget());
         self
     }
 
     /// Dart `DropdownMenuEntry(trailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing_icon<K>(mut self, trailing_icon: impl IntoWidget<K>) -> DropdownMenuEntry<T> {
         self.trailing_icon = Some(trailing_icon.into_widget());
         self
@@ -673,12 +676,14 @@ impl<T: Clone + PartialEq + 'static> DropdownMenu<T> {
     }
 
     /// Dart `DropdownMenu(leadingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn leading_icon<K>(mut self, leading_icon: impl IntoWidget<K>) -> DropdownMenu<T> {
         self.leading_icon = Some(leading_icon.into_widget());
         self
     }
 
     /// Dart `DropdownMenu(trailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn trailing_icon<K>(mut self, trailing_icon: impl IntoWidget<K>) -> DropdownMenu<T> {
         self.trailing_icon = Some(trailing_icon.into_widget());
         self
@@ -700,6 +705,7 @@ impl<T: Clone + PartialEq + 'static> DropdownMenu<T> {
     }
 
     /// Dart `DropdownMenu(label:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn label<K>(mut self, label: impl IntoWidget<K>) -> DropdownMenu<T> {
         self.label = Some(label.into_widget());
         self
@@ -724,6 +730,7 @@ impl<T: Clone + PartialEq + 'static> DropdownMenu<T> {
     }
 
     /// Dart `DropdownMenu(selectedTrailingIcon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn selected_trailing_icon<K>(
         mut self,
         selected_trailing_icon: impl IntoWidget<K>,

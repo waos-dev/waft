@@ -295,6 +295,7 @@ impl Dialog {
     }
 
     /// Dart `Dialog(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Dialog {
         self.child = Some(child.into_widget());
         self
@@ -768,6 +769,7 @@ impl AlertDialog {
     }
 
     /// Dart `AlertDialog(icon:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon<K>(mut self, icon: impl IntoWidget<K>) -> AlertDialog {
         self.icon = Some(icon.into_widget());
         self
@@ -787,6 +789,7 @@ impl AlertDialog {
     }
 
     /// Dart `AlertDialog(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> AlertDialog {
         self.title = Some(title.into_widget());
         self
@@ -806,6 +809,7 @@ impl AlertDialog {
     }
 
     /// Dart `AlertDialog(content:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn content<K>(mut self, content: impl IntoWidget<K>) -> AlertDialog {
         self.content = Some(content.into_widget());
         self
@@ -1368,6 +1372,7 @@ impl SimpleDialogOption {
     }
 
     /// Dart `SimpleDialogOption(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> SimpleDialogOption {
         self.child = Some(child.into_widget());
         self
@@ -1533,6 +1538,7 @@ impl SimpleDialog {
     }
 
     /// Dart `SimpleDialog(title:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn title<K>(mut self, title: impl IntoWidget<K>) -> SimpleDialog {
         self.title = Some(title.into_widget());
         self

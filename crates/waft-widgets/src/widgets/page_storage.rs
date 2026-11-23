@@ -275,6 +275,7 @@ pub struct PageStorage {
 
 impl PageStorage {
     /// Creates a widget that provides a storage bucket for its descendants.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(bucket: Ref<PageStorageBucket>, child: impl IntoWidget<K>) -> PageStorage {
         PageStorage {
             key: None,

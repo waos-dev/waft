@@ -133,6 +133,7 @@ impl InfoBadge {
     }
 
     /// Sets the XAML `IconSource`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn icon_source<K>(mut self, icon: impl IntoWidget<K>) -> Self {
         self.icon_source = Some(icon.into_widget());
         self
@@ -295,6 +296,7 @@ struct SquareWhenTallerThanWide {
 }
 
 impl SquareWhenTallerThanWide {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn new<K>(child: impl IntoWidget<K>) -> Self {
         Self {
             key: None,

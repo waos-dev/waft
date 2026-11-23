@@ -6,6 +6,7 @@
 
 use std::any::{Any, TypeId};
 use std::fmt;
+use std::panic::Location;
 use std::rc::Rc;
 
 use waft_embedder::{Offset, Size, TextBaseline};
@@ -20,9 +21,9 @@ use waft_rendering::{
 use waft_scheduler::{FrameCallback, SchedulerBinding, SchedulerPhase};
 
 use crate::framework::{
-    AnyElement, BuildContext, BuildScope, BuildScopeCallback, Element, ElementData, KeyRef,
-    RenderObjectElement, RenderObjectElementData, RenderObjectElementWidget, RenderObjectWidget,
-    Slot, Widget, WidgetKind, WidgetRef, downcast_widget,
+    AnyElement, BuildContext, BuildScope, BuildScopeCallback, CreationLocation, Element,
+    ElementData, KeyRef, RenderObjectElement, RenderObjectElementData, RenderObjectElementWidget,
+    RenderObjectWidget, Slot, Widget, WidgetKind, WidgetRef, downcast_widget,
 };
 use crate::view::View;
 
@@ -66,6 +67,8 @@ pub struct LayoutBuilder {
     ///
     /// The builder must not return null.
     pub builder: LayoutWidgetBuilder,
+    /// Where this widget was made, in a debug build; see [`Widget::creation_location`].
+    created: Option<CreationLocation>,
 }
 
 impl LayoutBuilder {
@@ -76,6 +79,7 @@ impl LayoutBuilder {
         LayoutBuilder {
             key: None,
             builder: Rc::new(builder),
+            created: None,
         }
     }
 
@@ -86,7 +90,9 @@ impl LayoutBuilder {
     }
 
     /// The tree node: a `LayoutBuilder` is its own tree node, which [`IntoWidget`] converts.
-    pub fn into_widget(self) -> WidgetRef {
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn into_widget(mut self) -> WidgetRef {
+        self.created = Some(CreationLocation::of_caller());
         Rc::new(self)
     }
 
@@ -116,6 +122,14 @@ impl fmt::Debug for LayoutBuilder {
 impl Widget for LayoutBuilder {
     fn key(&self) -> Option<&KeyRef> {
         self.key.as_ref()
+    }
+
+    fn creation_location(&self) -> Option<&'static Location<'static>> {
+        self.created.and_then(CreationLocation::location)
+    }
+
+    fn record_creation_location(&mut self, location: CreationLocation) {
+        self.created = Some(location);
     }
 
     fn create_element(&self, app: &mut App, this: WidgetRef) -> AnyElement {

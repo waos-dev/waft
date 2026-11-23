@@ -620,6 +620,7 @@ impl Localizations {
     }
 
     /// The widget below this widget in the tree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> Localizations {
         self.child = Some(child.into_widget());
         self
@@ -760,6 +761,7 @@ impl LocalizationsOverride {
     }
 
     /// Dart `Localizations.override(child:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn child<K>(mut self, child: impl IntoWidget<K>) -> LocalizationsOverride {
         self.child = Some(child.into_widget());
         self
@@ -770,6 +772,7 @@ impl LocalizationsOverride {
 pub struct LocalizationsOverrideKind;
 
 impl IntoWidget<LocalizationsOverrideKind> for LocalizationsOverride {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn into_widget(self) -> WidgetRef {
         Localizations {
             key: self.key,

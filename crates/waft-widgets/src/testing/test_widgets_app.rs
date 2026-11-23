@@ -125,6 +125,7 @@ impl TestWidgetsApp {
     }
 
     /// Dart `TestWidgetsApp(home:)`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn home<K>(mut self, home: impl IntoWidget<K>) -> TestWidgetsApp {
         self.home = Some(home.into_widget());
         self

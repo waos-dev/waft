@@ -70,6 +70,7 @@ pub struct SafeArea {
 
 impl SafeArea {
     /// Creates a widget that avoids operating system interfaces.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> SafeArea {
         SafeArea {
             key: None,
@@ -208,6 +209,7 @@ pub struct SliverSafeArea {
 
 impl SliverSafeArea {
     /// Creates a sliver that avoids operating system interfaces.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(sliver: impl IntoWidget<K>) -> SliverSafeArea {
         SliverSafeArea {
             key: None,

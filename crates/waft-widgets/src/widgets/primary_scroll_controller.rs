@@ -97,6 +97,7 @@ pub struct PrimaryScrollController {
 
 impl PrimaryScrollController {
     /// Creates a widget that associates a `ScrollController` with a subtree.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(
         controller: ScrollControllerRef,
         child: impl IntoWidget<K>,
@@ -111,6 +112,7 @@ impl PrimaryScrollController {
     }
 
     /// Creates a subtree without an associated `ScrollController`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn none<K>(child: impl IntoWidget<K>) -> PrimaryScrollController {
         PrimaryScrollController {
             key: None,

@@ -621,6 +621,7 @@ impl SnackBar {
     /// Creates a snack bar; Dart's optional arguments are the setters.
     ///
     /// The [`elevation`](Self::elevation) must be null or non-negative.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(content: impl IntoWidget<K>) -> SnackBar {
         SnackBar {
             key: None,

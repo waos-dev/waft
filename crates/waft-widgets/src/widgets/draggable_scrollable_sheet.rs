@@ -1580,6 +1580,7 @@ pub struct DraggableScrollableActuator {
 impl DraggableScrollableActuator {
     /// Creates a widget that can notify descendent [`DraggableScrollableSheet`]s
     /// to reset to their initial position.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn new<K>(child: impl IntoWidget<K>) -> DraggableScrollableActuator {
         DraggableScrollableActuator {
             key: None,
