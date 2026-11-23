@@ -3,6 +3,7 @@
 //! here that id is the object's arena handle (`inspector-<bits>`), which names it while it lives
 //! and nothing after, where Dart keeps a table of ids in object groups.
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use base64::Engine;
@@ -11,7 +12,9 @@ use waft_foundation::{
     App, DiagnosticLevel, DiagnosticsJsonMap, DiagnosticsNode, DiagnosticsSerializationDelegate,
     HandleId, ServiceExtensions, Task,
 };
-use waft_rendering::{AnyRenderObject, RendererBinding, screenshot_picture, subtree_bounds};
+use waft_rendering::{
+    AnyRenderObject, RenderParagraph, RendererBinding, screenshot_picture, subtree_bounds,
+};
 
 use crate::{AnyElement, ElementFacts, WidgetsBinding};
 
@@ -60,21 +63,47 @@ fn get_root_widget(app: &mut App, params: ServiceExtensionParams) -> Task<Servic
 /// `ext.waft.inspector.getRootWidgetTree`: the element tree from the root as the inspector's
 /// JSON, `{"result": tree}`, every node's `valueId` its inspector id. With `isSummaryTree`, the
 /// widgets the app's own code made, which is every widget until creation locations are tracked,
-/// as in Dart when they are not. Dart's `withPreviews` and `fullDetails=false` are not ported.
+/// as in Dart when they are not; with `withPreviews`, each element that shows a paragraph has its
+/// text as `textPreview`. Dart's `fullDetails=false` is not ported.
 fn get_root_widget_tree(
     app: &mut App,
     params: ServiceExtensionParams,
 ) -> Task<ServiceExtensionResult> {
+    let Some(root) = WidgetsBinding::instance(app).root_element(app) else {
+        return Task::ready(Ok(serde_json::json!({ "result": null })));
+    };
+    let text_previews = match params.get("withPreviews") {
+        Some("true") => text_previews(app, root),
+        _ => HashMap::new(),
+    };
     let delegate = InspectorSerializationDelegate {
         group_name: params.get("groupName").map(str::to_owned),
         summary_tree: params.get("isSummaryTree") == Some("true"),
         subtree_depth: 1_000_000,
+        text_previews: Rc::new(text_previews),
         ..InspectorSerializationDelegate::default()
     };
-    let tree = WidgetsBinding::instance(app)
-        .root_element(app)
-        .map(|root| root.to_diagnostics_node(app, None).to_json_map(&delegate));
+    let tree = root.to_diagnostics_node(app, None).to_json_map(&delegate);
     Task::ready(Ok(serde_json::json!({ "result": tree })))
+}
+
+/// The text each element under `root` shows, by the element's id, where its render object is a
+/// paragraph: what Dart's `withPreviews` adds to a node as `textPreview`.
+fn text_previews(app: &App, root: AnyElement) -> HashMap<HandleId, String> {
+    let mut previews = HashMap::new();
+    add_text_previews(app, root, &mut previews);
+    previews
+}
+
+fn add_text_previews(app: &App, element: AnyElement, previews: &mut HashMap<HandleId, String>) {
+    let paragraph = element
+        .find_render_object(app)
+        .and_then(|object| object.downcast::<RenderParagraph>(app));
+    if let Some(paragraph) = paragraph {
+        let text = paragraph.text(app).to_plain_text(true, true);
+        previews.insert(element.id(), text);
+    }
+    element.visit_children(app, &mut |child| add_text_previews(app, child, previews));
 }
 
 /// `ext.waft.inspector.getDetailsSubtree`: the object `arg` names, with its properties, and its
@@ -122,6 +151,10 @@ pub struct InspectorSerializationDelegate {
     pub expand_property_values: bool,
     pub subtree_depth: i32,
     pub include_properties: bool,
+    /// The text of each element showing a paragraph, by its id, given as its node's
+    /// `textPreview`: Dart's `withPreviews`, gathered before the walk, which reads no render
+    /// object.
+    pub text_previews: Rc<HashMap<HandleId, String>>,
 }
 
 impl Default for InspectorSerializationDelegate {
@@ -134,6 +167,7 @@ impl Default for InspectorSerializationDelegate {
             expand_property_values: true,
             subtree_depth: 1,
             include_properties: false,
+            text_previews: Rc::default(),
         }
     }
 }
@@ -151,6 +185,9 @@ impl DiagnosticsSerializationDelegate for InspectorSerializationDelegate {
         if self.group_name.is_some() {
             let value_id = node.value_id().map(inspector_id);
             result.insert("valueId".to_owned(), value_id.into());
+        }
+        if let Some(preview) = node.value_id().and_then(|id| self.text_previews.get(&id)) {
+            result.insert("textPreview".to_owned(), preview.clone().into());
         }
         if let Some(facts) = element_facts(node)
             && let Some(location) = facts.creation_location
@@ -572,6 +609,40 @@ mod tests {
             .as_array()?
             .iter()
             .find_map(|child| find_node(child, description))
+    }
+
+    /// As DevTools and Flutter's MCP server ask for it, the summary tree with previews gives each
+    /// element that shows a paragraph its text, and the others none.
+    #[test]
+    fn the_root_tree_with_previews_gives_each_paragraph_its_text() {
+        let mut tester = WidgetTester::new();
+        tester.pump_widget(crate::Directionality::new(
+            waft_painting::TextDirection::Ltr,
+            Center::new().child(crate::Text::new("Programs")),
+        ));
+        tester.update(|app| {
+            let tree = answered_now(
+                app,
+                "ext.waft.inspector.getRootWidgetTree",
+                &[
+                    ("groupName", "g"),
+                    ("isSummaryTree", "true"),
+                    ("withPreviews", "true"),
+                ],
+            );
+            let root = &tree["result"];
+            let text = find_node(root, "Text").expect("the Text is in the tree");
+            assert_eq!(text["textPreview"], "Programs");
+            let center = find_node(root, "Center").expect("the Center is in the tree");
+            assert_eq!(center.get("textPreview"), None);
+            let without = answered_now(
+                app,
+                "ext.waft.inspector.getRootWidgetTree",
+                &[("groupName", "g"), ("isSummaryTree", "true")],
+            );
+            let text = find_node(&without["result"], "Text").expect("the Text is in the tree");
+            assert_eq!(text.get("textPreview"), None, "previews only when asked");
+        });
     }
 
     /// As DevTools reads it: the root tree names each element by an id, which the details of

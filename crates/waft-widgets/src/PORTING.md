@@ -446,7 +446,8 @@ Ported against: ed2132410ee94b5a590cb7f67cee7a6ea9101a60
   Reason: language — a snapshot node keeps no arena object, and the serialization delegate has no `App` to read one through.
   Affect: none.
 
-- Deferred: `getRootWidgetTree`'s `withPreviews` (a paragraph's `textPreview`) and `fullDetails=false` (`toJsonMapIterative`), `DisableWidgetInspectorScope`, and the inspector's other extensions (`getProperties`, `getChildren`, selection, layout explorer). Trigger: a client that asks for them.
+- Change: `getRootWidgetTree`'s `withPreviews` gathers each paragraph's text by element id in one walk before the JSON is written, since the serialization delegate reads no render object; Dart's callback reads it during the walk.
+- Deferred: `getRootWidgetTree`'s `fullDetails=false` (`toJsonMapIterative`), `DisableWidgetInspectorScope`, and the inspector's other extensions (`getProperties`, `getChildren`, selection, layout explorer). Trigger: a client that asks for them.
 
 - Change: a widget's creation location is the line that turned it into a `WidgetRef` (`into_widget`, `#[track_caller]` in a debug build), which a setter or constructor taking a child passes on from its own caller, where Dart's compiler records each constructor call (`--track-widget-creation`).
   Reason: language — Rust records a caller's location only through `#[track_caller]` functions, and every widget becomes a tree node through `into_widget`.
