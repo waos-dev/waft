@@ -62,21 +62,15 @@ enum Command {
     Doctor,
     /// List the devices `run -d` accepts.
     Devices,
-    /// Call a service extension of a running debug app, as `ext ext.waft.debugDumpApp`;
-    /// `ext --list` lists the apps running, and `ext ext.waft.listServiceExtensions` what one
-    /// serves.
+    /// A running debug app, through its service extensions: `list`, `dump`, `tree`,
+    /// `screenshot`, `call`.
     Ext {
-        /// The app to call, by name or process id, when more than one is running.
-        #[arg(long)]
+        /// The app, by its name, its identifier or its process id, when more than one is
+        /// running.
+        #[arg(long, global = true)]
         app: Option<String>,
-        /// List the apps running instead.
-        #[arg(long)]
-        list: bool,
-        /// The extension's name.
-        #[arg(required_unless_present = "list")]
-        name: Option<String>,
-        /// Its parameters, each `name=value`.
-        params: Vec<String>,
+        #[command(subcommand)]
+        command: ext::ExtCommand,
     },
     /// Build and launch on a device. Defaults to this desktop.
     Run {
@@ -157,15 +151,7 @@ fn run() -> Result<()> {
             devices::print(&devices::list()?);
             Ok(())
         }
-        Command::Ext {
-            app,
-            list,
-            name,
-            params,
-        } => match name {
-            Some(name) if !list => ext::call(app.as_deref(), &name, &params),
-            _ => ext::list(),
-        },
+        Command::Ext { app, command } => ext::run(app.as_deref(), command),
         Command::Run {
             device,
             release,
