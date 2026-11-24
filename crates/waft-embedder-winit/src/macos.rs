@@ -1,7 +1,7 @@
 //! What only macOS offers an app, beyond `Platform`: hearing the system ask the app to show itself
 //! again, a window that slides in, hiding the whole app, keeping the app from being throttled
-//! while it does work the user is waiting on, a composition layer placed in a
-//! `CALayer` the app holds, and a layer the system draws shown as a composition layer's content.
+//! while it does work the user is waiting on, the system's blur or glass behind a window's
+//! content, a composition layer placed in a `CALayer` the app holds, and a layer the system draws shown as a composition layer's content.
 //! Flutter's framework has no API for any of them, so they are this embedder's own, and an app
 //! reaches them through [`WinitPlatform::macos`](crate::WinitPlatform::macos).
 
@@ -19,9 +19,9 @@ use waft_embedder::{Offset, WindowRef};
 #[cfg(target_os = "macos")]
 use crate::os;
 use crate::os::System;
-#[cfg(target_os = "macos")]
-use crate::os::UserActivity;
 use crate::os::capabilities::{ApplicationControl, WindowMotion};
+#[cfg(target_os = "macos")]
+use crate::os::{MacosBackdrop, UserActivity};
 use crate::state::EmbedderState;
 use crate::system_requests::ReopenHandler;
 
@@ -55,6 +55,19 @@ impl MacOs {
         if !System::show_sliding_in(&*open.window, from, duration) {
             window.show();
         }
+    }
+
+    /// Puts `backdrop` behind `window`'s content, in place of the backdrop it had: AppKit's blur
+    /// of what lies behind the window, or its Liquid Glass, with AppKit's own options, rounded
+    /// to `corner_radius`. It shows where the app paints nothing, so the window's
+    /// [`background`](waft_embedder::WindowConfig::background) is `Transparent`, and the app
+    /// draws its own tint over it. `None` leaves the window with no backdrop. Main thread.
+    #[cfg(target_os = "macos")]
+    pub fn set_window_backdrop(&self, window: &WindowRef, backdrop: Option<&MacosBackdrop>) {
+        let Some(open) = self.state.windows().by_view(window.view().id()) else {
+            return;
+        };
+        os::set_backdrop(&*open.window, backdrop);
     }
 
     /// Hides every window of the app and hands the focus back to the app that had it, as the

@@ -2,21 +2,18 @@
 //! offered to the framework before the menu bar, presence on every Space, the glass or blur behind a see-through window, and, for a window that never
 //! becomes key, the pointer's moves.
 
-use objc2::rc::Retained;
-use objc2::runtime::{AnyClass, AnyObject};
-use objc2::{AnyThread, MainThreadMarker};
+use objc2::AnyThread;
+use objc2::runtime::AnyObject;
 use objc2_app_kit::{
-    NSAutoresizingMaskOptions, NSGlassEffectView, NSGlassEffectViewStyle, NSTrackingArea,
-    NSTrackingAreaOptions, NSView, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
-    NSVisualEffectState, NSVisualEffectView, NSWindowCollectionBehavior, NSWindowOrderingMode,
+    NSGlassEffectViewStyle, NSTrackingArea, NSTrackingAreaOptions, NSVisualEffectMaterial,
+    NSVisualEffectState, NSWindowCollectionBehavior,
 };
-use objc2_foundation::NSRect;
 use waft_embedder::{MacosTitleBar, TitleBarAction, WindowBackground, WindowConfig};
 use winit::event_loop::ActiveEventLoop;
 use winit::platform::macos::WindowAttributesMacOS;
 use winit::window::{Window, WindowAttributes};
 
-use super::{AppKit, menus, ns_view, ns_window, title_bar};
+use super::{AppKit, MacosBackdrop, menus, ns_view, ns_window, set_backdrop, title_bar};
 use crate::LinuxSettings;
 use crate::os::capabilities::WindowChrome;
 
@@ -62,7 +59,7 @@ impl WindowChrome for AppKit {
             config.background,
             WindowBackground::Blurred | WindowBackground::Glass
         ) {
-            put_effect_behind_content(window, config.background);
+            set_backdrop(window, Some(&backdrop_of(config.background)));
         }
     }
 }
@@ -109,46 +106,19 @@ fn join_all_spaces(window: &dyn Window) {
     );
 }
 
-/// Puts the blur or glass `background` behind winit's view, sized with the window.
-///
-/// The effect view goes behind winit's view, as a sibling in the window's frame view: a
-/// subview of winit's view would draw over its Metal layer. Liquid Glass renders as its flat
-/// material there rather than as glass, which needs the view inside the content view, where
-/// winit's Metal layer did not stay above it.
-fn put_effect_behind_content(window: &dyn Window, background: WindowBackground) {
-    if let Some(mtm) = MainThreadMarker::new()
-        && let Some(ns_window) = ns_window(window)
-        && let Some(content) = ns_window.contentView()
-        // SAFETY: the view hierarchy of a live window, read on the main thread.
-        && let Some(frame_view) = unsafe { content.superview() }
-    {
-        let effect = background_view(mtm, background, content.frame());
-        effect.setAutoresizingMask(
-            NSAutoresizingMaskOptions::ViewWidthSizable
-                | NSAutoresizingMaskOptions::ViewHeightSizable,
-        );
-        frame_view.addSubview_positioned_relativeTo(
-            &effect,
-            NSWindowOrderingMode::Below,
-            Some(&content),
-        );
+/// The backdrop a see-through window's `background` asks for: Liquid Glass where the system has
+/// it (macOS 26), else the blur, as a popover's.
+fn backdrop_of(background: WindowBackground) -> MacosBackdrop {
+    if background == WindowBackground::Glass && MacosBackdrop::has_glass() {
+        return MacosBackdrop::Glass {
+            style: NSGlassEffectViewStyle::Regular,
+            tint: None,
+            corner_radius: 0.0,
+        };
     }
-}
-
-/// Liquid Glass where the system has it (macOS 26), else the vibrancy blur.
-fn background_view(
-    mtm: MainThreadMarker,
-    background: WindowBackground,
-    frame: NSRect,
-) -> Retained<NSView> {
-    if background == WindowBackground::Glass && AnyClass::get(c"NSGlassEffectView").is_some() {
-        let glass = NSGlassEffectView::initWithFrame(mtm.alloc(), frame);
-        glass.setStyle(NSGlassEffectViewStyle::Regular);
-        return Retained::into_super(glass);
+    MacosBackdrop::VisualEffect {
+        material: NSVisualEffectMaterial::Popover,
+        state: NSVisualEffectState::Active,
+        corner_radius: 0.0,
     }
-    let blur = NSVisualEffectView::initWithFrame(mtm.alloc(), frame);
-    blur.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
-    blur.setState(NSVisualEffectState::Active);
-    blur.setMaterial(NSVisualEffectMaterial::Popover);
-    Retained::into_super(blur)
 }

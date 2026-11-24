@@ -43,9 +43,12 @@ mod trackpad_touches;
 mod user_activity;
 mod visibility;
 mod vsync_waiter;
+mod window_backdrop;
 mod window_chrome;
 
 pub use user_activity::UserActivity;
+pub use window_backdrop::MacosBackdrop;
+pub(crate) use window_backdrop::set_backdrop;
 
 use std::rc::Rc;
 use std::sync::Arc;
