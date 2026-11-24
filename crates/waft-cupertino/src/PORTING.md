@@ -23,6 +23,7 @@ Ported against: 4765bd950d31784578608cfbb0c723453cc49216
 - radio.rs → radio.dart
 - spell_check_suggestions_toolbar.rs → spell_check_suggestions_toolbar.dart
 - search_field.rs → search_field.dart
+- tab_view.rs → tab_view.dart
 
 ## show_* functions → their .dart files
 - Change: `show_cupertino_modal_popup`, `show_cupertino_dialog` and `show_cupertino_sheet` are builders — `ShowCupertinoModalPopup::new(builder)`, `ShowCupertinoDialog::new(builder)` and `ShowCupertinoSheet::new()`, with a setter per optional Dart argument — whose `show(app, context)` runs the body the free function ran.
@@ -172,6 +173,12 @@ Ported against: 4765bd950d31784578608cfbb0c723453cc49216
 - Change: `CupertinoTabBar` resolves its default border's dynamic colour itself, and a `border` given to it is painted in the colours it was built with.
   Reason: language — a `BorderSide` holds a plain `Color`, which carries no `CupertinoDynamicColor` (the colors.rs entry).
   Affect: the default border follows the brightness; a border built from a dynamic colour stays at the value it was built with.
+
+## tab_scaffold.rs → tab_scaffold.dart
+
+- Change: Dart's constructor assert that the `controller`'s index is within the tab bar's tabs runs when the scaffold's state is first given the widget, and each time it is given another.
+  Reason: language — a `CupertinoTabController` is read through the `App`, which a constructor does not have.
+  Affect: a scaffold whose controller's index is out of bounds panics in debug when it is mounted or rebuilt, not where it is constructed.
 
 ## Deferred
 - checkbox.rs: the deprecated `inactiveColor`, which nothing reads. Trigger: Flutter un-deprecating it.
