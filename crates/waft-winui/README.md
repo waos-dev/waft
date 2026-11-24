@@ -2,7 +2,7 @@
 
 WinUI controls and Fluent styling for [Waft](https://github.com/waos-dev/waft).
 
-The library ports control templates, theme resources and behavior from [Microsoft’s WinUI](https://github.com/microsoft/microsoft-ui-xaml). Waft handles rendering, layout and input.
+The library ports control templates, theme resources and behavior from [Microsoft’s WinUI](https://github.com/microsoft/microsoft-ui-xaml), and the settings controls (`SettingsCard`, `SettingsExpander`) of the [Windows Community Toolkit](https://github.com/CommunityToolkit/Windows). Waft handles rendering, layout and input.
 
 ## Try it
 
@@ -52,4 +52,4 @@ Porting guidance, tests and resource generation: [the porting-winui skill](https
 
 ## License
 
-MIT. Microsoft’s source and the bundled icon font retain their [third-party notices](https://github.com/waos-dev/waft/blob/main/crates/waft-winui/THIRD_PARTY.md).
+MIT. Microsoft’s source, the Windows Community Toolkit’s and the bundled icon font retain their [third-party notices](https://github.com/waos-dev/waft/blob/main/crates/waft-winui/THIRD_PARTY.md).

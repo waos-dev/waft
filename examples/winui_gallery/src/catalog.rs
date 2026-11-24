@@ -86,11 +86,15 @@ pub enum Feature {
     ItemsView,
     /// Rows of cells in columns to resize, sort and filter.
     TableView,
+    /// The Community Toolkit's card for one setting.
+    SettingsCard,
+    /// The Community Toolkit's settings card that opens to show rows.
+    SettingsExpander,
 }
 
 impl Feature {
     /// Display order in the navigation pane.
-    pub const ALL: [Self; 41] = [
+    pub const ALL: [Self; 43] = [
         Self::Button,
         Self::DropDownButton,
         Self::SplitButton,
@@ -129,6 +133,8 @@ impl Feature {
         Self::SelectorBar,
         Self::ItemsView,
         Self::TableView,
+        Self::SettingsCard,
+        Self::SettingsExpander,
         Self::Page,
         Self::Typography,
         Self::Icons,
@@ -176,6 +182,8 @@ impl Feature {
             Self::Page => "Page",
             Self::ItemsView => "ItemsView",
             Self::TableView => "TableView",
+            Self::SettingsCard => "SettingsCard",
+            Self::SettingsExpander => "SettingsExpander",
             Self::Typography => "Typography",
             Self::Icons => "Icons",
         }
@@ -223,6 +231,8 @@ impl Feature {
             Self::Page => FluentSymbol::Document,
             Self::ItemsView => FluentSymbol::List,
             Self::TableView => FluentSymbol::Table,
+            Self::SettingsCard => FluentSymbol::Settings,
+            Self::SettingsExpander => FluentSymbol::ChevronUp,
             Self::Typography => FluentSymbol::TextFont,
             Self::Icons => FluentSymbol::Apps,
         }
@@ -292,6 +302,10 @@ impl Feature {
             Self::Page => "Keep an app's content clear of the system's bars and the keyboard.",
             Self::ItemsView => "Show rows to select, one or several at a time, and to open.",
             Self::TableView => "Show rows of cells in columns to resize, sort and filter.",
+            Self::SettingsCard => {
+                "Show one setting as a card, with its control at the end or the whole card to click."
+            }
+            Self::SettingsExpander => "Open a settings card to show the rows under it.",
             Self::Typography => "Choose text styles and build a clear hierarchy.",
             Self::Icons => "Use Fluent symbols in navigation, actions and status indicators.",
         }

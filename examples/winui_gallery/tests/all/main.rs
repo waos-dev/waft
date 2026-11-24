@@ -60,6 +60,7 @@ mod retained_flyout;
 mod scroll_viewport;
 mod selection_examples;
 mod selector_bar;
+mod settings_controls;
 mod slider;
 mod slider_tooltip;
 mod split_button;
