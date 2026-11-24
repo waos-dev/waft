@@ -8,10 +8,17 @@
 //! A stream's parameter sets may come ahead, in its setup, or in its chunks, and may change. A
 //! session is made once a whole set of them is known, and made again when VideoToolbox does not
 //! go on with the new ones; the pictures still held then are shown first, as they come before
-//! the change.
+//! the change. VideoToolbox's pool grows as frames are held, so the decoder holds itself back: it
+//! decodes no more while as many frames as the app said it holds at once wait to be read.
 //!
-//! The invariant: everything in `Work` is touched only on the decoder's queue, and a chunk's
-//! answer is given once, whether or not the app still holds the decoder.
+//! A reset drops what the decoder holds at the moment the app asks, though chunks handed over
+//! before it may still wait on the queue, or be decoding: each carries the count of resets it
+//! was handed over after, and one handed over before the last reset is not decoded, or its
+//! picture not put out (`output`).
+//!
+//! The invariant: everything in `Work` is touched only on the decoder's queue; a chunk's answer
+//! is given once, whether or not the app still holds the decoder; and no picture of a chunk
+//! handed over before a reset comes out after it.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -75,6 +82,11 @@ struct Work {
     /// The pictures decoded and not yet shown.
     order: PresentationOrder<Arc<dyn VideoFrame>>,
     output: Output,
+    /// How many frames may wait to be read before no more is decoded: as many as the app said
+    /// it holds at once.
+    frame_limit: usize,
+    /// How many resets what the queue is doing now was asked after.
+    asked_after_resets: u64,
 }
 
 impl Work {
@@ -86,7 +98,7 @@ impl Work {
         let session = match self.session.take() {
             Some((session, _)) if goes_on => session,
             _ => {
-                self.output.put(self.order.all());
+                self.output.put(self.order.all(), self.asked_after_resets);
                 let full_range = self.colour_of(&facts).range == Some(ColorRange::Full);
                 Session::open(&sets, self.choice, full_range)?
             }
@@ -97,8 +109,8 @@ impl Work {
         Ok(())
     }
 
-    /// Decodes `chunk`, taking the parameter sets it carries, and puts out the pictures that can
-    /// be shown now.
+    /// Decodes `chunk`, once the app has read enough of the frames put out, taking the parameter
+    /// sets it carries, and puts out the pictures that can be shown now.
     fn decode(&mut self, chunk: &EncodedChunk) -> Result<(), DecoderError> {
         let units = match self.framing {
             Framing::Lengths(size) => units_after_lengths(&chunk.data, size).ok_or_else(|| {
@@ -126,14 +138,14 @@ impl Work {
         if let Some(picture) = decoded {
             let frame = self.frame_of(picture, chunk, facts);
             let shown = self.order.take(chunk.timestamp, frame, begins_sequence);
-            self.output.put(shown);
+            self.output.put(shown, self.asked_after_resets);
         }
         Ok(())
     }
 
     /// Shows every picture held: all that was decoded has then come out.
     fn drain(&mut self) {
-        self.output.put(self.order.all());
+        self.output.put(self.order.all(), self.asked_after_resets);
     }
 
     /// Another setup from the next chunk on.
@@ -216,6 +228,8 @@ impl Decoder {
             session: None,
             order: PresentationOrder::new(0),
             output: output.clone(),
+            frame_limit: options.frame_limit.max(1) as usize,
+            asked_after_resets: 0,
         };
         if sets.are_complete() {
             work.adopt(sets)?;
@@ -232,7 +246,8 @@ impl Decoder {
         })
     }
 
-    /// Does `job` with the decoder's work, on its queue, and answers what it answered.
+    /// Does `job` with the decoder's work, on its queue, and answers what it answered. What it
+    /// puts out is dropped where the app resets the decoder meanwhile.
     fn on_queue(
         &self,
         job: impl FnOnce(&mut Work) -> Result<(), DecoderError> + Send + 'static,
@@ -240,8 +255,10 @@ impl Decoder {
         let gone = Err(DecoderError::Failed("the decoder went away".to_owned()));
         let (answer, answered) = answer(gone);
         let work = Arc::clone(&self.work);
+        let asked_after_resets = self.output.resets();
         self.queue.exec_async(move || {
             let mut work = work.lock().unwrap_or_else(PoisonError::into_inner);
+            work.asked_after_resets = asked_after_resets;
             let result = job(&mut work);
             work.end_if_it_cannot_go_on(&result);
             answer.give(result);
@@ -255,8 +272,16 @@ impl VideoDecoder for Decoder {
         self.kind
     }
 
+    /// The chunk waits its turn on the queue, and then for room among the frames waiting to be
+    /// read. One the app reset the decoder after is dropped undecoded, as the reset asked.
     fn decode(&self, chunk: EncodedChunk) -> VideoDecoderFuture {
-        self.on_queue(move |work| work.decode(&chunk))
+        self.on_queue(move |work| {
+            work.output.wait_for_room(work.frame_limit);
+            if work.output.resets() != work.asked_after_resets {
+                return Ok(());
+            }
+            work.decode(&chunk)
+        })
     }
 
     fn next_frame(&self) -> DecodedFrameFuture {
@@ -274,9 +299,11 @@ impl VideoDecoder for Decoder {
         })
     }
 
-    /// The pictures held are dropped once the chunks handed over before this have been decoded,
-    /// so none of theirs comes out after it.
+    /// The frames waiting to be read are dropped at once, and the chunks still on the queue as
+    /// their turn comes; the pictures decoded and not yet shown go once the queue reaches this,
+    /// after the chunk it may be decoding now.
     fn reset(&self) {
+        self.output.reset();
         let work = Arc::clone(&self.work);
         self.queue.exec_async(move || {
             let mut work = work.lock().unwrap_or_else(PoisonError::into_inner);
@@ -357,16 +384,23 @@ mod tests {
     }
 
     /// Hands every one of `chunks` to `decoder`, drains it, and answers the times of the frames
-    /// that came out, in the order they came.
+    /// that came out, in the order they came. The chunks are all handed over first, as an app
+    /// that does not wait for each does, and the frames read as the decoder puts them out.
     fn times_decoded(decoder: &Decoder, chunks: Vec<EncodedChunk>) -> Vec<Option<i64>> {
         let count = chunks.len();
-        for chunk in chunks {
-            block_on(decoder.decode(chunk)).expect("the chunk decodes");
-        }
-        block_on(decoder.drain()).expect("the decoder drains");
-        (0..count)
+        let decoding: Vec<_> = chunks
+            .into_iter()
+            .map(|chunk| decoder.decode(chunk))
+            .collect();
+        let draining = decoder.drain();
+        let times = (0..count)
             .map(|_| block_on(decoder.next_frame()).expect("a frame").timestamp())
-            .collect()
+            .collect();
+        for decoded in decoding {
+            block_on(decoded).expect("the chunk decodes");
+        }
+        block_on(draining).expect("the decoder drains");
+        times
     }
 
     #[test]
@@ -432,6 +466,51 @@ mod tests {
             Decoder::open(VideoStreamSetup::Vp9(None), &options()),
             Err(DecoderError::Unsupported(_))
         ));
+    }
+
+    #[test]
+    fn no_more_is_decoded_while_as_many_frames_as_the_app_holds_wait_to_be_read() {
+        let setup = VideoStreamSetup::H264(NalFormat::StartCodes(None));
+        let held_at_once = VideoDecoderOptions {
+            frame_limit: 2,
+            ..options()
+        };
+        let decoder = Decoder::open(setup, &held_at_once).expect("a decoder");
+        let decoding: Vec<_> = chunks(after_start_codes)
+            .into_iter()
+            .map(|chunk| decoder.decode(chunk))
+            .collect();
+        // The queue decodes until two frames wait, then stops: nothing reads them.
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(decoder.output.waiting(), 2);
+        drop(decoder);
+        // Let go of, the decoder decodes on to no one, and every chunk is answered.
+        for decoded in decoding {
+            let _ = block_on(decoded);
+        }
+    }
+
+    #[test]
+    fn after_a_reset_no_picture_of_a_chunk_handed_over_before_it_comes_out() {
+        let setup = VideoStreamSetup::H264(NalFormat::StartCodes(None));
+        let decoder = Decoder::open(setup, &options()).expect("a decoder");
+        // Six chunks handed over and none of their frames read, some still on the queue.
+        let before: Vec<_> = chunks(after_start_codes)
+            .into_iter()
+            .take(6)
+            .map(|chunk| decoder.decode(chunk))
+            .collect();
+        decoder.reset();
+        let times = times_decoded(&decoder, chunks(after_start_codes));
+        let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
+        assert_eq!(
+            times, in_order,
+            "only the pictures handed over after the reset"
+        );
+        for decoded in before {
+            block_on(decoded).expect("a chunk dropped by a reset is answered as taken");
+        }
+        assert_eq!(decoder.output.waiting(), 0);
     }
 
     #[test]
