@@ -38,6 +38,7 @@ use crate::loop_waker::LoopWaker;
 use crate::media::{NdkCameras, NdkFrameReaders};
 use crate::notifications::AndroidNotifications;
 use crate::opener::IntentOpener;
+use crate::restorable_windows::{RestorableWindow, restorable_windows};
 use crate::shortcuts::Shortcuts;
 use crate::view_requests::ViewRequests;
 use crate::views::Views;
@@ -91,6 +92,8 @@ pub struct AndroidPlatform {
     video_frame_readers: NdkFrameReaders,
     /// The app's shortcuts on the home screen and its icon's menu (`shortcuts.rs`).
     pub(crate) shortcuts: Shortcuts,
+    /// The application, through which the app's tasks are read (`restorable_windows.rs`).
+    application: Application,
 }
 
 impl AndroidPlatform {
@@ -116,6 +119,7 @@ impl AndroidPlatform {
             cameras: NdkCameras::new(application.clone(), Rc::clone(&views)),
             video_frame_readers: NdkFrameReaders,
             shortcuts: Shortcuts::new(application.clone()),
+            application: application.clone(),
             views,
             wakes: Arc::new(Wakes {
                 timer_wakeup: Mutex::new(None),
@@ -155,6 +159,13 @@ impl AndroidPlatform {
     /// Android's alone, so reached by downcasting the platform.
     pub fn shortcuts(&self) -> &Shortcuts {
         &self.shortcuts
+    }
+
+    /// The windows an earlier run of the app left, which Android restores when the user picks
+    /// one's card in Recents: for an app to remove those it would only close as they arrive.
+    /// Android's alone, so reached by downcasting the platform.
+    pub fn restorable_windows(&self) -> Vec<RestorableWindow> {
+        restorable_windows(&self.application, &self.views)
     }
 
     /// The renderer's image store, on the device every view draws with: an image made
