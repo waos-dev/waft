@@ -10,3 +10,4 @@ mod selector_bar_icon;
 mod table_view_selection;
 mod text_box_height;
 mod text_box_no_wrap;
+mod text_box_show_cursor;
