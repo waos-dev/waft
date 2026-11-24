@@ -52,7 +52,7 @@ fn knob_under_header(r: &ThemeResources, fixture: &Fixture, header: &str, is_on:
 }
 
 /// A pointer move `by` from `from`, with the delta the platform reports and the drag recogniser measures.
-fn send_move(fixture: &mut Fixture, from: Offset, by: f64) -> Offset {
+pub(crate) fn send_move(fixture: &mut Fixture, from: Offset, by: f64) -> Offset {
     let to = Offset::new(from.dx() + by, from.dy());
     fixture.at += Duration::from_millis(20);
     let mut app = fixture.cell.borrow_mut();
@@ -75,7 +75,7 @@ fn send_move(fixture: &mut Fixture, from: Offset, by: f64) -> Offset {
 }
 
 /// A touch drag: down at `from`, one move per horizontal `step`, then up where it ended.
-fn drag(fixture: &mut Fixture, from: Offset, steps: &[f64]) {
+pub(crate) fn drag(fixture: &mut Fixture, from: Offset, steps: &[f64]) {
     fixture.send(PointerChange::Down, from);
     let mut at = from;
     for &step in steps {

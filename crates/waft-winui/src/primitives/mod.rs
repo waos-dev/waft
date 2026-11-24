@@ -24,6 +24,9 @@ pub(crate) use anchored_flyout::*;
 mod margin;
 pub use margin::*;
 
+mod horizontal_alignment;
+pub use horizontal_alignment::*;
+
 mod input_device;
 pub(crate) use input_device::*;
 

@@ -327,6 +327,8 @@ impl GalleryState {
             Feature::SelectorBar => sections::selector_bar::page(resources),
             Feature::ItemsView => sections::items_view::build(resources),
             Feature::TableView => sections::table_view::build(resources),
+            Feature::SettingsCard => sections::settings_controls::settings_card(resources),
+            Feature::SettingsExpander => sections::settings_controls::settings_expander(resources),
             Feature::Typography => sections::typography::build(resources),
             Feature::Icons => sections::icons::build(resources),
             Feature::Page => {

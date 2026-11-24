@@ -6,8 +6,8 @@
 
 use crate::{
     BackgroundSizing, Brush, ColumnDefinition, CommonState, ControlBorder, ControlStates,
-    FocusVisual, Grid, GridCell, GridLength, RowDefinition, Theme, ThemeResources,
-    control_text_style,
+    FocusVisual, Grid, GridCell, GridLength, HorizontalAlignment, RowDefinition, Theme,
+    ThemeResources, control_text_style,
 };
 use std::{any::TypeId, fmt, rc::Rc, time::Duration};
 use waft_animation::{Cubic, Curve};
@@ -64,6 +64,42 @@ pub fn fast_out_slow_in(r: &ThemeResources) -> Rc<dyn Curve> {
 /// XAML `Toggled` handler, given the value the switch wants.
 pub type ToggledHandler = Rc<dyn Fn(&mut App, bool)>;
 
+/// A ToggleSwitch `ControlTemplate` replacing `DefaultToggleSwitchStyle`'s, as a style based on it sets one; the switch keeps its tap, drag and keyboard behaviour.
+pub type ToggleSwitchTemplate = Rc<
+    dyn Fn(
+        &mut App,
+        BuildContext,
+        &ToggleSwitch,
+        ToggleSwitchTemplateStates,
+        &ToggleSwitchTemplateParts,
+    ) -> WidgetRef,
+>;
+
+/// What a ToggleSwitch template is built for: `CommonStates`, focus, and where `ToggleStates` and the drag put the knob. `ContentStates` follows [`ToggleSwitch::is_on`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ToggleSwitchTemplateStates {
+    /// `CommonStates`, which a drag holds in `Pressed`.
+    pub common: CommonState,
+    /// The focus visual shows.
+    pub focused: bool,
+    /// `ToggleStates` is `Dragging`: the knob follows the pointer, so a template moves it without animating.
+    pub is_dragging: bool,
+    /// `KnobTranslateTransform.X`: [`KNOB_TRANSLATION_RANGE`] in the `On` state, 0 in `Off`, and during a drag as far as the pointer has moved the knob between the two.
+    pub knob_translation: f64,
+}
+
+/// The template parts `ToggleSwitch::OnApplyTemplate` attaches its behaviour to.
+pub struct ToggleSwitchTemplateParts {
+    switch_thumb: WidgetRef,
+}
+
+impl ToggleSwitchTemplateParts {
+    /// `SwitchThumb`: the transparent surface whose horizontal drag moves the knob, which a template lays over everything a drag may start on.
+    pub fn switch_thumb(&self) -> WidgetRef {
+        self.switch_thumb.clone()
+    }
+}
+
 /// XAML `ToggleSwitch`: `IsOn` with `Toggled`, `Header`, `OnContent` and `OffContent`.
 #[derive(Clone)]
 pub struct ToggleSwitch {
@@ -76,6 +112,8 @@ pub struct ToggleSwitch {
     /// XAML `OffContent`; the control's default is the text "Off".
     pub off_content: Option<WidgetRef>,
     pub is_enabled: bool,
+    /// The template of a style based on `DefaultToggleSwitchStyle`; `None` is that style's own.
+    pub template: Option<ToggleSwitchTemplate>,
     pub key: Option<KeyRef>,
 }
 
@@ -88,6 +126,7 @@ impl ToggleSwitch {
             on_content: None,
             off_content: None,
             is_enabled: true,
+            template: None,
             key: None,
         }
     }
@@ -112,6 +151,22 @@ impl ToggleSwitch {
 
     pub fn is_enabled(mut self, enabled: bool) -> ToggleSwitch {
         self.is_enabled = enabled;
+        self
+    }
+
+    /// Sets the `ControlTemplate` of a style that replaces `DefaultToggleSwitchStyle`'s.
+    pub fn template(
+        mut self,
+        builder: impl Fn(
+            &mut App,
+            BuildContext,
+            &ToggleSwitch,
+            ToggleSwitchTemplateStates,
+            &ToggleSwitchTemplateParts,
+        ) -> WidgetRef
+        + 'static,
+    ) -> ToggleSwitch {
+        self.template = Some(Rc::new(builder));
         self
     }
 
@@ -352,7 +407,7 @@ impl ToggleSwitchState {
         .into_factory()
     }
 
-    /// The `ControlTemplate` for the current states.
+    /// The style's `ControlTemplate` for the current states.
     fn template(
         self: Handle<Self>,
         app: &mut App,
@@ -360,186 +415,36 @@ impl ToggleSwitchState {
         states: ControlStates,
     ) -> WidgetRef {
         let widget = self.widget(app).clone();
-        let is_dragging = app.get(self).is_dragging;
-        let resources = ThemeResources::of(app, context);
-        // `ChangeVisualState`: a drag holds `CommonStates` in `Pressed`.
-        let common = if is_dragging {
-            CommonState::Pressed
-        } else {
-            states.common
-        };
-        let brushes = brushes(&resources, common);
-        let header = widget
-            .header
-            .clone()
-            .map(|header| header_content_presenter(&resources, header, brushes.header));
-        let inner = self.inner_grid(app, &widget, &resources, &brushes, common, states.focused);
-        // `HorizontalAlignment="Left"` `VerticalAlignment="Top"`: sized to the content and placed top-left in the star row.
-        let inner = GridCell::new(
-            Align::new()
-                .alignment(AlignmentGeometry::TOP_LEFT)
-                .width_factor(1.0)
-                .height_factor(1.0)
-                .child(inner),
-        )
-        .row(1)
-        .into_widget();
-        // The root `Grid`: `Background`, `BorderBrush`, `BorderThickness` and `CornerRadius` are
-        // template bindings the style leaves unset, so it paints nothing.
-        let root = Grid::new()
-            .row_definitions([
-                RowDefinition::new(GridLength::AUTO),
-                RowDefinition::new(GridLength::STAR),
-            ])
-            .children(header.into_iter().chain([inner]));
-        // The style's `MinWidth`.
-        ConstrainedBox::new(
-            BoxConstraints::new().min_width(resources.toggle_switch_theme_min_width),
-        )
-        .child(root)
-        .into_widget()
-    }
-
-    /// The inner `Grid`: the switch, the gap and the content, in rows of `ToggleSwitchPreContentMargin`, Auto and `ToggleSwitchPostContentMargin`.
-    fn inner_grid(
-        self: Handle<Self>,
-        app: &mut App,
-        widget: &ToggleSwitch,
-        resources: &ThemeResources,
-        brushes: &SwitchBrushes,
-        common: CommonState,
-        focused: bool,
-    ) -> Grid {
-        let is_on = widget.is_on;
-        let text = control_text_style(
-            resources,
-            resources.control_content_theme_font_size,
-            FontWeight::W400,
-            brushes.foreground,
-        );
-        let off_content = widget
-            .off_content
-            .clone()
-            .unwrap_or_else(|| Text::new("Off").into_widget());
-        let on_content = widget
-            .on_content
-            .clone()
-            .unwrap_or_else(|| Text::new("On").into_widget());
-        Grid::new()
-            .row_definitions([
-                RowDefinition::new(GridLength::pixel(
-                    resources.toggle_switch_pre_content_margin,
-                )),
-                RowDefinition::new(GridLength::AUTO),
-                RowDefinition::new(GridLength::pixel(
-                    resources.toggle_switch_post_content_margin,
-                )),
-            ])
-            .column_definitions([
-                ColumnDefinition::new(GridLength::AUTO),
-                ColumnDefinition::new(GridLength::pixel(CONTENT_GAP)).max_width(CONTENT_GAP),
-                ColumnDefinition::new(GridLength::AUTO),
-            ])
-            .children([
-                GridCell::new(switch_area_grid(
-                    resources,
-                    resources.theme,
-                    brushes.container,
-                    focused,
-                ))
-                .row_span(3)
-                .column_span(3)
-                .into_widget(),
-                GridCell::new(content_presenter(text.clone(), off_content, !is_on))
-                    .row_span(3)
-                    .column(2)
-                    .into_widget(),
-                GridCell::new(content_presenter(text, on_content, is_on))
-                    .row_span(3)
-                    .column(2)
-                    .into_widget(),
-                GridCell::new(outer_border(resources, brushes, is_on))
-                    .row(1)
-                    .into_widget(),
-                GridCell::new(switch_knob_bounds(resources, brushes, is_on))
-                    .row(1)
-                    .into_widget(),
-                GridCell::new(self.switch_knob(app, resources, brushes, common, is_on))
-                    .row(1)
-                    .into_widget(),
-                GridCell::new(self.switch_thumb(widget.is_enabled))
-                    .row_span(3)
-                    .column_span(3)
-                    .into_widget(),
-            ])
-    }
-
-    /// `SwitchKnob`: `HorizontalAlignment="Left"`, 20 × 20, moved by `KnobTranslateTransform`. `X` is 20 in the `On` state, the clamped `m_knobTranslation` while dragging (`SetTranslations`) and 0 otherwise; the `ToggleStates` transitions move it with `RepositionThemeAnimation`, here `control_fast_animation_duration` with `ControlFastOutSlowInKeySpline`.
-    fn switch_knob(
-        self: Handle<Self>,
-        app: &App,
-        resources: &ThemeResources,
-        brushes: &SwitchBrushes,
-        common: CommonState,
-        is_on: bool,
-    ) -> WidgetRef {
         let state = app.get(self);
-        let curve = fast_out_slow_in(resources);
-        let (translation, duration) = if state.is_dragging {
-            let translation = state.knob_translation.clamp(0.0, KNOB_TRANSLATION_RANGE);
-            (translation, Duration::ZERO)
-        } else if is_on {
-            (
-                KNOB_TRANSLATION_RANGE,
-                resources.control_fast_animation_duration,
-            )
-        } else {
-            (0.0, resources.control_fast_animation_duration)
+        let is_dragging = state.is_dragging;
+        let states = ToggleSwitchTemplateStates {
+            // `ChangeVisualState`: a drag holds `CommonStates` in `Pressed`.
+            common: if is_dragging {
+                CommonState::Pressed
+            } else {
+                states.common
+            },
+            focused: states.focused,
+            is_dragging,
+            // `SetTranslations` clamps what the knob shows of a drag.
+            knob_translation: if is_dragging {
+                state.knob_translation.clamp(0.0, KNOB_TRANSLATION_RANGE)
+            } else if widget.is_on {
+                KNOB_TRANSLATION_RANGE
+            } else {
+                0.0
+            },
         };
-        let (knob_width, knob_height) = knob_size(common);
-        // `VerticalAlignment` `Stretch` with an explicit `Height`: centred in the 20 pt grid.
-        let top = (KNOB_AREA - knob_height) / 2.0;
-        let shape = |child: WidgetRef, left: f64| {
-            AnimatedPositioned::new(child, knob_size_duration(resources, common))
-                .curve(curve.clone())
-                .left(left)
-                .top(top)
-                .width(knob_width)
-                .height(knob_height)
-                .into_widget()
+        let parts = ToggleSwitchTemplateParts {
+            switch_thumb: self.switch_thumb(widget.is_enabled),
         };
-        let knob = Stack::new().children(vec![
-            shape(
-                switch_knob_on(resources, brushes, is_on),
-                knob_on_left(common, knob_width),
-            ),
-            shape(
-                switch_knob_off(resources, brushes, is_on),
-                knob_off_left(common, knob_width),
-            ),
-        ]);
-        // `Width="20" Height="20"` at the left of the cell; the transform moves the knob beyond
-        // that box, so the stack does not clip.
-        let translated = Stack::new().clip_behavior(Clip::None).children(vec![
-            AnimatedPositioned::new(knob, duration)
-                .curve(curve)
-                .left(translation)
-                .top(0.0)
-                .width(KNOB_AREA)
-                .height(KNOB_AREA)
-                .into_widget(),
-        ]);
-        Align::new()
-            .alignment(AlignmentGeometry::CENTER_LEFT)
-            .width_factor(1.0)
-            .height_factor(1.0)
-            .child(
-                SizedBox::new()
-                    .width(KNOB_AREA)
-                    .height(KNOB_AREA)
-                    .child(translated),
-            )
-            .into_widget()
+        match widget.template.clone() {
+            Some(template) => template(app, context, &widget, states, &parts),
+            None => {
+                let resources = ThemeResources::of(app, context);
+                default_template(&resources, &widget, states, &parts)
+            }
+        }
     }
 
     /// `SwitchThumb`: a `Thumb` templated as a transparent rectangle over the whole switch. Its `Tapped` is the tap of the `GestureDetector` around the template; its `DragStarted` / `DragDelta` / `DragCompleted` are a `HorizontalDragGestureRecognizer` here, in the same arena, so a press that moves past the slop becomes the drag and cancels the tap, and one that does not stays the tap — as `Thumb`'s drag and `Tapped` compose in XAML.
@@ -560,20 +465,200 @@ impl ToggleSwitchState {
     }
 }
 
+/// `DefaultToggleSwitchStyle`'s template: the header over the inner `Grid`, at least `ToggleSwitchThemeMinWidth` wide.
+fn default_template(
+    resources: &ThemeResources,
+    widget: &ToggleSwitch,
+    states: ToggleSwitchTemplateStates,
+    parts: &ToggleSwitchTemplateParts,
+) -> WidgetRef {
+    let brushes = switch_brushes(resources, states.common);
+    let header = widget
+        .header
+        .clone()
+        .map(|header| header_content_presenter(resources, header, brushes.header));
+    let inner = inner_grid(widget, resources, &brushes, states, parts);
+    // `HorizontalAlignment="Left"` `VerticalAlignment="Top"`: sized to the content and placed top-left in the star row.
+    let inner = GridCell::new(
+        Align::new()
+            .alignment(AlignmentGeometry::TOP_LEFT)
+            .width_factor(1.0)
+            .height_factor(1.0)
+            .child(inner),
+    )
+    .row(1)
+    .into_widget();
+    // The root `Grid`: `Background`, `BorderBrush`, `BorderThickness` and `CornerRadius` are
+    // template bindings the style leaves unset, so it paints nothing.
+    let root = Grid::new()
+        .row_definitions([
+            RowDefinition::new(GridLength::AUTO),
+            RowDefinition::new(GridLength::STAR),
+        ])
+        .children(header.into_iter().chain([inner]));
+    // The style's `MinWidth`.
+    ConstrainedBox::new(BoxConstraints::new().min_width(resources.toggle_switch_theme_min_width))
+        .child(root)
+        .into_widget()
+}
+
+/// The inner `Grid`: the switch, the gap and the content, in rows of `ToggleSwitchPreContentMargin`, Auto and `ToggleSwitchPostContentMargin`.
+fn inner_grid(
+    widget: &ToggleSwitch,
+    resources: &ThemeResources,
+    brushes: &SwitchBrushes,
+    states: ToggleSwitchTemplateStates,
+    parts: &ToggleSwitchTemplateParts,
+) -> Grid {
+    let is_on = widget.is_on;
+    let text = control_text_style(
+        resources,
+        resources.control_content_theme_font_size,
+        FontWeight::W400,
+        brushes.foreground,
+    );
+    let off_content = widget
+        .off_content
+        .clone()
+        .unwrap_or_else(|| Text::new("Off").into_widget());
+    let on_content = widget
+        .on_content
+        .clone()
+        .unwrap_or_else(|| Text::new("On").into_widget());
+    Grid::new()
+        .row_definitions([
+            RowDefinition::new(GridLength::pixel(
+                resources.toggle_switch_pre_content_margin,
+            )),
+            RowDefinition::new(GridLength::AUTO),
+            RowDefinition::new(GridLength::pixel(
+                resources.toggle_switch_post_content_margin,
+            )),
+        ])
+        .column_definitions([
+            ColumnDefinition::new(GridLength::AUTO),
+            ColumnDefinition::new(GridLength::pixel(CONTENT_GAP)).max_width(CONTENT_GAP),
+            ColumnDefinition::new(GridLength::AUTO),
+        ])
+        .children([
+            GridCell::new(switch_area_grid(
+                resources,
+                resources.theme,
+                brushes.container,
+                states.focused,
+            ))
+            .row_span(3)
+            .column_span(3)
+            .into_widget(),
+            GridCell::new(content_presenter(text.clone(), off_content, !is_on))
+                .row_span(3)
+                .column(2)
+                .into_widget(),
+            GridCell::new(content_presenter(text, on_content, is_on))
+                .row_span(3)
+                .column(2)
+                .into_widget(),
+            GridCell::new(outer_border(resources, brushes, is_on))
+                .row(1)
+                .into_widget(),
+            GridCell::new(switch_knob_bounds(resources, brushes, is_on))
+                .row(1)
+                .into_widget(),
+            GridCell::new(switch_knob(
+                resources,
+                brushes,
+                states,
+                is_on,
+                KnobShapeOffsets {
+                    on: knob_on_left(states.common, knob_size(states.common).0),
+                    off: knob_off_left(states.common, knob_size(states.common).0),
+                },
+            ))
+            .row(1)
+            .into_widget(),
+            GridCell::new(parts.switch_thumb())
+                .row_span(3)
+                .column_span(3)
+                .into_widget(),
+        ])
+}
+
+/// Where a template's alignment and margin put `SwitchKnobOn` and `SwitchKnobOff` across `SwitchKnob`, as the distance from its left edge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct KnobShapeOffsets {
+    pub(crate) on: f64,
+    pub(crate) off: f64,
+}
+
+/// `SwitchKnob`: `HorizontalAlignment="Left"`, 20 × 20, moved by `KnobTranslateTransform`. `X` is 20 in the `On` state, the clamped `m_knobTranslation` while dragging (`SetTranslations`) and 0 otherwise; the `ToggleStates` transitions move it with `RepositionThemeAnimation`, here `control_fast_animation_duration` with `ControlFastOutSlowInKeySpline`.
+pub(crate) fn switch_knob(
+    resources: &ThemeResources,
+    brushes: &SwitchBrushes,
+    states: ToggleSwitchTemplateStates,
+    is_on: bool,
+    shapes: KnobShapeOffsets,
+) -> WidgetRef {
+    let common = states.common;
+    let curve = fast_out_slow_in(resources);
+    let duration = if states.is_dragging {
+        Duration::ZERO
+    } else {
+        resources.control_fast_animation_duration
+    };
+    let (knob_width, knob_height) = knob_size(common);
+    // `VerticalAlignment` `Stretch` with an explicit `Height`: centred in the 20 pt grid.
+    let top = (KNOB_AREA - knob_height) / 2.0;
+    let shape = |child: WidgetRef, left: f64| {
+        AnimatedPositioned::new(child, knob_size_duration(resources, common))
+            .curve(curve.clone())
+            .left(left)
+            .top(top)
+            .width(knob_width)
+            .height(knob_height)
+            .into_widget()
+    };
+    let knob = Stack::new().children(vec![
+        shape(switch_knob_on(resources, brushes, is_on), shapes.on),
+        shape(switch_knob_off(resources, brushes, is_on), shapes.off),
+    ]);
+    // `Width="20" Height="20"` at the left of the cell; the transform moves the knob beyond
+    // that box, so the stack does not clip.
+    let translated = Stack::new().clip_behavior(Clip::None).children(vec![
+        AnimatedPositioned::new(knob, duration)
+            .curve(curve)
+            .left(states.knob_translation)
+            .top(0.0)
+            .width(KNOB_AREA)
+            .height(KNOB_AREA)
+            .into_widget(),
+    ]);
+    Align::new()
+        .alignment(AlignmentGeometry::CENTER_LEFT)
+        .width_factor(1.0)
+        .height_factor(1.0)
+        .child(
+            SizedBox::new()
+                .width(KNOB_AREA)
+                .height(KNOB_AREA)
+                .child(translated),
+        )
+        .into_widget()
+}
+
 /// The track, knob and content brushes for one state; the `{ThemeResource …}` values the `CommonStates` storyboards name.
-struct SwitchBrushes {
+pub(crate) struct SwitchBrushes {
     fill_off: Color,
     stroke_off: Color,
     fill_on: Color,
     stroke_on: Color,
     knob_off: Color,
     knob_on: Color,
-    container: Color,
-    foreground: Color,
-    header: Color,
+    pub(crate) container: Color,
+    pub(crate) foreground: Color,
+    pub(crate) header: Color,
 }
 
-fn brushes(r: &ThemeResources, state: CommonState) -> SwitchBrushes {
+pub(crate) fn switch_brushes(r: &ThemeResources, state: CommonState) -> SwitchBrushes {
     match state {
         CommonState::Normal => SwitchBrushes {
             fill_off: r.toggle_switch_fill_off,
@@ -623,7 +708,11 @@ fn brushes(r: &ThemeResources, state: CommonState) -> SwitchBrushes {
 }
 
 /// `HeaderContentPresenter`: `x:DeferLoadStrategy="Lazy"` and `Visibility="Collapsed"` until a `Header` is set, so it exists only with one; `Margin` `ToggleSwitchTopHeaderMargin`, `Foreground` per state, `TextWrapping="Wrap"`.
-fn header_content_presenter(r: &ThemeResources, header: WidgetRef, foreground: Color) -> WidgetRef {
+pub(crate) fn header_content_presenter(
+    r: &ThemeResources,
+    header: WidgetRef,
+    foreground: Color,
+) -> WidgetRef {
     let [left, top, right, bottom] = r.toggle_switch_top_header_margin;
     let text = control_text_style(
         r,
@@ -699,7 +788,7 @@ fn track(
 }
 
 /// `OuterBorder`: the off track, `StrokeThickness` `ToggleSwitchOuterBorderStrokeThickness`, faded out by the `On` state.
-fn outer_border(r: &ThemeResources, brushes: &SwitchBrushes, is_on: bool) -> WidgetRef {
+pub(crate) fn outer_border(r: &ThemeResources, brushes: &SwitchBrushes, is_on: bool) -> WidgetRef {
     track(
         r,
         brushes.fill_off,
@@ -710,7 +799,11 @@ fn outer_border(r: &ThemeResources, brushes: &SwitchBrushes, is_on: bool) -> Wid
 }
 
 /// `SwitchKnobBounds`: the on track, `StrokeThickness` `ToggleSwitchOnStrokeThickness`, faded in by the `On` state.
-fn switch_knob_bounds(r: &ThemeResources, brushes: &SwitchBrushes, is_on: bool) -> WidgetRef {
+pub(crate) fn switch_knob_bounds(
+    r: &ThemeResources,
+    brushes: &SwitchBrushes,
+    is_on: bool,
+) -> WidgetRef {
     track(
         r,
         brushes.fill_on,
@@ -755,20 +848,19 @@ fn switch_knob_off(r: &ThemeResources, brushes: &SwitchBrushes, is_on: bool) -> 
     .into_widget()
 }
 
-/// XAML `HorizontalAlignment` of an element with an explicit `Width`.
-#[derive(Clone, Copy)]
-enum HorizontalAlignment {
-    Left,
-    Center,
-    Right,
-}
-
-/// `FrameworkElement::ArrangeCore`: where an element `width` wide, with `alignment` and a `margin` (left, right), lands in a slot `slot` wide.
-fn arranged_left(slot: f64, width: f64, alignment: HorizontalAlignment, margin: (f64, f64)) -> f64 {
+/// `FrameworkElement::ArrangeCore`: where an element with an explicit `width`, an `alignment` and a `margin` (left, right) lands in a slot `slot` wide. `Stretch` centres an element that has a `Width`.
+pub(crate) fn arranged_left(
+    slot: f64,
+    width: f64,
+    alignment: HorizontalAlignment,
+    margin: (f64, f64),
+) -> f64 {
     let (left, right) = margin;
     match alignment {
         HorizontalAlignment::Left => left,
-        HorizontalAlignment::Center => left + (slot - left - right - width) / 2.0,
+        HorizontalAlignment::Center | HorizontalAlignment::Stretch => {
+            left + (slot - left - right - width) / 2.0
+        }
         HorizontalAlignment::Right => slot - right - width,
     }
 }

@@ -41,7 +41,7 @@ mod tab_view;
 mod tab_view_item;
 mod tick_bar;
 mod toggle_button;
-mod toggle_switch;
+pub(crate) mod toggle_switch;
 mod tool_tip;
 pub use button::*;
 pub use check_box::*;
