@@ -17,6 +17,7 @@ use waft_embedder::{
 };
 
 use waft_embedder::image_codecs::{ImageCodecs, ImageError, ImageErrorKind, ImageFuture};
+use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{SystemFontSource, test_support, valo};
 
 use crate::windows::view_of_request;
@@ -91,6 +92,7 @@ pub struct TestPlatform {
     players: Option<Rc<dyn Players>>,
     media_assets: Option<Rc<dyn MediaAssets>>,
     image_codecs: Option<Rc<dyn ImageCodecs>>,
+    video_decoders: Option<Rc<dyn VideoDecoders>>,
     cameras: Option<Rc<dyn Cameras>>,
     video_frame_readers: Option<Rc<dyn VideoFrameReaders>>,
     caption_settings: Option<Rc<dyn CaptionSettings>>,
@@ -144,6 +146,7 @@ impl TestPlatform {
             players: None,
             media_assets: None,
             image_codecs: None,
+            video_decoders: None,
             cameras: None,
             video_frame_readers: None,
             caption_settings: None,
@@ -447,6 +450,13 @@ impl TestPlatform {
 
     pub fn with_image_codecs(mut self, image_codecs: Rc<dyn ImageCodecs>) -> TestPlatform {
         self.image_codecs = Some(image_codecs);
+        self
+    }
+
+    /// The platform answering `video_decoders` as its video decoders: a host's own, where a test
+    /// decodes for real, as `waft-embedder-apple`'s are VideoToolbox's.
+    pub fn with_video_decoders(mut self, video_decoders: Rc<dyn VideoDecoders>) -> TestPlatform {
+        self.video_decoders = Some(video_decoders);
         self
     }
 
@@ -769,6 +779,10 @@ impl Platform for TestPlatform {
 
     fn image_codecs(&self) -> Option<&dyn ImageCodecs> {
         self.image_codecs.as_deref()
+    }
+
+    fn video_decoders(&self) -> Option<&dyn VideoDecoders> {
+        self.video_decoders.as_deref()
     }
 
     fn cameras(&self) -> Option<&dyn Cameras> {
