@@ -53,8 +53,13 @@ objc2-core-graphics = { version = "0.3", default-features = false, features = ["
 # markup of the subtitles it hands out, the pixel buffers a frame reader hands out, and the images
 # an asset's pictures come as, drawn into such buffers.
 objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "block2", "dispatch2", "objc2-core-foundation", "objc2-core-graphics", "objc2-core-media", "objc2-core-video", "objc2-quartz-core", "AVAnimation", "AVAsset", "AVAssetImageGenerator", "AVAssetTrack", "AVAsynchronousKeyValueLoading", "AVCaptureDevice", "AVCaptureFileOutput", "AVCaptureInput", "AVCaptureOutputBase", "AVCapturePhotoOutput", "AVCaptureSession", "AVCaptureSessionPreset", "AVCaptureVideoDataOutput", "AVCaptureVideoPreviewLayer", "AVError", "AVMediaFormat", "AVMediaSelection", "AVMediaSelectionGroup", "AVMetadataIdentifiers", "AVMetadataItem", "AVPlayer", "AVPlayerItem", "AVPlayerItemOutput", "AVPlayerItemTrack", "AVPlayerLayer", "AVTime", "AVVideoSettings"] }
-objc2-core-media = { version = "0.3", default-features = false, features = ["std", "objc2-core-video", "CMBase", "CMFormatDescription", "CMSampleBuffer", "CMSync", "CMTextMarkup", "CMTime"] }
+objc2-core-media = { version = "0.3", default-features = false, features = ["std", "objc2", "objc2-core-video", "CMBase", "CMBlockBuffer", "CMFormatDescription", "CMSampleBuffer", "CMSync", "CMTextMarkup", "CMTime"] }
 objc2-core-video = { version = "0.3", default-features = false, features = ["std", "objc2", "objc2-io-surface", "CVBase", "CVBuffer", "CVImageBuffer", "CVPixelBuffer", "CVPixelBufferIOSurface", "CVReturn"] }
+# The system's video decoders: VideoToolbox's decompression sessions, fed sample buffers made of
+# an app's chunks, and an H.264 stream's parameter sets read for the picture's size and how far
+# the stream reorders.
+objc2-video-toolbox = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "objc2", "objc2-core-media", "objc2-core-video", "VTDecompressionSession", "VTDecompressionProperties", "VTErrors", "VTSession"] }
+h264-reader = "0.9"
 # The user's caption style, its colours matched to sRGB above, and the family of the font it names.
 objc2-media-accessibility = { version = "0.3", default-features = false, features = ["std", "MACaptionAppearance", "objc2-core-graphics", "objc2-core-text"] }
 objc2-core-text = { version = "0.3", default-features = false, features = ["std", "CTFontDescriptor"] }
