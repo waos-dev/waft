@@ -8,14 +8,18 @@
 //! out as it arrives.
 //!
 //! The invariant: pictures leave in ascending order of their time, as long as the stream keeps to
-//! the depth it said.
+//! the depth it said, and every picture taken leaves: two with one time leave in the order they
+//! came, neither in the other's place.
 
 use std::collections::BTreeMap;
 
 pub(super) struct PresentationOrder<Picture> {
     /// How many pictures may be decoded ahead of one shown before them.
     depth: usize,
-    held: BTreeMap<i64, Picture>,
+    /// Each picture held, by its time and then by when it came.
+    held: BTreeMap<(i64, u64), Picture>,
+    /// How many pictures have come.
+    taken: u64,
 }
 
 impl<Picture> PresentationOrder<Picture> {
@@ -23,6 +27,7 @@ impl<Picture> PresentationOrder<Picture> {
         PresentationOrder {
             depth,
             held: BTreeMap::new(),
+            taken: 0,
         }
     }
 
@@ -44,7 +49,8 @@ impl<Picture> PresentationOrder<Picture> {
         } else {
             Vec::new()
         };
-        self.held.insert(time, picture);
+        self.held.insert((time, self.taken), picture);
+        self.taken += 1;
         while self.held.len() > self.depth {
             let (_, earliest) = self.held.pop_first().expect("more than none are held");
             shown.push(earliest);
@@ -102,6 +108,18 @@ mod tests {
         assert_eq!(order.take(2, 2, false), Vec::<i64>::new());
         assert_eq!(order.take(10, 10, true), [0, 2]);
         assert_eq!(order.all(), [10]);
+    }
+
+    /// A stream whose chunks all carry one time, as a program that knows none gives them.
+    #[test]
+    fn pictures_with_one_time_all_leave_in_the_order_they_came() {
+        let mut order = PresentationOrder::new(1);
+        let shown: Vec<Vec<&str>> = ["first", "second", "third"]
+            .into_iter()
+            .map(|picture| order.take(0, picture, false))
+            .collect();
+        assert_eq!(shown, [vec![], vec!["first"], vec!["second"]]);
+        assert_eq!(order.all(), ["third"]);
     }
 
     #[test]
