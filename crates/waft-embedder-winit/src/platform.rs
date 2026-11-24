@@ -34,6 +34,7 @@ use crate::view::WinitView;
 use crate::windows::RequestedWindow;
 use crate::windows_os::Windows;
 use waft_embedder::image_codecs::ImageCodecs;
+use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     AppExit, Brightness, Cameras, CaptionSettings, Clipboard, CompositionLayer, Compositor,
     Dispatcher, DockMenu, FileDialogs, Files, FontSource, HardwareBuffer, HardwareBufferAllocator,
@@ -100,6 +101,8 @@ pub struct WinitPlatform {
     /// The system's image codecs, where it has them (`waft-embedder-apple`'s `image_codecs`).
     image_codecs: Option<Rc<dyn ImageCodecs>>,
     video_frame_readers: Option<Rc<dyn VideoFrameReaders>>,
+    /// The system's video decoders, where it has them (`waft-embedder-apple`'s `video_decoders`).
+    video_decoders: Option<Rc<dyn VideoDecoders>>,
     /// The user's caption settings, where the system keeps them.
     caption_settings: Option<Rc<dyn CaptionSettings>>,
     /// What only macOS offers; `None` elsewhere.
@@ -138,6 +141,7 @@ impl WinitPlatform {
             cameras: System::cameras(),
             image_codecs: System::image_codecs(),
             video_frame_readers: System::video_frame_readers(),
+            video_decoders: System::video_decoders(),
             caption_settings: System::caption_settings(),
             state,
             compositor: System::compositor(),
@@ -466,6 +470,10 @@ impl Platform for WinitPlatform {
 
     fn video_frame_readers(&self) -> Option<&dyn VideoFrameReaders> {
         self.video_frame_readers.as_deref()
+    }
+
+    fn video_decoders(&self) -> Option<&dyn VideoDecoders> {
+        self.video_decoders.as_deref()
     }
 
     /// Media Accessibility's on macOS, and none elsewhere.

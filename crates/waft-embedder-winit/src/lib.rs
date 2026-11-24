@@ -72,6 +72,7 @@ pub mod test_support {
     use std::sync::Arc;
 
     use waft_embedder::image_codecs::ImageCodecs;
+    use waft_embedder::video_decoders::VideoDecoders;
     use waft_embedder::{
         Compositor, HardwareBufferAllocator, MediaAssets, Players, VideoFrameReaders,
     };
@@ -97,6 +98,11 @@ pub mod test_support {
     /// The system's frame readers, as `Platform::video_frame_readers` answers them.
     pub fn video_frame_readers() -> Option<Rc<dyn VideoFrameReaders>> {
         System::video_frame_readers()
+    }
+
+    /// The system's video decoders, as `Platform::video_decoders` answers them.
+    pub fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
+        System::video_decoders()
     }
 
     /// The system's compositor, as `Platform::compositor` answers it.

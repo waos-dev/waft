@@ -58,6 +58,7 @@ use objc2::rc::Retained;
 use objc2_app_kit::{NSView, NSWindow};
 use valo_codec::Decoder;
 use waft_embedder::image_codecs::ImageCodecs;
+use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Cameras, CaptionSettings, HardwareBuffer, MediaAssets, Notifications, Players, SignedDuration,
     TargetPlatform, VideoFrameReaders,
@@ -127,6 +128,11 @@ impl SystemMedia for AppKit {
 
     fn video_frame_readers() -> Option<Rc<dyn VideoFrameReaders>> {
         waft_embedder_apple::media::video_frame_readers()
+    }
+
+    /// VideoToolbox's, which iOS shares.
+    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
+        waft_embedder_apple::video_decoders::video_decoders()
     }
 
     /// Media Accessibility's.
