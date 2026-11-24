@@ -837,6 +837,12 @@ pub trait Platform: Any {
         None
     }
 
+    /// The system's video decoders, which an app hands a stream's encoded pictures, or `None`
+    /// where the system decodes no video for the app.
+    fn video_decoders(&self) -> Option<&dyn crate::video_decoders::VideoDecoders> {
+        None
+    }
+
     /// The user's caption settings, or `None` where the system keeps none, as Linux and the web
     /// keep none.
     fn caption_settings(&self) -> Option<&dyn crate::CaptionSettings> {
