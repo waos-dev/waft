@@ -11,8 +11,6 @@ use h264_reader::nal::sps::SeqParameterSet;
 use h264_reader::rbsp::{BitReader, decode_nal};
 use waft_embedder::{ColorRange, PixelAspect, VideoColor};
 
-/// A unit that is a key picture: one nothing decoded later is shown before.
-pub(super) const KEY_PICTURE: u8 = 5;
 const SEQUENCE_PARAMETER_SET: u8 = 7;
 const PICTURE_PARAMETER_SET: u8 = 8;
 
@@ -96,7 +94,15 @@ impl ParameterSets {
 
     /// The sets, sequence sets first, as VideoToolbox is handed them.
     pub(super) fn units(&self) -> impl Iterator<Item = &[u8]> {
-        self.sequence.iter().chain(&self.picture).map(Vec::as_slice)
+        self.sequence_sets().chain(self.picture_sets())
+    }
+
+    pub(super) fn sequence_sets(&self) -> impl Iterator<Item = &[u8]> {
+        self.sequence.iter().map(Vec::as_slice)
+    }
+
+    pub(super) fn picture_sets(&self) -> impl Iterator<Item = &[u8]> {
+        self.picture.iter().map(Vec::as_slice)
     }
 
     /// What the first sequence set says of the stream; why not, for one that cannot be read.

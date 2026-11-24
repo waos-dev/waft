@@ -34,9 +34,10 @@ use waft_embedder::{ColorRange, PixelAspect, VideoColor, VideoFrame};
 
 use super::nal::{units_after_lengths, units_after_start_codes, with_lengths};
 use super::output::Output;
+use super::picture_order::PictureOrder;
 use super::presentation_order::PresentationOrder;
 use super::session::{DecodedPicture, Session};
-use super::stream::{KEY_PICTURE, ParameterSets, StreamFacts, is_parameter_set, unit_type};
+use super::stream::{ParameterSets, StreamFacts, is_parameter_set};
 use crate::answer::answer;
 use crate::media::CoreVideoFrame;
 use crate::media::DecodedFacts;
@@ -79,6 +80,8 @@ struct Work {
     default_color: Option<VideoColor>,
     /// The session made of `sets`, once they are whole, with what they say of the stream.
     session: Option<(Session, StreamFacts)>,
+    /// Where each picture stands in the order its stream is shown in, as the stream says.
+    picture_order: PictureOrder,
     /// The pictures decoded and not yet shown.
     order: PresentationOrder<Arc<dyn VideoFrame>>,
     output: Output,
@@ -94,6 +97,9 @@ impl Work {
     /// made of them otherwise, the pictures held shown first.
     fn adopt(&mut self, sets: ParameterSets) -> Result<(), DecoderError> {
         let facts = sets.facts().map_err(DecoderError::BadData)?;
+        self.picture_order
+            .adopt(&sets)
+            .map_err(DecoderError::BadData)?;
         let goes_on = matches!(&self.session, Some((session, _)) if session.accepts(&sets));
         let session = match self.session.take() {
             Some((session, _)) if goes_on => session,
@@ -131,13 +137,18 @@ impl Work {
             .into_iter()
             .filter(|unit| !is_parameter_set(unit))
             .collect();
-        let begins_sequence = coded
-            .iter()
-            .any(|unit| unit_type(unit) == Some(KEY_PICTURE));
+        // Counted before it is decoded, so a picture VideoToolbox gives nothing for is counted.
+        let place = self
+            .picture_order
+            .place_of(&coded)
+            .map_err(DecoderError::BadData)?;
         let decoded = session.decode(&with_lengths(coded), chunk.timestamp, chunk.duration)?;
         if let Some(picture) = decoded {
+            let place = place.ok_or_else(|| {
+                DecoderError::BadData("a picture with no slice to tell its order by".to_owned())
+            })?;
             let frame = self.frame_of(picture, chunk, facts);
-            let shown = self.order.take(chunk.timestamp, frame, begins_sequence);
+            let shown = self.order.take(place, frame);
             self.output.put(shown, self.asked_after_resets);
         }
         Ok(())
@@ -226,6 +237,7 @@ impl Decoder {
             choice: options.decoder,
             default_color: options.default_color,
             session: None,
+            picture_order: PictureOrder::default(),
             order: PresentationOrder::new(0),
             output: output.clone(),
             frame_limit: options.frame_limit.max(1) as usize,
@@ -410,6 +422,25 @@ mod tests {
         let times = times_decoded(&decoder, chunks(after_start_codes));
         let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
         assert_eq!(times, in_order);
+    }
+
+    /// The order is the stream's own: chunks whose times say the order they are decoded in, as
+    /// an app that knows no better gives them, come out in the order they are shown all the
+    /// same, each frame with the time its chunk carried.
+    #[test]
+    fn a_streams_order_is_its_own_whatever_times_its_chunks_carry() {
+        let setup = VideoStreamSetup::H264(NalFormat::StartCodes(None));
+        let decoder = Decoder::open(setup, &options()).expect("a decoder");
+        let mut chunks = chunks(after_start_codes);
+        for (decoded, chunk) in chunks.iter_mut().enumerate() {
+            chunk.timestamp = decoded as i64;
+        }
+        let times = times_decoded(&decoder, chunks);
+        // The picture decoded second is shown fourth, and so on, as `SHOWN_AT` says.
+        let mut decoded_in_order_shown: Vec<i64> = (0..12).collect();
+        decoded_in_order_shown.sort_by_key(|decoded| SHOWN_AT[*decoded as usize]);
+        let carried: Vec<_> = decoded_in_order_shown.into_iter().map(Some).collect();
+        assert_eq!(times, carried);
     }
 
     #[test]

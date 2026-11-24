@@ -1,22 +1,25 @@
 //! Pictures in the order they are shown. VideoToolbox hands pictures back in the order their
 //! chunks were decoded, which a stream with pictures that refer forward is not shown in, so each
-//! waits here until none that is shown before it can still come.
+//! waits here, by the place its stream gives it (`picture_order`), until none that is shown
+//! before it can still come.
 //!
 //! A stream says how many pictures may be decoded ahead of one shown before them (its reordering
 //! depth). A picture is let out once more than that many are held, the earliest first. A key
 //! frame that begins a new sequence is shown after everything decoded before it, so those are let
 //! out as it arrives.
 //!
-//! The invariant: pictures leave in ascending order of their time, as long as the stream keeps to
-//! the depth it said, and every picture taken leaves: two with one time leave in the order they
-//! came, neither in the other's place.
+//! The invariant: pictures leave in ascending order of their count, as long as the stream keeps
+//! to the depth it said, and every picture taken leaves: two with one count leave in the order
+//! they came, neither in the other's place.
 
 use std::collections::BTreeMap;
+
+use super::picture_order::Place;
 
 pub(super) struct PresentationOrder<Picture> {
     /// How many pictures may be decoded ahead of one shown before them.
     depth: usize,
-    /// Each picture held, by its time and then by when it came.
+    /// Each picture held, by its count and then by when it came.
     held: BTreeMap<(i64, u64), Picture>,
     /// How many pictures have come.
     taken: u64,
@@ -36,20 +39,15 @@ impl<Picture> PresentationOrder<Picture> {
         self.depth = depth;
     }
 
-    /// Takes `picture`, shown at `time`, and answers those that can be shown now, in order.
-    /// `begins_sequence` for a key frame nothing decoded later is shown before.
-    pub(super) fn take(
-        &mut self,
-        time: i64,
-        picture: Picture,
-        begins_sequence: bool,
-    ) -> Vec<Picture> {
-        let mut shown = if begins_sequence {
+    /// Takes `picture`, which stands at `place` in its stream, and answers those that can be
+    /// shown now, in order.
+    pub(super) fn take(&mut self, place: Place, picture: Picture) -> Vec<Picture> {
+        let mut shown = if place.begins_sequence {
             self.all()
         } else {
             Vec::new()
         };
-        self.held.insert((time, self.taken), picture);
+        self.held.insert((place.count, self.taken), picture);
         self.taken += 1;
         while self.held.len() > self.depth {
             let (_, earliest) = self.held.pop_first().expect("more than none are held");
@@ -73,11 +71,25 @@ impl<Picture> PresentationOrder<Picture> {
 mod tests {
     use super::*;
 
-    /// Takes each of `times` as a picture named by its time.
-    fn shown_as_taken(order: &mut PresentationOrder<i64>, times: &[i64]) -> Vec<Vec<i64>> {
-        times
+    fn within_sequence(count: i64) -> Place {
+        Place {
+            count,
+            begins_sequence: false,
+        }
+    }
+
+    fn beginning_sequence(count: i64) -> Place {
+        Place {
+            count,
+            begins_sequence: true,
+        }
+    }
+
+    /// Takes each of `counts` as a picture named by its count.
+    fn shown_as_taken(order: &mut PresentationOrder<i64>, counts: &[i64]) -> Vec<Vec<i64>> {
+        counts
             .iter()
-            .map(|time| order.take(*time, *time, false))
+            .map(|count| order.take(within_sequence(*count), *count))
             .collect()
     }
 
@@ -104,19 +116,26 @@ mod tests {
     #[test]
     fn a_key_frame_that_begins_a_sequence_follows_all_decoded_before_it() {
         let mut order = PresentationOrder::new(2);
-        assert_eq!(order.take(0, 0, true), Vec::<i64>::new());
-        assert_eq!(order.take(2, 2, false), Vec::<i64>::new());
-        assert_eq!(order.take(10, 10, true), [0, 2]);
-        assert_eq!(order.all(), [10]);
+        assert_eq!(
+            order.take(beginning_sequence(0), "first"),
+            Vec::<&str>::new()
+        );
+        assert_eq!(order.take(within_sequence(4), "second"), Vec::<&str>::new());
+        // The count begins again with it, so it is smaller than those shown before it.
+        assert_eq!(
+            order.take(beginning_sequence(0), "third"),
+            ["first", "second"]
+        );
+        assert_eq!(order.all(), ["third"]);
     }
 
-    /// A stream whose chunks all carry one time, as a program that knows none gives them.
+    /// Two pictures of a stream that breaks its own rules and counts both the same.
     #[test]
-    fn pictures_with_one_time_all_leave_in_the_order_they_came() {
+    fn pictures_with_one_count_all_leave_in_the_order_they_came() {
         let mut order = PresentationOrder::new(1);
         let shown: Vec<Vec<&str>> = ["first", "second", "third"]
             .into_iter()
-            .map(|picture| order.take(0, picture, false))
+            .map(|picture| order.take(within_sequence(0), picture))
             .collect();
         assert_eq!(shown, [vec![], vec!["first"], vec!["second"]]);
         assert_eq!(order.all(), ["third"]);
@@ -125,7 +144,7 @@ mod tests {
     #[test]
     fn a_reset_drops_what_is_held() {
         let mut order = PresentationOrder::new(2);
-        order.take(0, 0, true);
+        order.take(beginning_sequence(0), 0);
         order.clear();
         assert_eq!(order.all(), Vec::<i64>::new());
     }

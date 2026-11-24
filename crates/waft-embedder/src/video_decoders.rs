@@ -128,7 +128,8 @@ pub struct EncodedChunk {
     /// The whole of one picture (an access unit), framed as the stream's setup says.
     pub data: Vec<u8>,
     /// When the picture is shown, in nanoseconds on the stream's own timeline, which may begin
-    /// before zero. No two chunks of a stream share one.
+    /// before zero: carried to the picture's frame unchanged. A decoder does not order by it:
+    /// frames come out in the stream's own order, whatever the times say.
     pub timestamp: i64,
     /// How long it is shown, in nanoseconds, where the stream says.
     pub duration: Option<u64>,
