@@ -167,6 +167,12 @@ Ported against: 4765bd950d31784578608cfbb0c723453cc49216
   Reason: language — Rust cannot subclass a value type or override its inherent getters.
   Affect: a subclass cannot override `text_theme`, `bar_background_color`, `selection_handle_color`, `apply_theme_to_all`, `no_default`, `copy_with` or `==`; `copy_with` and the `with_*` setters keep the subclass.
 
+## bottom_tab_bar.rs → bottom_tab_bar.dart
+
+- Change: `CupertinoTabBar` resolves its default border's dynamic colour itself, and a `border` given to it is painted in the colours it was built with.
+  Reason: language — a `BorderSide` holds a plain `Color`, which carries no `CupertinoDynamicColor` (the colors.rs entry).
+  Affect: the default border follows the brightness; a border built from a dynamic colour stays at the value it was built with.
+
 ## Deferred
 - checkbox.rs: the deprecated `inactiveColor`, which nothing reads. Trigger: Flutter un-deprecating it.
 - slider.rs: `describeSemanticsConfiguration`, `_increaseAction`, `_decreaseAction`, `_semanticActionUnit`, `_kAdjustmentUnit`, and the setters' `markNeedsSemanticsUpdate`. Trigger: the semantics tree.

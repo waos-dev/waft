@@ -301,9 +301,10 @@ fn wrap_with_background(
         .into_widget()
 }
 
-/// Dart's `Color.alpha`, which nav_bar.dart still reads although it is deprecated upstream.
+/// Dart's `Color.alpha`, which nav_bar.dart and bottom_tab_bar.dart still read although it is
+/// deprecated upstream.
 #[expect(deprecated, reason = "the getter Dart's `backgroundColor.alpha` reads")]
-fn alpha(color: &AnyColor) -> i32 {
+pub(crate) fn alpha(color: &AnyColor) -> i32 {
     color.alpha()
 }
 

@@ -6,6 +6,7 @@
 mod activity_indicator;
 mod adaptive_text_selection_toolbar;
 mod app;
+mod bottom_tab_bar;
 mod button;
 mod checkbox;
 mod colors;
@@ -49,6 +50,7 @@ mod thumb_painter;
 pub use activity_indicator::*;
 pub use adaptive_text_selection_toolbar::*;
 pub use app::*;
+pub use bottom_tab_bar::*;
 pub use button::*;
 pub use checkbox::*;
 pub use colors::*;
