@@ -1,5 +1,6 @@
 package rs.waft;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -92,9 +93,21 @@ public final class WaftDocumentActivity extends WaftActivity {
      */
     long request(long process) {
         Intent intent = getIntent();
-        if (intent.getLongExtra(EXTRA_PROCESS, process + 1) != process) {
+        if (!requestedBy(intent, process)) {
             return NO_REQUEST;
         }
         return intent.getLongExtra(EXTRA_REQUEST, NO_REQUEST);
+    }
+
+    /** Whether {@code intent} is a request the process numbered {@code process} made. */
+    static boolean requestedBy(Intent intent, long process) {
+        return intent.getLongExtra(EXTRA_PROCESS, process + 1) == process;
+    }
+
+    /** Whether {@code intent} starts this activity: the intent of a task that shows a view. */
+    static boolean starts(Intent intent) {
+        ComponentName component = intent.getComponent();
+        return component != null
+                && WaftDocumentActivity.class.getName().equals(component.getClassName());
     }
 }

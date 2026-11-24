@@ -3,16 +3,19 @@ package rs.waft;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Icon;
 import android.os.Build;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * An activity's task, which is the window of the view the activity is: its card in Recents, which
  * shows the task's description, bringing it forward, and removing it while its activity is
- * destroyed. The app's native code calls these, the description on the main thread, where an
+ * destroyed; and the tasks an earlier process left, which the app may remove before they are
+ * restored. The app's native code calls these, the description on the main thread, where an
  * activity is touched.
  *
  * <p>Recents draws the description's icon beside the card and reads its label out to
@@ -80,6 +83,39 @@ final class WaftTask {
             ids[i] = tasks.get(i).getTaskInfo().taskId;
         }
         return ids;
+    }
+
+    /**
+     * The numbers of the app's tasks that show a view the process numbered {@code process} did
+     * not ask for: the tasks an earlier process left in Recents, and those a shortcut started.
+     * Android restores each when the user picks its card.
+     */
+    static int[] restorableTaskIds(Context context, long process) {
+        ActivityManager manager = context.getSystemService(ActivityManager.class);
+        List<ActivityManager.AppTask> tasks = manager.getAppTasks();
+        int[] ids = new int[tasks.size()];
+        int count = 0;
+        for (ActivityManager.AppTask task : tasks) {
+            ActivityManager.RecentTaskInfo info = task.getTaskInfo();
+            Intent intent = info.baseIntent;
+            if (WaftDocumentActivity.starts(intent)
+                    && !WaftDocumentActivity.requestedBy(intent, process)) {
+                ids[count++] = info.taskId;
+            }
+        }
+        return Arrays.copyOf(ids, count);
+    }
+
+    /**
+     * The initial data of the view the app's task numbered {@code taskId} shows, as its intent
+     * carries it; null for none, and where Android keeps no task so numbered.
+     */
+    static String initialData(Context context, int taskId) {
+        ActivityManager.AppTask task = task(context, taskId);
+        if (task == null) {
+            return null;
+        }
+        return WaftDocumentActivity.initialDataOf(task.getTaskInfo().baseIntent);
     }
 
     /** The app's task numbered {@code taskId}; null where Android keeps none so numbered. */

@@ -210,6 +210,11 @@ impl FolderHandle for DocumentFolder {
         &self.name
     }
 
+    /// The folder's document URI in the tree the user picked.
+    fn url(&self) -> Option<String> {
+        self.uri_of(&self.document).ok()
+    }
+
     fn entries(&self) -> FolderEntriesFuture {
         let entries = self.children().map(|children| {
             children

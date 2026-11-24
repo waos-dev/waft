@@ -241,8 +241,11 @@ pub trait HostWindow: 'static {
     /// A system that shows no icon for a window, as macOS and Wayland do not, drops it.
     fn set_icon(&self, icon: Option<&IconImage>);
 
+    /// Makes the window visible and brings it to the front, focused where it takes the focus:
+    /// macOS `makeKeyAndOrderFront`, Android `AppTask.moveToFront`.
     fn show(&self);
 
+    /// Takes the window off the screen, kept; nothing on Android, whose task is never hidden.
     fn hide(&self);
 
     /// Flutter `WindowController.isMinimized`; macOS `isMiniaturized`, Windows `IsIconic`.

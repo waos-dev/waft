@@ -111,6 +111,8 @@ mod queue_family_handover;
 #[cfg(target_os = "android")]
 mod refresh;
 #[cfg(target_os = "android")]
+mod restorable_windows;
+#[cfg(target_os = "android")]
 mod runtime_permissions;
 #[cfg(any(target_os = "android", test))]
 mod saved_view;
@@ -153,6 +155,8 @@ pub use host::AndroidEmbedder;
 pub use media::AndroidVideoFrame;
 #[cfg(target_os = "android")]
 pub use platform::AndroidPlatform;
+#[cfg(target_os = "android")]
+pub use restorable_windows::RestorableWindow;
 #[cfg(target_os = "android")]
 pub use shortcuts::{
     DisabledReason, PublishedShortcut, ShortcutActivation, ShortcutActivationHandler,

@@ -340,6 +340,10 @@ impl FolderHandle for MemoryFolder {
         &self.0.name
     }
 
+    fn url(&self) -> Option<String> {
+        Some(format!("memory:{}", self.0.name))
+    }
+
     fn entries(&self) -> FolderEntriesFuture {
         let entry = |kind| {
             move |name: &String| FolderEntry {

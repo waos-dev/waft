@@ -11,12 +11,13 @@
 //! - closing finishes the activity and removes its task (`finishAndRemoveTask`), and the view goes
 //!   when Android destroys the activity finishing;
 //! - minimizing sends the task to the background (`moveTaskToBack`), and restoring it brings it
-//!   forward (`ActivityManager.AppTask.moveToFront`), as focusing the view does;
+//!   forward (`ActivityManager.AppTask.moveToFront`), as focusing the view and showing the window
+//!   do;
 //! - minimized is having no window from the system, as in the background, and the host reports
 //!   each change (`EmbedderClient::window_changed`); a phone tells the app of no window covering
 //!   another, so none is occluded, and none is maximized;
 //! - the system sizes and places every window, so the frame is the view's size at the origin, and
-//!   moving, sizing, showing, hiding, maximizing and dragging do nothing; there are no size limits.
+//!   moving, sizing, hiding, maximizing and dragging do nothing; there are no size limits.
 //!
 //! The invariant a later editor will break: what the task shows is the window's, kept here, and
 //! told again to each activity attached to the view ([`TaskWindow::attach`]), since an activity
@@ -241,7 +242,11 @@ impl HostWindow for TaskWindow {
         self.describe();
     }
 
-    fn show(&self) {}
+    /// Brings the task forward: a task is never hidden, so showing it is all of bringing it to
+    /// the front, as a desktop's shown window comes to the front.
+    fn show(&self) {
+        self.move_to_front();
+    }
 
     fn hide(&self) {}
 
