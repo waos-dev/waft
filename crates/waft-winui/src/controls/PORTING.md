@@ -102,6 +102,14 @@ Ported against: aa3207e6
   Reason: framework — Flutter recognizers first decide whether the press is a tap or a drag, while WinUI’s draggable knob starts tracking on press.
   Affect: `ToggleSwitch` keeps its knob still for the first 18 px of touch movement, and shorter movement remains a tap.
 
+- Change: `ToggleSwitch` accepts a function that builds its template from the switch's states and the drag surface it is given.
+  Reason: language — Rust callbacks receive the states and template parts in place of a XAML `ControlTemplate` with named parts.
+  Affect: A style based on the default one, as the Community Toolkit's `right_aligned_compact_toggle_switch_style` is, is passed to `.template(...)` and keeps the switch's tap, drag and keyboard behavior.
+
+- Change: `ToggleSwitch` moves its knob over 20 px whichever template draws it.
+  Reason: framework — WinUI measures the template's `SwitchKnobBounds` and `SwitchKnob` once they are laid out, while the port decides the distance when it builds, before layout.
+  Affect: A template whose track is not 40 px wide, or whose knob is not 20, sees drags and `knob_translation` for a 20 px range.
+
 ## radio_button.rs → `RadioButton`
 
 - Change: `RadioButton` asks the caller to update the selected option instead of finding and unchecking other buttons in a named group.
@@ -287,6 +295,10 @@ Ported against: aa3207e6
 - Change: `Expander` keeps hidden content’s State alive, but ticker-driven animations stop receiving ticks.
   Reason: framework — removing a Flutter widget would dispose its State, so hiding it preserves the child state for the next expansion.
   Affect: Child widget values survive closing and reopening, and TickerMode mutes their animation ticks while hidden; timers and other application updates still run.
+
+- Change: `Expander` accepts a function that builds its template from the expand state and a wrapper for its content element.
+  Reason: language — Rust callbacks receive the state and template parts in place of a XAML `ControlTemplate`, whose storyboards the wrapper carries.
+  Affect: A style with its own header and content, as the Community Toolkit's `SettingsExpander` uses, is passed to `.template(...)`; it wraps its content in `ExpanderTemplateParts::expander_content_clip`, which slides and hides it as the default template's does.
 
 ## info_bar.rs → `InfoBar`
 

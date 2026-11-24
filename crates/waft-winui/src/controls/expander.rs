@@ -24,6 +24,58 @@ pub enum ExpandDirection {
 /// Requests an owner update to IsExpanded.
 pub type ExpanderExpandedChangedHandler = Rc<dyn Fn(&mut App, bool)>;
 
+/// The `ExpandStates` group, which `Expander::UpdateExpandState` picks from `IsExpanded` and the `ExpandDirection` at the time it changed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExpandState {
+    /// Expanded below the header, whose bottom corners are square.
+    ExpandDown,
+    /// Expanded above the header, whose top corners are square.
+    ExpandUp,
+    /// Collapsed after showing below the header.
+    CollapseDown,
+    /// Collapsed after showing above the header.
+    CollapseUp,
+}
+
+impl ExpandState {
+    /// Whether the state is one of the two expanded ones.
+    pub fn is_expanded(self) -> bool {
+        matches!(self, ExpandState::ExpandDown | ExpandState::ExpandUp)
+    }
+}
+
+/// An Expander `ControlTemplate` replacing `DefaultExpanderStyle`'s, as another style sets one; the Expander keeps its expanding and collapsing of the content.
+pub type ExpanderTemplate = Rc<
+    dyn Fn(
+        &mut App,
+        BuildContext,
+        &Expander,
+        ExpanderTemplateStates,
+        &ExpanderTemplateParts,
+    ) -> WidgetRef,
+>;
+
+/// What an Expander template is built for. `ExpandDirectionStates` follows [`Expander::expand_direction`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExpanderTemplateStates {
+    /// `ExpandStates`.
+    pub expand: ExpandState,
+}
+
+/// The template parts `Expander::OnApplyTemplate` attaches its behaviour to.
+pub struct ExpanderTemplateParts {
+    /// Wraps `ExpanderContent` in the clip and the `ExpandStates` storyboards.
+    content_clip: Rc<dyn Fn(WidgetRef) -> WidgetRef>,
+}
+
+impl ExpanderTemplateParts {
+    /// `ExpanderContentClip`: `expander_content` clipped to its own bounds, and shown, slid and hidden as the `ExpandStates` storyboards move `ExpanderContent`. Collapsed content stays mounted.
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn expander_content_clip<K>(&self, expander_content: impl IntoWidget<K>) -> WidgetRef {
+        (self.content_clip)(expander_content.into_widget())
+    }
+}
+
 /// A header toggle that reveals or hides retained content using the Fluent template.
 #[derive(Clone)]
 pub struct Expander {
@@ -69,6 +121,9 @@ pub struct Expander {
     /// Called when IsExpanded changes to false, rather than after the collapse animation.
     pub collapsed: Option<Listener>,
 
+    /// The template of another style; `None` is `DefaultExpanderStyle`'s.
+    pub template: Option<ExpanderTemplate>,
+
     /// Stable identity across rebuilds.
     pub key: Option<KeyRef>,
 }
@@ -91,6 +146,7 @@ impl Expander {
             min_height: None,
             expanding: None,
             collapsed: None,
+            template: None,
             key: None,
         }
     }
@@ -166,6 +222,22 @@ impl Expander {
     /// Sets Collapsed.
     pub fn collapsed(mut self, value: Listener) -> Self {
         self.collapsed = Some(value);
+        self
+    }
+
+    /// Sets the `ControlTemplate` of a style that replaces `DefaultExpanderStyle`'s.
+    pub fn template(
+        mut self,
+        builder: impl Fn(
+            &mut App,
+            BuildContext,
+            &Expander,
+            ExpanderTemplateStates,
+            &ExpanderTemplateParts,
+        ) -> WidgetRef
+        + 'static,
+    ) -> Self {
+        self.template = Some(Rc::new(builder));
         self
     }
 
@@ -347,127 +419,144 @@ impl State for ExpanderState {
         SingleTickerProviderStateMixin::dispose(self, app);
     }
 
-    /// Builds the named template parts from the current visual state.
+    /// Builds the style's template for the current visual state.
     fn build(self: Handle<Self>, app: &mut App, context: BuildContext) -> WidgetRef {
         let widget = self.widget(app).clone();
-        let resources = ThemeResources::of(app, context);
-        let header_widget = widget.clone();
-        let header_down = app.get(self).motion_direction == ExpandDirection::Down;
-        let changed = widget.is_expanded_changed.clone();
-        let header = ToggleButton::new(Some(widget.is_expanded), move |app, value| {
-            changed(app, value == Some(true))
-        })
-        .content(
-            widget
-                .header
-                .clone()
-                .unwrap_or_else(|| SizedBox::shrink().into_widget()),
-        )
-        .is_enabled(widget.is_enabled)
-        .template(move |app, context, _, content, states| {
-            expander_header(
-                app,
-                context,
-                &header_widget,
-                header_down,
-                content.unwrap_or_else(|| SizedBox::shrink().into_widget()),
-                states,
-            )
-        });
-
-        let down = widget.expand_direction == ExpandDirection::Down;
-        let content = ControlBorder::new(
-            widget
-                .background
-                .unwrap_or(Brush::Solid(resources.expander_content_background)),
-            widget
-                .border_brush
-                .unwrap_or(Brush::Solid(resources.expander_content_border_brush)),
-        )
-        .border_thickness_ltrb(if down {
-            resources.expander_content_down_border_thickness
-        } else {
-            resources.expander_content_up_border_thickness
-        })
-        .corner_radius_corners(if down {
-            [
-                0.0,
-                0.0,
-                widget
-                    .corner_radius
-                    .unwrap_or(resources.control_corner_radius[0]),
-                widget
-                    .corner_radius
-                    .unwrap_or(resources.control_corner_radius[0]),
-            ]
-        } else {
-            [
-                widget
-                    .corner_radius
-                    .unwrap_or(resources.control_corner_radius[0]),
-                widget
-                    .corner_radius
-                    .unwrap_or(resources.control_corner_radius[0]),
-                0.0,
-                0.0,
-            ]
-        })
-        .padding(widget.padding.unwrap_or(resources.expander_content_padding))
-        .child(
-            widget
-                .content
-                .clone()
-                .unwrap_or_else(|| SizedBox::shrink().into_widget()),
-        );
-        let content = ConstrainedBox::new(
-            BoxConstraints::new()
-                .min_height(widget.min_height.unwrap_or(resources.expander_min_height)),
-        )
-        .child(content);
-        let visible = app.get(self).content_visible;
-
-        // ExpanderContentClip contains the translated ExpanderContent; height is reserved immediately.
-        let content = Offstage::new().offstage(!visible).child(TickerMode::new(
-            visible,
-            ExcludeFocus::new(ClipRect::new().child(
-                FractionalTranslation::new(Offset::new(0.0, self.translation(app))).child(content),
-            ))
-            .excluding(!visible),
-        ));
-        let grid = Grid::new()
-            .row_definitions([
-                RowDefinition::new(if down {
-                    GridLength::AUTO
-                } else {
-                    GridLength::STAR
-                }),
-                RowDefinition::new(if down {
-                    GridLength::STAR
-                } else {
-                    GridLength::AUTO
-                }),
-            ])
-            .children([
-                GridCell::new(header)
-                    .row(if down { 0 } else { 1 })
-                    .into_widget(),
-                GridCell::new(content)
-                    .row(if down { 1 } else { 0 })
-                    .into_widget(),
-            ]);
+        let state = app.get(self);
+        let states = ExpanderTemplateStates {
+            expand: match (widget.is_expanded, state.motion_direction) {
+                (true, ExpandDirection::Down) => ExpandState::ExpandDown,
+                (true, ExpandDirection::Up) => ExpandState::ExpandUp,
+                (false, ExpandDirection::Down) => ExpandState::CollapseDown,
+                (false, ExpandDirection::Up) => ExpandState::CollapseUp,
+            },
+        };
+        let visible = state.content_visible;
+        let translation = Offset::new(0.0, self.translation(app));
+        let parts = ExpanderTemplateParts {
+            // ExpanderContentClip contains the translated ExpanderContent; height is reserved immediately.
+            content_clip: Rc::new(move |expander_content| {
+                Offstage::new()
+                    .offstage(!visible)
+                    .child(TickerMode::new(
+                        visible,
+                        ExcludeFocus::new(ClipRect::new().child(
+                            FractionalTranslation::new(translation).child(expander_content),
+                        ))
+                        .excluding(!visible),
+                    ))
+                    .into_widget()
+            }),
+        };
+        let template = match widget.template.clone() {
+            Some(template) => template(app, context, &widget, states, &parts),
+            None => {
+                let resources = ThemeResources::of(app, context);
+                default_template(&resources, &widget, states, &parts)
+            }
+        };
 
         ExcludeFocus::new(
-            IgnorePointer::new().ignoring(!widget.is_enabled).child(
-                ConstrainedBox::new(
-                    BoxConstraints::new()
-                        .min_width(widget.min_width.unwrap_or(resources.flyout_theme_min_width)),
-                )
-                .child(grid),
-            ),
+            IgnorePointer::new()
+                .ignoring(!widget.is_enabled)
+                .child(template),
         )
         .excluding(!widget.is_enabled)
         .into_widget()
     }
+}
+
+/// `DefaultExpanderStyle`'s template: `ExpanderHeader` and `ExpanderContentClip` in the two rows the direction orders.
+fn default_template(
+    resources: &ThemeResources,
+    widget: &Expander,
+    states: ExpanderTemplateStates,
+    parts: &ExpanderTemplateParts,
+) -> WidgetRef {
+    let header_widget = widget.clone();
+    let changed = widget.is_expanded_changed.clone();
+    let header = ToggleButton::new(Some(widget.is_expanded), move |app, value| {
+        changed(app, value == Some(true))
+    })
+    .content(
+        widget
+            .header
+            .clone()
+            .unwrap_or_else(|| SizedBox::shrink().into_widget()),
+    )
+    .is_enabled(widget.is_enabled)
+    .template(move |app, context, _, content, common| {
+        expander_header(
+            app,
+            context,
+            &header_widget,
+            states.expand,
+            content.unwrap_or_else(|| SizedBox::shrink().into_widget()),
+            common,
+        )
+    });
+
+    let down = widget.expand_direction == ExpandDirection::Down;
+    let corner_radius = widget
+        .corner_radius
+        .unwrap_or(resources.control_corner_radius[0]);
+    let content = ControlBorder::new(
+        widget
+            .background
+            .unwrap_or(Brush::Solid(resources.expander_content_background)),
+        widget
+            .border_brush
+            .unwrap_or(Brush::Solid(resources.expander_content_border_brush)),
+    )
+    .border_thickness_ltrb(if down {
+        resources.expander_content_down_border_thickness
+    } else {
+        resources.expander_content_up_border_thickness
+    })
+    .corner_radius_corners(if down {
+        [0.0, 0.0, corner_radius, corner_radius]
+    } else {
+        [corner_radius, corner_radius, 0.0, 0.0]
+    })
+    .padding(widget.padding.unwrap_or(resources.expander_content_padding))
+    .child(
+        widget
+            .content
+            .clone()
+            .unwrap_or_else(|| SizedBox::shrink().into_widget()),
+    );
+    let content = ConstrainedBox::new(
+        BoxConstraints::new()
+            .min_height(widget.min_height.unwrap_or(resources.expander_min_height)),
+    )
+    .child(content);
+    let grid = Grid::new()
+        .row_definitions([
+            RowDefinition::new(if down {
+                GridLength::AUTO
+            } else {
+                GridLength::STAR
+            }),
+            RowDefinition::new(if down {
+                GridLength::STAR
+            } else {
+                GridLength::AUTO
+            }),
+        ])
+        .children([
+            GridCell::new(header)
+                .row(if down { 0 } else { 1 })
+                .into_widget(),
+            GridCell::new(parts.expander_content_clip(content))
+                .row(if down { 1 } else { 0 })
+                .into_widget(),
+        ]);
+    ConstrainedBox::new(
+        BoxConstraints::new()
+            .min_width(widget.min_width.unwrap_or(resources.flyout_theme_min_width)),
+    )
+    .child(grid)
+    .into_widget()
 }
 
 /// ExpanderHeaderDownStyle / ExpanderHeaderUpStyle common and checked visual states.
@@ -475,7 +564,7 @@ fn expander_header(
     app: &mut App,
     context: BuildContext,
     widget: &Expander,
-    header_down: bool,
+    expand: ExpandState,
     content: WidgetRef,
     states: ControlStates,
 ) -> WidgetRef {
@@ -512,24 +601,12 @@ fn expander_header(
             r.expander_chevron_foreground,
         ),
     };
-    let radii = if widget.is_expanded {
-        if header_down {
-            [
-                widget.corner_radius.unwrap_or(r.control_corner_radius[0]),
-                widget.corner_radius.unwrap_or(r.control_corner_radius[0]),
-                0.0,
-                0.0,
-            ]
-        } else {
-            [
-                0.0,
-                0.0,
-                widget.corner_radius.unwrap_or(r.control_corner_radius[0]),
-                widget.corner_radius.unwrap_or(r.control_corner_radius[0]),
-            ]
-        }
-    } else {
-        [widget.corner_radius.unwrap_or(r.control_corner_radius[0]); 4]
+    let corner_radius = widget.corner_radius.unwrap_or(r.control_corner_radius[0]);
+    // `ExpandDown` and `ExpandUp` set `ExpanderHeader.CornerRadius` through the corner filters.
+    let radii = match expand {
+        ExpandState::ExpandDown => [corner_radius, corner_radius, 0.0, 0.0],
+        ExpandState::ExpandUp => [0.0, 0.0, corner_radius, corner_radius],
+        ExpandState::CollapseDown | ExpandState::CollapseUp => [corner_radius; 4],
     };
     let points_up = widget.is_expanded == (widget.expand_direction == ExpandDirection::Down);
 
