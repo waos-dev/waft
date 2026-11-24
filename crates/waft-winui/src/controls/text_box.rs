@@ -90,6 +90,11 @@ pub struct TextBox {
     /// Requests initial keyboard focus through the native editor.
     pub autofocus: bool,
 
+    /// Whether the caret is drawn while the box has the focus; Flutter's `TextField.showCursor`,
+    /// which XAML's `TextBox` has no property for. `None` draws it unless the box is read-only.
+    /// A box that hides it still takes what is typed.
+    pub show_cursor: Option<bool>,
+
     /// Overrides the desktop text-command menu.
     pub context_menu_builder: Option<EditableTextContextMenuBuilder>,
 
@@ -150,6 +155,7 @@ impl TextBox {
             max_length: None,
             input_formatters: Vec::new(),
             autofocus: false,
+            show_cursor: None,
             context_menu_builder: None,
             is_read_only: false,
             accepts_return: false,
@@ -299,6 +305,12 @@ impl TextBox {
     /// Sets TextAlignment.
     pub fn text_alignment(mut self, value: TextAlign) -> Self {
         self.text_alignment = value;
+        self
+    }
+
+    /// Whether the caret is drawn while the box has the focus: Flutter's `TextField.showCursor`.
+    pub fn show_cursor(mut self, value: bool) -> Self {
+        self.show_cursor = Some(value);
         self
     }
 

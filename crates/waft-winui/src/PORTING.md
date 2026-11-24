@@ -70,3 +70,6 @@ prefixes a type of its own, as decided for WaOS's docs:
 - Change: the page a Navigator's `pages` take is `FluentRoutePage`, where Flutter's kits name theirs after the kit (`MaterialPage`, `CupertinoPage`). It makes a page-based route sharing `FluentRouteTransitionMixin` with `FluentPageRoute`, as theirs share their kit's mixin.
   Reason: naming — `FluentPage` is WinUI's `Page` control (`controls/page.rs`).
   Affect: none beyond the name.
+- Change: `TextBox` has `show_cursor`, Flutter's `TextField.showCursor`: whether the caret is drawn while the box has the focus. XAML's `TextBox` has no such property.
+  Reason: platform — a launcher's search field takes what is typed from the moment it shows, with no caret blinking in it while it is empty, and keeps the focus so an input method's first key is not lost.
+  Affect: none by default: the caret is drawn unless the box is read-only, as before.
