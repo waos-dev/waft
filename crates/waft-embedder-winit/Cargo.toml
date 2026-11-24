@@ -87,7 +87,7 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString", "NSObject", "NSGeometry", "NSArray", "NSAttributedString", "NSBundle", "NSCalendar", "NSData", "NSDate", "NSDictionary", "NSError", "NSSet", "NSIndexSet", "NSItemProvider", "NSKeyValueObserving", "NSLocale", "NSNotification", "NSOperation", "NSProgress", "NSPropertyList", "NSRange", "NSRunLoop", "NSURL", "NSValue", "NSProcessInfo", "NSTimeZone", "NSUserDefaults", "block2"] }
 # The UTI a pasteboard names a MIME type by.
 objc2-uniform-type-identifiers = { version = "0.3", features = ["UTType", "UTCoreTypes"] }
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSMenu", "NSMenuItem", "NSEvent", "NSGraphicsContext", "NSView", "NSCell", "NSResponder", "NSWindow", "NSScreen", "NSAnimation", "NSAnimationContext", "NSVisualEffectView", "NSGlassEffectView", "NSGraphics", "NSTrackingArea", "NSPasteboard", "NSPasteboardItem", "NSFilePromiseProvider", "NSFilePromiseReceiver", "NSOpenPanel", "NSSavePanel", "NSWorkspace", "objc2-uniform-type-identifiers", "NSTouch", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSButtonCell", "NSActionCell", "NSColorSpace", "block2", "objc2-quartz-core"] }
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSMenu", "NSMenuItem", "NSEvent", "NSGraphicsContext", "NSView", "NSCell", "NSResponder", "NSWindow", "NSScreen", "NSAnimation", "NSAnimationContext", "NSVisualEffectView", "NSGlassEffectView", "NSBezierPath", "NSColor", "NSUserInterfaceItemIdentification", "objc2-core-foundation", "NSGraphics", "NSTrackingArea", "NSPasteboard", "NSPasteboardItem", "NSFilePromiseProvider", "NSFilePromiseReceiver", "NSOpenPanel", "NSSavePanel", "NSWorkspace", "objc2-uniform-type-identifiers", "NSTouch", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSButtonCell", "NSActionCell", "NSColorSpace", "block2", "objc2-quartz-core"] }
 # The display links' timing, the `CAMetalLayer` a view draws into, and the layer of winit's view,
 # which a view's drawing and its composition layers are placed in.
 objc2-quartz-core = { version = "0.3", features = ["CALayer", "CAMediaTimingFunction", "CADisplayLink", "CAMetalLayer"] }
@@ -153,6 +153,10 @@ name = "a_window_keeps_its_view_within_its_size_limits"
 harness = false
 
 [[test]]
+name = "a_window_shows_one_backdrop_behind_its_content"
+harness = false
+
+[[test]]
 name = "the_menus_report_what_is_chosen"
 harness = false
 
@@ -181,7 +185,7 @@ waft-embedder-winit = { path = ".", features = ["test-support"] }
 # menus, and pressing a key in a window that is not key.
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSWindow", "NSView", "NSMenu", "NSMenuItem", "NSEvent", "block2", "objc2-quartz-core"] }
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSWindow", "NSView", "NSMenu", "NSMenuItem", "NSEvent", "NSUserInterfaceItemIdentification", "block2", "objc2-quartz-core"] }
 objc2-foundation = { version = "0.3", features = ["NSArray", "NSDate", "NSGeometry", "NSRunLoop", "NSString"] }
 objc2-quartz-core = { version = "0.3", features = ["CALayer", "CAMetalLayer", "objc2-metal"] }
 # What the media tests ask of the system that the host offers no call for: serving the main run

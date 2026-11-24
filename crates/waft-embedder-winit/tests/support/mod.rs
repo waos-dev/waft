@@ -92,7 +92,7 @@ pub mod appkit {
     use objc2::rc::{Retained, Weak};
     use objc2_app_kit::{
         NSApplication, NSApplicationDelegate, NSEvent, NSEventMask, NSEventModifierFlags,
-        NSEventType, NSMenu, NSMenuItem, NSView, NSWindow,
+        NSEventType, NSMenu, NSMenuItem, NSUserInterfaceItemIdentification, NSView, NSWindow,
     };
     use objc2_foundation::{NSPoint, NSString};
     use objc2_quartz_core::{CALayer, CAMetalLayer};
@@ -122,6 +122,32 @@ pub mod appkit {
     /// Whether the window titled `title` has a sheet on it, as a file dialog's panel shows there.
     pub fn shows_a_sheet(title: &str) -> bool {
         window_titled(title).is_some_and(|window| window.attachedSheet().is_some())
+    }
+
+    /// How many backdrops the window titled `title` has behind its content: the views carrying
+    /// the host's backdrop identifier, among those the frame view draws before the content.
+    #[expect(
+        unsafe_code,
+        reason = "AppKit's superview is unsafe to call: it hands out a view of a live hierarchy"
+    )]
+    pub fn backdrops_behind_content(title: &str) -> usize {
+        let Some(content) = window_titled(title).and_then(|window| window.contentView()) else {
+            return 0;
+        };
+        // SAFETY: the view hierarchy of a live window, read on the main thread.
+        let Some(frame_view) = (unsafe { content.superview() }) else {
+            return 0;
+        };
+        let backdrop = NSString::from_str("waft.backdrop");
+        frame_view
+            .subviews()
+            .iter()
+            .take_while(|view| **view != *content)
+            .filter(|view| {
+                view.identifier()
+                    .is_some_and(|identifier| *identifier == *backdrop)
+            })
+            .count()
     }
 
     /// The smallest content AppKit lets a window be resized to when it has no minimum.

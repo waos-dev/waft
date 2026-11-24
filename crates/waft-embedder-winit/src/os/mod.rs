@@ -33,7 +33,9 @@ mod absent;
 #[cfg(target_os = "linux")]
 pub use linux::DmabufBuffer;
 #[cfg(target_os = "macos")]
-pub use macos::UserActivity;
+pub(crate) use macos::set_backdrop;
+#[cfg(target_os = "macos")]
+pub use macos::{MacosBackdrop, UserActivity};
 #[cfg(target_os = "macos")]
 pub(crate) use waft_embedder_apple::composition::{place_layer_in, show_system_layer};
 #[cfg(target_os = "macos")]

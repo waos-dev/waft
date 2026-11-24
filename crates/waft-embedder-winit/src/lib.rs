@@ -114,12 +114,16 @@ pub mod test_support {
 pub use images::{DecodeExecution, create_image_loader};
 pub use linux::Linux;
 pub use macos::MacOs;
+/// AppKit's own options for a [`MacosBackdrop`], so an app names them without AppKit's bindings
+/// at this host's version.
+#[cfg(target_os = "macos")]
+pub use objc2_app_kit::{NSGlassEffectViewStyle, NSVisualEffectMaterial, NSVisualEffectState};
 #[cfg(target_os = "linux")]
 pub use os::DmabufBuffer;
 #[cfg(target_os = "windows")]
 pub use os::SharedTexture;
 #[cfg(target_os = "macos")]
-pub use os::{CoreVideoFrame, SurfaceBuffer, UserActivity};
+pub use os::{CoreVideoFrame, MacosBackdrop, SurfaceBuffer, UserActivity};
 pub use platform::WinitPlatform;
 pub use system_requests::{NotificationActivationHandler, Reopen, ReopenHandler};
 pub use windows_os::Windows;
