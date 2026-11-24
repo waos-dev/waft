@@ -6,16 +6,20 @@
 //! a buffer is one too (`drawn_frames`).
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use objc2_core_foundation::CFRetained;
-use objc2_core_video::{CVPixelBuffer, CVPixelBufferGetHeight, CVPixelBufferGetWidth};
+use objc2_core_video::{
+    CVImageBufferGetCleanRect, CVPixelBuffer, CVPixelBufferGetHeight, CVPixelBufferGetWidth,
+};
 use waft_embedder::image_codecs::{ImageFuture, PixelBuffer};
-use waft_embedder::{HardwareBuffer, VideoFrame};
+use waft_embedder::{ColorRange, HardwareBuffer, PixelAspect, PixelRect, VideoColor, VideoFrame};
 
 use crate::hardware_buffers::SurfaceBuffer;
 
-/// One picture of a player or a camera on macOS and iOS: the `CVPixelBuffer` AVFoundation handed
-/// out, backed by an `IOSurface`, in 32-bit BGRA. Platform code reaches it from the
+/// One picture of a player, a camera or a decoder on macOS and iOS: the `CVPixelBuffer` the
+/// system handed out, backed by an `IOSurface`: in 32-bit BGRA from a reader, and in the
+/// decoder's own layout, 8-bit 4:2:0 in two planes, from a decoder. Platform code reaches it from the
 /// [`VideoFrame`] a reader answers by downcasting through `Any`:
 ///
 /// ```
@@ -35,6 +39,18 @@ pub struct CoreVideoFrame {
     rotation: u32,
     /// Whether it is shown mirrored, after `rotation`.
     flip: bool,
+    /// What its decoder said of it; none for a reader's frame, which says only what it is.
+    decoded: Option<DecodedFacts>,
+}
+
+/// What a decoder says of a picture it put out.
+#[derive(Clone, Copy)]
+pub(crate) struct DecodedFacts {
+    /// When it is shown, in nanoseconds on its stream's own timeline.
+    pub(crate) timestamp: i64,
+    pub(crate) duration: Option<Duration>,
+    pub(crate) pixel_aspect: PixelAspect,
+    pub(crate) color: VideoColor,
 }
 
 impl CoreVideoFrame {
@@ -46,6 +62,22 @@ impl CoreVideoFrame {
             buffer,
             rotation: 0,
             flip: false,
+            decoded: None,
+        }
+    }
+
+    /// The frame of `buffer`, a pixel buffer backed by an `IOSurface` in a decoder's own layout,
+    /// 8-bit 4:2:0 in two planes, as VideoToolbox hands it out, with what its decoder says of
+    /// it.
+    pub(crate) fn decoded(
+        buffer: CFRetained<CVPixelBuffer>,
+        facts: DecodedFacts,
+    ) -> CoreVideoFrame {
+        CoreVideoFrame {
+            buffer,
+            rotation: 0,
+            flip: false,
+            decoded: Some(facts),
         }
     }
 
@@ -91,6 +123,49 @@ impl VideoFrame for CoreVideoFrame {
 
     fn flip(&self) -> bool {
         self.flip
+    }
+
+    fn timestamp(&self) -> Option<i64> {
+        self.decoded.map(|decoded| decoded.timestamp)
+    }
+
+    fn duration(&self) -> Option<Duration> {
+        self.decoded.and_then(|decoded| decoded.duration)
+    }
+
+    /// The buffer's clean aperture, which a decoder sets from its stream's cropping; all of a
+    /// reader's frame.
+    fn visible_rect(&self) -> PixelRect {
+        let clean = CVImageBufferGetCleanRect(&self.buffer);
+        PixelRect {
+            x: clean.origin.x.round() as u32,
+            y: clean.origin.y.round() as u32,
+            width: clean.size.width.round() as u32,
+            height: clean.size.height.round() as u32,
+        }
+    }
+
+    fn pixel_aspect(&self) -> PixelAspect {
+        match self.decoded {
+            Some(decoded) => decoded.pixel_aspect,
+            None => PixelAspect {
+                width: 1,
+                height: 1,
+            },
+        }
+    }
+
+    fn color(&self) -> VideoColor {
+        match self.decoded {
+            Some(decoded) => decoded.color,
+            None => VideoColor {
+                primaries: None,
+                transfer: None,
+                matrix: Some(VideoColor::RGB_MATRIX),
+                range: Some(ColorRange::Full),
+                chroma_location: None,
+            },
+        }
     }
 }
 

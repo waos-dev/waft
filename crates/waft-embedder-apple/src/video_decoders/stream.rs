@@ -51,16 +51,8 @@ impl ParameterSets {
     pub(super) fn of_record(record: &[u8]) -> Result<(ParameterSets, usize), String> {
         let parsed = AvcDecoderConfigurationRecord::try_from(record)
             .map_err(|error| format!("the configuration record: {error:?}"))?;
-        let sequence = parsed
-            .sequence_parameter_sets()
-            .map(|set| set.map(<[u8]>::to_vec))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| format!("the record's sequence parameter sets: {error:?}"))?;
-        let picture = parsed
-            .picture_parameter_sets()
-            .map(|set| set.map(<[u8]>::to_vec))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| format!("the record's picture parameter sets: {error:?}"))?;
+        let sequence = owned_sets(parsed.sequence_parameter_sets(), "sequence")?;
+        let picture = owned_sets(parsed.picture_parameter_sets(), "picture")?;
         let length_size = usize::from(parsed.length_size_minus_one()) + 1;
         Ok((ParameterSets { sequence, picture }, length_size))
     }
@@ -115,6 +107,18 @@ impl ParameterSets {
             .ok_or("the stream has no sequence parameter set")?;
         StreamFacts::of_sequence_set(first)
     }
+}
+
+/// The record's sets of one `kind`, each copied out; why not, for one the record cuts short.
+fn owned_sets<'a, Refusal: std::fmt::Debug>(
+    sets: impl Iterator<Item = Result<&'a [u8], Refusal>>,
+    kind: &str,
+) -> Result<Vec<Vec<u8>>, String> {
+    sets.map(|set| match set {
+        Ok(set) => Ok(set.to_vec()),
+        Err(refusal) => Err(format!("the record's {kind} parameter sets: {refusal:?}")),
+    })
+    .collect()
 }
 
 /// What a stream says of its pictures before any is decoded.
