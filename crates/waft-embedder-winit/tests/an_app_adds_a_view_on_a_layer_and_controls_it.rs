@@ -111,6 +111,10 @@ mod client {
         fn request_focus_change(&self, state: ViewFocusState, direction: ViewFocusDirection) {
             self.focus_requests.borrow_mut().push((state, direction));
         }
+
+        fn system_bars(&self) -> Option<&dyn waft_embedder::SystemBars> {
+            None
+        }
     }
 
     /// Adds a view on a layer it placed in a layer of its own, asks for a window, and steps the

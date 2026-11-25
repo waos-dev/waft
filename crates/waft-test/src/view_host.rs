@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 
 use waft_embedder::{
-    Matrix4, Rect, SelectionRect, Size, SystemMouseCursorKind, SystemUiOverlayStyle,
+    Matrix4, Rect, SelectionRect, Size, SystemBars, SystemMouseCursorKind, SystemUiOverlayStyle,
     TextEditingValue, TextInputConfiguration, TextInputHost, ViewFocusDirection, ViewFocusState,
     ViewHost,
 };
@@ -45,7 +45,7 @@ impl TestViewHost {
         self.framework_handles_back.borrow().clone()
     }
 
-    /// Each style set for the system's bars over the view (`ViewHost::set_overlay_style`), oldest
+    /// Each style set for the system's bars over the view (`SystemBars::set_overlay_style`), oldest
     /// first.
     pub fn overlay_styles(&self) -> Vec<SystemUiOverlayStyle> {
         self.overlay_styles.borrow().clone()
@@ -69,6 +69,12 @@ impl ViewHost for TestViewHost {
         self.framework_handles_back.borrow_mut().push(handles);
     }
 
+    fn system_bars(&self) -> Option<&dyn SystemBars> {
+        Some(self)
+    }
+}
+
+impl SystemBars for TestViewHost {
     fn set_overlay_style(&self, style: &SystemUiOverlayStyle) {
         self.overlay_styles.borrow_mut().push(*style);
     }

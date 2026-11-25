@@ -68,7 +68,7 @@ Host implementation. Flutter analogue: the engine's Android embedder under
 
 ## chrome.rs / view.rs → the Android embedder's `PlatformPlugin`
 
-- Change: the system bars' style is the view's (`ViewHost::set_overlay_style`), applied to its activity's window and again to each activity Android makes for the view, and the app's switcher description is what every view's task shows where its window has no title of its own; Flutter's plugin styles its one activity's window and applies its style again as the activity resumes.
+- Change: the system bars' style is the view's (`SystemBars::set_overlay_style`, from `ViewHost::system_bars`), applied to its activity's window and again to each activity Android makes for the view, and the app's switcher description is what every view's task shows where its window has no title of its own; Flutter's plugin styles its one activity's window and applies its style again as the activity resumes.
   Reason: platform — each activity's window has its own bars, and each task its own card.
   Affect: two tasks of one app keep their own bars' style and their own card.
 

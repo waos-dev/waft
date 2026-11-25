@@ -101,8 +101,10 @@ impl SystemChrome {
             if app.get(styles).latest_style.get(&view) == Some(&style) {
                 continue;
             }
-            if let Some(view) = app.platform().view(view) {
-                view.host().set_overlay_style(&style);
+            if let Some(view) = app.platform().view(view)
+                && let Some(bars) = view.host().system_bars()
+            {
+                bars.set_overlay_style(&style);
             }
             app.get_mut(styles).latest_style.insert(view, style);
         }

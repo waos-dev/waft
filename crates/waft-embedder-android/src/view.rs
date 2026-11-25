@@ -23,9 +23,9 @@ use std::sync::Arc;
 use ndk::configuration::{Configuration, UiModeNight};
 use ndk::native_window::NativeWindow;
 use waft_embedder::{
-    GestureSettings, RequestId, Scene, ScreenId, SystemMouseCursorKind, SystemUiOverlayStyle,
-    TextInputHost, View, ViewConstraints, ViewFocusDirection, ViewFocusState, ViewHost, ViewId,
-    ViewMetrics, ViewPadding, WindowRef,
+    GestureSettings, RequestId, Scene, ScreenId, SystemBars, SystemMouseCursorKind,
+    SystemUiOverlayStyle, TextInputHost, View, ViewConstraints, ViewFocusDirection, ViewFocusState,
+    ViewHost, ViewId, ViewMetrics, ViewPadding, WindowRef,
 };
 
 use crate::activity::{Activity, AttachedActivity};
@@ -424,6 +424,13 @@ impl ViewHost for AndroidView {
         }
     }
 
+    fn system_bars(&self) -> Option<&dyn SystemBars> {
+        Some(self)
+    }
+}
+
+/// The status bar and the navigation bar over the activity's window.
+impl SystemBars for AndroidView {
     fn set_overlay_style(&self, style: &SystemUiOverlayStyle) {
         self.overlay_style.set(Some(*style));
         self.style_the_bars();

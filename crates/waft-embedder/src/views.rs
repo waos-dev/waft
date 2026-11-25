@@ -265,15 +265,18 @@ pub trait ViewHost {
         let _ = handles;
     }
 
-    /// Styles the system overlays the host draws over this view: the status bar, and on Android
-    /// the system navigation bar (Flutter `SystemChrome.setSystemUIOverlayStyle`). Each window
-    /// carries its own bars, so the style is the view's, as Flutter's Android embedding applies
-    /// it to its one activity's window.
-    ///
-    /// The default drops it, for a host that draws no overlays over its views.
-    fn set_overlay_style(&self, style: &SystemUiOverlayStyle) {
-        let _ = style;
-    }
+    /// The system's bars over this view, the status bar and on Android the navigation bar; `None`
+    /// where the system draws none over it, as over a desktop's window.
+    fn system_bars(&self) -> Option<&dyn SystemBars>;
+}
+
+/// The bars the system draws over a view, the status bar and on Android the navigation bar, which
+/// Flutter's `SystemChrome` speaks to for the app as a whole: each window carries its own bars, so
+/// here they are the view's, as Flutter's Android embedding applies them to its one activity's
+/// window.
+pub trait SystemBars {
+    /// Styles the bars (Flutter `SystemChrome.setSystemUIOverlayStyle`).
+    fn set_overlay_style(&self, style: &SystemUiOverlayStyle);
 }
 
 /// The host side of Flutter's text input connection for one view: the calls Flutter's framework

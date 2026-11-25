@@ -226,8 +226,8 @@ fn follow_window(
 }
 
 /// What the added view asks of the system, as the app answers it: its cursor is the window's,
-/// since the pointer over the view is over the window; it edits no text; and the app keeps the
-/// focus where it is.
+/// since the pointer over the view is over the window; it edits no text; the app keeps the
+/// focus where it is; and it lies inside the window, under no bars of its own.
 struct ThroughWindow(ViewRef);
 
 impl ViewHost for ThroughWindow {
@@ -240,6 +240,10 @@ impl ViewHost for ThroughWindow {
     }
 
     fn request_focus_change(&self, _state: ViewFocusState, _direction: ViewFocusDirection) {}
+
+    fn system_bars(&self) -> Option<&dyn waft_embedder::SystemBars> {
+        None
+    }
 }
 
 /// Forwards to the added view what the window's pointers do over it, as a host reports them: in
