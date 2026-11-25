@@ -6,7 +6,8 @@
 //! started a GUI program (`console`), the app's icon in its executable's resources, which app the
 //! taskbar takes the process and each window for (`app_identity`), DirectComposition's
 //! composition layers beneath a view drawn on a visual of its own (`composition`), over textures
-//! shared by NT handle (`shared_textures`), and each display's refreshes (`display_links`).
+//! shared by NT handle (`shared_textures`), each display's refreshes (`display_links`), and Media
+//! Foundation's H.264 decoder (`video_decoders`).
 
 // Win32 is reached through system calls, which Rust reaches through `unsafe`; this module and its
 // children are the one place on Windows that writes it.
@@ -23,11 +24,14 @@ mod menus;
 mod notifications;
 mod opener;
 mod shared_textures;
+mod video_decoders;
 
 pub use shared_textures::SharedTexture;
 
+use std::rc::Rc;
 use std::sync::Arc;
 
+use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Compositor, HardwareBuffer, IconImage, TargetPlatform, TitleBarAction, WindowConfig,
 };
@@ -120,7 +124,12 @@ impl TrackpadTouches for Windows {
 
 impl EventLoopSetup for Windows {}
 impl WindowGeometry for Windows {}
-impl SystemMedia for Windows {}
+impl SystemMedia for Windows {
+    /// Media Foundation's.
+    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
+        video_decoders::video_decoders()
+    }
+}
 impl SystemImageCodecs for Windows {}
 impl SystemDrags for Windows {}
 impl WindowMotion for Windows {}
