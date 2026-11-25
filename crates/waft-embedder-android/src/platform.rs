@@ -40,6 +40,7 @@ use crate::notifications::AndroidNotifications;
 use crate::opener::IntentOpener;
 use crate::restorable_windows::{RestorableWindow, restorable_windows};
 use crate::shortcuts::Shortcuts;
+use crate::video_decoders::MediaCodecDecoders;
 use crate::view_requests::ViewRequests;
 use crate::views::Views;
 use crate::vsync_waiter::{ChoreographerWaiter, Waits};
@@ -90,6 +91,8 @@ pub struct AndroidPlatform {
     cameras: Option<NdkCameras>,
     /// The readers a camera's frames go to (`media/`).
     video_frame_readers: NdkFrameReaders,
+    /// MediaCodec's decoders (`video_decoders/`).
+    video_decoders: MediaCodecDecoders,
     /// The app's shortcuts on the home screen and its icon's menu (`shortcuts.rs`).
     pub(crate) shortcuts: Shortcuts,
     /// The application, through which the app's tasks are read (`restorable_windows.rs`).
@@ -118,6 +121,7 @@ impl AndroidPlatform {
             notifications: AndroidNotifications::new(application.clone(), Rc::clone(&views), first),
             cameras: NdkCameras::new(application.clone(), Rc::clone(&views)),
             video_frame_readers: NdkFrameReaders,
+            video_decoders: MediaCodecDecoders,
             shortcuts: Shortcuts::new(application.clone()),
             application: application.clone(),
             views,
@@ -316,6 +320,11 @@ impl Platform for AndroidPlatform {
     /// The readers a camera's frames, drawn in RGBA, go to (`media/`).
     fn video_frame_readers(&self) -> Option<&dyn waft_embedder::VideoFrameReaders> {
         Some(&self.video_frame_readers)
+    }
+
+    /// MediaCodec, handed H.264 (`video_decoders/`).
+    fn video_decoders(&self) -> Option<&dyn waft_embedder::video_decoders::VideoDecoders> {
+        Some(&self.video_decoders)
     }
 
     fn system_chrome(&self) -> Option<&dyn SystemChrome> {

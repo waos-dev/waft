@@ -1,8 +1,8 @@
-//! A camera's pictures as an `AImageReader` takes them: a stream of one size and format whose
-//! window the camera feeds, each picture an `AImage` lent with its slot in the reader's pool and
-//! handed, the newest at each delivery, to what the stream was made with, on the reader's own
-//! thread. A `PRIVATE` picture's memory is its `AHardwareBuffer`, which the compositor shows and the
-//! GPU samples; a JPEG one's is the encoded photo.
+//! Pictures as an `AImageReader` takes them: a stream of one size and format whose window a camera
+//! or a decoder draws into, each picture an `AImage` lent with its slot in the reader's pool and
+//! handed to what the stream was made with, on the reader's own thread: a camera's newest at each
+//! delivery, a decoder's every one. A `PRIVATE` picture's memory is its `AHardwareBuffer`, which
+//! the compositor shows and the GPU samples; a JPEG one's is the encoded photo.
 //!
 //! The invariant: a picture holds its slot until it is dropped, and holds the reader until then
 //! too, so the reader is deleted only once its last picture is, never under one still shown.
@@ -16,9 +16,19 @@ use ndk::hardware_buffer::{HardwareBufferRef, HardwareBufferUsage};
 use ndk::media::image_reader::{AcquireResult, Image, ImageFormat, ImageReader};
 use ndk::media_error::MediaError;
 use ndk::native_window::NativeWindow;
+use waft_embedder::PixelRect;
 
 /// A stream of pictures, its reader deleted once the stream and its last picture are dropped.
 pub(crate) struct ImageStream(Arc<Reader>);
+
+/// Which of the pictures that arrived since the last delivery a stream hands on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Delivery {
+    /// The newest alone, the others dropped: a camera's, whose reader shows the present.
+    Newest,
+    /// Each, in the order they arrived: a decoder's, every one of which is a frame.
+    Each,
+}
 
 /// The reader, behind a lock only so that its listener can be set once it is shared.
 struct Reader(Mutex<ImageReader>);
@@ -30,12 +40,13 @@ unsafe impl Sync for Reader {}
 
 impl ImageStream {
     /// A stream of `size` pictures in `format` for `usage`, at most `max_images` of them lent at
-    /// once, each newest one handed to `delivered`.
+    /// once, each one `delivery` hands on given to `delivered`.
     pub(crate) fn new(
         size: [u32; 2],
         format: ImageFormat,
         usage: HardwareBufferUsage,
         max_images: i32,
+        delivery: Delivery,
         delivered: impl Fn(StreamImage) + Send + 'static,
     ) -> Result<ImageStream, MediaError> {
         let reader =
@@ -50,17 +61,24 @@ impl ImageStream {
                 let Some(held) = listened.upgrade() else {
                     return;
                 };
-                if let Ok(AcquireResult::Image(image)) = reader.acquire_latest_image() {
+                let lend = || match delivery {
+                    Delivery::Newest => reader.acquire_latest_image(),
+                    Delivery::Each => reader.acquire_next_image(),
+                };
+                while let Ok(AcquireResult::Image(image)) = lend() {
                     delivered(StreamImage {
                         image,
-                        _reader: held,
+                        _reader: Arc::clone(&held),
                     });
+                    if delivery == Delivery::Newest {
+                        break;
+                    }
                 }
             }))?;
         Ok(ImageStream(reader))
     }
 
-    /// The window the camera feeds the stream through.
+    /// The window the camera or decoder draws into the stream through.
     pub(crate) fn window(&self) -> Result<NativeWindow, MediaError> {
         self.0
             .0
@@ -90,5 +108,21 @@ impl StreamImage {
     /// The bytes of its one plane: a JPEG picture's encoded photo.
     pub(crate) fn encoded(&self) -> Result<Vec<u8>, MediaError> {
         Ok(self.image.plane_data(0)?.to_vec())
+    }
+
+    /// When it was drawn, in nanoseconds, as whatever drew it said: a decoder's, its chunk's time.
+    pub(crate) fn timestamp(&self) -> Result<i64, MediaError> {
+        self.image.timestamp()
+    }
+
+    /// The part of its memory that is picture; none where the reader says of no such part.
+    pub(crate) fn visible_rect(&self) -> Option<PixelRect> {
+        let crop = self.image.crop_rect().ok()?;
+        Some(PixelRect {
+            x: u32::try_from(crop.left).ok()?,
+            y: u32::try_from(crop.top).ok()?,
+            width: u32::try_from(crop.right - crop.left).ok()?,
+            height: u32::try_from(crop.bottom - crop.top).ok()?,
+        })
     }
 }

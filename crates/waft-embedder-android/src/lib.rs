@@ -130,6 +130,8 @@ mod task_window;
 mod text_input;
 #[cfg(any(target_os = "android", test))]
 mod this_process;
+#[cfg(any(target_os = "android", test))]
+mod video_decoders;
 #[cfg(target_os = "android")]
 mod view;
 #[cfg(target_os = "android")]

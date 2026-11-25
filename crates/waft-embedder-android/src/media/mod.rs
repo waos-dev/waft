@@ -8,7 +8,9 @@
 //! to a preview's composition layer, turned upright (`preview`, `orientation`), and drawn into
 //! RGBA8 frames for a frame reader (`camera_frames`, `frame_conversion`, `frames`,
 //! `video_frame`); its photos are JPEG from the camera's own stream (`photos`). What changed is
-//! told to the app from whichever thread Android tells it on (`changes`).
+//! told to the app from whichever thread Android tells it on (`changes`). A video decoder
+//! (`crate::video_decoders`) draws into an image stream too, its pictures drawn into frames the
+//! same way.
 //!
 //! The invariant: nothing here waits on the app's thread for Android; what Android tells on its
 //! threads is handed to the app through futures and change futures, which wake the app's loop.
@@ -54,6 +56,8 @@ pub(crate) use cameras::NdkCameras;
 pub(crate) use frames::NdkFrameReaders;
 #[cfg(target_os = "android")]
 pub use video_frame::AndroidVideoFrame;
+#[cfg(target_os = "android")]
+pub(crate) use video_frame::DecodedFacts;
 
 /// The screen shows its picture turned `degrees` clockwise from now on: the cameras' sessions hear
 /// their rotation angles change.

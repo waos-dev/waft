@@ -34,7 +34,7 @@ use super::camera_frames::CameraFrames;
 use super::camera_manager::CameraManager;
 use super::camera_queue::queue;
 use super::changes::Changes;
-use super::image_stream::ImageStream;
+use super::image_stream::{Delivery, ImageStream};
 use super::orientation::SensorMount;
 use super::photos::Photos;
 
@@ -252,6 +252,7 @@ impl RunningCamera {
             ImageFormat::PRIVATE,
             HardwareBufferUsage::GPU_SAMPLED_IMAGE | HardwareBufferUsage::COMPOSER_OVERLAY,
             PICTURES_LENT,
+            Delivery::Newest,
             move |picture| {
                 if let Some(frames) = frames.upgrade() {
                     frames.delivered(picture);
@@ -273,6 +274,7 @@ impl RunningCamera {
             ImageFormat::JPEG,
             HardwareBufferUsage::CPU_READ_OFTEN,
             PHOTOS_LENT,
+            Delivery::Newest,
             move |photo| {
                 if let Some(photos) = photos.upgrade() {
                     photos.delivered(photo);

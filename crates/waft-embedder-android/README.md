@@ -33,6 +33,26 @@ What is not, and how an app sees it:
 - No interruption for the background or for the system's heat: Android tells neither; a camera the app loses in the background is `InUseByAnotherApp` or interrupted with no reason.
 - Names are the host's, by which way a camera looks ("Back camera", "Front camera 2"): Android gives a camera none.
 
+## Video decoders
+
+`Platform::video_decoders` is MediaCodec through the NDK, `AMediaCodec`, with no Java, handed H.264 (`src/video_decoders/`). A decoder decodes on a thread of its own into an `AImageReader` of `PRIVATE` pictures, the system's own hardware buffers, and each picture is drawn into an RGBA8 frame with OpenGL ES, as a camera's are.
+
+What is there:
+
+- H.264 framed after start codes or after lengths with its `avcC` record, its parameter sets given ahead, in the stream, or both, and changed in the stream or by `configure`: the codec goes on with new sets whose pictures fit the size it was made to grow to (`largest_size`), taking them in the stream or, from `configure`, as codec-specific data, and is made again otherwise, the pictures it holds let out first.
+- Frames in the order they are shown, as MediaCodec lets them out, each with its chunk's time and duration, whatever times the chunks carry: a chunk is handed to the codec with a number that its picture's image carries back. A frame's buffer is the codec's picture as it lies, padding and all, and its visible rect is the image's crop; its colour is RGB, full range, with the primaries and transfer the stream says, and the app's `default_color` where it says none.
+- Key frames: at the start, after a drain, a reset, a `configure` and a chunk MediaCodec could not decode, a chunk that is no key frame (neither marked so nor holding an IDR slice) is `BadData`, and so is one before the stream's parameter sets have come.
+- A drain lets out every picture through the end of the stream, then flushes the codec; a reset flushes it at once, and drops the frames waiting and any picture of a chunk handed over before it. No more pictures are let out while `frame_limit` frames wait unread, and a chunk then waits for the codec to take it.
+- `CodecChoice::Software` opens Codec2's or OMX's software decoder by name; a decoder whose name is the platform's own (`c2.android.`, `OMX.google.`) is `Software`, any other `Hardware`. `Hardware` is `Unsupported` where the system's preferred decoder is its software one. `Busy` where MediaCodec has no resources for another, `Lost` where it takes the codec back.
+- `DecodingPurpose` becomes MediaCodec's `priority`, and `Live` asks for `low-latency` too.
+
+What is not, and how an app sees it:
+
+- No answer before trying: the NDK has no `MediaCodecList`, so `support` says `Unknown` for H.264 and `No` for the rest, and whether a stream decodes is found on opening.
+- No other codec yet: HEVC, VP8, VP9 and AV1 open `Unsupported`.
+- Not the codec's own buffer: Waft's Android frames are RGBA8, which Vulkan imports, so each picture is drawn once into a new buffer, one at a time, the next rendered once the last has arrived, since a codec's surface drops a picture rendered before the last was taken.
+- `kind` is settled at opening: a decoder opened before its stream's parameter sets have come says where its choice asks, hardware first.
+
 ## Image codecs
 
 `Platform::image_codecs` is Android's own decoder and encoder, the NDK's `AImageDecoder` and `AndroidBitmap_compress`, and Android's own EXIF reader, the framework's `android.media.ExifInterface`, called over JNI from the codecs' threads (`src/image_codecs/`).
