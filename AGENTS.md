@@ -65,6 +65,13 @@ Doc comments: the invariant a later editor will break. Inline comments: only wha
 
 Do not hard-wrap Markdown at 80 columns.
 
+## Names
+
+Framework code takes Flutter's names, as Review says. What Waft adds of its own (the embedder interface beyond dart:ui, the hosts, the tools) is named as follows.
+
+- **Names are the words anyone would use for the thing:** plain nouns for values, plain verbs for actions. Never a shorthand that reads only once you know the code: a verb or a loose word made into a type or field (`Pick`, `needs`), a phrase made into an identifier (`time_to_finish`), a made-up role (`Keeper`), a verb that says nothing (`tell`).
+- **A concept takes the term the systems or a major project already use** (`grace period`, `freeze`, `inhibitor`, `policy`), meaning here what it means there, and one word for it everywhere. A design starts with its terms and where each comes from.
+
 ## Review
 
 Parity is against the Dart, never against `PORTING.md`. Names (snake_case aside), comments (except symbol paths), member order, where state lives, who decides, when hooks run, which members are override points.
