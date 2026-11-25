@@ -8,7 +8,7 @@
 //! when embedded, a request is refused. A view in a window
 //! the app may manage, one it asked for or one the platform gave, has a [`HostWindow`]
 //! (`View::window`): the configuration every window wants up front, whether the window is
-//! minimized or occluded, which the host reports with the window's moves
+//! minimized, occluded, maximized or full screen, which the host reports with the window's moves
 //! (`EmbedderClient::window_changed`), the limits the user resizes it within where users resize
 //! windows ([`WindowSizeLimits`]), the native handle for anything beyond it, and the window's
 //! closing, which is how a view closes. On Android a window is an activity's task, the card in
@@ -25,7 +25,7 @@ use std::time::Duration;
 
 pub use raw_window_handle::RawWindowHandle;
 
-use crate::{IconImage, Rect, Size, ViewRef};
+use crate::{IconImage, Rect, ScreenId, Size, ViewRef};
 
 /// How a window is made. Sizes and positions are logical, in the host's screen space with
 /// the origin at the top left of the primary screen.
@@ -271,7 +271,8 @@ pub trait HostWindow: 'static {
     /// the press.
     fn drag(&self);
 
-    /// Flutter `WindowController.isMaximized`; on macOS, zoomed.
+    /// Flutter `WindowController.isMaximized`; on macOS, zoomed. `false` while the window is full
+    /// screen.
     fn is_maximized(&self) -> bool;
 
     /// Flutter `WindowController.setMaximized`; on macOS, zooms the window or returns it to its
@@ -280,6 +281,18 @@ pub trait HostWindow: 'static {
 
     /// Flutter `WindowController.setMinimized`.
     fn set_minimized(&self, minimized: bool);
+
+    /// Flutter `WindowController.isFullscreen`: whether the window fills a screen, without its
+    /// title bar and over the system's own bars; on macOS, in a Space of its own. `false` where a
+    /// window has no such state, as a phone's task, which fills the screen as it is.
+    fn is_fullscreen(&self) -> bool;
+
+    /// Flutter `WindowController.setFullscreen`: has the window fill `screen`, the one it is on
+    /// where `None`, or returns it to how it was before, when `screen` is not read. The system
+    /// may take a while, or refuse: the window answers [`is_fullscreen`](Self::is_fullscreen)
+    /// once it has, and the host reports the change
+    /// ([`EmbedderClient::window_changed`](crate::EmbedderClient::window_changed)).
+    fn set_fullscreen(&self, fullscreen: bool, screen: Option<ScreenId>);
 
     /// What the system's settings say a double-click on a title bar does, for an app that draws
     /// its own ([`MacosTitleBar::Hidden`]): macOS's "Double-click a window's title bar to".

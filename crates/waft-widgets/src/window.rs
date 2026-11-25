@@ -5,7 +5,8 @@
 //! provides a [`WindowScope`] to its content: the window the host keeps around the view
 //! (`View::window`), its frame, its title, minimizing, its size limits and its closing. Widgets
 //! that read it rebuild when the host reports the window changed, minimized or restored, occluded
-//! or shown, or moved, as widgets reading `MediaQuery` rebuild when the view's metrics change.
+//! or shown, maximized or full screen or back from either, or moved, as widgets reading
+//! `MediaQuery` rebuild when the view's metrics change.
 //!
 //! The invariant a later editor will break: a window's change reaches the scope through the
 //! binding's crate-private window listeners, never through a public observer method; the scope

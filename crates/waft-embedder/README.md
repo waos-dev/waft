@@ -65,9 +65,9 @@ Every embedder takes the same shape, whatever its system; the winit embedder (`c
 - `Platform::view_embedder`, `ViewEmbedder::add_view`, `set_view_metrics`, `set_view_in_sight`, `remove_view`, `send_pointer_reports`, `send_view_focus_event`
 - Where the compositor shows a view's drawing as a composition layer's content, give the app a view embedder, and elsewhere none. Add a view on a layer of the app's own on a turn of the loop, as a window's view is added, carrying the request's id and asking the app's host what it asks of the system, and refuse at once a layer the view cannot draw into. Give the view the metrics, the sight and the end the app says, refusing them for any other view and reporting the first refusal, and hand the client the pointer reports and focus changes the app sends as the host's own (native-surfaces decisions 33 and 36, `waos/docs/proposals/2026-10-30-native-surfaces.md`).
 
-**Minimized, occluded and moved**
-- `HostWindow::is_minimized`, `is_occluded`, `frame`, `EmbedderClient::window_changed`
-- Answer whether each window is minimized and whether it is occluded as the system says, `false` where it does not say, and call `window_changed` once the window answers the new state, each time either changes or the window moves. A resize is reported as a metrics change alone.
+**Minimized, occluded, maximized, full screen and moved**
+- `HostWindow::is_minimized`, `is_occluded`, `is_maximized`, `is_fullscreen`, `set_fullscreen`, `frame`, `EmbedderClient::window_changed`
+- Answer whether each window is minimized, occluded, maximized and full screen as the system says, `false` where it does not say or a window has no such state, and call `window_changed` once the window answers the new state, each time it is minimized or restored, occluded or shown, goes full screen or leaves it, or moves, as it does when maximized or returned. Full screen is the system's own for a window, on the screen asked for or the window's; a host whose windows fill the screen as they are, as a phone's, does nothing. A resize is reported as a metrics change alone.
 
 **Size and scale**
 - `ViewMetrics::physical_size`, `device_pixel_ratio`, `EmbedderClient::view_metrics_changed`
