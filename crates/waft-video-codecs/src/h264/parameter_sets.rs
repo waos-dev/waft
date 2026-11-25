@@ -1,6 +1,7 @@
 //! What an H.264 stream's parameter sets say: the sets themselves, which a system's decoder is
 //! configured with, and what a host needs of the first of them before a picture is decoded: how
-//! far the stream reorders its pictures and what their samples mean as colour.
+//! far the stream reorders its pictures, what their samples mean as colour, their size and
+//! profile.
 //!
 //! The invariant: a stream's reordering depth is never taken smaller than the stream may use,
 //! since a picture let out too early cannot be taken back; where the stream does not say, it is
@@ -9,6 +10,7 @@
 use h264_reader::avcc::AvcDecoderConfigurationRecord;
 use h264_reader::nal::sps::SeqParameterSet;
 use h264_reader::rbsp::{BitReader, decode_nal};
+use waft_embedder::video_decoders::PictureSize;
 use waft_embedder::{ColorRange, PixelAspect, VideoColor};
 
 use crate::StreamFacts;
@@ -163,6 +165,12 @@ fn facts_of_sequence_set(unit: &[u8]) -> Result<StreamFacts, String> {
                 width: u32::from(width),
                 height: u32::from(height),
             }),
+        size: set
+            .pixel_dimensions()
+            .ok()
+            .map(|(width, height)| PictureSize { width, height }),
+        profile: u32::from(u8::from(set.profile_idc)),
+        level: u32::from(set.level_idc),
     })
 }
 
@@ -214,6 +222,21 @@ mod tests {
     fn a_stream_says_how_far_it_reorders() {
         let sets = ParameterSets::among(&units_after_start_codes(CLIP));
         assert_eq!(sets.facts().unwrap().reorder_depth, 2);
+    }
+
+    #[test]
+    fn a_stream_says_its_size_and_profile() {
+        let facts = ParameterSets::among(&units_after_start_codes(CLIP))
+            .facts()
+            .unwrap();
+        assert_eq!(
+            facts.size,
+            Some(PictureSize {
+                width: 320,
+                height: 240
+            })
+        );
+        assert_eq!(facts.profile, 100, "x264's High profile");
     }
 
     #[test]

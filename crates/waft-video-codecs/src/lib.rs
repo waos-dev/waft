@@ -9,6 +9,7 @@
 //!   carries: how its chunks frame their units ([`framing::Framing`]) and the parameter sets or
 //!   configuration it gives ahead;
 //! - the units of a chunk, and the parameter sets among them;
+//! - whether a chunk decodes with nothing before it (`is_key_frame`);
 //! - what the stream says of its pictures ([`StreamFacts`]);
 //! - where a picture stands in the order its stream is shown in, for a system whose decoder hands
 //!   pictures back in the order they were decoded.
@@ -23,6 +24,7 @@ pub mod framing;
 pub mod h264;
 pub mod presentation_order;
 
+use waft_embedder::video_decoders::PictureSize;
 use waft_embedder::{PixelAspect, VideoColor};
 
 /// What a stream says of its pictures before any is decoded.
@@ -34,4 +36,10 @@ pub struct StreamFacts {
     pub color: VideoColor,
     /// The shape of one pixel, where the stream says.
     pub pixel_aspect: Option<PixelAspect>,
+    /// The pictures' size, where the stream says.
+    pub size: Option<PictureSize>,
+    /// The profile as the codec numbers it.
+    pub profile: u32,
+    /// The level as the codec numbers it.
+    pub level: u32,
 }

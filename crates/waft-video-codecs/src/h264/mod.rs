@@ -1,5 +1,6 @@
-//! H.264: a stream's setup and its units, its parameter sets (`parameter_sets`), and where each
-//! picture stands in the order its stream is shown in (`picture_order`).
+//! H.264: a stream's setup and its units, its parameter sets (`parameter_sets`), which chunk
+//! decodes with nothing before it, and where each picture stands in the order its stream is
+//! shown in (`picture_order`).
 //!
 //! The invariant: a stream's parameter sets are those it gave last of each kind, wherever they
 //! came from, its setup or its chunks; a decoder configured with any others decodes a different
@@ -16,6 +17,9 @@ use crate::framing::{Framing, units_after_start_codes};
 
 pub use parameter_sets::{ParameterSets, is_parameter_set, unit_type};
 pub use picture_order::PictureOrder;
+
+/// The unit type of a slice of a picture that decodes with nothing before it (an IDR picture).
+const KEY_SLICE: u8 = 5;
 
 /// A stream's setup as a decoder takes it: how its chunks frame their units, and the parameter
 /// sets given ahead, which may be none; why not, for a configuration record that is no such
@@ -34,10 +38,26 @@ pub fn setup(format: NalFormat) -> Result<(Framing, ParameterSets), String> {
     }
 }
 
+/// Whether the picture `units` code decodes with nothing before it: whether a slice among them is
+/// an IDR picture's.
+pub fn is_key_frame(units: &[&[u8]]) -> bool {
+    units.iter().any(|unit| unit_type(unit) == Some(KEY_SLICE))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::test_clip::{CLIP, record_of};
+    use super::test_clip::{CLIP, pictures_of_the_clip, record_of};
     use super::*;
+
+    #[test]
+    fn only_the_clips_first_picture_is_a_key_frame() {
+        let keys: Vec<bool> = pictures_of_the_clip()
+            .iter()
+            .map(|units| is_key_frame(units))
+            .collect();
+        assert!(keys[0]);
+        assert!(keys[1..].iter().all(|key| !key));
+    }
 
     #[test]
     fn a_setup_of_start_codes_takes_the_sets_given_ahead() {
