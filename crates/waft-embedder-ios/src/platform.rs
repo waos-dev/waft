@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 
 use objc2_foundation::{NSLocale, NSString};
 use waft_embedder::image_codecs::ImageCodecs;
+use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Brightness, Cameras, CaptionSettings, Clipboard, Compositor, Dispatcher, FileDialogs, Files,
     FontSource, HardwareBuffer, HardwareBufferAllocator, HttpClient, ImageCodecFuture, Locale,
@@ -74,6 +75,8 @@ pub struct IosPlatform {
     media_assets: Option<Rc<dyn MediaAssets>>,
     cameras: Option<Rc<dyn Cameras>>,
     video_frame_readers: Option<Rc<dyn VideoFrameReaders>>,
+    /// VideoToolbox's decoders, which macOS shares.
+    video_decoders: Option<Rc<dyn VideoDecoders>>,
     image_codecs: Option<Rc<dyn ImageCodecs>>,
     caption_settings: Option<Rc<dyn CaptionSettings>>,
 }
@@ -108,6 +111,7 @@ impl IosPlatform {
             media_assets: waft_embedder_apple::media::media_assets(),
             cameras: waft_embedder_apple::media::cameras(),
             video_frame_readers: waft_embedder_apple::media::video_frame_readers(),
+            video_decoders: waft_embedder_apple::video_decoders::video_decoders(),
             image_codecs: waft_embedder_apple::image_codecs::image_codecs(),
             caption_settings: waft_embedder_apple::caption_appearance::caption_settings(),
         }
@@ -394,6 +398,10 @@ impl Platform for IosPlatform {
 
     fn video_frame_readers(&self) -> Option<&dyn VideoFrameReaders> {
         self.video_frame_readers.as_deref()
+    }
+
+    fn video_decoders(&self) -> Option<&dyn VideoDecoders> {
+        self.video_decoders.as_deref()
     }
 
     fn image_codecs(&self) -> Option<&dyn ImageCodecs> {

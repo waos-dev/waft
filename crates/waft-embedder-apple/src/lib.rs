@@ -32,6 +32,7 @@ pub mod media_time;
 pub mod notifications;
 pub mod pasteboard_types;
 pub mod promised_files;
+pub mod video_decoders;
 pub mod work_queue;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};

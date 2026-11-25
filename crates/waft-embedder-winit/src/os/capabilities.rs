@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use valo_codec::Decoder;
 use waft_embedder::image_codecs::ImageCodecs;
+use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Cameras, CaptionSettings, Clipboard, CompositionLayer, Compositor, DataTransferItem, DockMenu,
     FileDialogs, HardwareBuffer, HardwareBufferAllocator, IconImage, KeyData, MediaAssets, MenuBar,
@@ -494,8 +495,9 @@ pub(crate) trait SystemFileDialogs {
 }
 
 /// The system's media stack: its players, its reading of media without playing it, its cameras
-/// and the frame readers they feed (`waft-embedder-apple`'s `media` on macOS), and the user's caption
-/// settings (`waft-embedder-apple`'s `caption_appearance`).
+/// and the frame readers they feed (`waft-embedder-apple`'s `media` on macOS), its video decoders
+/// (`waft-embedder-apple`'s `video_decoders`), and the user's caption settings
+/// (`waft-embedder-apple`'s `caption_appearance`).
 pub(crate) trait SystemMedia {
     /// The system's players, or `None` where the embedder has none.
     fn players() -> Option<Rc<dyn Players>> {
@@ -515,6 +517,11 @@ pub(crate) trait SystemMedia {
     /// The readers the system's players and cameras feed, or `None` where it hands out no
     /// frames.
     fn video_frame_readers() -> Option<Rc<dyn VideoFrameReaders>> {
+        None
+    }
+
+    /// The system's video decoders, or `None` where the embedder has none.
+    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
         None
     }
 

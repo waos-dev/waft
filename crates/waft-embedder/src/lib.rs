@@ -56,6 +56,7 @@ mod text_editing;
 mod text_input;
 #[cfg(feature = "valo-codec")]
 pub mod valo_images;
+pub mod video_decoders;
 mod views;
 mod vsync;
 mod window;
@@ -110,11 +111,13 @@ pub use locale::Locale;
 pub use media::{
     Camera, CameraDevice, CameraError, CameraFacing, CameraFormat, CameraId, CameraInterruption,
     CameraListFuture, CameraOpenFuture, CameraOutputs, CameraStartFuture, Cameras, CaptureSession,
-    CaptureState, EncodedImage, MediaAsset, MediaAssetFuture, MediaAssets, MediaChangeFuture,
-    MediaError, MediaMetadata, MediaPlayer, MediaTrack, MediaTrackKind, MovieOptions, PauseReason,
-    Photo, PhotoFuture, PlayerActivity, PlayerError, PlayerErrorKind, PlayerState, PlayerStatus,
-    Players, RecordingFuture, SeekTolerance, TimeRange, VideoFrame, VideoFrameReader,
-    VideoFrameReaders, VideoOutput, WaitReason,
+    CaptureState, ChromaAlignment, ChromaLocation, Chromaticity, ColorRange, ContentLight,
+    EncodedImage, HdrMetadata, MasteringDisplay, MediaAsset, MediaAssetFuture, MediaAssets,
+    MediaChangeFuture, MediaError, MediaMetadata, MediaPlayer, MediaTrack, MediaTrackKind,
+    MovieOptions, PauseReason, Photo, PhotoFuture, PixelAspect, PixelRect, PlayerActivity,
+    PlayerError, PlayerErrorKind, PlayerState, PlayerStatus, Players, RecordingFuture,
+    SeekTolerance, TimeRange, VideoColor, VideoFrame, VideoFrameReader, VideoFrameReaders,
+    VideoOutput, WaitReason,
 };
 pub use menus::{
     AttachedMenu, CheckState, DockMenu, EditCommand, IconImage, MenuAtIcon, MenuBar, MenuEntry,

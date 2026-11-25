@@ -719,6 +719,154 @@ pub trait VideoFrame: Any + Send + Sync {
     /// [`rotation`](Self::rotation), as WebCodecs' `VideoFrame.flip`: a camera that looks at its
     /// user, shown as a mirror.
     fn flip(&self) -> bool;
+
+    /// When the picture is shown, in nanoseconds on its stream's own timeline: for a decoder's
+    /// frame, the timestamp of the chunk it came from. `None` for a frame whose source gives
+    /// none, as a reader's, which comes for a display time.
+    fn timestamp(&self) -> Option<i64> {
+        None
+    }
+
+    /// How long the picture is shown, where its source says.
+    fn duration(&self) -> Option<Duration> {
+        None
+    }
+
+    /// The part of the frame's memory that is picture, in its own pixels and before
+    /// [`rotation`](Self::rotation). A decoder pads a picture to its blocks' size, so the memory
+    /// may be larger than the picture: 1920 by 1088 for a picture of 1920 by 1080. All of it,
+    /// for a frame whose source pads nothing.
+    fn visible_rect(&self) -> PixelRect {
+        PixelRect {
+            x: 0,
+            y: 0,
+            width: self.width(),
+            height: self.height(),
+        }
+    }
+
+    /// The shape of one pixel, width to height: 1 to 1 unless the video is anamorphic.
+    fn pixel_aspect(&self) -> PixelAspect {
+        PixelAspect {
+            width: 1,
+            height: 1,
+        }
+    }
+
+    /// What the samples mean as colour. A frame that says nothing more is red, green and blue
+    /// over its whole range, as a reader's is.
+    fn color(&self) -> VideoColor {
+        VideoColor {
+            primaries: None,
+            transfer: None,
+            matrix: Some(VideoColor::RGB_MATRIX),
+            range: Some(ColorRange::Full),
+            chroma_location: None,
+        }
+    }
+
+    /// The brightness the picture was mastered for, where its stream says: what a display needs
+    /// to show an HDR picture.
+    fn hdr_metadata(&self) -> Option<HdrMetadata> {
+        None
+    }
+}
+
+/// A rectangle of a frame's pixels, from its top-left corner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PixelRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// The shape of one pixel: `width` to `height`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PixelAspect {
+    pub width: u32,
+    pub height: u32,
+}
+
+/// What a frame's samples mean as colour, as its stream says it: the code points of ITU-T
+/// H.273, which every codec and every system's frame carry. `None` of a value where neither the
+/// stream nor the app said.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VideoColor {
+    /// Which red, green and blue: 1 is BT.709, 9 BT.2020, 12 Display P3.
+    pub primaries: Option<u8>,
+    /// How samples encode brightness: 1 is BT.709, 13 sRGB, 16 PQ, 18 HLG.
+    pub transfer: Option<u8>,
+    /// How brightness and colour mix into red, green and blue: 1 is BT.709, 6 BT.601, 9
+    /// BT.2020, 0 none.
+    pub matrix: Option<u8>,
+    pub range: Option<ColorRange>,
+    pub chroma_location: Option<ChromaLocation>,
+}
+
+impl VideoColor {
+    /// The matrix of samples that are red, green and blue already.
+    pub const RGB_MATRIX: u8 = 0;
+}
+
+/// How much of a sample's range the picture uses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColorRange {
+    /// Video's range: 16 to 235 of 8 bits for brightness.
+    Limited,
+    /// All of it.
+    Full,
+}
+
+/// Where a half-size colour plane's samples sit against the brightness plane's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChromaLocation {
+    pub horizontal: ChromaAlignment,
+    pub vertical: ChromaAlignment,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChromaAlignment {
+    /// On the first of the brightness samples it covers.
+    Cosited,
+    /// Midway between them.
+    Centered,
+}
+
+/// The brightness a picture was mastered for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HdrMetadata {
+    /// The display it was mastered on (SMPTE ST 2086).
+    pub mastering_display: Option<MasteringDisplay>,
+    /// How bright its content gets (CTA-861.3).
+    pub content_light: Option<ContentLight>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MasteringDisplay {
+    pub red: Chromaticity,
+    pub green: Chromaticity,
+    pub blue: Chromaticity,
+    pub white: Chromaticity,
+    /// In candelas a square metre.
+    pub max_luminance: f32,
+    pub min_luminance: f32,
+}
+
+/// A colour's place on the CIE 1931 diagram.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Chromaticity {
+    pub x: f32,
+    pub y: f32,
+}
+
+/// In candelas a square metre.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContentLight {
+    /// The brightest sample of the whole video.
+    pub max: u32,
+    /// The brightest picture's average.
+    pub max_frame_average: u32,
 }
 
 /// Why a camera session's photo or recording answered nothing.
