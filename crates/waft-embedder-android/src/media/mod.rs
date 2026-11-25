@@ -3,7 +3,7 @@
 //! (`camera_metadata`, `camera_formats`) and listed and opened as Waft's `Cameras` and
 //! `CameraDevice` (`cameras`); a camera starts, on a thread of its own (`camera_queue`), as an
 //! `ACameraDevice` with a capture session (`camera_device`) feeding image readers
-//! (`camera_images`), opened once for this process's sessions and shared by them
+//! (`image_stream`), opened once for this process's sessions and shared by them
 //! (`running_camera`, `capture_session`). Its pictures, in the camera's own format, go as they are
 //! to a preview's composition layer, turned upright (`preview`, `orientation`), and drawn into
 //! RGBA8 frames for a frame reader (`camera_frames`, `frame_conversion`, `frames`,
@@ -19,8 +19,6 @@ mod camera_formats;
 #[cfg(target_os = "android")]
 mod camera_frames;
 #[cfg(target_os = "android")]
-mod camera_images;
-#[cfg(target_os = "android")]
 mod camera_manager;
 #[cfg(target_os = "android")]
 mod camera_metadata;
@@ -32,9 +30,11 @@ mod cameras;
 mod capture_session;
 mod changes;
 #[cfg(target_os = "android")]
-mod frame_conversion;
+pub(crate) mod frame_conversion;
 #[cfg(target_os = "android")]
 mod frames;
+#[cfg(target_os = "android")]
+pub(crate) mod image_stream;
 mod orientation;
 #[cfg(target_os = "android")]
 mod photos;

@@ -13,9 +13,9 @@ use std::time::Instant;
 
 use waft_embedder::VideoFrame;
 
-use super::camera_images::CameraImage;
 use super::frame_conversion::to_rgba;
 use super::frames::FrameSource;
+use super::image_stream::StreamImage;
 use super::orientation::SensorMount;
 use super::preview::CameraPreview;
 use super::video_frame::AndroidVideoFrame;
@@ -36,7 +36,7 @@ pub(super) struct CameraFrames {
 #[derive(Default)]
 struct Newest {
     number: u64,
-    picture: Option<Arc<CameraImage>>,
+    picture: Option<Arc<StreamImage>>,
     frame: Option<(u64, AndroidVideoFrame)>,
 }
 
@@ -52,7 +52,7 @@ impl CameraFrames {
 
     /// The camera's stream delivered `picture`: it is shown on every preview, and drawn for the
     /// readers where any is fed. On the stream's thread.
-    pub(super) fn delivered(&self, picture: CameraImage) {
+    pub(super) fn delivered(&self, picture: StreamImage) {
         let picture = Arc::new(picture);
         let number = {
             let mut newest = self.newest();
@@ -93,7 +93,7 @@ impl CameraFrames {
 
     /// `picture`, numbered `number`, drawn into an RGBA frame, kept as the newest unless a newer
     /// one was drawn meanwhile.
-    fn draw_frame(&self, picture: &CameraImage, number: u64) -> Option<AndroidVideoFrame> {
+    fn draw_frame(&self, picture: &StreamImage, number: u64) -> Option<AndroidVideoFrame> {
         let drawn = picture
             .hardware_buffer()
             .map_err(|error| format!("no buffer of a camera's picture: {error}"))

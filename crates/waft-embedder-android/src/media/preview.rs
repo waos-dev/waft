@@ -9,7 +9,7 @@
 
 use std::sync::{Arc, Weak};
 
-use super::camera_images::CameraImage;
+use super::image_stream::StreamImage;
 use crate::buffer_transform::BufferTransform;
 use crate::composition::{SurfaceControlLayer, SystemFrame, SystemPicture};
 use crate::hardware_buffers::AndroidHardwareBuffer;
@@ -31,7 +31,7 @@ impl CameraPreview {
 
     /// Shows `image` on the layer, turned by `transform`, holding it until the compositor is done
     /// with it.
-    pub(super) fn show(&self, image: &Arc<CameraImage>, transform: BufferTransform) {
+    pub(super) fn show(&self, image: &Arc<StreamImage>, transform: BufferTransform) {
         let Ok(buffer) = image.hardware_buffer() else {
             return;
         };
