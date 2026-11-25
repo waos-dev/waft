@@ -277,6 +277,26 @@ pub trait ViewHost {
 pub trait SystemBars {
     /// Styles the bars (Flutter `SystemChrome.setSystemUIOverlayStyle`).
     fn set_overlay_style(&self, style: &SystemUiOverlayStyle);
+
+    /// Hides the bars until [`show`](Self::show); what a swipe from a screen's edge does meanwhile
+    /// is `swipe`'s. Flutter's `SystemUiMode.immersive` is `hide(System)`, `immersiveSticky` is
+    /// `hide(Deferred)`.
+    fn hide(&self, swipe: EdgeSwipe);
+
+    /// Shows the bars again, drawn over the view: how a view starts. Flutter's
+    /// `SystemUiMode.edgeToEdge`.
+    fn show(&self);
+}
+
+/// What a swipe from a screen's edge does while the bars are hidden.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EdgeSwipe {
+    /// The system acts on it as it always does, the bars coming back with it.
+    System,
+    /// The first swipe only shows the bars, for a moment, and the view keeps the touch; a second
+    /// swipe acts: Android's transient bars, iOS's deferred edge gestures. For a game, where a
+    /// stray swipe must not leave it.
+    Deferred,
 }
 
 /// The host side of Flutter's text input connection for one view: the calls Flutter's framework

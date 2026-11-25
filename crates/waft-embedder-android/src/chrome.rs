@@ -1,5 +1,5 @@
-//! The system's bars over a view's window, their colour and the colour of their icons, and the
-//! app's description in the switcher, which each view's task shows.
+//! The system's bars over a view's window, their colour and the colour of their icons, whether
+//! they show, and the app's description in the switcher, which each view's task shows.
 //!
 //! The status bar and the navigation bar are drawn by the system, not by the app, so the
 //! system is the one that has to be told what is behind them. Until an app says something, the
@@ -26,7 +26,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use waft_embedder::{
-    ApplicationSwitcherDescription, Brightness, SystemChrome, SystemUiOverlayStyle,
+    ApplicationSwitcherDescription, Brightness, EdgeSwipe, SystemChrome, SystemUiOverlayStyle,
 };
 
 use crate::activity::{Activity, device_api_level};
@@ -74,6 +74,126 @@ pub(crate) fn style_the_bars(activity: &Activity, style: SystemUiOverlayStyle) {
         paint_the_bars(env, &window, &style)?;
         light_or_dark_icons(env, &window, &style)
     });
+}
+
+/// Hides the bars over `activity`'s window, `hidden` saying what an edge swipe does meanwhile, or
+/// shows them where it is none. From API 30 the window's insets controller does it, as androidx's
+/// `WindowInsetsControllerCompat` does; before, the decor view's visibility flags Flutter's
+/// `PlatformPlugin.setSystemChromeEnabledSystemUIMode` sets for `immersive` and
+/// `immersiveSticky`, leaving the other flags, the icons' among them, as they are.
+pub(crate) fn show_or_hide_the_bars(activity: &Activity, hidden: Option<EdgeSwipe>) {
+    activity.on_main_thread("the system bars shown or hidden", move |env, activity| {
+        let window = window_of(env, activity)?;
+        if device_api_level() >= INSETS_CONTROLLER {
+            through_the_insets_controller(env, &window, hidden)
+        } else {
+            through_visibility_flags(env, &window, hidden)
+        }
+    });
+}
+
+/// `WindowInsetsController.BEHAVIOR_DEFAULT` (API 31; API 30's `BEHAVIOR_SHOW_BARS_BY_SWIPE`, the
+/// same value): a swipe brings the hidden bars back, to stay.
+const SWIPE_BRINGS_THE_BARS_BACK: i32 = 1;
+/// `WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`: a swipe shows them for a
+/// moment.
+const SWIPE_SHOWS_THE_BARS_FOR_A_MOMENT: i32 = 2;
+
+fn through_the_insets_controller(
+    env: &mut Env<'_>,
+    window: &JObject<'_>,
+    hidden: Option<EdgeSwipe>,
+) -> jni::errors::Result<()> {
+    let controller = env
+        .call_method(
+            window,
+            jni_str!("getInsetsController"),
+            jni_sig!("()Landroid/view/WindowInsetsController;"),
+            &[],
+        )?
+        .l()?;
+    if controller.is_null() {
+        return Ok(());
+    }
+    let bars = env
+        .call_static_method(
+            jni_str!("android/view/WindowInsets$Type"),
+            jni_str!("systemBars"),
+            jni_sig!("()I"),
+            &[],
+        )?
+        .i()?;
+    let behavior = match hidden {
+        Some(EdgeSwipe::Deferred) => SWIPE_SHOWS_THE_BARS_FOR_A_MOMENT,
+        Some(EdgeSwipe::System) | None => SWIPE_BRINGS_THE_BARS_BACK,
+    };
+    env.call_method(
+        &controller,
+        jni_str!("setSystemBarsBehavior"),
+        jni_sig!("(I)V"),
+        &[JValue::Int(behavior)],
+    )?;
+    let show_or_hide = match hidden {
+        Some(_) => jni_str!("hide"),
+        None => jni_str!("show"),
+    };
+    env.call_method(
+        &controller,
+        show_or_hide,
+        jni_sig!("(I)V"),
+        &[JValue::Int(bars)],
+    )?;
+    Ok(())
+}
+
+/// `View.SYSTEM_UI_FLAG_HIDE_NAVIGATION`.
+const HIDE_NAVIGATION_FLAG: i32 = 0x2;
+/// `View.SYSTEM_UI_FLAG_FULLSCREEN`: the status bar hidden.
+const FULLSCREEN_FLAG: i32 = 0x4;
+/// `View.SYSTEM_UI_FLAG_LAYOUT_STABLE`, `LAYOUT_HIDE_NAVIGATION` and `LAYOUT_FULLSCREEN`: the view
+/// laid out under the bars whether they show or not, so hiding them does not move it.
+const LAYOUT_UNDER_THE_BARS_FLAGS: i32 = 0x100 | 0x200 | 0x400;
+/// `View.SYSTEM_UI_FLAG_IMMERSIVE`.
+const IMMERSIVE_FLAG: i32 = 0x800;
+/// `View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY`.
+const IMMERSIVE_STICKY_FLAG: i32 = 0x1000;
+
+fn through_visibility_flags(
+    env: &mut Env<'_>,
+    window: &JObject<'_>,
+    hidden: Option<EdgeSwipe>,
+) -> jni::errors::Result<()> {
+    let decor = env
+        .call_method(
+            window,
+            jni_str!("getDecorView"),
+            jni_sig!("()Landroid/view/View;"),
+            &[],
+        )?
+        .l()?;
+    let flags = env
+        .call_method(
+            &decor,
+            jni_str!("getSystemUiVisibility"),
+            jni_sig!("()I"),
+            &[],
+        )?
+        .i()?;
+    let hiding = HIDE_NAVIGATION_FLAG | FULLSCREEN_FLAG | IMMERSIVE_FLAG | IMMERSIVE_STICKY_FLAG;
+    let hidden_flags = LAYOUT_UNDER_THE_BARS_FLAGS | HIDE_NAVIGATION_FLAG | FULLSCREEN_FLAG;
+    let flags = (flags & !hiding)
+        | match hidden {
+            None => 0,
+            Some(EdgeSwipe::System) => hidden_flags | IMMERSIVE_FLAG,
+            Some(EdgeSwipe::Deferred) => hidden_flags | IMMERSIVE_STICKY_FLAG,
+        };
+    env.call_method(
+        &decor,
+        jni_str!("setSystemUiVisibility"),
+        jni_sig!("(I)V"),
+        &[JValue::Int(flags)],
+    )?;
+    Ok(())
 }
 
 /// The description the framework set last for the app in the switcher, which every task's card

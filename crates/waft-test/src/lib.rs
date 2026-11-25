@@ -67,6 +67,6 @@ pub use platform::{TestDispatcher, TestPlatform};
 pub use png_bytes::encode_png;
 pub use time_zone::TestTimeZone;
 pub use view::{IMPLICIT_VIEW_ID, MetricsListener, TestView};
-pub use view_host::{TestViewHost, TextInputCall};
+pub use view_host::{BarsShown, TestViewHost, TextInputCall};
 pub use waft_embedder::TestFontSource;
 pub use windows::{TestWindow, TestWindows};

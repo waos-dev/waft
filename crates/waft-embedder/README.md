@@ -228,7 +228,7 @@ Windows' and Linux's HTTP clients, Android's, and an image cache on disk are not
 
 **System chrome and haptics**
 - `Platform::system_chrome`, `haptics`, `ViewHost::system_bars`
-- Answer `system_bars` for a view the system draws its bars over, and `None` for one it draws none over, as a desktop's window. Style the bars on the thread that owns the window, which on Android is the Java main thread.
+- Answer `system_bars` for a view the system draws its bars over, and `None` for one it draws none over, as a desktop's window. Style, hide and show the bars on the thread that owns the window, which on Android is the Java main thread, and keep what the app said last for each view, to tell a window the system makes for it again.
 
 **Restoration**
 - `Platform::restoration`, `Restoration::get`, `put`

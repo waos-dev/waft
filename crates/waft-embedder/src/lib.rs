@@ -170,7 +170,7 @@ pub use text::*;
 pub use text_editing::*;
 pub use text_input::*;
 pub use views::{
-    GestureSettings, SystemBars, TextInputHost, View, ViewConstraints, ViewEmbedder,
+    EdgeSwipe, GestureSettings, SystemBars, TextInputHost, View, ViewConstraints, ViewEmbedder,
     ViewFocusDirection, ViewFocusEvent, ViewFocusState, ViewHost, ViewId, ViewMetrics, ViewPadding,
 };
 pub use vsync::{VsyncObserver, VsyncWaiter};
