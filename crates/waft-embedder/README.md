@@ -67,7 +67,7 @@ Every embedder takes the same shape, whatever its system; the winit embedder (`c
 
 **Minimized, occluded, maximized, full screen and moved**
 - `HostWindow::is_minimized`, `is_occluded`, `is_maximized`, `is_fullscreen`, `set_fullscreen`, `frame`, `EmbedderClient::window_changed`
-- Answer whether each window is minimized, occluded, maximized and full screen as the system says, `false` where it does not say or a window has no such state, and call `window_changed` once the window answers the new state, each time one changes or the window moves. Full screen is the system's own for a window, on the screen asked for or the window's; a host whose windows fill the screen as they are, as a phone's, does nothing. A resize is reported as a metrics change alone.
+- Answer whether each window is minimized, occluded, maximized and full screen as the system says, `false` where it does not say or a window has no such state, and call `window_changed` once the window answers the new state, each time it is minimized or restored, occluded or shown, goes full screen or leaves it, or moves, as it does when maximized or returned. Full screen is the system's own for a window, on the screen asked for or the window's; a host whose windows fill the screen as they are, as a phone's, does nothing. A resize is reported as a metrics change alone.
 
 **Size and scale**
 - `ViewMetrics::physical_size`, `device_pixel_ratio`, `EmbedderClient::view_metrics_changed`

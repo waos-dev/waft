@@ -1,6 +1,11 @@
 //! A window the app created, as it holds it (`HostWindow`), and how it was when the app last heard
-//! of it: whether it was minimized, occluded, maximized and full screen, so that the embedder
-//! reports a change once, whichever of the system's events it comes with.
+//! of it: whether it was minimized, occluded and full screen, so that the embedder reports a
+//! change once, whichever of the system's events it comes with.
+//!
+//! Whether it is maximized is not among them: winit answers that for a window without decorations
+//! by giving it a title bar for a moment, which the system reports as moves and resizes, so
+//! reading it at each report would never stop. A window maximized or returned moves, and the app
+//! hears of that.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -36,12 +41,11 @@ pub(crate) struct WinitWindow {
     reported: Cell<WindowState>,
 }
 
-/// What a window answers of itself that changes without its frame saying so.
+/// Whether a window is minimized, occluded and full screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct WindowState {
     minimized: bool,
     occluded: bool,
-    maximized: bool,
     fullscreen: bool,
 }
 
@@ -70,9 +74,8 @@ impl WinitWindow {
         self.occluded.set(occluded);
     }
 
-    /// Reads again whether the window is minimized, occluded, maximized and full screen, and
-    /// answers whether any changed since the app last heard of the window, which it is to hear of
-    /// now.
+    /// Reads again whether the window is minimized, occluded and full screen, and answers whether
+    /// any changed since the app last heard of the window, which it is to hear of now.
     pub(crate) fn refresh_state(&self) -> bool {
         let state = self.state();
         self.reported.replace(state) != state
@@ -82,7 +85,6 @@ impl WinitWindow {
         WindowState {
             minimized: self.is_minimized(),
             occluded: self.is_occluded(),
-            maximized: self.is_maximized(),
             fullscreen: self.is_fullscreen(),
         }
     }
@@ -198,7 +200,7 @@ impl HostWindow for WinitWindow {
     fn is_maximized(&self) -> bool {
         self.window
             .upgrade()
-            .is_some_and(|window| window.is_maximized() && window.fullscreen().is_none())
+            .is_some_and(|window| window.fullscreen().is_none() && window.is_maximized())
     }
 
     fn set_maximized(&self, maximized: bool) {
