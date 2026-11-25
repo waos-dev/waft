@@ -529,6 +529,11 @@ impl CompositionLayer for WindowsLayer {
             released();
             return;
         };
+        if shared.format() != FORMAT {
+            eprintln!("waft: a layer shows BGRA, and is presented {:?}; it is not shown", shared.format());
+            released();
+            return;
+        }
         let Some(gpu) = layer_gpu() else {
             eprintln!("waft: a layer is presented before Waft's device is made; it is not shown");
             released();
