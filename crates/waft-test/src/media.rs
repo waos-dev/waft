@@ -17,12 +17,13 @@ use waft_embedder::image_codecs::{
     ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat,
 };
 use waft_embedder::{
-    Camera, CameraDevice, CameraError, CameraFormat, CameraListFuture, CameraOpenFuture,
-    CameraOutputs, CameraStartFuture, Cameras, CaptureSession, CaptureState, CompositionLayer,
-    Compositor, Cue, HardwareBuffer, LayerPicture, MediaAsset, MediaAssetFuture, MediaAssets,
-    MediaChangeFuture, MediaError, MediaMetadata, MediaPlayer, MediaTrack, MovieOptions, Photo,
-    PhotoFuture, Placement, PlayerError, PlayerState, Players, RecordingFuture, SeekTolerance,
-    Size, VideoFrame, VideoFrameReader, VideoFrameReaders, VideoOutput,
+    AcceptedBuffers, Camera, CameraDevice, CameraError, CameraFormat, CameraListFuture,
+    CameraOpenFuture, CameraOutputs, CameraStartFuture, Cameras, CaptureSession, CaptureState,
+    CompositionLayer, Compositor, Cue, HardwareBuffer, LayerPicture, MediaAsset, MediaAssetFuture,
+    MediaAssets, MediaChangeFuture, MediaError, MediaMetadata, MediaPlayer, MediaTrack,
+    MovieOptions, Photo, PhotoFuture, Placement, PlayerError, PlayerState, Players,
+    RecordingFuture, SeekTolerance, Size, VideoFrame, VideoFrameReader, VideoFrameReaders,
+    VideoOutput,
 };
 
 use crate::MockHardwareBuffer;
@@ -30,29 +31,45 @@ use crate::hardware_buffers::SYSTEM_GIVEN;
 use crate::image_codecs::pixels_of;
 
 /// A compositor whose layers show nowhere and keep what they show now ([`MockLayer`]), kept in
-/// the order made. Every clone is the same compositor.
+/// the order made. It accepts the buffers the test gives it, none unless told. Every clone is the
+/// same compositor.
 #[derive(Clone, Default)]
-pub struct MockCompositor(Arc<Mutex<Vec<Arc<MockLayer>>>>);
+pub struct MockCompositor {
+    made: Arc<Mutex<Vec<Arc<MockLayer>>>>,
+    accepted: AcceptedBuffers,
+}
 
 impl MockCompositor {
     pub fn new() -> MockCompositor {
         MockCompositor::default()
     }
 
+    /// A compositor that answers `accepted` for the buffers it shows.
+    pub fn accepting(accepted: AcceptedBuffers) -> MockCompositor {
+        MockCompositor {
+            accepted,
+            ..MockCompositor::default()
+        }
+    }
+
     /// The layers the app made, in order.
     pub fn made(&self) -> Vec<Arc<MockLayer>> {
-        self.0.lock().expect("never held across a panic").clone()
+        self.made.lock().expect("never held across a panic").clone()
     }
 }
 
 impl Compositor for MockCompositor {
     fn make_layer(&self, opaque: bool) -> Arc<dyn CompositionLayer> {
         let layer = Arc::new(MockLayer::new(opaque));
-        self.0
+        self.made
             .lock()
             .expect("never held across a panic")
             .push(Arc::clone(&layer));
         layer
+    }
+
+    fn accepted_buffers(&self) -> AcceptedBuffers {
+        self.accepted.clone()
     }
 }
 

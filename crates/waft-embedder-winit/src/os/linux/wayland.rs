@@ -1,14 +1,19 @@
 //! Waft's own share of the Wayland connection winit opened: the globals composition layers need
-//! (`wl_compositor`, `wl_subcompositor`, `wp_viewporter`, `zwp_linux_dmabuf_v1`), bound on an event
-//! queue of Waft's, which a thread of its own reads, as Mesa's Vulkan WSI shares the connection on
-//! a queue of its own. A dmabuf becomes a `wl_buffer` here, and its releases come back here. XDG
-//! activation, where the compositor offers it, brings a window forward with a launch's token.
+//! (`wl_compositor`, `wl_subcompositor`, `wp_viewporter`, `zwp_linux_dmabuf_v1`, `wl_shm`), bound
+//! on an event queue of Waft's, which a thread of its own reads, as Mesa's Vulkan WSI shares the
+//! connection on a queue of its own. What the compositor imports is read once, as the connection
+//! is made (`dmabuf_feedback`). A dmabuf or shared memory becomes a `wl_buffer` here, and its
+//! releases come back here. XDG activation, where the compositor offers it, brings a window forward
+//! with a launch's token.
 //!
 //! The invariants a later editor must keep: nothing here makes a request that can fail with a
 //! protocol error, since one ends the whole connection, winit's windows with it: a `wl_buffer` is
 //! made with the asynchronous `zwp_linux_buffer_params_v1.create`, whose `failed` is answered as
-//! the buffer not being shown, as GTK's graphics offload does, never with `create_immed`; and every
-//! object made here is on Waft's queue, so its events never reach winit's.
+//! the buffer not being shown, as GTK's graphics offload does, never with `create_immed`; a
+//! `wl_shm` buffer only of memory it fits in (`ShmBuffer::new`); and every object made here is on
+//! Waft's queue, so its events never reach winit's. `zwp_linux_dmabuf_v1` is bound at version 5
+//! at most: version 6 sends no main device, which a client must be written for, as GTK 4.18's crash
+//! there showed.
 //!
 //! wayland-client's foreign display and foreign proxies wrap libwayland's pointers, which is why
 //! this module allows `unsafe`.
@@ -23,22 +28,25 @@ use std::time::Duration;
 use wayland_backend::client::{Backend, ObjectId};
 use wayland_client::globals::{GlobalListContents, registry_queue_init};
 use wayland_client::protocol::{
-    wl_buffer, wl_compositor, wl_region, wl_registry, wl_subcompositor, wl_subsurface, wl_surface,
+    wl_buffer, wl_compositor, wl_region, wl_registry, wl_shm, wl_shm_pool, wl_subcompositor,
+    wl_subsurface, wl_surface,
 };
 use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle, delegate_noop, event_created_child,
 };
 use wayland_protocols::wp::linux_dmabuf::zv1::client::{
-    zwp_linux_buffer_params_v1, zwp_linux_dmabuf_v1,
+    zwp_linux_buffer_params_v1, zwp_linux_dmabuf_feedback_v1, zwp_linux_dmabuf_v1,
 };
 use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 use wayland_protocols::xdg::activation::v1::client::xdg_activation_v1;
 use winit::raw_window_handle::RawWindowHandle;
 use winit::window::Window;
 
-use waft_embedder::HardwareBuffer;
+use waft_embedder::{AcceptedBuffers, HardwareBuffer, HardwareBufferFormat};
 
 use super::dmabuf::{ARGB8888, DmabufBuffer, MOD_INVALID, MOD_LINEAR};
+use super::dmabuf_feedback::{Feedback, accepted_at_version_3};
+use super::shm::ShmBuffer;
 
 /// How long a `wl_buffer`'s making is waited for before the buffer is taken as refused.
 const BUFFER_WAIT: Duration = Duration::from_secs(2);
@@ -62,11 +70,16 @@ pub(crate) struct Wayland {
     pub(crate) subcompositor: wl_subcompositor::WlSubcompositor,
     pub(crate) viewporter: wp_viewporter::WpViewporter,
     linux_dmabuf: zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1,
+    /// Shared memory; `None` where the compositor offers none, which every compositor does.
+    shm: Option<wl_shm::WlShm>,
     /// XDG activation; `None` where the compositor offers none.
     activation: Option<xdg_activation_v1::XdgActivationV1>,
-    /// The modifiers the compositor takes ARGB8888 in.
-    modifiers: Arc<Mutex<Vec<u64>>>,
+    /// What the compositor imports, as it said when the connection was made.
+    accepted: AcceptedBuffers,
 }
+
+/// What version 3's global lists: a DRM format and a modifier each.
+type ListedModifiers = Mutex<Vec<(u32, u64)>>;
 
 /// What a `wl_buffer` carries: the producers' releases, one for each present not yet released, in
 /// the order presented.
@@ -124,15 +137,27 @@ impl Wayland {
         let viewporter = globals
             .bind(&handle, 1..=1, ())
             .map_err(|_| bind_error("wp_viewporter"))?;
-        let modifiers = Arc::new(Mutex::new(Vec::new()));
-        // Version 3 lists the formats and modifiers as events of the global itself.
-        let linux_dmabuf = globals
-            .bind(&handle, 3..=3, Arc::clone(&modifiers))
+        // Version 3 lists the formats and modifiers as events of the global itself; from version
+        // 4 a feedback object says them, per device.
+        let listed = Arc::new(ListedModifiers::default());
+        let linux_dmabuf: zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1 = globals
+            .bind(&handle, 3..=5, Arc::clone(&listed))
             .map_err(|_| bind_error("zwp_linux_dmabuf_v1 at version 3"))?;
+        let feedback = Arc::new(Feedback::default());
+        let feedback_object = (linux_dmabuf.version() >= 4)
+            .then(|| linux_dmabuf.get_default_feedback(&handle, Arc::clone(&feedback)));
+        let shm: Option<wl_shm::WlShm> = globals.bind(&handle, 1..=1, ()).ok();
         let activation = globals.bind(&handle, 1..=1, ()).ok();
         queue
             .roundtrip(&mut Events)
             .map_err(|error| error.to_string())?;
+        let accepted = match feedback_object {
+            Some(feedback_object) => {
+                feedback_object.destroy();
+                feedback.accepted_buffers(shm.is_some())
+            }
+            None => accepted_at_version_3(listed.lock().unwrap().drain(..), shm.is_some()),
+        };
         std::thread::Builder::new()
             .name("waft wayland".into())
             .spawn(
@@ -148,9 +173,15 @@ impl Wayland {
             subcompositor,
             viewporter,
             linux_dmabuf,
+            shm,
             activation,
-            modifiers,
+            accepted,
         })
+    }
+
+    /// What the compositor imports, as it said when the connection was made.
+    pub(crate) fn accepted_buffers(&self) -> &AcceptedBuffers {
+        &self.accepted
     }
 
     pub(crate) fn queue(&self) -> &QueueHandle<Events> {
@@ -188,10 +219,17 @@ impl Wayland {
     /// and for a linear buffer the implicit modifier where that alone is offered, as a driver's
     /// implicit layout is linear for a buffer allocated linear. `None` where it takes neither.
     fn announced_modifier(&self, buffer: &DmabufBuffer) -> Option<u64> {
-        let offered = self.modifiers.lock().unwrap();
-        if offered.contains(&buffer.modifier()) {
+        let offered = |modifier: u64| {
+            self.accepted.gpu_memory.iter().any(|memory| {
+                memory.formats.iter().any(|accepted| {
+                    accepted.format == HardwareBufferFormat::Bgra8
+                        && accepted.modifiers.contains(&modifier)
+                })
+            })
+        };
+        if offered(buffer.modifier()) {
             Some(buffer.modifier())
-        } else if buffer.modifier() == MOD_LINEAR && offered.contains(&MOD_INVALID) {
+        } else if buffer.modifier() == MOD_LINEAR && offered(MOD_INVALID) {
             Some(MOD_INVALID)
         } else {
             None
@@ -234,6 +272,28 @@ impl Wayland {
         }
         made
     }
+
+    /// `buffer` as a `wl_buffer` of a `wl_shm` pool over its memory; `None`, said why, where the
+    /// compositor offers no shared memory.
+    pub(crate) fn shm_wl_buffer(&self, buffer: &ShmBuffer) -> Option<wl_buffer::WlBuffer> {
+        let Some(shm) = &self.shm else {
+            eprintln!("waft: the compositor offers no shared memory: the buffer is not shown");
+            return None;
+        };
+        let pool = shm.create_pool(buffer.fd().as_fd(), buffer.length(), &self.queue, ());
+        let made = pool.create_buffer(
+            0,
+            buffer.width() as i32,
+            buffer.height() as i32,
+            buffer.stride() as i32,
+            wl_shm::Format::Argb8888,
+            &self.queue,
+            Arc::new(BufferData::default()),
+        );
+        pool.destroy();
+        self.flush();
+        Some(made)
+    }
 }
 
 /// Brings `window` forward with `token`, an XDG activation token a launch was given; nothing on X11
@@ -265,12 +325,12 @@ impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Events {
     }
 }
 
-impl Dispatch<zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1, Arc<Mutex<Vec<u64>>>> for Events {
+impl Dispatch<zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1, Arc<ListedModifiers>> for Events {
     fn event(
         _: &mut Self,
         _: &zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1,
         event: zwp_linux_dmabuf_v1::Event,
-        modifiers: &Arc<Mutex<Vec<u64>>>,
+        listed: &Arc<ListedModifiers>,
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
@@ -279,10 +339,30 @@ impl Dispatch<zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1, Arc<Mutex<Vec<u64>>>> for E
             modifier_hi,
             modifier_lo,
         } = event
-            && format == ARGB8888
         {
             let modifier = (u64::from(modifier_hi) << 32) | u64::from(modifier_lo);
-            modifiers.lock().unwrap().push(modifier);
+            listed.lock().unwrap().push((format, modifier));
+        }
+    }
+}
+
+impl Dispatch<zwp_linux_dmabuf_feedback_v1::ZwpLinuxDmabufFeedbackV1, Arc<Feedback>> for Events {
+    fn event(
+        _: &mut Self,
+        _: &zwp_linux_dmabuf_feedback_v1::ZwpLinuxDmabufFeedbackV1,
+        event: zwp_linux_dmabuf_feedback_v1::Event,
+        feedback: &Arc<Feedback>,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        use zwp_linux_dmabuf_feedback_v1::Event;
+        match event {
+            Event::FormatTable { fd, size } => feedback.format_table(fd, size),
+            Event::MainDevice { device } => feedback.main_device(&device),
+            Event::TrancheTargetDevice { device } => feedback.tranche_target_device(&device),
+            Event::TrancheFormats { indices } => feedback.tranche_formats(&indices),
+            Event::TrancheDone => feedback.tranche_done(),
+            _ => {}
         }
     }
 }
@@ -335,5 +415,7 @@ delegate_noop!(Events: ignore wl_surface::WlSurface);
 delegate_noop!(Events: ignore wl_subsurface::WlSubsurface);
 delegate_noop!(Events: ignore wl_region::WlRegion);
 delegate_noop!(Events: ignore wp_viewporter::WpViewporter);
+delegate_noop!(Events: ignore wl_shm::WlShm);
+delegate_noop!(Events: ignore wl_shm_pool::WlShmPool);
 delegate_noop!(Events: ignore wp_viewport::WpViewport);
 delegate_noop!(Events: ignore xdg_activation_v1::XdgActivationV1);

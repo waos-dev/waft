@@ -56,7 +56,6 @@ use super::capabilities::{
     WindowMotion, WindowVisibility, WorkQueue,
 };
 use super::window_handle_layer::{NoWindowHold, WindowHandleLayer};
-use crate::gpu::Gpu;
 use composition::{DirectComposition, WindowsCompositor};
 use display_links::VBlankLink;
 
@@ -99,10 +98,6 @@ impl NativeComposition for Windows {
     fn compositor() -> Option<Arc<dyn Compositor>> {
         let compositor = WindowsCompositor::new()?;
         Some(Arc::new(compositor))
-    }
-
-    fn device_made(gpu: &Gpu) {
-        composition::device_made(gpu);
     }
 
     fn view_layer_in(window: &Arc<dyn Window>) -> (Self::ViewLayer, NoWindowHold) {

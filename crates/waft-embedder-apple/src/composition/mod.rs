@@ -61,8 +61,8 @@ use objc2::rc::Retained;
 use objc2_foundation::{NSPoint, NSRect};
 use objc2_quartz_core::{CALayer, CAShapeLayer, CATransaction, kCAFillRuleEvenOdd};
 use waft_embedder::{
-    CompositionLayer, Compositor, FillRule, HardwareBuffer, LayerPicture, Placement, VideoFrame,
-    ViewId,
+    AcceptedBuffers, AcceptedFormat, CompositionLayer, Compositor, FillRule, GpuMemory,
+    HardwareBuffer, HardwareBufferFormat, LayerPicture, Placement, VideoFrame, ViewId,
 };
 
 use super::hardware_buffers::SurfaceBuffer;
@@ -83,6 +83,20 @@ pub struct CoreAnimationCompositor;
 impl Compositor for CoreAnimationCompositor {
     fn make_layer(&self, opaque: bool) -> Arc<dyn CompositionLayer> {
         Arc::new(CoreAnimationLayer::new(opaque))
+    }
+
+    /// BGRA8 `IOSurface`s, of any of the machine's GPUs.
+    fn accepted_buffers(&self) -> AcceptedBuffers {
+        AcceptedBuffers {
+            gpu_memory: vec![GpuMemory {
+                gpu: None,
+                formats: vec![AcceptedFormat {
+                    format: HardwareBufferFormat::Bgra8,
+                    modifiers: Vec::new(),
+                }],
+            }],
+            shared_memory: false,
+        }
     }
 }
 

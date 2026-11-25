@@ -2,22 +2,25 @@
 //! whose icons are StatusNotifierItems with their DBus menus (`status_notifier_items`), the
 //! desktop portal's file dialogs (`file_dialogs`), the app's id on each window, by which the
 //! desktop knows whose window it is, and on Wayland composition layers as subsurfaces showing
-//! dmabufs (`composition`, `dmabuf`, `wayland`).
+//! dmabufs or shared memory (`composition`, `dmabuf`, `shm`, `wayland`).
 //! Linux's desktops have no menu bar and no menu at a point of the system's: GTK and Qt draw
 //! theirs in the app's own surfaces, so those answer none and the app draws its own.
 
 mod composition;
 mod dmabuf;
+mod dmabuf_feedback;
 mod file_dialogs;
 mod local_time;
 mod notifications;
 mod opener;
 mod portal;
 mod session_bus;
+mod shm;
 mod status_notifier_items;
 mod wayland;
 
 pub use dmabuf::DmabufBuffer;
+pub use shm::ShmBuffer;
 
 use std::rc::Rc;
 use std::sync::Arc;

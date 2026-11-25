@@ -52,7 +52,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 use waft_embedder::{
-    CompositionLayer, Compositor, HardwareBuffer, LayerPicture, Placement, VideoFrame, ViewId,
+    AcceptedBuffers, AcceptedFormat, CompositionLayer, Compositor, GpuMemory, HardwareBuffer,
+    HardwareBufferFormat, LayerPicture, Placement, VideoFrame, ViewId,
 };
 
 use crate::buffer_transform::BufferTransform;
@@ -91,6 +92,20 @@ impl SurfaceControlCompositor {
 impl Compositor for SurfaceControlCompositor {
     fn make_layer(&self, opaque: bool) -> Arc<dyn CompositionLayer> {
         self.layer(opaque)
+    }
+
+    /// RGBA8 `AHardwareBuffer`s, which open on the device's GPU.
+    fn accepted_buffers(&self) -> AcceptedBuffers {
+        AcceptedBuffers {
+            gpu_memory: vec![GpuMemory {
+                gpu: None,
+                formats: vec![AcceptedFormat {
+                    format: HardwareBufferFormat::Rgba8,
+                    modifiers: Vec::new(),
+                }],
+            }],
+            shared_memory: false,
+        }
     }
 }
 

@@ -71,7 +71,9 @@ pub use clipboard::{
     ClipboardReadFuture, ClipboardWriteFuture, Content, ContentFuture, CopyOptions, CopyRequest,
     DataTransferItem, FileSink, URI_LIST, WriteFuture,
 };
-pub use composition::{CompositionLayer, Compositor, LayerPicture};
+pub use composition::{
+    AcceptedBuffers, AcceptedFormat, CompositionLayer, Compositor, GpuMemory, LayerPicture,
+};
 pub use cue::{
     Cue, CueAnchor, CueContent, CueImage, CueLine, CueTextAlignment, CueTextEdge, CueTextRun,
     CueVertical,
@@ -97,7 +99,9 @@ pub use fragment_shader::{
     UniformMat3Slot, UniformMat4Slot, UniformVec2Slot, UniformVec3Slot, UniformVec4Slot,
 };
 pub use geometry::*;
-pub use hardware_buffers::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+pub use hardware_buffers::{
+    GpuId, HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage,
+};
 pub use http::{
     Body, BodyReadAllFuture, BodyReadFuture, BodyStream, BodyTrailersFuture, DnsErrorPayload,
     FieldSizePayload, HttpClient, HttpError, HttpFuture, RedirectPolicy, SendOptions,

@@ -1,9 +1,9 @@
 //! Composition layers on Wayland, as GTK 4's graphics offload puts content in subsurfaces: a layer
 //! is a `wl_surface` with a `wp_viewport`, made a synchronized `wl_subsurface` of whoever places
 //! it, below it: the window's own surface for a layer a view's scene places, a layer's surface for
-//! a child its present places. A layer shows its producer's dmabuf as a `wl_buffer`; a buffer the
-//! compositor refuses to make one of is not shown, and goes back to its producer at once. X11 has
-//! no compositor a client hands buffers to, and shows no layers.
+//! a child its present places. A layer shows its producer's dmabuf or shared memory as a
+//! `wl_buffer`; a buffer the compositor refuses to make one of is not shown, and goes back to its
+//! producer at once. X11 has no compositor a client hands buffers to, and shows no layers.
 //!
 //! Synchronized, a subsurface's position and its viewport's destination are applied with its
 //! parent's next commit, so a scene's placements land with the view's picture: the view places its
@@ -21,7 +21,7 @@
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use waft_embedder::{
-    CompositionLayer, Compositor, HardwareBuffer, LayerPicture, Placement, ViewId,
+    AcceptedBuffers, CompositionLayer, Compositor, HardwareBuffer, LayerPicture, Placement, ViewId,
 };
 use wayland_client::protocol::{wl_subsurface, wl_surface};
 use wayland_protocols::wp::viewporter::client::wp_viewport;
@@ -29,6 +29,7 @@ use winit::raw_window_handle::RawWindowHandle;
 use winit::window::Window;
 
 use super::dmabuf::DmabufBuffer;
+use super::shm::ShmBuffer;
 use super::wayland::Wayland;
 use crate::os::window_handle_layer::WindowComposition;
 
@@ -73,6 +74,10 @@ impl WaylandCompositor {
 impl Compositor for WaylandCompositor {
     fn make_layer(&self, _opaque: bool) -> Arc<dyn CompositionLayer> {
         Arc::new_cyclic(|me| WaylandLayer::new(Arc::clone(&self.wayland), me.clone()))
+    }
+
+    fn accepted_buffers(&self) -> AcceptedBuffers {
+        self.wayland.accepted_buffers().clone()
     }
 }
 
@@ -284,9 +289,13 @@ impl CompositionLayer for WaylandLayer {
         released: Box<dyn FnOnce() + Send + Sync>,
     ) {
         let any: &dyn std::any::Any = &*buffer;
-        let made = any
-            .downcast_ref::<DmabufBuffer>()
-            .and_then(|dmabuf| dmabuf.wl_buffer(&self.wayland));
+        let made = if let Some(dmabuf) = any.downcast_ref::<DmabufBuffer>() {
+            dmabuf.wl_buffer(&self.wayland)
+        } else if let Some(shared) = any.downcast_ref::<ShmBuffer>() {
+            shared.wl_buffer(&self.wayland)
+        } else {
+            None
+        };
         let Some((wl_buffer, data)) = made else {
             released();
             return;

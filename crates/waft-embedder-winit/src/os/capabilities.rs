@@ -312,10 +312,6 @@ pub(crate) trait NativeComposition {
         None
     }
 
-    /// Waft's device is made, `gpu`'s: what the compositor does on it, as copying a producer's
-    /// buffer into a layer on Windows, may start. Main thread.
-    fn device_made(_gpu: &Gpu) {}
-
     /// What a window's code does for its view as `window` opens, as an app does for a view it
     /// adds: makes the layer the view shows into and places it in the window, filling it. Answers
     /// the layer, which the view is added on, and the window's hold on it. Main thread.

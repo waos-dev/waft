@@ -124,12 +124,12 @@ pub use macos::MacOs;
 /// at this host's version.
 #[cfg(target_os = "macos")]
 pub use objc2_app_kit::{NSGlassEffectViewStyle, NSVisualEffectMaterial, NSVisualEffectState};
-#[cfg(target_os = "linux")]
-pub use os::DmabufBuffer;
 #[cfg(target_os = "windows")]
 pub use os::SharedTexture;
 #[cfg(target_os = "macos")]
 pub use os::{CoreVideoFrame, MacosBackdrop, SurfaceBuffer, UserActivity};
+#[cfg(target_os = "linux")]
+pub use os::{DmabufBuffer, ShmBuffer};
 pub use platform::WinitPlatform;
 pub use system_requests::{NotificationActivationHandler, Reopen, ReopenHandler};
 pub use windows_os::Windows;

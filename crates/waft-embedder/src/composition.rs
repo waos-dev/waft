@@ -28,7 +28,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use crate::{HardwareBuffer, Placement, VideoFrame};
+use crate::{GpuId, HardwareBuffer, HardwareBufferFormat, Placement, VideoFrame};
 
 /// The host's compositor, as an app reaches it.
 pub trait Compositor: Send + Sync {
@@ -39,6 +39,52 @@ pub trait Compositor: Send + Sync {
     /// The layer goes when its last handle does: its producer's, and those of the frames that
     /// place it.
     fn make_layer(&self, opaque: bool) -> Arc<dyn CompositionLayer>;
+
+    /// The buffers its layers show: what a producer that makes its own buffers makes, so that
+    /// none is refused or copied between GPUs. It answers as the compositor was made, and does not
+    /// change after.
+    fn accepted_buffers(&self) -> AcceptedBuffers;
+}
+
+/// What a compositor shows a layer's pictures from ([`Compositor::accepted_buffers`]): GPU memory
+/// it imports, and shared memory it maps. A producer makes buffers of a format both it and the
+/// compositor take, never of the compositor's list alone.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AcceptedBuffers {
+    /// The GPU memory it imports, one entry per GPU, in its order of preference: the first is the
+    /// GPU it composites on, where a producer's buffers show with no copy. Empty where it imports
+    /// none.
+    pub gpu_memory: Vec<GpuMemory>,
+    /// Whether it also shows pictures from shared memory, which the producer writes with the CPU:
+    /// Wayland's `wl_shm`. No other system Waft runs on has it.
+    pub shared_memory: bool,
+}
+
+impl AcceptedBuffers {
+    /// The GPU it composites on, where its system names it.
+    pub fn gpu(&self) -> Option<GpuId> {
+        self.gpu_memory.first().and_then(|memory| memory.gpu)
+    }
+}
+
+/// The formats a compositor imports from one GPU's memory.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GpuMemory {
+    /// The GPU the buffers are made on; `None` where the system names none (macOS, iOS and
+    /// Android, whose compositors take memory of any of the machine's GPUs).
+    pub gpu: Option<GpuId>,
+    /// The formats, in the compositor's order of preference.
+    pub formats: Vec<AcceptedFormat>,
+}
+
+/// One format a compositor imports.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AcceptedFormat {
+    pub format: HardwareBufferFormat,
+    /// The DRM format modifiers it imports the format in, Linux's alone, in its order of
+    /// preference: `DRM_FORMAT_MOD_INVALID` alone means the driver's implicit layout. Empty
+    /// elsewhere, where the system's allocator picks the layout and the compositor takes it.
+    pub modifiers: Vec<u64>,
 }
 
 /// One layer of the compositor's tree. Every method may be called from any thread.

@@ -1,6 +1,7 @@
 //! GPU memory the system's compositor shows, as a host hands it to the app: on Apple platforms an
 //! `IOSurface`, Android's `HardwareBuffer`, a dmabuf behind Wayland's `wl_buffer`, a shared D3D
-//! texture. Not a dart:ui type: Flutter's engine keeps its buffers to itself. They follow
+//! texture; and on Wayland, for a producer without a GPU the compositor imports from, shared memory
+//! the compositor maps. Not a dart:ui type: Flutter's engine keeps its buffers to itself. They follow
 //! `wasdk:platform/hardware-buffers` one to one.
 //!
 //! A hardware buffer is memory the app holds: one it allocates
@@ -125,4 +126,39 @@ pub trait HardwareBuffer: Any + Send + Sync {
     /// [`cpu_read`](HardwareBufferUsage::cpu_read), on every system, and for one whose pixels are
     /// in no [`PixelFormat`].
     fn read_pixels(&self) -> ImageFuture<PixelBuffer>;
+}
+
+/// How a hardware buffer lays out its pixels. What the samples mean as colour is the picture's,
+/// not the buffer's. A video decoder's own layouts (NV12, P010) join with the decoders that write
+/// them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum HardwareBufferFormat {
+    /// 8-bit blue, green, red and alpha in one plane: CoreVideo's `32BGRA`, DXGI's
+    /// `B8G8R8A8_UNORM`, DRM's `ARGB8888`.
+    Bgra8,
+    /// 8-bit red, green, blue and alpha in one plane: Android's `R8G8B8A8_UNORM`.
+    Rgba8,
+}
+
+/// A GPU as its system names it to every API on it and to other processes: what anything that
+/// makes GPU memory for another is told, so the memory opens where it is read. Memory shared by
+/// handle opens only on the adapter that made it: a D3D texture shared by NT handle on Windows, a
+/// dmabuf in a tiled layout on Linux. An `IOSurface` and an `AHardwareBuffer` open on any of their
+/// system's GPUs, so Apple's systems and Android name none.
+///
+/// Two ids are the same GPU exactly when they are equal: a host turns whatever its system says
+/// into this form first, as Wayland's compositor may name a GPU by its primary node or by its
+/// render node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GpuId {
+    /// Windows: the adapter's locally unique id, as `DXGI_ADAPTER_DESC1::AdapterLuid` holds it,
+    /// `ID3D12Device::GetAdapterLuid` answers it and Vulkan's
+    /// `VkPhysicalDeviceIDProperties::deviceLUID` gives it.
+    Luid { low: u32, high: i32 },
+    /// Linux: the device number of the GPU's DRM render node (226:128 is `/dev/dri/renderD128`),
+    /// as `stat(2)` of the node and Vulkan's `VkPhysicalDeviceDrmPropertiesEXT::renderMajor` and
+    /// `renderMinor` give it.
+    DrmRenderNode { major: u32, minor: u32 },
 }
