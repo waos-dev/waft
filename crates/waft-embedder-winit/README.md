@@ -8,7 +8,7 @@ What it provides:
 - Input: the pointer, the trackpad, touches on Windows, the keyboard, text input and the system's input methods.
 - Drawing: valo on the device every window draws with; composition layers, and buffers the system shares imported as textures, where the system has them.
 - The system's shell: the menu bar and pop-up menus, the Dock icon's menu and the notification area, notifications, the clipboard, file dialogs, opening files and links, and quitting through the app's answer.
-- The system's media: players, media assets and cameras, image codecs and video frame readers, where the system has them.
+- The system's media: players, media assets and cameras, image codecs, video frame readers and video decoders, where the system has them: VideoToolbox's on macOS, and Media Foundation's H.264 decoder on Windows, its pictures in NV12 textures shared by NT handle.
 - The user's appearance, languages and local time zone.
 - HTTP over `NSURLSession` and the file system on the embedder's threads, on macOS; Windows and Linux answer `None` until their clients are written.
 - macOS only, through `WinitPlatform::macos`: hearing a reopen, a window that slides in, hiding the app, placing a composition layer in a `CALayer` the app holds, showing the system's layer as one, and keeping the app from being throttled while it does work the user is waiting on (`MacOs::begin_user_activity`, with a `UserActivity` that ends the activity when dropped).
