@@ -2,19 +2,22 @@
 //! whose icons are StatusNotifierItems with their DBus menus (`status_notifier_items`), the
 //! desktop portal's file dialogs (`file_dialogs`), the app's id on each window, by which the
 //! desktop knows whose window it is, and on Wayland composition layers as subsurfaces showing
-//! dmabufs (`composition`, `dmabuf`, `wayland`).
+//! dmabufs (`composition`, `dmabuf`, `wayland`), and GStreamer's video decoders, which hand
+//! their pictures over as those dmabufs (`gstreamer`, `video_decoders`).
 //! Linux's desktops have no menu bar and no menu at a point of the system's: GTK and Qt draw
 //! theirs in the app's own surfaces, so those answer none and the app draws its own.
 
 mod composition;
 mod dmabuf;
 mod file_dialogs;
+mod gstreamer;
 mod local_time;
 mod notifications;
 mod opener;
 mod portal;
 mod session_bus;
 mod status_notifier_items;
+mod video_decoders;
 mod wayland;
 
 pub use dmabuf::DmabufBuffer;
@@ -22,6 +25,7 @@ pub use dmabuf::DmabufBuffer;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Compositor, HardwareBufferAllocator, TargetPlatform, TrayIcons, ViewId, WindowConfig,
 };
@@ -127,7 +131,12 @@ impl EventLoopSetup for Linux {
     }
 }
 impl WindowGeometry for Linux {}
-impl SystemMedia for Linux {}
+impl SystemMedia for Linux {
+    /// GStreamer's, where it is installed.
+    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
+        video_decoders::video_decoders()
+    }
+}
 impl SystemImageCodecs for Linux {}
 impl SystemDrags for Linux {}
 impl WindowMotion for Linux {}

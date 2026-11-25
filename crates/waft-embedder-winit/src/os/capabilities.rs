@@ -496,8 +496,9 @@ pub(crate) trait SystemFileDialogs {
 
 /// The system's media stack: its players, its reading of media without playing it, its cameras
 /// and the frame readers they feed (`waft-embedder-apple`'s `media` on macOS), its video decoders
-/// (`waft-embedder-apple`'s `video_decoders`), and the user's caption settings
-/// (`waft-embedder-apple`'s `caption_appearance`).
+/// (`waft-embedder-apple`'s `video_decoders`, and GStreamer's on Linux in
+/// `os::linux::video_decoders`), and the user's caption settings (`waft-embedder-apple`'s
+/// `caption_appearance`).
 pub(crate) trait SystemMedia {
     /// The system's players, or `None` where the embedder has none.
     fn players() -> Option<Rc<dyn Players>> {

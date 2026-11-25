@@ -101,7 +101,8 @@ pub struct WinitPlatform {
     /// The system's image codecs, where it has them (`waft-embedder-apple`'s `image_codecs`).
     image_codecs: Option<Rc<dyn ImageCodecs>>,
     video_frame_readers: Option<Rc<dyn VideoFrameReaders>>,
-    /// The system's video decoders, where it has them (`waft-embedder-apple`'s `video_decoders`).
+    /// The system's video decoders, where it has them (`waft-embedder-apple`'s `video_decoders`,
+    /// and GStreamer's on Linux).
     video_decoders: Option<Rc<dyn VideoDecoders>>,
     /// The user's caption settings, where the system keeps them.
     caption_settings: Option<Rc<dyn CaptionSettings>>,
