@@ -5483,7 +5483,6 @@ version = "0.13.0"
 dependencies = [
  "block2",
  "dispatch2",
- "h264-reader",
  "http",
  "libc",
  "objc2",
@@ -5509,6 +5508,7 @@ dependencies = [
  "valo-codec-apple",
  "valo-geometry",
  "waft-embedder",
+ "waft-video-codecs",
  "wgpu",
 ]
 
@@ -5786,6 +5786,14 @@ dependencies = [
  "waft-embedder",
  "waft-foundation",
  "wgpu",
+]
+
+[[package]]
+name = "waft-video-codecs"
+version = "0.13.0"
+dependencies = [
+ "h264-reader",
+ "waft-embedder",
 ]
 
 [[package]]

@@ -42,8 +42,9 @@ use objc2_video_toolbox::{
 };
 use waft_embedder::video_decoders::{CodecChoice, CodecKind, DecoderError};
 
-use super::nal::LENGTH_SIZE;
-use super::stream::ParameterSets;
+use waft_video_codecs::framing::LENGTH_SIZE;
+use waft_video_codecs::h264::ParameterSets;
+
 use crate::media::as_ns_string;
 
 /// What VideoToolbox answers as a status.
@@ -420,33 +421,17 @@ fn refusal_to_decode(status: Status) -> DecoderError {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+mod tests {
     use objc2_core_video::{
         CVPixelBufferGetHeight, CVPixelBufferGetPixelFormatType, CVPixelBufferGetPlaneCount,
         CVPixelBufferGetWidth,
     };
 
-    use super::super::nal::{units_after_start_codes, with_lengths};
-    use super::super::stream::is_parameter_set;
-    use super::super::stream::tests::CLIP;
+    use waft_video_codecs::framing::{units_after_start_codes, with_lengths};
+    use waft_video_codecs::h264::is_parameter_set;
+    use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip};
+
     use super::*;
-
-    /// A unit that begins a picture's units in the test clip: an access unit delimiter.
-    const DELIMITER: u8 = 9;
-
-    /// The clip's pictures in the order they are decoded, each its units.
-    pub(in super::super) fn pictures_of_the_clip() -> Vec<Vec<&'static [u8]>> {
-        let mut pictures: Vec<Vec<&[u8]>> = Vec::new();
-        for unit in units_after_start_codes(CLIP) {
-            if unit[0] & 0x1F == DELIMITER {
-                pictures.push(Vec::new());
-            }
-            if let Some(picture) = pictures.last_mut() {
-                picture.push(unit);
-            }
-        }
-        pictures
-    }
 
     #[test]
     fn videotoolbox_decodes_each_picture_of_a_stream_into_two_planes() {

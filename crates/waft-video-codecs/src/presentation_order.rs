@@ -1,7 +1,7 @@
-//! Pictures in the order they are shown. VideoToolbox hands pictures back in the order their
-//! chunks were decoded, which a stream with pictures that refer forward is not shown in, so each
-//! waits here, by the place its stream gives it (`picture_order`), until none that is shown
-//! before it can still come.
+//! Pictures in the order they are shown, for a system whose decoder hands them back in the order
+//! their chunks were decoded (VideoToolbox does): a stream with pictures that refer forward is
+//! not shown in that order, so each waits here, by the place its stream gives it (each codec's
+//! picture order), until none that is shown before it can still come.
 //!
 //! A stream says how many pictures may be decoded ahead of one shown before them (its reordering
 //! depth). A picture is let out once more than that many are held, the earliest first. A key
@@ -14,9 +14,17 @@
 
 use std::collections::BTreeMap;
 
-use super::picture_order::Place;
+/// Where a picture stands among those of its stream, as its codec tells it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Place {
+    /// Its count in the order pictures are shown: a picture with a smaller one is shown before
+    /// it.
+    pub count: i64,
+    /// Whether every picture decoded before it is shown before it, and the count begins again.
+    pub begins_sequence: bool,
+}
 
-pub(super) struct PresentationOrder<Picture> {
+pub struct PresentationOrder<Picture> {
     /// How many pictures may be decoded ahead of one shown before them.
     depth: usize,
     /// Each picture held, by its count and then by when it came.
@@ -26,7 +34,7 @@ pub(super) struct PresentationOrder<Picture> {
 }
 
 impl<Picture> PresentationOrder<Picture> {
-    pub(super) fn new(depth: usize) -> Self {
+    pub fn new(depth: usize) -> Self {
         PresentationOrder {
             depth,
             held: BTreeMap::new(),
@@ -35,13 +43,13 @@ impl<Picture> PresentationOrder<Picture> {
     }
 
     /// The stream's depth from now on, as other parameter sets say it.
-    pub(super) fn set_depth(&mut self, depth: usize) {
+    pub fn set_depth(&mut self, depth: usize) {
         self.depth = depth;
     }
 
     /// Takes `picture`, which stands at `place` in its stream, and answers those that can be
     /// shown now, in order.
-    pub(super) fn take(&mut self, place: Place, picture: Picture) -> Vec<Picture> {
+    pub fn take(&mut self, place: Place, picture: Picture) -> Vec<Picture> {
         let mut shown = if place.begins_sequence {
             self.all()
         } else {
@@ -57,12 +65,12 @@ impl<Picture> PresentationOrder<Picture> {
     }
 
     /// Every picture still held, in order: what a drain shows.
-    pub(super) fn all(&mut self) -> Vec<Picture> {
+    pub fn all(&mut self) -> Vec<Picture> {
         std::mem::take(&mut self.held).into_values().collect()
     }
 
     /// Drops every picture held, as a reset does.
-    pub(super) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.held.clear();
     }
 }

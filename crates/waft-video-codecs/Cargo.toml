@@ -1,0 +1,22 @@
+[package]
+name = "waft-video-codecs"
+description = "What a video stream says of itself, read the same for every system's decoder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+# A short H.264 clip and what is read of it, for the hosts' decoder tests.
+test-support = []
+
+[dependencies]
+waft-embedder.workspace = true
+# H.264's configuration record, parameter sets and slice headers.
+h264-reader = "0.9"
+
+[lints]
+workspace = true

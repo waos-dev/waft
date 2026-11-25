@@ -27,42 +27,26 @@ use std::time::Duration;
 
 use dispatch2::{DispatchQueue, DispatchQueueAttr, DispatchRetained};
 use waft_embedder::video_decoders::{
-    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, NalFormat,
-    VideoDecoder, VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
+    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoDecoder,
+    VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
 };
 use waft_embedder::{ColorRange, PixelAspect, VideoColor, VideoFrame};
 
-use super::nal::{units_after_lengths, units_after_start_codes, with_lengths};
+use waft_video_codecs::StreamFacts;
+use waft_video_codecs::framing::{Framing, with_lengths};
+use waft_video_codecs::h264::{self, ParameterSets, PictureOrder, is_parameter_set};
+use waft_video_codecs::presentation_order::PresentationOrder;
+
 use super::output::Output;
-use super::picture_order::PictureOrder;
-use super::presentation_order::PresentationOrder;
 use super::session::{DecodedPicture, Session};
-use super::stream::{ParameterSets, StreamFacts, is_parameter_set};
 use crate::answer::answer;
 use crate::media::CoreVideoFrame;
 use crate::media::DecodedFacts;
 
-/// How a stream frames its units.
-#[derive(Clone, Copy)]
-enum Framing {
-    /// Each after a length of this many bytes.
-    Lengths(usize),
-    StartCodes,
-}
-
 /// A stream's setup as the decoder takes it: its framing, and the parameter sets given ahead.
 fn framing_and_sets(setup: VideoStreamSetup) -> Result<(Framing, ParameterSets), DecoderError> {
     match setup {
-        VideoStreamSetup::H264(NalFormat::LengthPrefixed(record)) => {
-            let (sets, length_size) =
-                ParameterSets::of_record(&record).map_err(DecoderError::BadData)?;
-            Ok((Framing::Lengths(length_size), sets))
-        }
-        VideoStreamSetup::H264(NalFormat::StartCodes(ahead)) => {
-            let ahead = ahead.unwrap_or_default();
-            let sets = ParameterSets::among(&units_after_start_codes(&ahead));
-            Ok((Framing::StartCodes, sets))
-        }
+        VideoStreamSetup::H264(format) => h264::setup(format).map_err(DecoderError::BadData),
         other => Err(DecoderError::Unsupported(format!(
             "this system's decoders are handed H.264 alone so far, not {:?}",
             other.codec()
@@ -118,12 +102,10 @@ impl Work {
     /// Decodes `chunk`, once the app has read enough of the frames put out, taking the parameter
     /// sets it carries, and puts out the pictures that can be shown now.
     fn decode(&mut self, chunk: &EncodedChunk) -> Result<(), DecoderError> {
-        let units = match self.framing {
-            Framing::Lengths(size) => units_after_lengths(&chunk.data, size).ok_or_else(|| {
-                DecoderError::BadData("a unit's length runs past its chunk".to_owned())
-            })?,
-            Framing::StartCodes => units_after_start_codes(&chunk.data),
-        };
+        let units = self
+            .framing
+            .units(&chunk.data)
+            .map_err(DecoderError::BadData)?;
         let sets = self.sets.replaced_by(ParameterSets::among(&units));
         if sets.are_complete() && (sets != self.sets || self.session.is_none()) {
             self.adopt(sets)?;
@@ -347,11 +329,11 @@ fn kind_before_a_session(choice: CodecChoice) -> CodecKind {
 mod tests {
     use pollster::block_on;
     use waft_embedder::PixelRect;
-    use waft_embedder::video_decoders::DecodingPurpose;
+    use waft_embedder::video_decoders::{DecodingPurpose, NalFormat};
 
-    use super::super::session::tests::pictures_of_the_clip;
-    use super::super::stream::tests::{CLIP, record_of};
     use super::*;
+    use waft_video_codecs::framing::units_after_start_codes;
+    use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip, record_of};
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.
