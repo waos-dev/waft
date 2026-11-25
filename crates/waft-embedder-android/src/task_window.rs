@@ -32,7 +32,8 @@ use jni::strings::JNIStr;
 use jni::{Env, jni_sig, jni_str};
 use raw_window_handle::HasWindowHandle;
 use waft_embedder::{
-    HostWindow, IconImage, RawWindowHandle, Rect, View, ViewRef, WindowConfig, WindowSizeLimits,
+    HostWindow, IconImage, RawWindowHandle, Rect, ScreenId, View, ViewRef, WindowConfig,
+    WindowSizeLimits,
 };
 
 use crate::activity::{Activity, AttachedActivity};
@@ -294,6 +295,13 @@ impl HostWindow for TaskWindow {
     }
 
     fn set_maximized(&self, _maximized: bool) {}
+
+    /// A task fills the screen as it is, and has no state of a window's to enter.
+    fn is_fullscreen(&self) -> bool {
+        false
+    }
+
+    fn set_fullscreen(&self, _fullscreen: bool, _screen: Option<ScreenId>) {}
 
     /// Sends the task to the background, its card staying in Recents, or brings it forward.
     fn set_minimized(&self, minimized: bool) {

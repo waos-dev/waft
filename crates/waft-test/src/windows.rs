@@ -87,7 +87,8 @@ impl Default for TestWindows {
 }
 
 /// A window that shows nothing, keeps the frame, the title and the icon it was last given, whether
-/// it was last shown or hidden, whether it is maximized and the size limits it was last given, and
+/// it was last shown or hidden, whether it is maximized or full screen and the size limits it was
+/// last given, and
 /// counts how often it
 /// was closed and dragged: one of
 /// [`TestWindows`], or one a test gives the app a view in. A closed window's view is in no window any more, and is no longer among the
@@ -104,6 +105,7 @@ pub struct TestWindow {
     drags: Cell<u32>,
     minimized: Cell<bool>,
     maximized: Cell<bool>,
+    fullscreen: Cell<bool>,
     occluded: Cell<bool>,
     min_size: Cell<Option<Size>>,
     max_size: Cell<Option<Size>>,
@@ -130,6 +132,7 @@ impl TestWindow {
                 drags: Cell::new(0),
                 minimized: Cell::new(false),
                 maximized: Cell::new(false),
+                fullscreen: Cell::new(false),
                 occluded: Cell::new(false),
                 min_size: Cell::new(None),
                 max_size: Cell::new(None),
@@ -253,6 +256,15 @@ impl HostWindow for TestWindow {
 
     fn set_minimized(&self, minimized: bool) {
         self.minimized.set(minimized);
+    }
+
+    fn is_fullscreen(&self) -> bool {
+        self.fullscreen.get()
+    }
+
+    /// Full screen at once, on whichever screen: a test window is on none.
+    fn set_fullscreen(&self, fullscreen: bool, _screen: Option<ScreenId>) {
+        self.fullscreen.set(fullscreen);
     }
 
     fn native_handle(&self) -> Option<RawWindowHandle> {

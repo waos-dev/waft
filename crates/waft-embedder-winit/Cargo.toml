@@ -97,6 +97,10 @@ objc2-quartz-core = { version = "0.3", features = ["CALayer", "CAMediaTimingFunc
 # test may end by quitting the process. A test file without an entry here runs under the
 # harness, whose `main` replaces the test's, and passes having run nothing.
 [[test]]
+name = "a_window_goes_full_screen_and_back"
+harness = false
+
+[[test]]
 name = "a_hidden_window_takes_no_frames_while_a_shown_one_draws"
 harness = false
 
