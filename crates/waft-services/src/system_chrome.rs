@@ -1,15 +1,18 @@
 //! Flutter `services/system_chrome.dart`: the application switcher description, the system
-//! overlay style, and what a lifecycle change does to it. The rest of `SystemChrome` waits for
-//! the host capabilities it would talk to.
+//! overlay style and what a lifecycle change does to it, and the system UI mode. The rest of
+//! `SystemChrome` waits for the host capabilities it would talk to.
 //!
-//! The overlay style is a view's, sent to the view's host, since each window carries its own
-//! bars, where Flutter's is the app's. The invariant a later editor will break: the pending and the
+//! The overlay style and the mode are a view's, sent to the bars over the view
+//! ([`ViewHost::system_bars`](waft_embedder::ViewHost::system_bars)), since each window carries
+//! its own bars, where Flutter's are the app's. A view with no bars over it, a desktop's window,
+//! takes neither, as Flutter's calls do nothing on a desktop. The invariant a later editor will break: the pending and the
 //! latest style are kept per view, so one view's style never stands for, or hides, another's.
 
 use std::collections::BTreeMap;
 
 use waft_embedder::{
-    AppLifecycleState, ApplicationSwitcherDescription, SystemUiOverlayStyle, ViewId,
+    AppLifecycleState, ApplicationSwitcherDescription, SystemBarsBehavior, SystemUiOverlayStyle,
+    ViewId,
 };
 use waft_foundation::{App, Handle, Listener};
 
@@ -25,6 +28,28 @@ pub enum SystemUiOverlay {
     /// The status bar provided by the embedder on the bottom of the application
     /// surface, if any.
     Bottom,
+}
+
+/// Describes different display configurations for both Android and iOS.
+///
+/// These modes mimic Android-specific display setups. Used by
+/// [`SystemChrome::set_enabled_system_ui_mode`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SystemUiMode {
+    /// Fullscreen display with status and navigation bars presentable by tapping anywhere on the
+    /// display. Android no longer has a tap that brings them back: here a swipe from an edge
+    /// does, as in [`SystemUiMode::Immersive`].
+    LeanBack,
+    /// Fullscreen display with status and navigation bars presentable through a swipe gesture at
+    /// the edges of the display.
+    Immersive,
+    /// Fullscreen display with status and navigation elements rendered over the application:
+    /// a swipe at an edge shows them for a moment, and the application keeps that touch.
+    ImmersiveSticky,
+    /// Fullscreen display with status and navigation elements rendered over the application.
+    EdgeToEdge,
+    /// Declares manually configured [`SystemUiOverlay`]s.
+    Manual,
 }
 
 /// Dart's `SystemChrome._pendingStyle` and `SystemChrome._latestStyle`, which are static
@@ -101,10 +126,41 @@ impl SystemChrome {
             if app.get(styles).latest_style.get(&view) == Some(&style) {
                 continue;
             }
-            if let Some(view) = app.platform().view(view) {
-                view.host().set_overlay_style(&style);
+            if let Some(view) = app.platform().view(view)
+                && let Some(bars) = view.host().system_bars()
+            {
+                bars.set_overlay_style(&style);
             }
             app.get_mut(styles).latest_style.insert(view, style);
+        }
+    }
+
+    /// Specifies the [`SystemUiMode`] to have visible over `view` when the application is
+    /// running (Dart's `SystemChrome.setEnabledSystemUIMode`), carried out at once by the bars
+    /// over the view, as Dart's sends its message without waiting for a microtask.
+    ///
+    /// The `overlays` are read for [`SystemUiMode::Manual`] alone: both shown is
+    /// [`SystemUiMode::EdgeToEdge`], none shown is [`SystemUiMode::Immersive`]; one alone is not
+    /// supported, the bars showing or hiding together, and leaves them as they are.
+    ///
+    /// A view not in the app, gone, or with no bars over it is not told, as Flutter's call does
+    /// nothing on a desktop.
+    pub fn set_enabled_system_ui_mode(
+        app: &App,
+        view: ViewId,
+        mode: SystemUiMode,
+        overlays: &[SystemUiOverlay],
+    ) {
+        let Some(view) = app.platform().view(view) else {
+            return;
+        };
+        let Some(bars) = view.host().system_bars() else {
+            return;
+        };
+        match asked_of_the_bars(mode, overlays) {
+            BarsAsked::Show => bars.show(),
+            BarsAsked::Hide(behavior) => bars.hide(behavior),
+            BarsAsked::Nothing => {}
         }
     }
 
@@ -128,13 +184,43 @@ impl SystemChrome {
     }
 }
 
+/// What a mode asks of the bars over a view.
+enum BarsAsked {
+    Show,
+    Hide(SystemBarsBehavior),
+    /// What they cannot do: a manual mode with one overlay alone, the bars showing or hiding
+    /// together.
+    Nothing,
+}
+
+fn asked_of_the_bars(mode: SystemUiMode, overlays: &[SystemUiOverlay]) -> BarsAsked {
+    match mode {
+        SystemUiMode::EdgeToEdge => BarsAsked::Show,
+        SystemUiMode::LeanBack | SystemUiMode::Immersive => {
+            BarsAsked::Hide(SystemBarsBehavior::ShowBarsBySwipe)
+        }
+        SystemUiMode::ImmersiveSticky => {
+            BarsAsked::Hide(SystemBarsBehavior::ShowTransientBarsBySwipe)
+        }
+        SystemUiMode::Manual => {
+            let top = overlays.contains(&SystemUiOverlay::Top);
+            let bottom = overlays.contains(&SystemUiOverlay::Bottom);
+            match (top, bottom) {
+                (true, true) => BarsAsked::Show,
+                (false, false) => BarsAsked::Hide(SystemBarsBehavior::ShowBarsBySwipe),
+                _ => BarsAsked::Nothing,
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
     use waft_foundation::AppCell;
 
     use waft_embedder::{Brightness, Color, TargetPlatform};
-    use waft_test::{IMPLICIT_VIEW_ID, TestPlatform, TestView};
+    use waft_test::{BarsShown, IMPLICIT_VIEW_ID, TestPlatform, TestView};
 
     use super::*;
 
@@ -193,6 +279,49 @@ mod tests {
             SystemUiOverlayStyle::LIGHT.status_bar_icon_brightness
         );
         assert_eq!(SystemUiOverlayStyle::LIGHT.status_bar_color, None);
+    }
+
+    /// How the bars over `view` were hidden or shown, oldest first.
+    fn bars_of(platform: &TestPlatform, view: ViewId) -> Vec<BarsShown> {
+        let view: Rc<TestView> = platform.test_view(view);
+        view.test_host().bars_shown()
+    }
+
+    #[test]
+    fn each_mode_hides_or_shows_the_bars_of_its_view_alone() {
+        let (platform, cell) = recording_app();
+        let app = cell.borrow();
+        let modes = [
+            (SystemUiMode::ImmersiveSticky, vec![]),
+            (SystemUiMode::Immersive, vec![]),
+            (SystemUiMode::LeanBack, vec![]),
+            (SystemUiMode::EdgeToEdge, vec![]),
+            (SystemUiMode::Manual, vec![]),
+            (SystemUiMode::Manual, vec![SystemUiOverlay::Top]),
+            (
+                SystemUiMode::Manual,
+                vec![SystemUiOverlay::Top, SystemUiOverlay::Bottom],
+            ),
+        ];
+        for (mode, overlays) in modes {
+            SystemChrome::set_enabled_system_ui_mode(&app, VIEW, mode, &overlays);
+        }
+        assert_eq!(
+            bars_of(&platform, VIEW),
+            [
+                BarsShown::Hidden(SystemBarsBehavior::ShowTransientBarsBySwipe),
+                BarsShown::Hidden(SystemBarsBehavior::ShowBarsBySwipe),
+                BarsShown::Hidden(SystemBarsBehavior::ShowBarsBySwipe),
+                BarsShown::Shown,
+                BarsShown::Hidden(SystemBarsBehavior::ShowBarsBySwipe),
+                BarsShown::Shown,
+            ],
+            "one overlay alone leaves the bars as they are"
+        );
+        assert!(
+            bars_of(&platform, OTHER_VIEW).is_empty(),
+            "the other view is not told"
+        );
     }
 
     /// `system_chrome_test.dart`: `SystemChrome overlay style test`.

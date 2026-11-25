@@ -227,8 +227,8 @@ Windows' and Linux's HTTP clients, Android's, and an image cache on disk are not
 - Call `system_fonts_changed` after registering faces that arrive late, and answer every decode, off the main thread, with its frames or an error; import a frame the app holds as an image with no copy, its hardware buffer imported as a texture on the device your images are drawn with, and `None` where that device cannot take the frame's memory; draw a picture the app asks for into an image on that device at once, with a `SnapshotDelegate` on your image store.
 
 **System chrome and haptics**
-- `Platform::system_chrome`, `haptics`
-- Style the system bars on the thread that owns the window, which on Android is the Java main thread.
+- `Platform::system_chrome`, `haptics`, `ViewHost::system_bars`
+- Answer `system_bars` for a view the system draws its bars over, and `None` for one it draws none over, as a desktop's window. Style, hide and show the bars on the thread that owns the window, which on Android is the Java main thread, and keep what the app said last for each view, to tell a window the system makes for it again.
 
 **Restoration**
 - `Platform::restoration`, `Restoration::get`, `put`

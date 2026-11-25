@@ -23,9 +23,9 @@ use std::sync::Arc;
 use ndk::configuration::{Configuration, UiModeNight};
 use ndk::native_window::NativeWindow;
 use waft_embedder::{
-    GestureSettings, RequestId, Scene, ScreenId, SystemMouseCursorKind, SystemUiOverlayStyle,
-    TextInputHost, View, ViewConstraints, ViewFocusDirection, ViewFocusState, ViewHost, ViewId,
-    ViewMetrics, ViewPadding, WindowRef,
+    GestureSettings, RequestId, Scene, ScreenId, SystemBars, SystemBarsBehavior,
+    SystemMouseCursorKind, SystemUiOverlayStyle, TextInputHost, View, ViewConstraints,
+    ViewFocusDirection, ViewFocusState, ViewHost, ViewId, ViewMetrics, ViewPadding, WindowRef,
 };
 
 use crate::activity::{Activity, AttachedActivity};
@@ -78,6 +78,9 @@ pub(crate) struct AndroidView {
     /// activity attached and at each change of configuration; none until the framework sets one,
     /// and the bars follow the system's mode till then.
     overlay_style: Cell<Option<SystemUiOverlayStyle>>,
+    /// Whether the framework hid the bars over the window, and what a swipe from an edge does then;
+    /// none while they show. Told again to each activity attached, which starts with them shown.
+    bars_hidden: Cell<Option<SystemBarsBehavior>>,
     /// The activity's task, which is the view's window.
     task: Rc<TaskWindow>,
     /// The request the view arrived for; none for a view the platform gave.
@@ -143,6 +146,7 @@ impl AndroidView {
             on_screen: Cell::new(false),
             text_input,
             overlay_style: Cell::new(None),
+            bars_hidden: Cell::new(None),
             request,
             initial_data: arrival.initial_data,
             focused: Cell::new(false),
@@ -188,11 +192,14 @@ impl AndroidView {
     }
 
     /// Android made `activity` for the view, with `configuration`: its keyboard types into the
-    /// view from now on, its window's bars are styled ([`Self::set_configuration`]), and its task
-    /// shows what the window has.
+    /// view from now on, its window's bars are styled ([`Self::set_configuration`]) and hidden if
+    /// the framework hid them, and its task shows what the window has.
     pub(crate) fn attach(&self, activity: &Activity, configuration: Configuration) {
         self.activity.attach(activity);
         self.set_configuration(configuration);
+        if self.bars_hidden.get().is_some() {
+            self.show_or_hide_the_bars();
+        }
         if let Some(text_input) = &self.text_input {
             text_input.types_into(self.id);
         }
@@ -223,6 +230,13 @@ impl AndroidView {
             )
         });
         crate::chrome::style_the_bars(&activity, style);
+    }
+
+    /// Shows or hides the bars over the activity's window as the framework said last.
+    fn show_or_hide_the_bars(&self) {
+        if let Some(activity) = self.activity() {
+            crate::chrome::show_or_hide_the_bars(&activity, self.bars_hidden.get());
+        }
     }
 
     /// The configuration of the activity's resources, as Android last told.
@@ -424,9 +438,26 @@ impl ViewHost for AndroidView {
         }
     }
 
+    fn system_bars(&self) -> Option<&dyn SystemBars> {
+        Some(self)
+    }
+}
+
+/// The status bar and the navigation bar over the activity's window.
+impl SystemBars for AndroidView {
     fn set_overlay_style(&self, style: &SystemUiOverlayStyle) {
         self.overlay_style.set(Some(*style));
         self.style_the_bars();
+    }
+
+    fn hide(&self, behavior: SystemBarsBehavior) {
+        self.bars_hidden.set(Some(behavior));
+        self.show_or_hide_the_bars();
+    }
+
+    fn show(&self) {
+        self.bars_hidden.set(None);
+        self.show_or_hide_the_bars();
     }
 }
 

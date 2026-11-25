@@ -89,4 +89,10 @@ impl ViewHost for WindowViewHost {
                 },
             )));
     }
+
+    /// None: a desktop's window has no system bars over it; it fills a screen through
+    /// [`HostWindow::set_fullscreen`](waft_embedder::HostWindow::set_fullscreen).
+    fn system_bars(&self) -> Option<&dyn waft_embedder::SystemBars> {
+        None
+    }
 }

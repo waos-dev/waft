@@ -895,7 +895,7 @@ impl dyn Platform {
 }
 
 /// Flutter's `SystemChrome`: the system UI around the app as a whole. The overlays drawn over a
-/// view are styled through its host ([`ViewHost::set_overlay_style`](crate::ViewHost::set_overlay_style)).
+/// view are its host's ([`ViewHost::system_bars`](crate::ViewHost::system_bars)).
 pub trait SystemChrome {
     /// Describes the app in the host's application switcher (Flutter
     /// `SystemChrome.setApplicationSwitcherDescription`).

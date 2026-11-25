@@ -3035,6 +3035,10 @@ pub(crate) mod tests {
         fn activate_system_cursor(&self, _device: i64, _kind: SystemMouseCursorKind) {}
 
         fn request_focus_change(&self, _state: ViewFocusState, _direction: ViewFocusDirection) {}
+
+        fn system_bars(&self) -> Option<&dyn waft_embedder::SystemBars> {
+            None
+        }
     }
 
     /// A tester on a macOS host whose view's text input `host` answers for.

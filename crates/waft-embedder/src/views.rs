@@ -265,15 +265,40 @@ pub trait ViewHost {
         let _ = handles;
     }
 
-    /// Styles the system overlays the host draws over this view: the status bar, and on Android
-    /// the system navigation bar (Flutter `SystemChrome.setSystemUIOverlayStyle`). Each window
-    /// carries its own bars, so the style is the view's, as Flutter's Android embedding applies
-    /// it to its one activity's window.
-    ///
-    /// The default drops it, for a host that draws no overlays over its views.
-    fn set_overlay_style(&self, style: &SystemUiOverlayStyle) {
-        let _ = style;
-    }
+    /// The system's bars over this view, the status bar and on Android the navigation bar; `None`
+    /// where the system draws none over it, as over a desktop's window.
+    fn system_bars(&self) -> Option<&dyn SystemBars>;
+}
+
+/// The bars the system draws over a view, the status bar and on Android the navigation bar, which
+/// Flutter's `SystemChrome` speaks to for the app as a whole: each window carries its own bars, so
+/// here they are the view's, as Flutter's Android embedding applies them to its one activity's
+/// window.
+pub trait SystemBars {
+    /// Styles the bars (Flutter `SystemChrome.setSystemUIOverlayStyle`).
+    fn set_overlay_style(&self, style: &SystemUiOverlayStyle);
+
+    /// Hides the bars until [`show`](Self::show); what a swipe from a screen's edge does meanwhile
+    /// is `behavior`'s. Flutter's `SystemUiMode.immersive` is `hide(ShowBarsBySwipe)`,
+    /// `immersiveSticky` is `hide(ShowTransientBarsBySwipe)`.
+    fn hide(&self, behavior: SystemBarsBehavior);
+
+    /// Shows the bars again, drawn over the view: how a view starts. Flutter's
+    /// `SystemUiMode.edgeToEdge`.
+    fn show(&self);
+}
+
+/// What a swipe from a screen's edge does while the bars are hidden: Android's
+/// `WindowInsetsController.setSystemBarsBehavior`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SystemBarsBehavior {
+    /// The swipe brings the bars back, and they stay; the system acts on it as usual. Android's
+    /// `BEHAVIOR_SHOW_BARS_BY_SWIPE`.
+    ShowBarsBySwipe,
+    /// The swipe shows the bars for a moment, over the view, which keeps the touch; a second swipe
+    /// acts. Android's `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`, iOS's deferred edge gestures. For
+    /// a game, where a stray swipe must not leave it.
+    ShowTransientBarsBySwipe,
 }
 
 /// The host side of Flutter's text input connection for one view: the calls Flutter's framework

@@ -390,6 +390,11 @@ impl ViewHost for WebView {
 
     /// The canvas takes the focus the browser gives the page; a request moves nothing.
     fn request_focus_change(&self, _state: ViewFocusState, _direction: ViewFocusDirection) {}
+
+    /// None: a browser draws no system bars over a page's element.
+    fn system_bars(&self) -> Option<&dyn waft_embedder::SystemBars> {
+        None
+    }
 }
 
 impl WebView {

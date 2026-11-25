@@ -5,9 +5,9 @@
 use std::cell::RefCell;
 
 use waft_embedder::{
-    Matrix4, Rect, SelectionRect, Size, SystemMouseCursorKind, SystemUiOverlayStyle,
-    TextEditingValue, TextInputConfiguration, TextInputHost, ViewFocusDirection, ViewFocusState,
-    ViewHost,
+    Matrix4, Rect, SelectionRect, Size, SystemBars, SystemBarsBehavior, SystemMouseCursorKind,
+    SystemUiOverlayStyle, TextEditingValue, TextInputConfiguration, TextInputHost,
+    ViewFocusDirection, ViewFocusState, ViewHost,
 };
 
 /// A view's host that records what the view asks of the system, as `flutter_test`'s
@@ -21,6 +21,7 @@ pub struct TestViewHost {
     text_input: RecordingTextInput,
     framework_handles_back: RefCell<Vec<bool>>,
     overlay_styles: RefCell<Vec<SystemUiOverlayStyle>>,
+    bars_shown: RefCell<Vec<BarsShown>>,
 }
 
 impl TestViewHost {
@@ -45,11 +46,24 @@ impl TestViewHost {
         self.framework_handles_back.borrow().clone()
     }
 
-    /// Each style set for the system's bars over the view (`ViewHost::set_overlay_style`), oldest
+    /// Each style set for the system's bars over the view (`SystemBars::set_overlay_style`), oldest
     /// first.
     pub fn overlay_styles(&self) -> Vec<SystemUiOverlayStyle> {
         self.overlay_styles.borrow().clone()
     }
+
+    /// Each time the system's bars over the view were hidden or shown again
+    /// (`SystemBars::hide`, `SystemBars::show`), oldest first.
+    pub fn bars_shown(&self) -> Vec<BarsShown> {
+        self.bars_shown.borrow().clone()
+    }
+}
+
+/// Whether the bars over a [`TestViewHost`]'s view were hidden, and how, or shown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BarsShown {
+    Hidden(SystemBarsBehavior),
+    Shown,
 }
 
 impl ViewHost for TestViewHost {
@@ -69,8 +83,24 @@ impl ViewHost for TestViewHost {
         self.framework_handles_back.borrow_mut().push(handles);
     }
 
+    fn system_bars(&self) -> Option<&dyn SystemBars> {
+        Some(self)
+    }
+}
+
+impl SystemBars for TestViewHost {
     fn set_overlay_style(&self, style: &SystemUiOverlayStyle) {
         self.overlay_styles.borrow_mut().push(*style);
+    }
+
+    fn hide(&self, behavior: SystemBarsBehavior) {
+        self.bars_shown
+            .borrow_mut()
+            .push(BarsShown::Hidden(behavior));
+    }
+
+    fn show(&self) {
+        self.bars_shown.borrow_mut().push(BarsShown::Shown);
     }
 }
 
