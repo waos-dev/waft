@@ -1,5 +1,5 @@
-//! A camera's picture in RGBA: the camera hands out its pictures in its own format, `PRIVATE`,
-//! YUV the compositor shows and only OpenGL ES samples, through an external texture; Waft's frames
+//! A camera's or a decoder's picture in RGBA: each hands out its pictures in its own format,
+//! `PRIVATE`, YUV the compositor shows and only OpenGL ES samples, through an external texture; Waft's frames
 //! are RGBA8 hardware buffers, which Vulkan imports and the app's GPU samples, as Apple's are BGRA
 //! pixel buffers AVFoundation converts into. So the host draws each picture a reader is to have
 //! into a new RGBA8 `AHardwareBuffer` with OpenGL ES, as Android's own `SurfaceTexture` draws a
@@ -193,21 +193,20 @@ struct Conversion {
 /// The process's drawing thread, as its conversions reach it.
 struct Converter(Mutex<Sender<Conversion>>);
 
-/// `picture`, a camera's picture in its own format, drawn into a new RGBA8 buffer of its size; why
-/// not, where the system could not draw it.
-pub(super) fn to_rgba(picture: AndroidHardwareBuffer) -> Result<AndroidHardwareBuffer, String> {
-    let converter =
-        converter().ok_or("the system has no OpenGL ES to convert a camera's picture")?;
+/// `picture`, a camera's or a decoder's picture in its own format, drawn into a new RGBA8 buffer of
+/// its size; why not, where the system could not draw it.
+pub(crate) fn to_rgba(picture: AndroidHardwareBuffer) -> Result<AndroidHardwareBuffer, String> {
+    let converter = converter().ok_or("the system has no OpenGL ES to convert a picture")?;
     let (answer, answered) = mpsc::channel();
     converter
         .0
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .send(Conversion { picture, answer })
-        .map_err(|_| "the thread that converts camera pictures stopped".to_owned())?;
+        .map_err(|_| "the thread that converts pictures stopped".to_owned())?;
     answered
         .recv()
-        .map_err(|_| "the thread that converts camera pictures stopped".to_owned())?
+        .map_err(|_| "the thread that converts pictures stopped".to_owned())?
 }
 
 /// The drawing thread, started at the first conversion; `None` where it could not start.
@@ -218,13 +217,13 @@ fn converter() -> Option<&'static Converter> {
             let (conversions, asked) = mpsc::channel();
             let (started, start) = mpsc::channel();
             std::thread::Builder::new()
-                .name("waft camera frames".to_owned())
+                .name("waft picture frames".to_owned())
                 .spawn(move || draw_conversions(asked, started))
                 .ok()?;
             match start.recv() {
                 Ok(Ok(())) => Some(Converter(Mutex::new(conversions))),
                 Ok(Err(error)) => {
-                    crate::log::warn_to_log!("waft: no OpenGL ES for camera frames: {error}");
+                    crate::log::warn_to_log!("waft: no OpenGL ES for picture frames: {error}");
                     None
                 }
                 Err(_) => None,
@@ -320,7 +319,7 @@ impl Drawing {
                 | HardwareBufferUsage::CPU_READ_RARELY,
             stride: 0,
         })
-        .map_err(|error| format!("no RGBA buffer for a camera's picture: {error}"))?;
+        .map_err(|error| format!("no RGBA buffer for a picture: {error}"))?;
         let source = self.image_of(picture)?;
         let drawn = self.image_of(&target).and_then(|destination| {
             let drawn = self.draw(source, destination, [description.width, description.height]);

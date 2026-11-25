@@ -18,7 +18,7 @@ use ndk::media_error::MediaError;
 use ndk::native_window::NativeWindow;
 
 /// A stream of pictures, its reader deleted once the stream and its last picture are dropped.
-pub(super) struct ImageStream(Arc<Reader>);
+pub(crate) struct ImageStream(Arc<Reader>);
 
 /// The reader, behind a lock only so that its listener can be set once it is shared.
 struct Reader(Mutex<ImageReader>);
@@ -31,12 +31,12 @@ unsafe impl Sync for Reader {}
 impl ImageStream {
     /// A stream of `size` pictures in `format` for `usage`, at most `max_images` of them lent at
     /// once, each newest one handed to `delivered`.
-    pub(super) fn new(
+    pub(crate) fn new(
         size: [u32; 2],
         format: ImageFormat,
         usage: HardwareBufferUsage,
         max_images: i32,
-        delivered: impl Fn(CameraImage) + Send + 'static,
+        delivered: impl Fn(StreamImage) + Send + 'static,
     ) -> Result<ImageStream, MediaError> {
         let reader =
             ImageReader::new_with_usage(size[0] as i32, size[1] as i32, format, usage, max_images)?;
@@ -51,7 +51,7 @@ impl ImageStream {
                     return;
                 };
                 if let Ok(AcquireResult::Image(image)) = reader.acquire_latest_image() {
-                    delivered(CameraImage {
+                    delivered(StreamImage {
                         image,
                         _reader: held,
                     });
@@ -61,7 +61,7 @@ impl ImageStream {
     }
 
     /// The window the camera feeds the stream through.
-    pub(super) fn window(&self) -> Result<NativeWindow, MediaError> {
+    pub(crate) fn window(&self) -> Result<NativeWindow, MediaError> {
         self.0
             .0
             .lock()
@@ -71,24 +71,24 @@ impl ImageStream {
 }
 
 /// One picture, lent with its slot in its reader's pool until dropped.
-pub(super) struct CameraImage {
+pub(crate) struct StreamImage {
     image: Image,
     _reader: Arc<Reader>,
 }
 
 // SAFETY: an `AImage` is read and deleted from any thread, one at a time, which owning it here
 // makes sure of; its reader is kept while it lives.
-unsafe impl Send for CameraImage {}
-unsafe impl Sync for CameraImage {}
+unsafe impl Send for StreamImage {}
+unsafe impl Sync for StreamImage {}
 
-impl CameraImage {
+impl StreamImage {
     /// The picture's memory, a reference of its own on it.
-    pub(super) fn hardware_buffer(&self) -> Result<HardwareBufferRef, MediaError> {
+    pub(crate) fn hardware_buffer(&self) -> Result<HardwareBufferRef, MediaError> {
         Ok(self.image.hardware_buffer()?.acquire())
     }
 
     /// The bytes of its one plane: a JPEG picture's encoded photo.
-    pub(super) fn encoded(&self) -> Result<Vec<u8>, MediaError> {
+    pub(crate) fn encoded(&self) -> Result<Vec<u8>, MediaError> {
         Ok(self.image.plane_data(0)?.to_vec())
     }
 }

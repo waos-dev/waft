@@ -12,7 +12,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use waft_embedder::{MediaError, Photo};
 
-use super::camera_images::CameraImage;
+use super::image_stream::StreamImage;
 use crate::answer::{Answer, Answered, answer};
 
 /// The photos asked of a camera and not yet answered, in the order asked.
@@ -41,7 +41,7 @@ impl Photos {
 
     /// The JPEG stream delivered `image`: the photo asked first and not yet answered. On the
     /// stream's thread.
-    pub(super) fn delivered(&self, image: CameraImage) {
+    pub(super) fn delivered(&self, image: StreamImage) {
         let Some((_, answer)) = self.pending().pop_front() else {
             return;
         };

@@ -31,10 +31,10 @@ use super::camera_device::{
     CameraDevice, CaptureRequest, CaptureSession, DeviceError, DeviceEvents,
 };
 use super::camera_frames::CameraFrames;
-use super::camera_images::ImageStream;
 use super::camera_manager::CameraManager;
 use super::camera_queue::queue;
 use super::changes::Changes;
+use super::image_stream::ImageStream;
 use super::orientation::SensorMount;
 use super::photos::Photos;
 
