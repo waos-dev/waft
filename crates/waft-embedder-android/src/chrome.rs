@@ -26,7 +26,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use waft_embedder::{
-    ApplicationSwitcherDescription, Brightness, EdgeSwipe, SystemChrome, SystemUiOverlayStyle,
+    ApplicationSwitcherDescription, Brightness, SystemBarsBehavior, SystemChrome,
+    SystemUiOverlayStyle,
 };
 
 use crate::activity::{Activity, device_api_level};
@@ -76,12 +77,12 @@ pub(crate) fn style_the_bars(activity: &Activity, style: SystemUiOverlayStyle) {
     });
 }
 
-/// Hides the bars over `activity`'s window, `hidden` saying what an edge swipe does meanwhile, or
-/// shows them where it is none. From API 30 the window's insets controller does it, as androidx's
+/// Hides the bars over `activity`'s window, `hidden` saying what a swipe from an edge does
+/// meanwhile, or shows them where it is none. From API 30 the window's insets controller does it, as androidx's
 /// `WindowInsetsControllerCompat` does; before, the decor view's visibility flags Flutter's
 /// `PlatformPlugin.setSystemChromeEnabledSystemUIMode` sets for `immersive` and
 /// `immersiveSticky`, leaving the other flags, the icons' among them, as they are.
-pub(crate) fn show_or_hide_the_bars(activity: &Activity, hidden: Option<EdgeSwipe>) {
+pub(crate) fn show_or_hide_the_bars(activity: &Activity, hidden: Option<SystemBarsBehavior>) {
     activity.on_main_thread("the system bars shown or hidden", move |env, activity| {
         let window = window_of(env, activity)?;
         if device_api_level() >= INSETS_CONTROLLER {
@@ -92,17 +93,17 @@ pub(crate) fn show_or_hide_the_bars(activity: &Activity, hidden: Option<EdgeSwip
     });
 }
 
-/// `WindowInsetsController.BEHAVIOR_DEFAULT` (API 31; API 30's `BEHAVIOR_SHOW_BARS_BY_SWIPE`, the
+/// `WindowInsetsController.BEHAVIOR_SHOW_BARS_BY_SWIPE` (API 30; API 31's `BEHAVIOR_DEFAULT`, the
 /// same value): a swipe brings the hidden bars back, to stay.
-const SWIPE_BRINGS_THE_BARS_BACK: i32 = 1;
+const BEHAVIOR_SHOW_BARS_BY_SWIPE: i32 = 1;
 /// `WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`: a swipe shows them for a
 /// moment.
-const SWIPE_SHOWS_THE_BARS_FOR_A_MOMENT: i32 = 2;
+const BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE: i32 = 2;
 
 fn through_the_insets_controller(
     env: &mut Env<'_>,
     window: &JObject<'_>,
-    hidden: Option<EdgeSwipe>,
+    hidden: Option<SystemBarsBehavior>,
 ) -> jni::errors::Result<()> {
     let controller = env
         .call_method(
@@ -124,8 +125,8 @@ fn through_the_insets_controller(
         )?
         .i()?;
     let behavior = match hidden {
-        Some(EdgeSwipe::Deferred) => SWIPE_SHOWS_THE_BARS_FOR_A_MOMENT,
-        Some(EdgeSwipe::System) | None => SWIPE_BRINGS_THE_BARS_BACK,
+        Some(SystemBarsBehavior::ShowTransientBarsBySwipe) => BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
+        Some(SystemBarsBehavior::ShowBarsBySwipe) | None => BEHAVIOR_SHOW_BARS_BY_SWIPE,
     };
     env.call_method(
         &controller,
@@ -161,7 +162,7 @@ const IMMERSIVE_STICKY_FLAG: i32 = 0x1000;
 fn through_visibility_flags(
     env: &mut Env<'_>,
     window: &JObject<'_>,
-    hidden: Option<EdgeSwipe>,
+    hidden: Option<SystemBarsBehavior>,
 ) -> jni::errors::Result<()> {
     let decor = env
         .call_method(
@@ -184,8 +185,10 @@ fn through_visibility_flags(
     let flags = (flags & !hiding)
         | match hidden {
             None => 0,
-            Some(EdgeSwipe::System) => hidden_flags | IMMERSIVE_FLAG,
-            Some(EdgeSwipe::Deferred) => hidden_flags | IMMERSIVE_STICKY_FLAG,
+            Some(SystemBarsBehavior::ShowBarsBySwipe) => hidden_flags | IMMERSIVE_FLAG,
+            Some(SystemBarsBehavior::ShowTransientBarsBySwipe) => {
+                hidden_flags | IMMERSIVE_STICKY_FLAG
+            }
         };
     env.call_method(
         &decor,

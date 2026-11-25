@@ -23,9 +23,9 @@ use std::sync::Arc;
 use ndk::configuration::{Configuration, UiModeNight};
 use ndk::native_window::NativeWindow;
 use waft_embedder::{
-    EdgeSwipe, GestureSettings, RequestId, Scene, ScreenId, SystemBars, SystemMouseCursorKind,
-    SystemUiOverlayStyle, TextInputHost, View, ViewConstraints, ViewFocusDirection, ViewFocusState,
-    ViewHost, ViewId, ViewMetrics, ViewPadding, WindowRef,
+    GestureSettings, RequestId, Scene, ScreenId, SystemBars, SystemBarsBehavior,
+    SystemMouseCursorKind, SystemUiOverlayStyle, TextInputHost, View, ViewConstraints,
+    ViewFocusDirection, ViewFocusState, ViewHost, ViewId, ViewMetrics, ViewPadding, WindowRef,
 };
 
 use crate::activity::{Activity, AttachedActivity};
@@ -78,9 +78,9 @@ pub(crate) struct AndroidView {
     /// activity attached and at each change of configuration; none until the framework sets one,
     /// and the bars follow the system's mode till then.
     overlay_style: Cell<Option<SystemUiOverlayStyle>>,
-    /// Whether the framework hid the bars over the window, and what an edge swipe does meanwhile;
+    /// Whether the framework hid the bars over the window, and what a swipe from an edge does then;
     /// none while they show. Told again to each activity attached, which starts with them shown.
-    bars_hidden: Cell<Option<EdgeSwipe>>,
+    bars_hidden: Cell<Option<SystemBarsBehavior>>,
     /// The activity's task, which is the view's window.
     task: Rc<TaskWindow>,
     /// The request the view arrived for; none for a view the platform gave.
@@ -450,8 +450,8 @@ impl SystemBars for AndroidView {
         self.style_the_bars();
     }
 
-    fn hide(&self, swipe: EdgeSwipe) {
-        self.bars_hidden.set(Some(swipe));
+    fn hide(&self, behavior: SystemBarsBehavior) {
+        self.bars_hidden.set(Some(behavior));
         self.show_or_hide_the_bars();
     }
 

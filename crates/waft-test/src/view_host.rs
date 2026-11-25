@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 
 use waft_embedder::{
-    EdgeSwipe, Matrix4, Rect, SelectionRect, Size, SystemBars, SystemMouseCursorKind,
+    Matrix4, Rect, SelectionRect, Size, SystemBars, SystemBarsBehavior, SystemMouseCursorKind,
     SystemUiOverlayStyle, TextEditingValue, TextInputConfiguration, TextInputHost,
     ViewFocusDirection, ViewFocusState, ViewHost,
 };
@@ -62,7 +62,7 @@ impl TestViewHost {
 /// Whether the bars over a [`TestViewHost`]'s view were hidden, and how, or shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BarsShown {
-    Hidden(EdgeSwipe),
+    Hidden(SystemBarsBehavior),
     Shown,
 }
 
@@ -93,8 +93,10 @@ impl SystemBars for TestViewHost {
         self.overlay_styles.borrow_mut().push(*style);
     }
 
-    fn hide(&self, swipe: EdgeSwipe) {
-        self.bars_shown.borrow_mut().push(BarsShown::Hidden(swipe));
+    fn hide(&self, behavior: SystemBarsBehavior) {
+        self.bars_shown
+            .borrow_mut()
+            .push(BarsShown::Hidden(behavior));
     }
 
     fn show(&self) {

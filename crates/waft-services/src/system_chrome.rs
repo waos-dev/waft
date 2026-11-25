@@ -11,7 +11,8 @@
 use std::collections::BTreeMap;
 
 use waft_embedder::{
-    AppLifecycleState, ApplicationSwitcherDescription, EdgeSwipe, SystemUiOverlayStyle, ViewId,
+    AppLifecycleState, ApplicationSwitcherDescription, SystemBarsBehavior, SystemUiOverlayStyle,
+    ViewId,
 };
 use waft_foundation::{App, Handle, Listener};
 
@@ -158,7 +159,7 @@ impl SystemChrome {
         };
         match asked_of_the_bars(mode, overlays) {
             BarsAsked::Show => bars.show(),
-            BarsAsked::Hide(swipe) => bars.hide(swipe),
+            BarsAsked::Hide(behavior) => bars.hide(behavior),
             BarsAsked::Nothing => {}
         }
     }
@@ -186,7 +187,7 @@ impl SystemChrome {
 /// What a mode asks of the bars over a view.
 enum BarsAsked {
     Show,
-    Hide(EdgeSwipe),
+    Hide(SystemBarsBehavior),
     /// What they cannot do: a manual mode with one overlay alone, the bars showing or hiding
     /// together.
     Nothing,
@@ -195,14 +196,18 @@ enum BarsAsked {
 fn asked_of_the_bars(mode: SystemUiMode, overlays: &[SystemUiOverlay]) -> BarsAsked {
     match mode {
         SystemUiMode::EdgeToEdge => BarsAsked::Show,
-        SystemUiMode::LeanBack | SystemUiMode::Immersive => BarsAsked::Hide(EdgeSwipe::System),
-        SystemUiMode::ImmersiveSticky => BarsAsked::Hide(EdgeSwipe::Deferred),
+        SystemUiMode::LeanBack | SystemUiMode::Immersive => {
+            BarsAsked::Hide(SystemBarsBehavior::ShowBarsBySwipe)
+        }
+        SystemUiMode::ImmersiveSticky => {
+            BarsAsked::Hide(SystemBarsBehavior::ShowTransientBarsBySwipe)
+        }
         SystemUiMode::Manual => {
             let top = overlays.contains(&SystemUiOverlay::Top);
             let bottom = overlays.contains(&SystemUiOverlay::Bottom);
             match (top, bottom) {
                 (true, true) => BarsAsked::Show,
-                (false, false) => BarsAsked::Hide(EdgeSwipe::System),
+                (false, false) => BarsAsked::Hide(SystemBarsBehavior::ShowBarsBySwipe),
                 _ => BarsAsked::Nothing,
             }
         }
@@ -304,11 +309,11 @@ mod tests {
         assert_eq!(
             bars_of(&platform, VIEW),
             [
-                BarsShown::Hidden(EdgeSwipe::Deferred),
-                BarsShown::Hidden(EdgeSwipe::System),
-                BarsShown::Hidden(EdgeSwipe::System),
+                BarsShown::Hidden(SystemBarsBehavior::ShowTransientBarsBySwipe),
+                BarsShown::Hidden(SystemBarsBehavior::ShowBarsBySwipe),
+                BarsShown::Hidden(SystemBarsBehavior::ShowBarsBySwipe),
                 BarsShown::Shown,
-                BarsShown::Hidden(EdgeSwipe::System),
+                BarsShown::Hidden(SystemBarsBehavior::ShowBarsBySwipe),
                 BarsShown::Shown,
             ],
             "one overlay alone leaves the bars as they are"
