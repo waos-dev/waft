@@ -1,14 +1,17 @@
-//! A video's frame on Android as a frame reader hands it out: an RGBA8 `AHardwareBuffer` the host
-//! drew a camera's picture into (`frame_conversion`), in the camera's own pixels, with the turn and
-//! the mirror it shows at, whose memory is the frame's own, freed once
-//! nothing holds it, which the app's GPU samples with no copy through a texture imported over it
-//! (`gpu_interop`) and the compositor shows, and whose pixels are copied into the app's memory
-//! while it is locked for the CPU (`hardware_buffers`).
+//! A video's frame on Android as a frame reader or a decoder hands it out: an RGBA8
+//! `AHardwareBuffer` the host drew a camera's or a decoder's picture into (`frame_conversion`), in
+//! the picture's own pixels, with the turn and the mirror it shows at, whose memory is the frame's
+//! own, freed once nothing holds it, which the app's GPU samples with no copy through a texture
+//! imported over it (`gpu_interop`) and the compositor shows, and whose pixels are copied into the
+//! app's memory while it is locked for the CPU (`hardware_buffers`). A decoder's frame also says
+//! what its stream says of it: when it is shown, the part of it that is picture, its pixels' shape
+//! and its colour.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use waft_embedder::image_codecs::{ImageFuture, PixelBuffer};
-use waft_embedder::{HardwareBuffer, VideoFrame};
+use waft_embedder::{HardwareBuffer, PixelAspect, PixelRect, VideoColor, VideoFrame};
 
 use crate::hardware_buffers::AndroidHardwareBuffer;
 
@@ -34,6 +37,20 @@ pub struct AndroidVideoFrame {
     rotation: u32,
     /// Whether it is shown mirrored, after `rotation`.
     flip: bool,
+    /// What a decoder's stream says of the frame; none for a camera's.
+    decoded: Option<DecodedFacts>,
+}
+
+/// What a decoder's stream says of one of its frames.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct DecodedFacts {
+    /// When it is shown, in nanoseconds on the stream's timeline: its chunk's.
+    pub(crate) timestamp: i64,
+    pub(crate) duration: Option<Duration>,
+    /// The part of the buffer that is picture: a decoder pads a picture to its blocks.
+    pub(crate) visible_rect: PixelRect,
+    pub(crate) pixel_aspect: PixelAspect,
+    pub(crate) color: VideoColor,
 }
 
 impl AndroidVideoFrame {
@@ -45,6 +62,15 @@ impl AndroidVideoFrame {
             buffer,
             rotation: 0,
             flip: false,
+            decoded: None,
+        }
+    }
+
+    /// The frame a decoder drew into `buffer`, with what its stream says of it.
+    pub(crate) fn decoded(buffer: AndroidHardwareBuffer, facts: DecodedFacts) -> AndroidVideoFrame {
+        AndroidVideoFrame {
+            decoded: Some(facts),
+            ..AndroidVideoFrame::new(buffer)
         }
     }
 
@@ -88,5 +114,55 @@ impl VideoFrame for AndroidVideoFrame {
 
     fn flip(&self) -> bool {
         self.flip
+    }
+
+    fn timestamp(&self) -> Option<i64> {
+        self.decoded.map(|facts| facts.timestamp)
+    }
+
+    fn duration(&self) -> Option<Duration> {
+        self.decoded.and_then(|facts| facts.duration)
+    }
+
+    fn visible_rect(&self) -> PixelRect {
+        match self.decoded {
+            Some(facts) => facts.visible_rect,
+            None => PixelRect {
+                x: 0,
+                y: 0,
+                width: self.width(),
+                height: self.height(),
+            },
+        }
+    }
+
+    fn pixel_aspect(&self) -> PixelAspect {
+        match self.decoded {
+            Some(facts) => facts.pixel_aspect,
+            None => PixelAspect {
+                width: 1,
+                height: 1,
+            },
+        }
+    }
+
+    /// A decoder's frame is drawn into RGB from its stream's samples, so its matrix and range are
+    /// RGB's over the whole range, and its primaries and transfer the stream's.
+    fn color(&self) -> VideoColor {
+        let rgb = VideoColor {
+            primaries: None,
+            transfer: None,
+            matrix: Some(VideoColor::RGB_MATRIX),
+            range: Some(waft_embedder::ColorRange::Full),
+            chroma_location: None,
+        };
+        match self.decoded {
+            Some(facts) => VideoColor {
+                primaries: facts.color.primaries,
+                transfer: facts.color.transfer,
+                ..rgb
+            },
+            None => rgb,
+        }
     }
 }
