@@ -11,7 +11,7 @@ use waft_embedder::image_codecs::{
     ImageMetadata, ImageOrientation, ImagePictures, ImageSource, PixelBuffer, PixelFormat,
     PixelLayout,
 };
-use waft_embedder::{HardwareBuffer, Size};
+use waft_embedder::{HardwareBuffer, HardwareBufferFormat, Size};
 
 use crate::MockHardwareBuffer;
 use crate::hardware_buffers::SYSTEM_GIVEN;
@@ -217,6 +217,7 @@ impl HardwareImageCodecs for MockHardwareImageCodecs {
                 Arc::new(MockHardwareBuffer {
                     width,
                     height,
+                    format: HardwareBufferFormat::Bgra8,
                     usage: SYSTEM_GIVEN,
                 }) as Arc<dyn HardwareBuffer>
             }),

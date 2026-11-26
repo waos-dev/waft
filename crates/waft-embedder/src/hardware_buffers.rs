@@ -14,8 +14,8 @@
 //! its own device ([`Platform::import_texture`](crate::Platform::import_texture)), shows it on a
 //! composition layer ([`CompositionLayer::present`](crate::CompositionLayer::present)), and has
 //! the hardware codecs encode it; its pixels come back to the app's memory only through
-//! [`HardwareBuffer::read_pixels`]. A buffer knows only its own facts, its size and what it can be
-//! used for, and names no GPU API: the host, which knows both the buffer and the device,
+//! [`HardwareBuffer::read_pixels`]. A buffer knows only its own facts, its size, how it lays out
+//! its pixels and what it can be used for, and names no GPU API: the host, which knows both the buffer and the device,
 //! imports it, as each system's GPU API imports such memory.
 //!
 //! Each host implements [`HardwareBuffer`] over its system's buffers. Platform code reaches the
@@ -118,19 +118,24 @@ pub trait HardwareBuffer: Any + Send + Sync {
     /// [`cpu_read`](HardwareBufferUsage::cpu_read).
     fn usage(&self) -> HardwareBufferUsage;
 
-    /// The buffer's pixels copied into the app's memory, in the layout the buffer holds them: BGRA
-    /// on Apple platforms, RGBA on Android. It reads what the GPU has finished writing, so an app
+    /// How the buffer lays out its pixels: one plane of colour, or a video decoder's planes.
+    fn format(&self) -> HardwareBufferFormat;
+
+    /// The buffer's pixels copied into the app's memory, in the layout the buffer holds them, for a
+    /// buffer of one plane: BGRA on Apple platforms, RGBA on Android. It reads what the GPU has finished writing, so an app
     /// that drew into the buffer waits for that work first, as it does before presenting it;
     /// [`ImageErrorKind::Unsupported`](crate::image_codecs::ImageErrorKind::Unsupported) for a
     /// buffer whose [`usage`](HardwareBuffer::usage) lacks
     /// [`cpu_read`](HardwareBufferUsage::cpu_read), on every system, and for one whose pixels are
-    /// in no [`PixelFormat`].
+    /// in no [`PixelFormat`], as a decoder's planes ([`HardwareBufferFormat::Nv12`] and
+    /// [`P010`](HardwareBufferFormat::P010)) are.
     fn read_pixels(&self) -> ImageFuture<PixelBuffer>;
 }
 
-/// How a hardware buffer lays out its pixels. What the samples mean as colour is the picture's,
-/// not the buffer's. A video decoder's own layouts (NV12, P010) join with the decoders that write
-/// them.
+/// How a hardware buffer lays out its pixels: one plane of colour, as an app draws, or a video
+/// decoder's own planes of brightness and colour difference, which the system's decoders write and
+/// its compositor shows with no conversion. What the samples mean as colour (matrix, range) is the
+/// picture's ([`VideoFrame::color`](crate::VideoFrame::color)), not the buffer's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum HardwareBufferFormat {
@@ -139,6 +144,54 @@ pub enum HardwareBufferFormat {
     Bgra8,
     /// 8-bit red, green, blue and alpha in one plane: Android's `R8G8B8A8_UNORM`.
     Rgba8,
+    /// 8-bit 4:2:0 in two planes: brightness, then blue and red difference interleaved at half
+    /// the size each way. CoreVideo's `420v` and `420f`, DXGI's and DRM's `NV12`, Android's
+    /// `Y8Cb8Cr8_420`.
+    Nv12,
+    /// 10-bit 4:2:0 laid out as [`Nv12`](Self::Nv12), each sample in the high ten bits of
+    /// sixteen: CoreVideo's `x420` and `xf20`, DXGI's and DRM's `P010`, Android's `YCbCr_P010`.
+    P010,
+}
+
+impl HardwareBufferFormat {
+    /// How many planes it has: one, or two for [`Nv12`](Self::Nv12) and [`P010`](Self::P010).
+    pub fn plane_count(self) -> usize {
+        match self {
+            HardwareBufferFormat::Bgra8 | HardwareBufferFormat::Rgba8 => 1,
+            HardwareBufferFormat::Nv12 | HardwareBufferFormat::P010 => 2,
+        }
+    }
+
+    /// The texture format plane `plane` is sampled in: `Bgra8Unorm` or `Rgba8Unorm` for one plane;
+    /// `R8Unorm` then `Rg8Unorm` for [`Nv12`](Self::Nv12), as wgpu's `TextureFormat::NV12`
+    /// aspects are; `R16Unorm` then `Rg16Unorm` for [`P010`](Self::P010), which need
+    /// [`Features::TEXTURE_FORMAT_16BIT_NORM`](wgpu::Features::TEXTURE_FORMAT_16BIT_NORM). `None`
+    /// past the last plane.
+    pub fn plane_format(self, plane: usize) -> Option<wgpu::TextureFormat> {
+        let formats: &[wgpu::TextureFormat] = match self {
+            HardwareBufferFormat::Bgra8 => &[wgpu::TextureFormat::Bgra8Unorm],
+            HardwareBufferFormat::Rgba8 => &[wgpu::TextureFormat::Rgba8Unorm],
+            HardwareBufferFormat::Nv12 => {
+                &[wgpu::TextureFormat::R8Unorm, wgpu::TextureFormat::Rg8Unorm]
+            }
+            HardwareBufferFormat::P010 => &[
+                wgpu::TextureFormat::R16Unorm,
+                wgpu::TextureFormat::Rg16Unorm,
+            ],
+        };
+        formats.get(plane).copied()
+    }
+
+    /// The size of plane `plane` of a buffer of `size` pixels: the whole for the first plane, and
+    /// half each way, rounded up, for the colour plane of [`Nv12`](Self::Nv12) and
+    /// [`P010`](Self::P010). `None` past the last plane.
+    pub fn plane_size(self, plane: usize, size: [u32; 2]) -> Option<[u32; 2]> {
+        match plane {
+            0 => Some(size),
+            1 if self.plane_count() == 2 => Some(size.map(|side| side.div_ceil(2))),
+            _ => None,
+        }
+    }
 }
 
 /// A GPU as its system names it to every API on it and to other processes: what anything that
@@ -161,4 +214,37 @@ pub enum GpuId {
     /// as `stat(2)` of the node and Vulkan's `VkPhysicalDeviceDrmPropertiesEXT::renderMajor` and
     /// `renderMinor` give it.
     DrmRenderNode { major: u32, minor: u32 },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_decoders_format_has_a_brightness_plane_then_a_colour_plane_at_half_size() {
+        let format = HardwareBufferFormat::Nv12;
+        assert_eq!(format.plane_count(), 2);
+        assert_eq!(format.plane_format(0), Some(wgpu::TextureFormat::R8Unorm));
+        assert_eq!(format.plane_format(1), Some(wgpu::TextureFormat::Rg8Unorm));
+        assert_eq!(format.plane_format(2), None);
+        assert_eq!(format.plane_size(0, [1919, 1081]), Some([1919, 1081]));
+        assert_eq!(format.plane_size(1, [1919, 1081]), Some([960, 541]));
+        assert_eq!(format.plane_size(2, [1919, 1081]), None);
+        assert_eq!(
+            HardwareBufferFormat::P010.plane_format(1),
+            Some(wgpu::TextureFormat::Rg16Unorm)
+        );
+    }
+
+    #[test]
+    fn a_format_of_one_plane_is_that_plane_whole() {
+        let format = HardwareBufferFormat::Bgra8;
+        assert_eq!(format.plane_count(), 1);
+        assert_eq!(
+            format.plane_format(0),
+            Some(wgpu::TextureFormat::Bgra8Unorm)
+        );
+        assert_eq!(format.plane_format(1), None);
+        assert_eq!(format.plane_size(1, [8, 8]), None);
+    }
 }

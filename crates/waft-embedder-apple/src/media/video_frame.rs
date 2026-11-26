@@ -173,7 +173,7 @@ impl CoreVideoFrame {
     /// The frame's surface, which holds the frame.
     fn surface_buffer(&self) -> SurfaceBuffer {
         SurfaceBuffer::of_frame(self.buffer.clone())
-            .expect("a frame's pixel buffer is on an IOSurface, as `CoreVideoFrame::new` takes it")
+            .expect("a frame's pixel buffer is on an IOSurface in BGRA or a decoder's planes, as `CoreVideoFrame` takes it")
     }
 }
 

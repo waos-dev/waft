@@ -23,7 +23,9 @@ use ndk::hardware_buffer_format::HardwareBufferFormat;
 use waft_embedder::image_codecs::{
     AlphaType, ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat, PixelLayout,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+use waft_embedder::{
+    HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat as Format, HardwareBufferUsage,
+};
 
 /// Bytes one pixel of RGBA8 occupies.
 const BYTES_PER_PIXEL: u32 = 4;
@@ -129,6 +131,17 @@ impl HardwareBuffer for AndroidHardwareBuffer {
     /// What the `AHardwareBuffer` was allocated for, as it describes itself.
     fn usage(&self) -> HardwareBufferUsage {
         self.usage
+    }
+
+    /// Its format as it describes itself: `R8G8B8A8_UNORM`, `Y8Cb8Cr8_420` or `YCbCr_P010`.
+    /// Another, a camera's or a decoder's own (`IMPLEMENTATION_DEFINED`), is only drawn into RGBA8
+    /// before the app has the picture, so it answers RGBA8, the format `new` takes.
+    fn format(&self) -> Format {
+        match self.buffer.describe().format {
+            HardwareBufferFormat::Y8Cb8Cr8_420 => Format::Nv12,
+            HardwareBufferFormat::YCbCr_P010 => Format::P010,
+            _ => Format::Rgba8,
+        }
     }
 
     /// The buffer's rows as they lie, RGBA and premultiplied, copied while it is locked for

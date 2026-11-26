@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use waft_embedder::image_codecs::{
     AlphaType, ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat, PixelLayout,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferUsage};
+use waft_embedder::{HardwareBuffer, HardwareBufferFormat, HardwareBufferUsage};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_buffer::WlBuffer;
 
@@ -154,6 +154,11 @@ impl HardwareBuffer for ShmBuffer {
             cpu_read: true,
             ..HardwareBufferUsage::default()
         }
+    }
+
+    /// ARGB8888, BGRA in memory, the one format of its rows.
+    fn format(&self) -> HardwareBufferFormat {
+        HardwareBufferFormat::Bgra8
     }
 
     fn read_pixels(&self) -> ImageFuture<PixelBuffer> {

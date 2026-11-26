@@ -259,7 +259,10 @@ mod tests {
         let shared = shared
             .downcast_ref::<super::super::SharedTexture>()
             .expect("a shared texture");
-        assert_eq!(shared.format(), wgpu::TextureFormat::NV12);
+        assert_eq!(
+            waft_embedder::HardwareBuffer::format(shared),
+            waft_embedder::HardwareBufferFormat::Nv12
+        );
     }
 
     /// A D3D12 device of wgpu's that samples NV12, as an app's would be, and the LUID of its

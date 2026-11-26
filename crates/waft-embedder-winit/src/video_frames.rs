@@ -182,10 +182,10 @@ mod tests {
     #[cfg(target_os = "macos")]
     mod taken {
         use waft_embedder::HardwareBuffer;
-        use waft_embedder::HardwareBufferUsage;
         use waft_embedder::image_codecs::{
             ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat,
         };
+        use waft_embedder::{HardwareBufferFormat, HardwareBufferUsage};
 
         use super::*;
         use crate::os::capabilities::GpuInterop;
@@ -264,6 +264,10 @@ mod tests {
 
             fn usage(&self) -> HardwareBufferUsage {
                 HardwareBufferUsage::GPU_SAMPLED
+            }
+
+            fn format(&self) -> HardwareBufferFormat {
+                HardwareBufferFormat::Bgra8
             }
 
             fn read_pixels(&self) -> ImageFuture<PixelBuffer> {

@@ -17,13 +17,12 @@ use std::any::Any;
 
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
-use objc2_core_video::kCVPixelFormatType_32BGRA;
 use objc2_io_surface::IOSurfaceRef;
 use objc2_metal::{
     MTLDevice, MTLPixelFormat, MTLStorageMode, MTLTexture, MTLTextureDescriptor, MTLTextureType,
     MTLTextureUsage,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferUsage};
+use waft_embedder::{HardwareBuffer, HardwareBufferFormat, HardwareBufferUsage};
 
 use super::hardware_buffers::SurfaceBuffer;
 
@@ -32,10 +31,10 @@ use super::hardware_buffers::SurfaceBuffer;
 /// Metal, for a surface not in BGRA, and where Metal makes no texture of the surface.
 pub fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Option<wgpu::Texture> {
     let buffer = (buffer as &dyn Any).downcast_ref::<SurfaceBuffer>()?;
-    let surface = buffer.surface();
-    if surface.pixel_format() != kCVPixelFormatType_32BGRA {
+    if buffer.format() != HardwareBufferFormat::Bgra8 {
         return None;
     }
+    let surface = buffer.surface();
     // SAFETY: the device is only read, and is let go before the texture it makes is handed to
     // wgpu.
     let hal = unsafe { device.as_hal::<wgpu::hal::api::Metal>() }?;
@@ -264,6 +263,10 @@ mod tests {
 
             fn usage(&self) -> HardwareBufferUsage {
                 HardwareBufferUsage::ALL
+            }
+
+            fn format(&self) -> HardwareBufferFormat {
+                HardwareBufferFormat::Bgra8
             }
 
             fn read_pixels(

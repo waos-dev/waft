@@ -4,7 +4,7 @@
 //! (`ID3D12Device::OpenSharedHandle`). Waft makes none ([`SystemGpu::hardware_buffer_allocator`]
 //! answers `None` here); it shows the BGRA ones a producer hands it, copying each present into the
 //! layer's own swapchain (`composition`), and imports them on a device for the app to sample: an
-//! NV12 one only on a device that samples NV12.
+//! NV12 or P010 one only on a device that samples that format.
 //!
 //! The invariant a later editor must keep: every use of the texture on a device of Waft's ends in
 //! the common state, the one another device's work on it may start from, since D3D12 tracks a
@@ -15,13 +15,26 @@
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::sync::Mutex;
 
-use waft_embedder::HardwareBufferUsage;
 use waft_embedder::image_codecs::{ImageError, ImageErrorKind, ImageFuture, PixelBuffer};
+use waft_embedder::{HardwareBufferFormat, HardwareBufferUsage};
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Graphics::Direct3D12::ID3D12Resource;
 
 /// The format an app's shared texture is in: the engine's, BGRA as on Apple's systems.
 pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
+
+/// The texture format a shared texture whose pixels are in `format` is opened in: its DXGI format's
+/// as wgpu names it, NV12's and P010's two planes one texture's aspects; `None` for a format wgpu
+/// names no D3D12 texture of.
+fn texture_format(format: HardwareBufferFormat) -> Option<wgpu::TextureFormat> {
+    match format {
+        HardwareBufferFormat::Bgra8 => Some(FORMAT),
+        HardwareBufferFormat::Rgba8 => Some(wgpu::TextureFormat::Rgba8Unorm),
+        HardwareBufferFormat::Nv12 => Some(wgpu::TextureFormat::NV12),
+        HardwareBufferFormat::P010 => Some(wgpu::TextureFormat::P010),
+        _ => None,
+    }
+}
 
 /// A texture shared by NT handle, `width` by `height` pixels, and the texture Waft's device copies
 /// it from, opened once.
@@ -29,7 +42,7 @@ pub struct SharedTexture {
     handle: OwnedHandle,
     width: u32,
     height: u32,
-    format: wgpu::TextureFormat,
+    format: HardwareBufferFormat,
     usage: HardwareBufferUsage,
     /// The texture opened on the device that copies it into a layer, and that device.
     opened: Mutex<Option<(wgpu::Device, wgpu::Texture)>>,
@@ -39,16 +52,17 @@ impl SharedTexture {
     /// The BGRA texture whose NT handle is `handle`, `size` pixels, made for `usage`. The buffer
     /// owns the handle, and its memory lives as long as any handle or opened texture does.
     pub fn new(handle: OwnedHandle, size: [u32; 2], usage: HardwareBufferUsage) -> SharedTexture {
-        SharedTexture::in_format(handle, size, FORMAT, usage)
+        SharedTexture::in_format(handle, size, HardwareBufferFormat::Bgra8, usage)
     }
 
     /// The texture whose NT handle is `handle`, `size` pixels in `format`, made for `usage`:
-    /// [`Bgra8Unorm`](wgpu::TextureFormat::Bgra8Unorm) as an app draws, or
-    /// [`NV12`](wgpu::TextureFormat::NV12) as a video decoder puts out a picture.
+    /// [`Bgra8`](HardwareBufferFormat::Bgra8) as an app draws, or
+    /// [`Nv12`](HardwareBufferFormat::Nv12) and [`P010`](HardwareBufferFormat::P010) as a video
+    /// decoder puts out a picture.
     pub fn in_format(
         handle: OwnedHandle,
         size: [u32; 2],
-        format: wgpu::TextureFormat,
+        format: HardwareBufferFormat,
         usage: HardwareBufferUsage,
     ) -> SharedTexture {
         SharedTexture {
@@ -66,11 +80,6 @@ impl SharedTexture {
         &self.handle
     }
 
-    /// The format of the texture's pixels.
-    pub fn format(&self) -> wgpu::TextureFormat {
-        self.format
-    }
-
     /// The texture on `device` that a copy reads, opened at the first call for that device.
     pub(crate) fn texture_on(&self, device: &wgpu::Device) -> Option<wgpu::Texture> {
         let mut opened = self.opened.lock().unwrap();
@@ -85,18 +94,15 @@ impl SharedTexture {
     }
 
     /// The texture opened anew on `device`, for `usage`, as it is in the common state; `None` for
-    /// a device not on D3D12, an NV12 texture on a device that does not sample NV12, and where the
-    /// handle does not open there: another adapter's.
+    /// a device not on D3D12, an NV12 or P010 texture on a device that does not sample that
+    /// format, and where the handle does not open there: another adapter's.
     pub(crate) fn open_on(
         &self,
         device: &wgpu::Device,
         usage: wgpu::TextureUsages,
     ) -> Option<wgpu::Texture> {
-        if self.format == wgpu::TextureFormat::NV12
-            && !device
-                .features()
-                .contains(wgpu::Features::TEXTURE_FORMAT_NV12)
-        {
+        let format = texture_format(self.format)?;
+        if !device.features().contains(format.required_features()) {
             return None;
         }
         let size = wgpu::Extent3d {
@@ -117,7 +123,7 @@ impl SharedTexture {
                 .ok()?;
             wgpu_hal::dx12::Device::texture_from_raw(
                 resource?,
-                self.format,
+                format,
                 wgpu::TextureDimension::D2,
                 size,
                 1,
@@ -130,7 +136,7 @@ impl SharedTexture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: self.format,
+            format,
             usage,
             view_formats: &[],
         };
@@ -157,6 +163,11 @@ impl waft_embedder::HardwareBuffer for SharedTexture {
 
     fn usage(&self) -> HardwareBufferUsage {
         self.usage
+    }
+
+    /// The format it was made in, as its producer said it.
+    fn format(&self) -> HardwareBufferFormat {
+        self.format
     }
 
     /// A shared texture has no CPU mapping: its pixels reach the CPU only through a copy on a

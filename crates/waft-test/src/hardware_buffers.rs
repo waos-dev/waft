@@ -1,6 +1,7 @@
 //! Hardware buffers in memory, as a host with no GPU of its own hands them out: each knows its
-//! size and usage, is imported as no texture (`TestPlatform::import_texture`), and reads back
-//! opaque black, in BGRA as Apple's buffers are, where its usage has `cpu_read`; and the system's
+//! size, format and usage, is imported as no texture (`TestPlatform::import_texture`), and reads
+//! back opaque black, in BGRA as Apple's buffers are, where its usage has `cpu_read` and it is in
+//! BGRA; and the system's
 //! allocator, which allocates them for exactly what the app asked for, and keeps each ask. A
 //! buffer the codecs decode or a video frame's is for what Apple's systems give one
 //! ([`SYSTEM_GIVEN`]).
@@ -10,7 +11,9 @@ use std::sync::{Arc, Mutex};
 use waft_embedder::image_codecs::{
     ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+use waft_embedder::{
+    HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage,
+};
 
 use crate::image_codecs::pixels_of;
 
@@ -22,12 +25,14 @@ pub(crate) const SYSTEM_GIVEN: HardwareBufferUsage = HardwareBufferUsage {
     ..HardwareBufferUsage::GPU_SAMPLED
 };
 
-/// A hardware buffer of a size, with no pixels on any GPU: it is imported as no texture, as a
-/// buffer a device cannot take, which a drawing skips, and its pixels read back opaque black.
+/// A hardware buffer of a size, in the format the test gives, with no pixels on any GPU: it is
+/// imported as no texture, as a buffer a device cannot take, which a drawing skips, and its pixels
+/// read back opaque black where it is in BGRA.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MockHardwareBuffer {
     pub width: u32,
     pub height: u32,
+    pub format: HardwareBufferFormat,
     pub usage: HardwareBufferUsage,
 }
 
@@ -44,11 +49,20 @@ impl HardwareBuffer for MockHardwareBuffer {
         self.usage
     }
 
+    fn format(&self) -> HardwareBufferFormat {
+        self.format
+    }
+
     fn read_pixels(&self) -> ImageFuture<PixelBuffer> {
         let read = if !self.usage.cpu_read {
             Err(ImageError::new(
                 ImageErrorKind::Unsupported,
                 "a buffer whose usage lacks `cpu_read`",
+            ))
+        } else if self.format != HardwareBufferFormat::Bgra8 {
+            Err(ImageError::new(
+                ImageErrorKind::Unsupported,
+                "a buffer whose pixels are in no pixel format",
             ))
         } else if self.width == 0 || self.height == 0 {
             Err(ImageError::new(
@@ -125,6 +139,7 @@ impl HardwareBufferAllocator for MockHardwareBufferAllocator {
         Ok(Arc::new(MockHardwareBuffer {
             width,
             height,
+            format: HardwareBufferFormat::Bgra8,
             usage,
         }))
     }

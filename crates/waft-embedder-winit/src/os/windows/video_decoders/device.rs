@@ -15,8 +15,8 @@
 use std::os::windows::io::{FromRawHandle as _, OwnedHandle};
 use std::sync::Arc;
 
-use waft_embedder::HardwareBufferUsage;
 use waft_embedder::video_decoders::DecoderError;
+use waft_embedder::{HardwareBufferFormat, HardwareBufferUsage};
 use windows::Win32::Foundation::{E_POINTER, HMODULE, LUID};
 use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_UNKNOWN};
 use windows::Win32::Graphics::Direct3D11::{
@@ -204,7 +204,7 @@ impl VideoDevice {
         // SAFETY: the handle was just made for this texture and nothing else owns it.
         let handle = unsafe { OwnedHandle::from_raw_handle(handle.0) };
         let shared =
-            SharedTexture::in_format(handle, size, wgpu::TextureFormat::NV12, PICTURE_USAGE);
+            SharedTexture::in_format(handle, size, HardwareBufferFormat::Nv12, PICTURE_USAGE);
         Ok((texture, Arc::new(shared)))
     }
 

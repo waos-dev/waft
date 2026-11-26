@@ -547,7 +547,7 @@ impl CompositionLayer for WindowsLayer {
             released();
             return;
         };
-        if shared.format() != FORMAT {
+        if shared.format() != HardwareBufferFormat::Bgra8 {
             eprintln!(
                 "waft: a layer shows BGRA, and is presented {:?}; it is not shown",
                 shared.format()

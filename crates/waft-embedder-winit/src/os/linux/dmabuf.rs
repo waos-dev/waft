@@ -20,7 +20,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use waft_embedder::image_codecs::{
     AlphaType, ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat, PixelLayout,
 };
-use waft_embedder::{GpuId, HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+use waft_embedder::{
+    GpuId, HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage,
+};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_buffer::WlBuffer;
 
@@ -207,6 +209,11 @@ impl HardwareBuffer for DmabufBuffer {
 
     fn usage(&self) -> HardwareBufferUsage {
         self.usage
+    }
+
+    /// Its fourcc's: ARGB8888, BGRA in memory, the one a dmabuf here is in.
+    fn format(&self) -> HardwareBufferFormat {
+        HardwareBufferFormat::Bgra8
     }
 
     fn read_pixels(&self) -> ImageFuture<PixelBuffer> {
