@@ -11,11 +11,10 @@ use std::sync::{Arc, Mutex, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use waft_embedder::image_codecs::PixelFormat;
 use waft_embedder::valo;
 use waft_embedder::{
-    CompositionLayer, HardwareBuffer, HardwareBufferUsage, PlatformRef, ScreenId, VsyncObserver,
-    VsyncWaiter,
+    CompositionLayer, HardwareBuffer, HardwareBufferFormat, HardwareBufferUsage, PlatformRef,
+    ScreenId, VsyncObserver, VsyncWaiter,
 };
 
 /// How many buffers the producer draws into in turn.
@@ -129,7 +128,7 @@ pub(crate) fn buffers(platform: &PlatformRef, painter: &Painter, size: [u32; 2])
     (0..BUFFERS)
         .map(|_| {
             let buffer = allocator
-                .allocate(size[0], size[1], PixelFormat::Rgba8, PRESENTED)
+                .allocate(size[0], size[1], HardwareBufferFormat::Rgba8, PRESENTED)
                 .expect("a buffer of the layer's size");
             let texture = platform
                 .import_texture(&*buffer, &painter.device)

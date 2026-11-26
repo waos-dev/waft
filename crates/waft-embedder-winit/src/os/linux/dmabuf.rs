@@ -380,10 +380,10 @@ impl HardwareBufferAllocator for GbmAllocator {
         &self,
         width: u32,
         height: u32,
-        format: PixelFormat,
+        format: HardwareBufferFormat,
         usage: HardwareBufferUsage,
     ) -> Result<Arc<dyn HardwareBuffer>, ImageError> {
-        if format != PixelFormat::Bgra8 {
+        if format != HardwareBufferFormat::Bgra8 {
             return Err(ImageError::new(
                 ImageErrorKind::Unsupported,
                 "Linux allocates hardware buffers in BGRA",

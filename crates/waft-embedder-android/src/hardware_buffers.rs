@@ -187,7 +187,7 @@ impl HardwareBufferAllocator for GrallocAllocator {
         &self,
         width: u32,
         height: u32,
-        format: PixelFormat,
+        format: Format,
         usage: HardwareBufferUsage,
     ) -> Result<Arc<dyn HardwareBuffer>, ImageError> {
         if let Some(refused) = refusal(width, height, format, self.largest_side) {
@@ -214,14 +214,14 @@ impl HardwareBufferAllocator for GrallocAllocator {
 
 /// Why a buffer of `width` by `height` in `format` is not allocated, sides past `largest_side`
 /// refused; `None` for one that is.
-fn refusal(width: u32, height: u32, format: PixelFormat, largest_side: u32) -> Option<ImageError> {
+fn refusal(width: u32, height: u32, format: Format, largest_side: u32) -> Option<ImageError> {
     if width == 0 || height == 0 {
         return Some(ImageError::new(
             ImageErrorKind::Other,
             format!("a buffer of {width} by {height} pixels, which holds none"),
         ));
     }
-    if format != PixelFormat::Rgba8 {
+    if format != Format::Rgba8 {
         return Some(ImageError::new(
             ImageErrorKind::Unsupported,
             "Android allocates hardware buffers in RGBA",
@@ -310,17 +310,18 @@ mod tests {
         let refused =
             |width, height, format| refusal(width, height, format, 4096).map(|error| error.kind);
         assert_eq!(
-            refused(8, 8, PixelFormat::Bgra8),
+            refused(8, 8, Format::Bgra8),
             Some(ImageErrorKind::Unsupported)
         );
         assert_eq!(
-            refused(4097, 8, PixelFormat::Rgba8),
-            Some(ImageErrorKind::TooLarge)
+            refused(8, 8, Format::Nv12),
+            Some(ImageErrorKind::Unsupported)
         );
         assert_eq!(
-            refused(0, 8, PixelFormat::Rgba8),
-            Some(ImageErrorKind::Other)
+            refused(4097, 8, Format::Rgba8),
+            Some(ImageErrorKind::TooLarge)
         );
-        assert_eq!(refused(4096, 8, PixelFormat::Rgba8), None);
+        assert_eq!(refused(0, 8, Format::Rgba8), Some(ImageErrorKind::Other));
+        assert_eq!(refused(4096, 8, Format::Rgba8), None);
     }
 }

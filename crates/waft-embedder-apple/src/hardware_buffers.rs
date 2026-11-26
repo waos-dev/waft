@@ -33,9 +33,7 @@ use objc2_io_surface::{
     IOSurfaceRef, kIOSurfaceBytesPerElement, kIOSurfaceBytesPerRow, kIOSurfaceHeight,
     kIOSurfacePixelFormat, kIOSurfaceWidth,
 };
-use waft_embedder::image_codecs::{
-    ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat,
-};
+use waft_embedder::image_codecs::{ImageError, ImageErrorKind, ImageFuture, PixelBuffer};
 use waft_embedder::{
     HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage,
 };
@@ -184,7 +182,7 @@ impl HardwareBufferAllocator for SurfaceBufferAllocator {
         &self,
         width: u32,
         height: u32,
-        format: PixelFormat,
+        format: HardwareBufferFormat,
         _usage: HardwareBufferUsage,
     ) -> Result<Arc<dyn HardwareBuffer>, ImageError> {
         if width == 0 || height == 0 {
@@ -193,7 +191,7 @@ impl HardwareBufferAllocator for SurfaceBufferAllocator {
                 format!("a buffer of {width} by {height} pixels, which holds none"),
             ));
         }
-        if format != PixelFormat::Bgra8 {
+        if format != HardwareBufferFormat::Bgra8 {
             return Err(ImageError::new(
                 ImageErrorKind::Unsupported,
                 "Apple's systems allocate hardware buffers in BGRA",
@@ -258,7 +256,12 @@ mod tests {
     #[test]
     fn a_buffer_allocated_answers_every_use_whatever_was_asked() {
         let buffer = SurfaceBufferAllocator
-            .allocate(8, 8, PixelFormat::Bgra8, HardwareBufferUsage::GPU_SAMPLED)
+            .allocate(
+                8,
+                8,
+                HardwareBufferFormat::Bgra8,
+                HardwareBufferUsage::GPU_SAMPLED,
+            )
             .expect("an IOSurface of 8 by 8");
         assert_eq!(buffer.usage(), HardwareBufferUsage::ALL);
         assert!(pollster::block_on(buffer.read_pixels()).is_ok());
@@ -293,15 +296,19 @@ mod tests {
                 .map(|error| error.kind)
         };
         assert_eq!(
-            refused(8, 8, PixelFormat::Rgba8),
+            refused(8, 8, HardwareBufferFormat::Rgba8),
             Some(ImageErrorKind::Unsupported)
         );
         assert_eq!(
-            refused(LARGEST_SIDE + 1, 8, PixelFormat::Bgra8),
+            refused(8, 8, HardwareBufferFormat::Nv12),
+            Some(ImageErrorKind::Unsupported)
+        );
+        assert_eq!(
+            refused(LARGEST_SIDE + 1, 8, HardwareBufferFormat::Bgra8),
             Some(ImageErrorKind::TooLarge)
         );
         assert_eq!(
-            refused(0, 8, PixelFormat::Bgra8),
+            refused(0, 8, HardwareBufferFormat::Bgra8),
             Some(ImageErrorKind::Other)
         );
     }

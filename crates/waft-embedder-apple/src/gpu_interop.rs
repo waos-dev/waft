@@ -255,7 +255,7 @@ mod tests {
     fn a_buffer_allocated_is_drawn_into_and_read_back() {
         let gpu = TestGpu::new();
         let buffer = SurfaceBufferAllocator
-            .allocate(8, 4, PixelFormat::Bgra8, DRAWN)
+            .allocate(8, 4, HardwareBufferFormat::Bgra8, DRAWN)
             .expect("an IOSurface of 8 by 4");
         let texture = import_texture(&*buffer, &gpu.device).expect("a Metal device takes it");
         assert_eq!([texture.width(), texture.height()], [8, 4]);

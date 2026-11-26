@@ -28,7 +28,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use crate::image_codecs::{ImageError, ImageFuture, PixelBuffer, PixelFormat};
+use crate::image_codecs::{ImageError, ImageFuture, PixelBuffer};
 
 /// What makes the app's hardware buffers: the role of Android's graphics allocator (gralloc's
 /// `IAllocator`), Fuchsia's sysmem `Allocator` and a GBM device on Linux. `None` from
@@ -36,12 +36,14 @@ use crate::image_codecs::{ImageError, ImageFuture, PixelBuffer, PixelFormat};
 /// system allocates none. It may be called from any thread, as a producer allocates a buffer where
 /// it draws.
 pub trait HardwareBufferAllocator: Send + Sync {
-    /// A buffer of `width` by `height` pixels in `format`, for at least what `usage` names
-    /// ([`HardwareBuffer::usage`] answers all it is for), its pixels as the system leaves new
+    /// A buffer of `width` by `height` pixels laid out in `format`, for at least what `usage`
+    /// names ([`HardwareBuffer::usage`] answers all it is for), its pixels as the system leaves new
     /// memory until the app draws them:
     /// [`ImageErrorKind::Unsupported`](crate::image_codecs::ImageErrorKind::Unsupported) for a
     /// format the system does not allocate a buffer in, as Apple platforms allocate only
-    /// [`PixelFormat::Bgra8`] and Android's `AHardwareBuffer` only [`PixelFormat::Rgba8`];
+    /// [`HardwareBufferFormat::Bgra8`], Android only [`HardwareBufferFormat::Rgba8`], and none
+    /// yet a decoder's planes ([`Nv12`](HardwareBufferFormat::Nv12),
+    /// [`P010`](HardwareBufferFormat::P010));
     /// [`TooLarge`](crate::image_codecs::ImageErrorKind::TooLarge) for a side past the largest the
     /// system makes a texture of; [`OutOfMemory`](crate::image_codecs::ImageErrorKind::OutOfMemory)
     /// where the system has no memory left for it; and
@@ -50,7 +52,7 @@ pub trait HardwareBufferAllocator: Send + Sync {
         &self,
         width: u32,
         height: u32,
-        format: PixelFormat,
+        format: HardwareBufferFormat,
         usage: HardwareBufferUsage,
     ) -> Result<Arc<dyn HardwareBuffer>, ImageError>;
 }
@@ -122,13 +124,14 @@ pub trait HardwareBuffer: Any + Send + Sync {
     fn format(&self) -> HardwareBufferFormat;
 
     /// The buffer's pixels copied into the app's memory, in the layout the buffer holds them, for a
-    /// buffer of one plane: BGRA on Apple platforms, RGBA on Android. It reads what the GPU has finished writing, so an app
-    /// that drew into the buffer waits for that work first, as it does before presenting it;
+    /// buffer of one plane: BGRA on Apple platforms, RGBA on Android. It reads what the GPU has
+    /// finished writing, so an app that drew into the buffer waits for that work first, as it
+    /// does before presenting it;
     /// [`ImageErrorKind::Unsupported`](crate::image_codecs::ImageErrorKind::Unsupported) for a
     /// buffer whose [`usage`](HardwareBuffer::usage) lacks
     /// [`cpu_read`](HardwareBufferUsage::cpu_read), on every system, and for one whose pixels are
-    /// in no [`PixelFormat`], as a decoder's planes ([`HardwareBufferFormat::Nv12`] and
-    /// [`P010`](HardwareBufferFormat::P010)) are.
+    /// in no [`PixelFormat`](crate::image_codecs::PixelFormat), as a decoder's planes
+    /// ([`HardwareBufferFormat::Nv12`] and [`P010`](HardwareBufferFormat::P010)) are.
     fn read_pixels(&self) -> ImageFuture<PixelBuffer>;
 }
 

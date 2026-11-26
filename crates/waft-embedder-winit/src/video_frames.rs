@@ -182,9 +182,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     mod taken {
         use waft_embedder::HardwareBuffer;
-        use waft_embedder::image_codecs::{
-            ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat,
-        };
+        use waft_embedder::image_codecs::{ImageError, ImageErrorKind, ImageFuture, PixelBuffer};
         use waft_embedder::{HardwareBufferFormat, HardwareBufferUsage};
 
         use super::*;
@@ -217,7 +215,12 @@ mod tests {
             System::gpu(None)
                 .and_then(|gpu| gpu.hardware_buffer_allocator)
                 .expect("Apple's systems allocate hardware buffers")
-                .allocate(4, 4, PixelFormat::Bgra8, HardwareBufferUsage::GPU_SAMPLED)
+                .allocate(
+                    4,
+                    4,
+                    HardwareBufferFormat::Bgra8,
+                    HardwareBufferUsage::GPU_SAMPLED,
+                )
                 .expect("a buffer of 4 by 4")
         }
 
