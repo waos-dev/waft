@@ -9,7 +9,9 @@
 //! VideoToolbox hands pictures back in the order they were decoded, so they are put in the order
 //! they are shown, which is the stream's own, read from each picture, never the times an app
 //! gives its chunks; and they reach the app from the queue that decodes (`decoder`, `output`).
-//! Every picture comes out 8-bit 4:2:0 in two planes, a stream of ten bits to a sample too.
+//! Every picture comes out 4:2:0 in two planes, as deep as its stream: NV12 for a stream of eight
+//! bits to a sample, P010 for a deeper one (HEVC's Main 10, VP9's profile 2, AV1 at ten bits),
+//! which its frame's `HardwareBuffer::format` says.
 
 mod decoder;
 mod format;

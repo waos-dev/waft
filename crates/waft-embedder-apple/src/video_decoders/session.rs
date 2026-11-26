@@ -1,6 +1,7 @@
 //! One VideoToolbox decompression session: made for a stream's format (`format`), handed a
-//! picture's chunk as a sample, and answering the picture decoded, a `CVPixelBuffer` on an `IOSurface` in
-//! the decoder's own layout, 8-bit 4:2:0 in two planes.
+//! picture's chunk as a sample, and answering the picture decoded, a `CVPixelBuffer` on an
+//! `IOSurface` in the decoder's own layout, 4:2:0 in two planes, of 8-bit samples for a stream of
+//! eight bits and of 16-bit ones for a deeper stream (`PictureFormat`).
 //!
 //! A picture is decoded where it is asked for, the call returning once VideoToolbox has answered
 //! it, so a caller that decodes on a queue of its own sees pictures in the order it handed their
@@ -30,6 +31,8 @@ use objc2_core_video::{
     kCVPixelBufferMetalCompatibilityKey, kCVPixelBufferPixelFormatTypeKey,
     kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
     kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+    kCVPixelFormatType_420YpCbCr10BiPlanarFullRange,
+    kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
 };
 use objc2_foundation::{NSDictionary, NSNumber, NSString};
 use objc2_video_toolbox::{
@@ -61,16 +64,16 @@ pub(super) struct Session {
 unsafe impl Send for Session {}
 
 impl Session {
-    /// A session for a stream of `format`, of the kind `choice` accepts, its pictures over the
-    /// whole range of their samples where `full_range`, and over video's range otherwise.
+    /// A session for a stream of `format`, of the kind `choice` accepts, its pictures in
+    /// `pictures`.
     pub(super) fn open(
         format: &Format,
         choice: CodecChoice,
-        full_range: bool,
+        pictures: PictureFormat,
     ) -> Result<Session, DecoderError> {
         let specification = decoder_specification(choice)?;
         let specification = specification.as_deref().map(as_cf_dictionary);
-        let attributes = picture_attributes(full_range);
+        let attributes = picture_attributes(pictures);
         let mut session = ptr::null_mut();
         // SAFETY: a format made above, dictionaries of the keys' own value types, no callback
         // record, since each picture is answered to its own handler, and a valid place for the
@@ -266,10 +269,33 @@ fn decoder_specification(
     }
 }
 
-/// What the session's pictures are asked in: 8-bit 4:2:0 in two planes, over the range the
-/// stream's samples use, so nothing is rescaled, on an `IOSurface` a Metal texture can be made
-/// of.
-fn picture_attributes(full_range: bool) -> Retained<NSDictionary<NSString, AnyObject>> {
+/// The layout a session's pictures are asked in, as deep and over the range as the stream's
+/// samples, so nothing is rescaled: 4:2:0 in two planes, of 8-bit samples for a stream of eight
+/// bits (CoreVideo's `420v` and `420f`, NV12) and of 16-bit ones for a deeper stream, its samples
+/// in their high ten bits (`x420` and `xf20`, P010); over the whole range of their samples where
+/// `full_range`, and over video's range otherwise.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PictureFormat {
+    /// Bits in each of the stream's samples, as it says.
+    pub(super) bit_depth: u8,
+    pub(super) full_range: bool,
+}
+
+impl PictureFormat {
+    /// CoreVideo's pixel format of the layout.
+    fn pixel_format(self) -> u32 {
+        match (self.bit_depth > 8, self.full_range) {
+            (false, false) => kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+            (false, true) => kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+            (true, false) => kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+            (true, true) => kCVPixelFormatType_420YpCbCr10BiPlanarFullRange,
+        }
+    }
+}
+
+/// What the session's pictures are asked in: `pictures`, on an `IOSurface` a Metal texture can be
+/// made of.
+fn picture_attributes(pictures: PictureFormat) -> Retained<NSDictionary<NSString, AnyObject>> {
     // SAFETY: CoreVideo's constants, which it exports for the life of the process.
     let (format_key, surface_key, metal_key) = unsafe {
         (
@@ -278,11 +304,7 @@ fn picture_attributes(full_range: bool) -> Retained<NSDictionary<NSString, AnyOb
             as_ns_string(kCVPixelBufferMetalCompatibilityKey),
         )
     };
-    let format = NSNumber::new_u32(if full_range {
-        kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
-    } else {
-        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-    });
+    let format = NSNumber::new_u32(pictures.pixel_format());
     let surface_properties = NSDictionary::<NSString, AnyObject>::new();
     let metal = NSNumber::new_bool(true);
     NSDictionary::from_slices(
@@ -417,6 +439,12 @@ mod tests {
 
     use super::*;
 
+    /// The H.264 clip's pictures: eight bits to a sample, over video's range.
+    const EIGHT_BITS: PictureFormat = PictureFormat {
+        bit_depth: 8,
+        full_range: false,
+    };
+
     /// The format of the H.264 clip.
     fn h264_format() -> Format {
         Format::h264(&ParameterSets::among(&units_after_start_codes(CLIP))).expect("a format")
@@ -425,7 +453,7 @@ mod tests {
     #[test]
     fn videotoolbox_decodes_each_picture_of_a_stream_into_two_planes() {
         let format = h264_format();
-        let session = Session::open(&format, CodecChoice::Any, false).expect("a session");
+        let session = Session::open(&format, CodecChoice::Any, EIGHT_BITS).expect("a session");
         let pictures = pictures_of_the_clip();
         assert_eq!(pictures.len(), 12);
         for (number, units) in pictures.iter().enumerate() {
@@ -446,9 +474,32 @@ mod tests {
     }
 
     #[test]
+    fn a_deeper_stream_is_asked_in_sixteen_bits_over_its_own_range() {
+        let pixel_format = |bit_depth, full_range| {
+            PictureFormat {
+                bit_depth,
+                full_range,
+            }
+            .pixel_format()
+        };
+        assert_eq!(
+            pixel_format(8, true),
+            kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+        );
+        assert_eq!(
+            pixel_format(10, false),
+            kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+        );
+        assert_eq!(
+            pixel_format(10, true),
+            kCVPixelFormatType_420YpCbCr10BiPlanarFullRange
+        );
+    }
+
+    #[test]
     fn a_chunk_that_is_no_picture_is_bad_data_and_the_session_goes_on() {
         let format = h264_format();
-        let session = Session::open(&format, CodecChoice::Any, false).expect("a session");
+        let session = Session::open(&format, CodecChoice::Any, EIGHT_BITS).expect("a session");
         let damaged = with_lengths([&[0x65, 0xFF, 0xFF, 0xFF][..]]);
         assert!(matches!(
             session.decode(&damaged, 0, None),
@@ -462,7 +513,8 @@ mod tests {
     #[test]
     fn a_session_says_where_it_decodes_and_goes_on_with_the_same_sets() {
         let format = h264_format();
-        let software = Session::open(&format, CodecChoice::Software, false).expect("a session");
+        let software =
+            Session::open(&format, CodecChoice::Software, EIGHT_BITS).expect("a session");
         assert_eq!(software.kind(), CodecKind::Software);
         assert!(software.accepts(&h264_format()));
     }

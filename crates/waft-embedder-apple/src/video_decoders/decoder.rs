@@ -38,7 +38,7 @@ use waft_video_codecs::StreamFacts;
 use waft_video_codecs::presentation_order::PresentationOrder;
 
 use super::output::Output;
-use super::session::{DecodedPicture, Session};
+use super::session::{DecodedPicture, PictureFormat, Session};
 use super::streams::{Description, StreamReader, reader_for};
 use crate::answer::answer;
 use crate::media::CoreVideoFrame;
@@ -77,8 +77,11 @@ impl Work {
             Some((session, _)) if goes_on => session,
             _ => {
                 self.output.put(self.order.all(), self.asked_after_resets);
-                let full_range = self.colour_of(&facts).range == Some(ColorRange::Full);
-                Session::open(&format, self.choice, full_range)?
+                let pictures = PictureFormat {
+                    bit_depth: facts.bit_depth,
+                    full_range: self.colour_of(&facts).range == Some(ColorRange::Full),
+                };
+                Session::open(&format, self.choice, pictures)?
             }
         };
         self.order.set_depth(facts.reorder_depth);

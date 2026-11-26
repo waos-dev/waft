@@ -19,7 +19,7 @@ use crate::hardware_buffers::SurfaceBuffer;
 
 /// One picture of a player, a camera or a decoder on macOS and iOS: the `CVPixelBuffer` the
 /// system handed out, backed by an `IOSurface`: in 32-bit BGRA from a reader, and in the
-/// decoder's own layout, 8-bit 4:2:0 in two planes, from a decoder. Platform code reaches it from the
+/// decoder's own layout, 4:2:0 in two planes (NV12, or P010 for a deeper stream), from a decoder. Platform code reaches it from the
 /// [`VideoFrame`] a reader answers by downcasting through `Any`:
 ///
 /// ```
@@ -67,7 +67,7 @@ impl CoreVideoFrame {
     }
 
     /// The frame of `buffer`, a pixel buffer backed by an `IOSurface` in a decoder's own layout,
-    /// 8-bit 4:2:0 in two planes, as VideoToolbox hands it out, with what its decoder says of
+    /// 4:2:0 in two planes, NV12 or P010, as VideoToolbox hands it out, with what its decoder says of
     /// it.
     pub(crate) fn decoded(
         buffer: CFRetained<CVPixelBuffer>,
