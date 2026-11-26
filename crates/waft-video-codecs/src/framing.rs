@@ -1,13 +1,18 @@
 //! How an H.264 or HEVC stream frames its units: each after its length, of one, two or four
 //! bytes as its configuration record says, as files hold it, or as Annex B, each after a start
-//! code, as broadcasts and cameras send it. A system's decoder takes one of the two, and the host
-//! reframes a chunk into it here.
+//! code, as broadcasts and cameras send it. A system's decoder takes one of the two (VideoToolbox
+//! lengths, MediaCodec and Media Foundation start codes), and the host reframes a chunk into it
+//! here.
 //!
 //! The invariant: what comes out holds exactly the units that went in, in order, each whole.
 
 /// The bytes of the length [`with_lengths`] puts before each unit: four, the size VideoToolbox
 /// and Media Foundation are told.
 pub const LENGTH_SIZE: usize = 4;
+
+/// The start code [`with_start_codes`] puts before each unit: four bytes, as MediaCodec and Media
+/// Foundation are handed them.
+pub const START_CODE: [u8; 4] = [0, 0, 0, 1];
 
 /// How a stream's chunks frame their units.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -82,6 +87,16 @@ pub fn with_lengths<'a>(units: impl IntoIterator<Item = &'a [u8]>) -> Vec<u8> {
     sample
 }
 
+/// `units`, each after a [`START_CODE`]: a stream in Annex B.
+pub fn with_start_codes<'a>(units: impl IntoIterator<Item = &'a [u8]>) -> Vec<u8> {
+    let mut stream = Vec::new();
+    for unit in units {
+        stream.extend_from_slice(&START_CODE);
+        stream.extend_from_slice(unit);
+    }
+    stream
+}
+
 /// `unit` without the zeros that pad it before the next start code: a unit never ends in one.
 fn without_trailing_zeros(unit: &[u8]) -> &[u8] {
     let end = unit
@@ -135,6 +150,16 @@ mod tests {
         assert_eq!(
             units_after_lengths(&sample, LENGTH_SIZE),
             Some(vec![&[0x65, 4, 5][..], &[0x41][..]])
+        );
+    }
+
+    #[test]
+    fn a_stream_in_annex_b_holds_each_unit_after_a_start_code_of_four_bytes() {
+        let stream = with_start_codes([&[0x65, 4, 5][..], &[0x41][..]]);
+        assert_eq!(stream, [0, 0, 0, 1, 0x65, 4, 5, 0, 0, 0, 1, 0x41]);
+        assert_eq!(
+            units_after_start_codes(&stream),
+            [&[0x65, 4, 5][..], &[0x41][..]]
         );
     }
 }
