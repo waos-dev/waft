@@ -31,6 +31,8 @@ pub mod hevc;
 mod ivf;
 pub mod presentation_order;
 pub mod stream_reader;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_decoding;
 pub mod vp9;
 
 use waft_embedder::video_decoders::PictureSize;

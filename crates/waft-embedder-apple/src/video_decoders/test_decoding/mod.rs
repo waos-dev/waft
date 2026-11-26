@@ -13,8 +13,10 @@ use objc2_core_video::CVPixelBufferGetPixelFormatType;
 use pollster::block_on;
 use waft_embedder::VideoFrame;
 use waft_embedder::video_decoders::{
-    CodecChoice, DecodingPurpose, EncodedChunk, VideoDecoder, VideoDecoderOptions,
+    CodecChoice, DecodingPurpose, EncodedChunk, VideoDecoderOptions,
 };
+
+use waft_video_codecs::test_decoding::decoded;
 
 use super::decoder::Decoder;
 use crate::media::CoreVideoFrame;
@@ -69,26 +71,12 @@ pub(super) fn after_start_codes(units: &[&[u8]]) -> Vec<u8> {
 }
 
 /// Hands every one of `chunks` to `decoder`, drains it, and answers the frames that came out, in
-/// the order they came. The chunks are all handed over first, as an app that does not wait for
-/// each does, and the frames read as the decoder puts them out.
+/// the order they came, as [`decoded`] does; a test fails where fewer come out than were handed in.
 pub(super) fn frames_decoded(
     decoder: &Decoder,
     chunks: Vec<EncodedChunk>,
 ) -> Vec<Arc<dyn VideoFrame>> {
-    let count = chunks.len();
-    let decoding: Vec<_> = chunks
-        .into_iter()
-        .map(|chunk| decoder.decode(chunk))
-        .collect();
-    let draining = decoder.drain();
-    let frames = (0..count)
-        .map(|_| block_on(decoder.next_frame()).expect("a frame"))
-        .collect();
-    for decoded in decoding {
-        block_on(decoded).expect("the chunk decodes");
-    }
-    block_on(draining).expect("the decoder drains");
-    frames
+    block_on(decoded(decoder, chunks)).expect("a picture for each chunk")
 }
 
 /// The times of the frames [`frames_decoded`] answers.

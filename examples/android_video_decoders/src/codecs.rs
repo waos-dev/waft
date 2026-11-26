@@ -8,9 +8,10 @@ use waft_embedder::video_decoders::{
 };
 use waft_video_codecs::framing::{units_after_start_codes, with_lengths, with_start_codes};
 use waft_video_codecs::hevc::{self, ParameterSets, is_parameter_set};
+use waft_video_codecs::test_decoding::decoded;
 use waft_video_codecs::{av1, vp9};
 
-use crate::checks::{Report, decoded, in_order, in_pictures, options};
+use crate::checks::{Report, in_order, in_pictures, options};
 use crate::clip::{PICTURE, time_of};
 
 /// When each of the HEVC clips' pictures is shown, in the order they are decoded, counted in
