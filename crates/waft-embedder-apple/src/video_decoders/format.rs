@@ -20,14 +20,15 @@ use objc2_core_media::{
     CMFormatDescription, CMVideoCodecType, CMVideoFormatDescriptionCreate,
     CMVideoFormatDescriptionCreateFromH264ParameterSets,
     CMVideoFormatDescriptionCreateFromHEVCParameterSets,
-    kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, kCMVideoCodecType_VP9,
+    kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, kCMVideoCodecType_AV1,
+    kCMVideoCodecType_VP9,
 };
 use objc2_foundation::{NSData, NSDictionary, NSString};
 use objc2_video_toolbox::kVTVideoDecoderBadDataErr;
 use waft_embedder::video_decoders::{DecoderError, PictureSize};
 
 use waft_video_codecs::framing::LENGTH_SIZE;
-use waft_video_codecs::{h264, hevc, vp9};
+use waft_video_codecs::{av1, h264, hevc, vp9};
 
 use super::session::as_cf_dictionary;
 use crate::media::as_ns_string;
@@ -86,6 +87,22 @@ impl Format {
         of_record(kCMVideoCodecType_VP9, "vpcC", &record.to_bytes(), size).map_err(|status| {
             DecoderError::BadData(format!(
                 "VideoToolbox made no format of the stream's VP9 record ({status})"
+            ))
+        })
+    }
+
+    /// The format of an AV1 stream of `sequence`, its configuration record the one the header
+    /// makes, its pictures of the largest size the header says.
+    pub(super) fn av1(sequence: &av1::SequenceHeader) -> Result<Format, DecoderError> {
+        of_record(
+            kCMVideoCodecType_AV1,
+            "av1C",
+            &sequence.record(),
+            sequence.size(),
+        )
+        .map_err(|status| {
+            DecoderError::BadData(format!(
+                "VideoToolbox made no format of the stream's AV1 sequence header ({status})"
             ))
         })
     }

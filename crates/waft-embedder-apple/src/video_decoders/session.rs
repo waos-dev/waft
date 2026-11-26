@@ -23,7 +23,7 @@ use objc2::runtime::AnyObject;
 use objc2_core_foundation::{CFBoolean, CFDictionary, CFRetained, CFType};
 use objc2_core_media::{
     CMBlockBuffer, CMFormatDescription, CMSampleBuffer, CMSampleTimingInfo, CMTime,
-    kCMBlockBufferAssureMemoryNowFlag, kCMTimeInvalid,
+    CMVideoCodecType, kCMBlockBufferAssureMemoryNowFlag, kCMTimeInvalid,
 };
 use objc2_core_video::{
     CVImageBuffer, CVPixelBuffer, kCVPixelBufferIOSurfacePropertiesKey,
@@ -33,8 +33,8 @@ use objc2_core_video::{
 };
 use objc2_foundation::{NSDictionary, NSNumber, NSString};
 use objc2_video_toolbox::{
-    VTDecodeFrameFlags, VTDecodeInfoFlags, VTDecompressionSession, VTSessionCopyProperty,
-    kVTCouldNotFindVideoDecoderErr,
+    VTDecodeFrameFlags, VTDecodeInfoFlags, VTDecompressionSession, VTIsHardwareDecodeSupported,
+    VTSessionCopyProperty, kVTCouldNotFindVideoDecoderErr,
     kVTDecompressionPropertyKey_UsingHardwareAcceleratedVideoDecoder, kVTInvalidSessionErr,
     kVTVideoDecoderBadDataErr, kVTVideoDecoderNotAvailableNowErr,
     kVTVideoDecoderReferenceMissingErr, kVTVideoDecoderUnsupportedDataFormatErr,
@@ -183,10 +183,18 @@ impl Drop for Session {
     }
 }
 
+/// Whether the system decodes `codec` in hardware at all, as VideoToolbox says; not whether every
+/// profile or size of it is, nor that the hardware is free now.
+pub(super) fn has_hardware_decoder(codec: CMVideoCodecType) -> bool {
+    // SAFETY: a plain call with one of CoreMedia's codec types.
+    unsafe { VTIsHardwareDecodeSupported(codec) }
+}
+
 /// Asks VideoToolbox for its VP9 decoder, which macOS (from macOS 11) adds only for an app that
-/// asks, before any VP9 session is made; once is enough for the process. iOS has it only from
-/// iOS 26.2, later than the systems Waft runs on, so there it is not asked for and VideoToolbox
-/// has none.
+/// asks, before any VP9 session is made; once is enough for the process. iOS has the call only
+/// from iOS 26.2, later than an app's lowest system (`waft-cli`'s `minimum_version`, 15.0 unless
+/// set), where linking it would keep the app from starting, so there it is not asked for and
+/// VideoToolbox has no VP9 decoder.
 pub(super) fn add_vp9_decoder() {
     #[cfg(target_os = "macos")]
     {

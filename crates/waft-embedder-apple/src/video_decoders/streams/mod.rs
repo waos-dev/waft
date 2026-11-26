@@ -8,6 +8,7 @@
 //! have said, and it says a chunk changed it exactly when the format a session was made for may
 //! no longer be the stream's.
 
+mod av1;
 mod h264;
 mod hevc;
 mod vp9;
@@ -52,10 +53,10 @@ pub(super) fn reader_for(setup: VideoStreamSetup) -> Result<Box<dyn StreamReader
         VideoStreamSetup::H264(format) => Ok(Box::new(h264::H264Stream::of(format)?)),
         VideoStreamSetup::Hevc(format) => Ok(Box::new(hevc::HevcStream::of(format)?)),
         VideoStreamSetup::Vp9(record) => Ok(Box::new(vp9::Vp9Stream::of(record)?)),
-        other => Err(DecoderError::Unsupported(format!(
-            "this system's decoders are handed H.264, HEVC and VP9 alone so far, not {:?}",
-            other.codec()
-        ))),
+        VideoStreamSetup::Av1(record) => Ok(Box::new(av1::Av1Stream::of(record)?)),
+        VideoStreamSetup::Vp8 => Err(DecoderError::Unsupported(
+            "VideoToolbox has no VP8 decoder".to_owned(),
+        )),
     }
 }
 
