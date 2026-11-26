@@ -4267,6 +4267,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "scuffle-av1"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "028eddc8b17fe9dba817b238c56d3acf03748bdbed4c35783cfb93857ef15955"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "scuffle-bytes-util",
+ "scuffle-workspace-hack",
+]
+
+[[package]]
 name = "scuffle-bytes-util"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5868,6 +5880,7 @@ name = "waft-video-codecs"
 version = "0.13.0"
 dependencies = [
  "h264-reader",
+ "scuffle-av1",
  "scuffle-bytes-util",
  "scuffle-expgolomb",
  "scuffle-h265",
