@@ -24,8 +24,8 @@ use std::sync::Arc;
 use windows::Win32::Foundation::LUID;
 
 use waft_embedder::video_decoders::{
-    VideoDecodeSupport, VideoDecoder, VideoDecoderOpenFuture, VideoDecoderOptions, VideoDecoders,
-    VideoStreamDescription, VideoStreamSetup,
+    VideoDecodeSupport, VideoDecodeSupportFuture, VideoDecoder, VideoDecoderOpenFuture,
+    VideoDecoderOptions, VideoDecoders, VideoStreamDescription, VideoStreamSetup,
 };
 
 use decoder::{Decoder, MediaFoundation};
@@ -50,13 +50,13 @@ impl VideoDecoders for MediaFoundationDecoders {
     /// it runs, so a codec is unknown until tried where the system has its decoder: H.264's and
     /// VP9's are the system's own, and HEVC's and AV1's are there where their decoders enumerate,
     /// with Microsoft's Store extensions. VP8 is not handed to it.
-    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupport {
+    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupportFuture {
         let _started = MediaFoundation::start();
         let support = transform::support_of(description.codec);
-        VideoDecodeSupport {
+        Box::pin(ready(VideoDecodeSupport {
             hardware: support,
             software: support,
-        }
+        }))
     }
 
     fn open(
@@ -504,7 +504,7 @@ mod tests {
             VideoCodec::Av1,
             VideoCodec::Vp8,
         ] {
-            let support = decoders.support(&VideoStreamDescription {
+            let support = block_on(decoders.support(&VideoStreamDescription {
                 codec,
                 profile: None,
                 level: None,
@@ -515,7 +515,7 @@ mod tests {
                     height: 240,
                 },
                 frame_rate: None,
-            });
+            }));
             eprintln!("{codec:?}: {support:?}");
             assert_eq!(support.hardware, support.software);
             if matches!(codec, VideoCodec::H264 | VideoCodec::Vp9) {

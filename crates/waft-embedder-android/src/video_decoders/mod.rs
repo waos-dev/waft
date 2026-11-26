@@ -37,8 +37,9 @@ use std::sync::Arc;
 
 #[cfg(target_os = "android")]
 use waft_embedder::video_decoders::{
-    DecodeSupport, VideoCodec, VideoDecodeSupport, VideoDecoder, VideoDecoderOpenFuture,
-    VideoDecoderOptions, VideoDecoders, VideoStreamDescription, VideoStreamSetup,
+    DecodeSupport, VideoCodec, VideoDecodeSupport, VideoDecodeSupportFuture, VideoDecoder,
+    VideoDecoderOpenFuture, VideoDecoderOptions, VideoDecoders, VideoStreamDescription,
+    VideoStreamSetup,
 };
 
 #[cfg(target_os = "android")]
@@ -52,17 +53,17 @@ pub(crate) struct MediaCodecDecoders;
 impl VideoDecoders for MediaCodecDecoders {
     /// The NDK says nothing of the system's codecs before one is made, so every codec handed to
     /// MediaCodec is unknown until tried, and VP8, which is not handed to it, is not decoded.
-    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupport {
+    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupportFuture {
         let support = match description.codec {
             VideoCodec::H264 | VideoCodec::Hevc | VideoCodec::Vp9 | VideoCodec::Av1 => {
                 DecodeSupport::Unknown
             }
             VideoCodec::Vp8 => DecodeSupport::No,
         };
-        VideoDecodeSupport {
+        Box::pin(std::future::ready(VideoDecodeSupport {
             hardware: support,
             software: support,
-        }
+        }))
     }
 
     fn open(

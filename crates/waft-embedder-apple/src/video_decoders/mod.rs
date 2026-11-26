@@ -25,8 +25,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use waft_embedder::video_decoders::{
-    DecodeSupport, VideoCodec, VideoDecodeSupport, VideoDecoder, VideoDecoderOpenFuture,
-    VideoDecoderOptions, VideoDecoders, VideoStreamDescription, VideoStreamSetup,
+    DecodeSupport, VideoCodec, VideoDecodeSupport, VideoDecodeSupportFuture, VideoDecoder,
+    VideoDecoderOpenFuture, VideoDecoderOptions, VideoDecoders, VideoStreamDescription,
+    VideoStreamSetup,
 };
 
 use objc2_core_media::{
@@ -45,28 +46,9 @@ pub fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
 struct VideoToolboxDecoders;
 
 impl VideoDecoders for VideoToolboxDecoders {
-    /// What VideoToolbox says: whether the system decodes the codec in hardware at all, which
-    /// leaves a profile or a size unknown until a decoder is opened; and nothing of software
-    /// decoders on macOS, whose VideoToolbox lists none. iOS opens no software decoder, and
-    /// VideoToolbox has none of VP8.
-    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupport {
-        let Some(codec) = codec_type(description.codec) else {
-            return VideoDecodeSupport {
-                hardware: DecodeSupport::No,
-                software: DecodeSupport::No,
-            };
-        };
-        if description.codec == VideoCodec::Vp9 {
-            add_vp9_decoder();
-        }
-        VideoDecodeSupport {
-            hardware: if has_hardware_decoder(codec) {
-                DecodeSupport::Unknown
-            } else {
-                DecodeSupport::No
-            },
-            software: SOFTWARE_SUPPORT,
-        }
+    /// Answered at once, as VideoToolbox says (`support_of`).
+    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupportFuture {
+        Box::pin(ready(support_of(description.codec)))
     }
 
     fn open(
@@ -77,6 +59,30 @@ impl VideoDecoders for VideoToolboxDecoders {
         let opened = Decoder::open(setup, &options)
             .map(|decoder| Arc::new(decoder) as Arc<dyn VideoDecoder>);
         Box::pin(ready(opened))
+    }
+}
+
+/// What VideoToolbox says of `codec`: whether the system decodes the codec in hardware at all,
+/// which leaves a profile or a size unknown until a decoder is opened; and nothing of software
+/// decoders on macOS, whose VideoToolbox lists none. iOS opens no software decoder, and
+/// VideoToolbox has none of VP8.
+fn support_of(codec: VideoCodec) -> VideoDecodeSupport {
+    let Some(codec_type) = codec_type(codec) else {
+        return VideoDecodeSupport {
+            hardware: DecodeSupport::No,
+            software: DecodeSupport::No,
+        };
+    };
+    if codec == VideoCodec::Vp9 {
+        add_vp9_decoder();
+    }
+    VideoDecodeSupport {
+        hardware: if has_hardware_decoder(codec_type) {
+            DecodeSupport::Unknown
+        } else {
+            DecodeSupport::No
+        },
+        software: SOFTWARE_SUPPORT,
     }
 }
 
@@ -100,6 +106,7 @@ fn codec_type(codec: VideoCodec) -> Option<CMVideoCodecType> {
 
 #[cfg(test)]
 mod tests {
+    use pollster::block_on;
     use waft_embedder::video_decoders::{ChromaSampling, PictureSize};
 
     use super::*;
@@ -129,13 +136,13 @@ mod tests {
             VideoCodec::Vp9,
             VideoCodec::Av1,
         ] {
-            let support = VideoToolboxDecoders.support(&description(codec));
+            let support = block_on(VideoToolboxDecoders.support(&description(codec)));
             eprintln!("{codec:?}: {support:?}");
             let in_hardware = has_hardware_decoder(codec_type(codec).expect("a codec type"));
             assert_eq!(support.hardware == DecodeSupport::Unknown, in_hardware);
             assert_eq!(support.software, SOFTWARE_SUPPORT);
         }
-        let vp8 = VideoToolboxDecoders.support(&description(VideoCodec::Vp8));
+        let vp8 = block_on(VideoToolboxDecoders.support(&description(VideoCodec::Vp8)));
         assert_eq!(
             (vp8.hardware, vp8.software),
             (DecodeSupport::No, DecodeSupport::No)

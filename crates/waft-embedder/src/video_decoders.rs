@@ -31,8 +31,11 @@ use crate::VideoFrame;
 /// [`SystemGpu::video_decoders`](crate::SystemGpu::video_decoders) where the system decodes no
 /// video for the app.
 pub trait VideoDecoders {
-    /// What the system can tell, without trying, about decoding a stream like `description`.
-    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupport;
+    /// What the system can tell, without trying, about decoding a stream like `description`. It
+    /// is answered later, as the WIT's `support` and WebCodecs' `isConfigSupported` are, so a host
+    /// that asks a system which answers later (a browser's) can serve it; a host that knows at
+    /// once answers with a ready future.
+    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupportFuture;
 
     /// A decoder for the stream `setup` begins: [`DecoderError::Unsupported`] where the system
     /// has none of the kind chosen for it, [`DecoderError::Busy`] where every such decoder is in
@@ -259,6 +262,9 @@ pub enum DecoderError {
     /// The system's decoder failed.
     Failed(String),
 }
+
+/// What [`VideoDecoders::support`] answers, once the system has told.
+pub type VideoDecodeSupportFuture = Pin<Box<dyn Future<Output = VideoDecodeSupport>>>;
 
 pub type VideoDecoderOpenFuture =
     Pin<Box<dyn Future<Output = Result<Arc<dyn VideoDecoder>, DecoderError>>>>;

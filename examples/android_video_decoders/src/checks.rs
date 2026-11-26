@@ -58,7 +58,7 @@ impl Report {
 /// Every check, in order.
 pub(crate) async fn all(decoders: &dyn VideoDecoders) -> Vec<Report> {
     vec![
-        support(decoders),
+        support(decoders).await,
         in_order_shown(decoders, CodecChoice::Any).await,
         in_order_shown(decoders, CodecChoice::Software).await,
         times_carried(decoders).await,
@@ -94,7 +94,7 @@ pub(crate) fn in_order() -> Vec<Option<i64>> {
     (0..12).map(|number| Some(time_of(number))).collect()
 }
 
-fn support(decoders: &dyn VideoDecoders) -> Report {
+async fn support(decoders: &dyn VideoDecoders) -> Report {
     let mut report = Report::new("support");
     let description = |codec| VideoStreamDescription {
         codec,
@@ -114,14 +114,14 @@ fn support(decoders: &dyn VideoDecoders) -> Report {
         VideoCodec::Vp9,
         VideoCodec::Av1,
     ] {
-        let support = decoders.support(&description(codec));
+        let support = decoders.support(&description(codec)).await;
         report.expect(
             support.hardware == DecodeSupport::Unknown
                 && support.software == DecodeSupport::Unknown,
             format!("{codec:?} is unknown until tried: {support:?}"),
         );
     }
-    let vp8 = decoders.support(&description(VideoCodec::Vp8));
+    let vp8 = decoders.support(&description(VideoCodec::Vp8)).await;
     report.expect(
         vp8.hardware == DecodeSupport::No && vp8.software == DecodeSupport::No,
         format!("VP8 is not handed to MediaCodec: {vp8:?}"),

@@ -22,9 +22,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use waft_embedder::video_decoders::{
-    CodecChoice, DecodeSupport, DecoderError, VideoCodec, VideoDecodeSupport, VideoDecoder,
-    VideoDecoderOpenFuture, VideoDecoderOptions, VideoDecoders, VideoStreamDescription,
-    VideoStreamSetup,
+    CodecChoice, DecodeSupport, DecoderError, VideoCodec, VideoDecodeSupport,
+    VideoDecodeSupportFuture, VideoDecoder, VideoDecoderOpenFuture, VideoDecoderOptions,
+    VideoDecoders, VideoStreamDescription, VideoStreamSetup,
 };
 
 /// VA-API's decoder of each codec GStreamer is handed, on the video hardware, after the parser it
@@ -114,7 +114,7 @@ impl VideoDecoders for GStreamerDecoders {
     /// GStreamer's registry tells which decoders there are, not which profiles the video
     /// hardware takes, so the hardware is unknown until tried; libav decodes every H.264 and VP9
     /// profile and dav1d every AV1 profile, and the others are unknown until tried.
-    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupport {
+    fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupportFuture {
         let codec = description.codec;
         let hardware = match self.hardware(codec) {
             Some(_) => DecodeSupport::Unknown,
@@ -125,7 +125,7 @@ impl VideoDecoders for GStreamerDecoders {
             Some(_) => DecodeSupport::Unknown,
             None => DecodeSupport::No,
         };
-        VideoDecodeSupport { hardware, software }
+        Box::pin(ready(VideoDecodeSupport { hardware, software }))
     }
 
     /// A decoder on the first path that starts: the video hardware's, where one is there and
@@ -205,7 +205,7 @@ mod tests {
     #[ignore = "needs GStreamer with gst-libav and a render node: cargo test -- --ignored"]
     fn libav_decodes_h264_on_the_processor_and_the_registry_tells_the_hardware() {
         let decoders = video_decoders().expect("GStreamer");
-        let support = decoders.support(&description(VideoCodec::H264));
+        let support = block_on(decoders.support(&description(VideoCodec::H264)));
         assert_eq!(support.software, DecodeSupport::Yes);
         let hardware = match Gst::get().expect("GStreamer").has_element("vah264dec") {
             true => DecodeSupport::Unknown,
@@ -218,7 +218,7 @@ mod tests {
     #[ignore = "needs GStreamer with gst-libav and a render node: cargo test -- --ignored"]
     fn a_codec_gstreamer_is_not_handed_is_not_supported_or_opened() {
         let decoders = video_decoders().expect("GStreamer");
-        let support = decoders.support(&description(VideoCodec::Vp8));
+        let support = block_on(decoders.support(&description(VideoCodec::Vp8)));
         assert_eq!(support.software, DecodeSupport::No);
         assert_eq!(support.hardware, DecodeSupport::No);
         let opened = block_on(decoders.open(VideoStreamSetup::Vp8, options(CodecChoice::Any)));
