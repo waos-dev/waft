@@ -4,7 +4,8 @@
 //! must know of the stream first is read here, once for all of them, as Chromium's and Firefox's
 //! media layers read a stream before their platform decoders see it.
 //!
-//! Each codec is a module of its own (`h264`) that answers the same questions of its stream:
+//! Each codec is a module of its own (`h264`, `hevc`) that answers the same questions of its
+//! stream:
 //! - its setup, read from what [`VideoStreamSetup`](waft_embedder::video_decoders::VideoStreamSetup)
 //!   carries: how its chunks frame their units ([`framing::Framing`]) and the parameter sets or
 //!   configuration it gives ahead;
@@ -22,6 +23,7 @@
 
 pub mod framing;
 pub mod h264;
+pub mod hevc;
 pub mod presentation_order;
 
 use waft_embedder::video_decoders::PictureSize;
