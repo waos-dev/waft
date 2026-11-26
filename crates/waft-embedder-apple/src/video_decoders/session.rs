@@ -183,6 +183,25 @@ impl Drop for Session {
     }
 }
 
+/// Asks VideoToolbox for its VP9 decoder, which macOS (from macOS 11) adds only for an app that
+/// asks, before any VP9 session is made; once is enough for the process. iOS has it only from
+/// iOS 26.2, later than the systems Waft runs on, so there it is not asked for and VideoToolbox
+/// has none.
+pub(super) fn add_vp9_decoder() {
+    #[cfg(target_os = "macos")]
+    {
+        static ADDED: std::sync::Once = std::sync::Once::new();
+        ADDED.call_once(|| {
+            // SAFETY: a plain call with one of CoreMedia's codec types.
+            unsafe {
+                objc2_video_toolbox::VTRegisterSupplementalVideoDecoderIfAvailable(
+                    objc2_core_media::kCMVideoCodecType_VP9,
+                );
+            }
+        });
+    }
+}
+
 /// A picture VideoToolbox decoded: a pixel buffer on an `IOSurface`.
 pub(super) struct DecodedPicture(pub(super) CFRetained<CVPixelBuffer>);
 
@@ -269,7 +288,7 @@ fn picture_attributes(full_range: bool) -> Retained<NSDictionary<NSString, AnyOb
 }
 
 /// An `NSDictionary` as the `CFDictionary` it is toll-free bridged to.
-fn as_cf_dictionary(dictionary: &NSDictionary<NSString, AnyObject>) -> &CFDictionary {
+pub(super) fn as_cf_dictionary(dictionary: &NSDictionary<NSString, AnyObject>) -> &CFDictionary {
     let pointer: *const NSDictionary<NSString, AnyObject> = dictionary;
     // SAFETY: an NSDictionary is a CFDictionary.
     unsafe { &*pointer.cast::<CFDictionary>() }

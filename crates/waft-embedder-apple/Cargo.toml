@@ -56,8 +56,9 @@ objc2-av-foundation = { version = "0.3", default-features = false, features = ["
 objc2-core-media = { version = "0.3", default-features = false, features = ["std", "objc2", "objc2-core-video", "CMBase", "CMBlockBuffer", "CMFormatDescription", "CMSampleBuffer", "CMSync", "CMTextMarkup", "CMTime"] }
 objc2-core-video = { version = "0.3", default-features = false, features = ["std", "objc2", "objc2-io-surface", "CVBase", "CVBuffer", "CVImageBuffer", "CVPixelBuffer", "CVPixelBufferIOSurface", "CVReturn"] }
 # The system's video decoders: VideoToolbox's decompression sessions, fed sample buffers made of
-# an app's chunks, and what the stream says of itself, read the same as on every system.
-objc2-video-toolbox = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "objc2", "objc2-core-media", "objc2-core-video", "VTDecompressionSession", "VTDecompressionProperties", "VTErrors", "VTSession"] }
+# an app's chunks, the decoders it adds on request (VP9's on macOS), and what the stream says of
+# itself, read the same as on every system.
+objc2-video-toolbox = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "objc2", "objc2-core-media", "objc2-core-video", "VTDecompressionSession", "VTDecompressionProperties", "VTErrors", "VTSession", "VTUtilities"] }
 waft-video-codecs.workspace = true
 # The user's caption style, its colours matched to sRGB above, and the family of the font it names.
 objc2-media-accessibility = { version = "0.3", default-features = false, features = ["std", "MACaptionAppearance", "objc2-core-graphics", "objc2-core-text"] }

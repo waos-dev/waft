@@ -5,12 +5,13 @@
 //! the queue works on (`Work`) is the stream as far as it is known (its codec's reader,
 //! `streams`), the session made for it, and the pictures decoded and not yet shown.
 //!
-//! What a session is made for (a stream's format: H.264's and HEVC's parameter sets) may come
-//! ahead, in its setup, or in its chunks, and may change. A session is made once the stream's
-//! reader has a whole description, and made again when VideoToolbox does not go on with a new
-//! one; the pictures still held then are shown first, as they come before the change.
-//! VideoToolbox's pool grows as frames are held, so the decoder holds itself back: it decodes no
-//! more while as many frames as the app said it holds at once wait to be read.
+//! What a session is made for (a stream's format: H.264's and HEVC's parameter sets, VP9's
+//! record and the size its key frame says) may come ahead, in its setup, or in its chunks, and
+//! may change. A session is made once the stream's reader has a whole description, and made
+//! again when VideoToolbox does not go on with a new one; the pictures still held then are shown
+//! first, as they come before the change. VideoToolbox's pool grows as frames are held, so the
+//! decoder holds itself back: it decodes no more while as many frames as the app said it holds
+//! at once wait to be read.
 //!
 //! A reset drops what the decoder holds at the moment the app asks, though chunks handed over
 //! before it may still wait on the queue, or be decoding: each carries the count of resets it
@@ -395,7 +396,7 @@ mod tests {
     #[test]
     fn a_codec_videotoolbox_is_not_handed_yet_is_unsupported() {
         assert!(matches!(
-            Decoder::open(VideoStreamSetup::Vp9(None), &options()),
+            Decoder::open(VideoStreamSetup::Vp8, &options()),
             Err(DecoderError::Unsupported(_))
         ));
     }

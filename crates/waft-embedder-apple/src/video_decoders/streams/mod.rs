@@ -10,6 +10,7 @@
 
 mod h264;
 mod hevc;
+mod vp9;
 
 use waft_embedder::video_decoders::{DecoderError, VideoStreamSetup};
 use waft_video_codecs::StreamFacts;
@@ -50,8 +51,9 @@ pub(super) fn reader_for(setup: VideoStreamSetup) -> Result<Box<dyn StreamReader
     match setup {
         VideoStreamSetup::H264(format) => Ok(Box::new(h264::H264Stream::of(format)?)),
         VideoStreamSetup::Hevc(format) => Ok(Box::new(hevc::HevcStream::of(format)?)),
+        VideoStreamSetup::Vp9(record) => Ok(Box::new(vp9::Vp9Stream::of(record)?)),
         other => Err(DecoderError::Unsupported(format!(
-            "this system's decoders are handed H.264 and HEVC alone so far, not {:?}",
+            "this system's decoders are handed H.264, HEVC and VP9 alone so far, not {:?}",
             other.codec()
         ))),
     }
