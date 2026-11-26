@@ -398,7 +398,12 @@ mod tests {
             .into_iter()
             .map(|chunk| decoder.decode(chunk))
             .collect();
-        // The thread decodes until two frames wait, then stops: nothing reads them.
+        // The thread decodes until two frames wait, however long that takes on this machine, then
+        // stops: nothing reads them.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while decoder.output.waiting() < 2 && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         std::thread::sleep(Duration::from_millis(200));
         assert_eq!(decoder.output.waiting(), 2);
         drop(decoder);
