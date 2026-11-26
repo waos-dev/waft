@@ -249,8 +249,21 @@ fn description(path: Path) -> String {
             elements.join(" ! ")
         ),
         Path::Software(decoder) => format!(
-            "appsrc name=chunks format=time ! {decoder} ! videoconvert ! \
-             video/x-raw,format=BGRA ! appsink name=frames sync=false"
+            "appsrc name=chunks format=time ! {} ! videoconvert ! \
+             video/x-raw,format=BGRA ! appsink name=frames sync=false",
+            software_element(decoder)
         ),
+    }
+}
+
+/// A processor decoder as GStreamer's launch syntax configures it.
+///
+/// `avdec_vp9` runs on one thread because `gst-libav` before 1.24.4 discards pending frames whose
+/// worker thread has not yet called `get_buffer2` as ghost frames when draining at end of stream
+/// (fixed upstream in GStreamer MR !6842).
+fn software_element(decoder: &'static str) -> &'static str {
+    match decoder {
+        "avdec_vp9" => "avdec_vp9 max-threads=1",
+        other => other,
     }
 }

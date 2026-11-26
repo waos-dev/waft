@@ -2,8 +2,8 @@
 //!
 //! A stream goes through a pipeline of GStreamer's: the chunks pushed into its source, decoded by
 //! the system's decoder of its codec, VA-API's on the video hardware (`vah264dec`, `vah265dec`,
-//! `vavp9dec` and `vaav1dec`, the last two after their parsers) and libav's, OpenH264's or dav1d's
-//! on the processor, and pulled out of
+//! `vavp9dec` and `vaav1dec`, the last two after their parsers) and libav's, OpenH264's, libvpx's
+//! or dav1d's on the processor, and pulled out of
 //! its sink as pictures (`pipeline`). GStreamer's decoders read the stream themselves, as its caps
 //! say it is framed, so nothing of `waft-video-codecs` is asked here. GStreamer's
 //! decoders put pictures out in the order they are shown, which is the stream's own; each picture
@@ -40,21 +40,22 @@ fn hardware_decoder(codec: VideoCodec) -> Option<&'static [&'static str]> {
 }
 
 /// The decoders of each codec on the processor, the first the registry has taken: libav's for
-/// H.264, HEVC and VP9, then OpenH264's, which decodes H.264's constrained baseline alone; dav1d's
+/// H.264 and HEVC, then OpenH264's, which decodes H.264's constrained baseline alone; libvpx's
+/// `vp9dec` for VP9 (GStreamer's primary software decoder, ahead of libav's `avdec_vp9`); dav1d's
 /// for AV1, of which gst-libav makes no decoder.
 fn software_decoders(codec: VideoCodec) -> &'static [&'static str] {
     match codec {
         VideoCodec::H264 => &["avdec_h264", "openh264dec"],
         VideoCodec::Hevc => &["avdec_h265"],
-        VideoCodec::Vp9 => &["avdec_vp9"],
+        VideoCodec::Vp9 => &["vp9dec", "avdec_vp9"],
         VideoCodec::Av1 => &["dav1ddec"],
         VideoCodec::Vp8 => &[],
     }
 }
 
 /// The decoders on the processor that decode every profile of their codec: libav's of H.264
-/// and VP9, and dav1d.
-const EVERY_PROFILE: [&str; 3] = ["avdec_h264", "avdec_vp9", "dav1ddec"];
+/// and VP9, libvpx's of VP9, and dav1d.
+const EVERY_PROFILE: [&str; 4] = ["avdec_h264", "vp9dec", "avdec_vp9", "dav1ddec"];
 
 use super::gstreamer::Gst;
 use decoder::Decoder;
@@ -113,7 +114,8 @@ impl GStreamerDecoders {
 impl VideoDecoders for GStreamerDecoders {
     /// GStreamer's registry tells which decoders there are, not which profiles the video
     /// hardware takes, so the hardware is unknown until tried; libav decodes every H.264 and VP9
-    /// profile and dav1d every AV1 profile, and the others are unknown until tried.
+    /// profile, libvpx every VP9 profile, and dav1d every AV1 profile, and the others are unknown
+    /// until tried.
     fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupportFuture {
         let codec = description.codec;
         let hardware = match self.hardware(codec) {
@@ -371,6 +373,50 @@ mod tests {
             VideoStreamSetup::Vp9(None),
             chunks_of(data, &SHOWN_AS_DECODED),
         );
+    }
+
+    #[test]
+    #[ignore = "needs GStreamer with gst-libav and a render node: cargo test -- --ignored"]
+    fn avdec_vp9_decodes_a_vp9_stream_in_order_when_draining() {
+        let gst = Gst::get().expect("GStreamer");
+        if !gst.has_element("avdec_vp9") {
+            return;
+        }
+        let pool = FramePool::new().map(Arc::new);
+        let decoder = Decoder::open(
+            gst,
+            Path::Software("avdec_vp9"),
+            pool,
+            VideoStreamSetup::Vp9(None),
+            &options(CodecChoice::Software),
+        )
+        .expect("avdec_vp9 decoder");
+        let data = vp9::test_clip::chunks_of_the_clip()
+            .into_iter()
+            .map(<[u8]>::to_vec)
+            .collect();
+        let chunks = chunks_of(data, &SHOWN_AS_DECODED);
+        let count = chunks.len();
+        let decoding: Vec<_> = chunks
+            .into_iter()
+            .map(|chunk| decoder.decode(chunk))
+            .collect();
+        let draining = decoder.drain();
+        let frames: Vec<_> = (0..count)
+            .map(|_| block_on(decoder.next_frame()).expect("a frame"))
+            .collect();
+        for decoded in decoding {
+            block_on(decoded).expect("the chunk decodes");
+        }
+        block_on(draining).expect("the decoder drains");
+        let times: Vec<_> = frames.iter().map(|frame| frame.timestamp()).collect();
+        let in_order: Vec<_> = (0..count as i64)
+            .map(|number| Some(time_of(number)))
+            .collect();
+        assert_eq!(times, in_order);
+        for frame in &frames {
+            assert_eq!((frame.width(), frame.height()), (320, 240));
+        }
     }
 
     #[test]
