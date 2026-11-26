@@ -197,10 +197,8 @@ impl Work {
     fn after(&mut self, result: &Result<(), DecoderError>) {
         match result {
             Err(DecoderError::BadData(_)) => self.key_frame_due = true,
-            Err(reason @ (DecoderError::Lost | DecoderError::Failed(_))) => {
-                self.output.end(reason.clone());
-            }
-            _ => {}
+            Err(reason) => self.output.end(reason.clone()),
+            Ok(()) => {}
         }
     }
 }

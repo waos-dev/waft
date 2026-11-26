@@ -138,10 +138,13 @@ impl Work {
         Ok(())
     }
 
-    /// The decoder ended by itself where `result` says it cannot go on: its session goes, and
-    /// the app is told why beside its frames.
+    /// The decoder ended by itself where `result` says it cannot go on, any refusal but a damaged
+    /// chunk's (as a stream whose first chunk finds VideoToolbox has no decoder for it): its
+    /// session goes, and the app is told why beside its frames.
     fn end_if_it_cannot_go_on(&mut self, result: &Result<(), DecoderError>) {
-        if let Err(reason @ (DecoderError::Lost | DecoderError::Failed(_))) = result {
+        if let Err(reason) = result
+            && !matches!(reason, DecoderError::BadData(_))
+        {
             self.session = None;
             self.output.end(reason.clone());
         }

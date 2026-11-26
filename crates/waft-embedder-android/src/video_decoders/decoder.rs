@@ -303,13 +303,13 @@ impl Work {
     fn after(&mut self, result: &Result<(), DecoderError>) {
         match result {
             Err(DecoderError::BadData(_)) => self.key_due = true,
-            Err(reason @ (DecoderError::Lost | DecoderError::Failed(_))) => {
+            Err(reason) => {
                 self.codec = None;
                 self.pending.clear();
                 self.ended = Some(reason.clone());
                 self.output.end(reason.clone());
             }
-            _ => {}
+            Ok(()) => {}
         }
     }
 
