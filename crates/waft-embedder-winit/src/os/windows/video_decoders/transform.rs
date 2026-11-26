@@ -35,13 +35,14 @@ use windows::Win32::Media::MediaFoundation::{
     MF_MT_MPEG2_PROFILE, MF_MT_PIXEL_ASPECT_RATIO, MF_MT_SUBTYPE, MF_MT_TRANSFER_FUNCTION,
     MF_MT_VIDEO_NOMINAL_RANGE, MF_MT_VIDEO_PRIMARIES, MF_MT_YUV_MATRIX, MF_SA_D3D11_AWARE,
     MFCreateDXGIDeviceManager, MFCreateMediaType, MFCreateMemoryBuffer, MFCreateSample,
-    MFMediaType_Video, MFSampleExtension_CleanPoint, MFT_CATEGORY_VIDEO_DECODER,
-    MFT_ENUM_FLAG_LOCALMFT, MFT_ENUM_FLAG_SORTANDFILTER, MFT_ENUM_FLAG_SYNCMFT,
-    MFT_MESSAGE_COMMAND_DRAIN, MFT_MESSAGE_COMMAND_FLUSH, MFT_MESSAGE_NOTIFY_BEGIN_STREAMING,
-    MFT_MESSAGE_NOTIFY_START_OF_STREAM, MFT_MESSAGE_SET_D3D_MANAGER, MFT_OUTPUT_DATA_BUFFER,
-    MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES, MFT_OUTPUT_STREAM_PROVIDES_SAMPLES,
-    MFT_REGISTER_TYPE_INFO, MFTEnumEx, MFVideoArea, MFVideoFormat_AV1, MFVideoFormat_H264,
-    MFVideoFormat_HEVC, MFVideoFormat_NV12, MFVideoFormat_P010, MFVideoFormat_VP90,
+    MFMediaType_Video, MFSampleExtension_CleanPoint, MFSampleExtension_DecodeTimestamp,
+    MFT_CATEGORY_VIDEO_DECODER, MFT_ENUM_FLAG_LOCALMFT, MFT_ENUM_FLAG_SORTANDFILTER,
+    MFT_ENUM_FLAG_SYNCMFT, MFT_MESSAGE_COMMAND_DRAIN, MFT_MESSAGE_COMMAND_FLUSH,
+    MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, MFT_MESSAGE_NOTIFY_START_OF_STREAM,
+    MFT_MESSAGE_SET_D3D_MANAGER, MFT_OUTPUT_DATA_BUFFER, MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES,
+    MFT_OUTPUT_STREAM_PROVIDES_SAMPLES, MFT_REGISTER_TYPE_INFO, MFTEnumEx, MFVideoArea,
+    MFVideoFormat_AV1, MFVideoFormat_H264, MFVideoFormat_HEVC, MFVideoFormat_NV12,
+    MFVideoFormat_P010, MFVideoFormat_VP90,
 };
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance, CoTaskMemFree};
 use windows::core::{GUID, Interface as _};
@@ -700,6 +701,12 @@ fn input_sample(data: &[u8], number: i64, key_frame: bool) -> Result<IMFSample, 
         let sample = MFCreateSample().map_err(failed)?;
         sample.AddBuffer(&buffer).map_err(failed)?;
         sample.SetSampleTime(number).map_err(failed)?;
+        // Without a decode timestamp, Microsoft's HEVC decoder takes sample times that do not rise
+        // in presentation order as decode times and reassigns them across outputs instead of
+        // carrying each sample's number with its picture.
+        sample
+            .SetUINT64(&MFSampleExtension_DecodeTimestamp, number as u64)
+            .map_err(failed)?;
         if key_frame {
             sample
                 .SetUINT32(&MFSampleExtension_CleanPoint, 1)
