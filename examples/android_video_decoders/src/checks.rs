@@ -393,20 +393,49 @@ pub(crate) async fn decoded(
         .into_iter()
         .map(|chunk| decoder.decode(chunk))
         .collect();
-    let draining = decoder.drain();
+    let mut draining = pin!(decoder.drain());
+    let mut drained = false;
     let mut frames = Vec::new();
     while frames.len() < count {
-        match decoder.next_frame().await {
-            Some(frame) => frames.push(frame),
-            None => return Err(format!("the decoder ended after {} frames", frames.len())),
+        if drained {
+            // Drained, every picture the decoder made is out: one not there now never comes, as a
+            // decoder that makes nothing of a stream answers no error.
+            match now(decoder.next_frame()) {
+                Some(Some(frame)) => frames.push(frame),
+                _ => {
+                    let made = frames.len();
+                    return Err(format!(
+                        "the decoder drained after {made} of {count} pictures"
+                    ));
+                }
+            }
+            continue;
+        }
+        let mut next = pin!(decoder.next_frame());
+        let arrived = std::future::poll_fn(|context| {
+            if let Poll::Ready(frame) = next.as_mut().poll(context) {
+                return Poll::Ready(Ok(frame));
+            }
+            draining.as_mut().poll(context).map(Err)
+        })
+        .await;
+        match arrived {
+            Ok(Some(frame)) => frames.push(frame),
+            Ok(None) => return Err(format!("the decoder ended after {} frames", frames.len())),
+            Err(drain) => {
+                drain.map_err(|error| format!("the drain: {error:?}"))?;
+                drained = true;
+            }
         }
     }
     answered(decoding)
         .await
         .map_err(|error| format!("a chunk: {error:?}"))?;
-    draining
-        .await
-        .map_err(|error| format!("the drain: {error:?}"))?;
+    if !drained {
+        draining
+            .await
+            .map_err(|error| format!("the drain: {error:?}"))?;
+    }
     Ok(frames)
 }
 
