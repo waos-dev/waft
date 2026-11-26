@@ -126,11 +126,9 @@ fn sets_of_record(record: &[u8]) -> Result<(Vec<&[u8]>, usize), String> {
 
 #[cfg(test)]
 pub(super) mod tests {
-    use super::*;
+    pub(in super::super) use waft_video_codecs::h264::test_clip::CLIP;
 
-    /// A clip of twelve pictures, 320 by 240, with B-frames, in Annex B: the Apple embedder's.
-    pub(in super::super) const CLIP: &[u8] =
-        include_bytes!("../../../../../waft-embedder-apple/src/video_decoders/test_clip.h264");
+    use super::*;
 
     /// The units of `data`, each after a start code of three or four bytes.
     pub(in super::super) fn units_after_start_codes(data: &[u8]) -> Vec<&[u8]> {

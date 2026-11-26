@@ -185,6 +185,10 @@ harness = false
 [dev-dependencies]
 waft-embedder-winit = { path = ".", features = ["test-support"] }
 
+# The short H.264 clip the Windows and Linux decoders' tests decode, as Apple's do.
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dev-dependencies]
+waft-video-codecs = { workspace = true, features = ["test-support"] }
+
 # What the tests ask of AppKit that the host offers no call for: minimizing, hiding the
 # application, whether a window's content has the layer a surface draws into, choosing in its
 # menus, and pressing a key in a window that is not key.

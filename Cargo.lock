@@ -5605,6 +5605,7 @@ dependencies = [
  "waft-embedder-apple",
  "waft-embedder-winit",
  "waft-service-protocol",
+ "waft-video-codecs",
  "wayland-backend",
  "wayland-client",
  "wayland-protocols",

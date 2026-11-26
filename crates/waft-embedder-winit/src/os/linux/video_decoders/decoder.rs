@@ -360,13 +360,9 @@ mod tests {
     use pollster::block_on;
     use waft_embedder::PixelRect;
     use waft_embedder::video_decoders::{CodecChoice, DecodingPurpose, NalFormat};
+    use waft_video_codecs::h264::test_clip::CLIP;
 
     use super::*;
-
-    /// A clip of twelve pictures, 320 by 240, whose pictures are decoded in another order than
-    /// they are shown: the Apple embedder's, as its tests decode it.
-    const CLIP: &[u8] =
-        include_bytes!("../../../../../waft-embedder-apple/src/video_decoders/test_clip.h264");
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.
