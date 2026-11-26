@@ -1,9 +1,14 @@
-//! One H.264 decoder of the system's, as the NDK makes it: an `AMediaCodec` configured with the
-//! stream's parameter sets, drawing its pictures into the window of an image stream of `PRIVATE`
-//! pictures, as Android's own players draw into a surface. A picture comes out of the codec as an
-//! output buffer, in the order pictures are shown, which the codec reads from the stream; it is let
-//! into the stream by rendering it, and reaches what the codec was made with on the stream's own
-//! thread, as an image whose memory is its `AHardwareBuffer`.
+//! One decoder of the system's, as the NDK makes it: an `AMediaCodec` of the stream's codec,
+//! configured with what the stream's description says, drawing its pictures into the window of an
+//! image stream of `PRIVATE` pictures, as Android's own players draw into a surface. A picture
+//! comes out of the codec as an output buffer, in the order pictures are shown, which the codec
+//! reads from the stream; it is let into the stream by rendering it, and reaches what the codec was
+//! made with on the stream's own thread, as an image whose memory is its `AHardwareBuffer`.
+//!
+//! What the codec is configured with is its codec-specific data, as MediaCodec documents it:
+//! H.264's sequence sets as `csd-0` and its picture sets as `csd-1`, HEVC's video, sequence and
+//! picture sets together as `csd-0`, each set after a start code; AV1's configuration record
+//! (`av1C`) as `csd-0`; and nothing for VP9, whose key frames say all its decoder needs.
 //!
 //! The codec is handed each chunk with a number for its presentation time, which the picture's
 //! image carries back (in nanoseconds, a thousand times the microseconds it was handed): what tells
@@ -23,18 +28,35 @@ use ndk::media::media_codec::{
 use ndk::media::media_format::MediaFormat;
 use ndk::media_error::MediaError;
 use waft_embedder::video_decoders::{
-    CodecChoice, CodecKind, DecoderError, DecodingPurpose, PictureSize,
+    CodecChoice, CodecKind, DecoderError, DecodingPurpose, PictureSize, VideoCodec,
 };
 use waft_video_codecs::framing::with_start_codes;
-use waft_video_codecs::h264::ParameterSets;
+use waft_video_codecs::stream_reader::Configuration;
 
 use crate::media::image_stream::{Delivery, ImageStream, StreamImage};
 
-/// H.264's MIME type, as MediaCodec names the codec.
-const H264: &str = "video/avc";
+/// The MIME type MediaCodec names `codec` by; none for VP8, which is not handed to it.
+fn mime_type(codec: VideoCodec) -> Option<&'static str> {
+    match codec {
+        VideoCodec::H264 => Some("video/avc"),
+        VideoCodec::Hevc => Some("video/hevc"),
+        VideoCodec::Vp9 => Some("video/x-vnd.on2.vp9"),
+        VideoCodec::Av1 => Some("video/av01"),
+        VideoCodec::Vp8 => None,
+    }
+}
 
-/// The system's software H.264 decoders, by the names Codec2 and the older OMX give them.
-const SOFTWARE_DECODERS: [&str; 2] = ["c2.android.avc.decoder", "OMX.google.h264.decoder"];
+/// The system's software decoders of `codec`, by the names Codec2 and the older OMX give them:
+/// OMX has none of AV1.
+fn software_decoders(codec: VideoCodec) -> &'static [&'static str] {
+    match codec {
+        VideoCodec::H264 => &["c2.android.avc.decoder", "OMX.google.h264.decoder"],
+        VideoCodec::Hevc => &["c2.android.hevc.decoder", "OMX.google.hevc.decoder"],
+        VideoCodec::Vp9 => &["c2.android.vp9.decoder", "OMX.google.vp9.decoder"],
+        VideoCodec::Av1 => &["c2.android.av1.decoder"],
+        VideoCodec::Vp8 => &[],
+    }
+}
 
 /// The prefixes of a software decoder's name: the platform's own codecs.
 const SOFTWARE_PREFIXES: [&str; 2] = ["c2.android.", "OMX.google."];
@@ -62,8 +84,9 @@ pub(super) struct CodecOptions {
 pub(super) enum Input {
     /// A chunk, by its number.
     Chunk(u64),
-    /// Parameter sets the stream goes on with.
-    ParameterSets,
+    /// What the stream goes on with, as it configures the codec: H.264's and HEVC's parameter
+    /// sets.
+    Configuration,
     /// Nothing more: the codec lets out every picture it holds.
     EndOfStream,
 }
@@ -90,21 +113,25 @@ pub(super) struct Codec {
 }
 
 impl Codec {
-    /// A decoder of the stream `sets` begin, whose pictures are of `size`, of the kind `options`
-    /// chooses, each picture handed to `delivered` on the stream's thread, in the order the codec
-    /// renders them.
+    /// A decoder of the stream `configuration` begins, whose pictures are of `size`, of the kind
+    /// `options` chooses, each picture handed to `delivered` on the stream's thread, in the order
+    /// the codec renders them.
     pub(super) fn open(
-        sets: &ParameterSets,
+        configuration: &Configuration<'_>,
         size: PictureSize,
         options: CodecOptions,
         delivered: impl Fn(StreamImage) + Send + 'static,
     ) -> Result<Codec, DecoderError> {
-        let codec = made(options.choice)?;
+        let codec_type = codec_of(configuration);
+        let mime = mime_type(codec_type).ok_or_else(|| {
+            DecoderError::Unsupported(format!("MediaCodec is not handed {codec_type:?}"))
+        })?;
+        let codec = made(codec_type, mime, options.choice)?;
         let kind = kind_of(&codec);
         if options.choice == CodecChoice::Hardware && kind == CodecKind::Software {
-            return Err(DecoderError::Unsupported(
-                "the system has no H.264 decoder on its video hardware".to_owned(),
-            ));
+            return Err(DecoderError::Unsupported(format!(
+                "the system has no {codec_type:?} decoder on its video hardware"
+            )));
         }
         let largest = largest(size, options.largest_size);
         let pictures = ImageStream::new(
@@ -121,7 +148,7 @@ impl Codec {
         let window = pictures
             .window()
             .map_err(|error| DecoderError::Failed(format!("no window to draw into: {error}")))?;
-        let format = format_of(sets, size, largest, options.purpose);
+        let format = format_of(mime, configuration, size, largest, options.purpose);
         codec
             .configure(&format, Some(&window), MediaCodecDirection::Decoder)
             .map_err(refusal_to_open)?;
@@ -169,7 +196,7 @@ impl Codec {
         }
         let (number, flags) = match input {
             Input::Chunk(number) => (number, 0),
-            Input::ParameterSets => (0, CODEC_CONFIG),
+            Input::Configuration => (0, CODEC_CONFIG),
             Input::EndOfStream => (0, END_OF_STREAM),
         };
         self.codec
@@ -216,18 +243,31 @@ impl Codec {
     }
 }
 
-/// A codec of `choice`'s kind: the system's preferred H.264 decoder, which is its hardware's where
-/// it has one, or its software decoder.
-fn made(choice: CodecChoice) -> Result<MediaCodec, DecoderError> {
-    let codec = match choice {
-        CodecChoice::Any | CodecChoice::Hardware => MediaCodec::from_decoder_type(H264),
-        CodecChoice::Software => SOFTWARE_DECODERS
-            .into_iter()
+/// A codec of `codec`, whose MIME type is `mime`, of `choice`'s kind: the system's preferred
+/// decoder, which is its hardware's where it has one, or its software decoder.
+fn made(codec: VideoCodec, mime: &str, choice: CodecChoice) -> Result<MediaCodec, DecoderError> {
+    let made = match choice {
+        CodecChoice::Any | CodecChoice::Hardware => MediaCodec::from_decoder_type(mime),
+        CodecChoice::Software => software_decoders(codec)
+            .iter()
+            .copied()
             .find_map(MediaCodec::from_codec_name),
     };
-    codec.ok_or_else(|| {
-        DecoderError::Unsupported("the system made no H.264 decoder of the kind chosen".to_owned())
+    made.ok_or_else(|| {
+        DecoderError::Unsupported(format!(
+            "the system made no {codec:?} decoder of the kind chosen"
+        ))
     })
+}
+
+/// The codec a stream configured with `configuration` is of.
+fn codec_of(configuration: &Configuration<'_>) -> VideoCodec {
+    match configuration {
+        Configuration::H264(_) => VideoCodec::H264,
+        Configuration::Hevc(_) => VideoCodec::Hevc,
+        Configuration::Vp9 { .. } => VideoCodec::Vp9,
+        Configuration::Av1(_) => VideoCodec::Av1,
+    }
 }
 
 /// Where `codec` runs, as its name says: the platform's own codecs run on the processor.
@@ -253,23 +293,30 @@ fn largest(size: PictureSize, largest_size: Option<PictureSize>) -> PictureSize 
     }
 }
 
-/// The codec's format: H.264 of the stream's `size` with its parameter sets, each kind after
-/// start codes (`csd-0` the sequence sets, `csd-1` the picture sets), able to grow to `largest`,
-/// and run as the pictures' purpose asks.
+/// The codec's format: the codec MediaCodec names `mime`, of the stream's `size`, configured as
+/// `configuration` says, able to grow to `largest`, and run as the pictures' purpose asks.
 fn format_of(
-    sets: &ParameterSets,
+    mime: &str,
+    configuration: &Configuration<'_>,
     size: PictureSize,
     largest: PictureSize,
     purpose: DecodingPurpose,
 ) -> MediaFormat {
     let mut format = MediaFormat::new();
-    format.set_str("mime", H264);
+    format.set_str("mime", mime);
     format.set_i32("width", size.width as i32);
     format.set_i32("height", size.height as i32);
     format.set_i32("max-width", largest.width as i32);
     format.set_i32("max-height", largest.height as i32);
-    format.set_buffer("csd-0", &with_start_codes(sets.sequence_sets()));
-    format.set_buffer("csd-1", &with_start_codes(sets.picture_sets()));
+    match configuration {
+        Configuration::H264(sets) => {
+            format.set_buffer("csd-0", &with_start_codes(sets.sequence_sets()));
+            format.set_buffer("csd-1", &with_start_codes(sets.picture_sets()));
+        }
+        Configuration::Hevc(sets) => format.set_buffer("csd-0", &with_start_codes(sets.units())),
+        Configuration::Av1(sequence) => format.set_buffer("csd-0", &sequence.record()),
+        Configuration::Vp9 { .. } => {}
+    }
     // Android's `KEY_PRIORITY`: 0 is real time, 1 as fast as the codec can spare.
     let priority = match purpose {
         DecodingPurpose::Live | DecodingPurpose::Playback => 0,

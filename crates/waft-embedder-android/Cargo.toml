@@ -27,8 +27,9 @@ wgpu.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 pollster.workspace = true
-# What an H.264 stream's setup and chunks say before MediaCodec is handed them: its framing, its
-# parameter sets, its pictures' size and colour, and its key frames, read as on every system.
+# What a stream's setup and chunks say before MediaCodec is handed them: its framing, what its
+# codec is configured with, its pictures' size and colour, and its key frames, read as on every
+# system.
 waft-video-codecs.workspace = true
 valo-codec.workspace = true
 # The software decoder, behind `image-software`, for the images the NDK's decoder does not take.

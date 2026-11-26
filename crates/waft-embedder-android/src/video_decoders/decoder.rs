@@ -2,14 +2,17 @@
 //!
 //! Each decoder decodes on a thread of its own, which makes its codec, hands it one chunk after
 //! another and lets its pictures out, so the app's thread never waits on MediaCodec. What the
-//! thread works on (`Work`) is the stream as far as it is known: how it frames its units, its
-//! parameter sets, the codec made of them, and whether a key frame is due. While the codec holds
-//! chunks whose pictures have not come out, the thread looks for them between the app's asks, as
+//! thread works on (`Work`) is the stream as far as it is known (`waft-video-codecs`' reader of its
+//! codec), the codec made for it, and whether a key frame is due. While the codec holds chunks
+//! whose pictures have not come out, the thread looks for them between the app's asks, as
 //! Android's own players poll their codecs.
 //!
-//! A codec is made once a whole set of parameter sets is known. It goes on with new ones, in the
-//! chunks or from `configure`, while their pictures fit the size it was made to grow to, and is
-//! made again otherwise, the pictures it holds let out first, as they come before the change.
+//! A codec is made once the stream's description is whole: H.264's and HEVC's parameter sets,
+//! VP9's first key frame, AV1's sequence header. It goes on with a new description, in the chunks
+//! or from `configure`, while its pictures fit the size it was made to grow to, and is made again
+//! otherwise, the pictures it holds let out first, as they come before the change. Each chunk
+//! reaches it as MediaCodec takes one: H.264's and HEVC's units each after a start code, their
+//! parameter sets among them, and a VP9 or AV1 chunk whole.
 //! MediaCodec's pool holds back a codec whose pictures are not let out, so the decoder holds itself
 //! back: it lets out no more while as many frames as the app said it holds at once wait to be read,
 //! and a chunk then waits for the codec to take it. It renders one picture at a time, the next once
@@ -32,13 +35,15 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
 use waft_embedder::video_decoders::{
-    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoDecoder,
-    VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
+    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoCodec,
+    VideoDecoder, VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
 };
 use waft_embedder::{HardwareBuffer, PixelAspect, PixelRect, VideoColor, VideoFrame};
 use waft_video_codecs::StreamFacts;
-use waft_video_codecs::framing::{Framing, with_start_codes};
-use waft_video_codecs::h264::{self, ParameterSets};
+use waft_video_codecs::framing::with_start_codes;
+use waft_video_codecs::stream_reader::{
+    Configuration, Description, ReadChunk, StreamReader, reader_for,
+};
 
 use super::codec::{Codec, CodecOptions, Coming, Input};
 use super::output::Output;
@@ -53,17 +58,6 @@ use crate::media::{AndroidVideoFrame, DecodedFacts};
 /// chunks, before it looks again.
 const POLL: Duration = Duration::from_millis(10);
 
-/// A stream's setup as the decoder takes it: its framing, and the parameter sets given ahead.
-fn framing_and_sets(setup: VideoStreamSetup) -> Result<(Framing, ParameterSets), DecoderError> {
-    match setup {
-        VideoStreamSetup::H264(format) => h264::setup(format).map_err(DecoderError::BadData),
-        other => Err(DecoderError::Unsupported(format!(
-            "this system's decoders are handed H.264 alone so far, not {:?}",
-            other.codec()
-        ))),
-    }
-}
-
 /// Whether the codec is let out pictures only while the app has room for their frames, or every
 /// one, as a drain lets them out.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -74,13 +68,13 @@ enum Room {
 
 /// What a decoder's thread works on.
 struct Work {
-    framing: Framing,
-    /// The stream's parameter sets, as far as they have come.
-    sets: ParameterSets,
+    /// The stream, as far as it has come.
+    stream: Box<dyn StreamReader>,
     options: CodecOptions,
     /// The colour the app gave for what the stream leaves unsaid.
     default_color: Option<VideoColor>,
-    /// The codec made of `sets`, once they are whole, with what they say of the stream.
+    /// The codec made for the stream's description, once it is whole, with what it says of the
+    /// stream.
     codec: Option<(Codec, StreamFacts)>,
     /// Whether the next chunk must decode with nothing before it.
     key_due: bool,
@@ -98,12 +92,10 @@ struct Work {
 }
 
 impl Work {
-    /// The work of a decoder made with `options`, its frames put out to `output`, before its
-    /// stream's setup is taken.
-    fn new(options: &VideoDecoderOptions, output: Output) -> Work {
+    /// The work of a decoder of `stream` made with `options`, its frames put out to `output`.
+    fn new(stream: Box<dyn StreamReader>, options: &VideoDecoderOptions, output: Output) -> Work {
         Work {
-            framing: Framing::StartCodes,
-            sets: ParameterSets::default(),
+            stream,
             options: CodecOptions {
                 choice: options.decoder,
                 purpose: options.purpose,
@@ -121,56 +113,55 @@ impl Work {
         }
     }
 
-    /// Goes on with `sets`: with the codec there is, where their pictures fit it, and with one
-    /// made of them otherwise, the pictures held let out first. Answers whether the codec went
-    /// on, and so is to be handed the sets.
-    fn adopt(&mut self, sets: ParameterSets) -> Result<bool, DecoderError> {
-        let facts = sets.facts().map_err(DecoderError::BadData)?;
+    /// Goes on with the stream's description, where it has a whole one: with the codec there is,
+    /// where its pictures fit it, and with one made for it otherwise, the pictures held let out
+    /// first. Answers whether the codec went on, and so is to be handed what the stream is
+    /// configured with.
+    fn adopt_description(&mut self) -> Result<bool, DecoderError> {
+        let Some(Description {
+            configuration,
+            facts,
+        }) = self.stream.description()?
+        else {
+            return Ok(false);
+        };
         let size = facts.size.ok_or_else(|| {
-            DecoderError::BadData("the sequence parameter set's size cannot be read".to_owned())
+            DecoderError::BadData("the stream's description says no size".to_owned())
         })?;
         let goes_on = matches!(&self.codec, Some((codec, _)) if codec.fits(size));
         if goes_on {
             self.codec = self.codec.take().map(|(codec, _)| (codec, facts));
-        } else {
-            self.end_stream()?;
-            self.codec = None;
-            self.pending.clear();
-            let codec = Codec::open(&sets, size, self.options, self.delivery())?;
-            self.codec = Some((codec, facts));
-            self.key_due = true;
+            return Ok(true);
         }
-        self.sets = sets;
-        Ok(goes_on)
+        self.end_stream()?;
+        self.codec = None;
+        self.pending.clear();
+        let codec = Codec::open(&configuration, size, self.options, self.delivery())?;
+        self.codec = Some((codec, facts));
+        self.key_due = true;
+        Ok(false)
     }
 
-    /// Hands `chunk` to the codec, once it takes it, taking the parameter sets the chunk carries.
+    /// Hands `chunk` to the codec, once it takes it, taking what the chunk says of its stream.
     fn decode(&mut self, chunk: &EncodedChunk) -> Result<(), DecoderError> {
-        let units = self
-            .framing
-            .units(&chunk.data)
-            .map_err(DecoderError::BadData)?;
-        let sets = self.sets.replaced_by(ParameterSets::among(&units));
-        if sets.are_complete() && (sets != self.sets || self.codec.is_none()) {
-            self.adopt(sets)?;
+        let read = self.stream.read(&chunk.data)?;
+        if read.changed || self.codec.is_none() {
+            self.adopt_description()?;
         }
         let Some((_, facts)) = &self.codec else {
             return Err(DecoderError::BadData(
-                "the stream's parameter sets have not come".to_owned(),
+                "what the stream's decoder is made of has not come".to_owned(),
             ));
         };
-        if self.key_due && !(chunk.key_frame || h264::is_key_frame(&units)) {
+        if self.key_due && !(chunk.key_frame || read.key_frame) {
             return Err(DecoderError::BadData(
                 "a key frame is due, and the chunk is none".to_owned(),
             ));
         }
         let facts = self.chunk_facts(chunk, facts);
         let number = self.next_number;
-        if self.feed(
-            &with_start_codes(units),
-            Input::Chunk(number),
-            Room::AsTheAppHolds,
-        )? {
+        let data = input_of(&read, self.stream.codec());
+        if self.feed(&data, Input::Chunk(number), Room::AsTheAppHolds)? {
             self.next_number += 1;
             self.pending.handed(number, facts);
             self.key_due = false;
@@ -187,10 +178,8 @@ impl Work {
 
     /// Another setup from the next chunk on, which decodes from a key frame.
     fn configure(&mut self, setup: VideoStreamSetup) -> Result<(), DecoderError> {
-        let (framing, sets) = framing_and_sets(setup)?;
-        self.framing = framing;
-        if sets.are_complete() && sets != self.sets && self.adopt(sets)? {
-            self.hand_sets()?;
+        if self.stream.configure(setup)? && self.adopt_description()? {
+            self.hand_configuration()?;
         }
         self.key_due = true;
         Ok(())
@@ -222,8 +211,8 @@ impl Work {
         Ok(())
     }
 
-    /// Flushes the codec, handed the stream's sets again, so that it takes chunks from a key
-    /// frame on.
+    /// Flushes the codec, handed what the stream is configured with again, so that it takes
+    /// chunks from a key frame on.
     fn restart(&mut self) -> Result<(), DecoderError> {
         let Some((codec, _)) = &self.codec else {
             return Ok(());
@@ -231,13 +220,24 @@ impl Work {
         codec.flush()?;
         self.pending.clear();
         self.key_due = true;
-        self.hand_sets()
+        self.hand_configuration()
     }
 
-    /// Hands the codec the stream's parameter sets, ahead of the chunks that use them.
-    fn hand_sets(&self) -> Result<(), DecoderError> {
-        let data = with_start_codes(self.sets.units());
-        self.feed(&data, Input::ParameterSets, Room::Unlimited)?;
+    /// Hands the codec H.264's or HEVC's parameter sets, ahead of the chunks that use them. A VP9
+    /// or AV1 stream says what its decoder needs in its key frames, which come next.
+    fn hand_configuration(&self) -> Result<(), DecoderError> {
+        let sets = match self.stream.description()? {
+            Some(Description {
+                configuration: Configuration::H264(sets),
+                ..
+            }) => with_start_codes(sets.units()),
+            Some(Description {
+                configuration: Configuration::Hevc(sets),
+                ..
+            }) => with_start_codes(sets.units()),
+            _ => return Ok(()),
+        };
+        self.feed(&sets, Input::Configuration, Room::Unlimited)?;
         Ok(())
     }
 
@@ -359,6 +359,15 @@ impl Work {
     }
 }
 
+/// What MediaCodec is handed of `chunk`: H.264's and HEVC's units each after a start code, and a
+/// VP9 or AV1 chunk whole.
+fn input_of(chunk: &ReadChunk<'_>, codec: VideoCodec) -> Vec<u8> {
+    match codec {
+        VideoCodec::H264 | VideoCodec::Hevc => with_start_codes(chunk.units().iter().copied()),
+        VideoCodec::Vp8 | VideoCodec::Vp9 | VideoCodec::Av1 => chunk.units().concat(),
+    }
+}
+
 /// The number of the chunk `image` is of, as the codec carried it.
 fn number_of(image: &StreamImage) -> Option<u64> {
     let nanoseconds = image.timestamp().ok()?;
@@ -417,12 +426,16 @@ impl Decoder {
         let started = std::thread::Builder::new()
             .name("waft video decoder".to_owned())
             .spawn(move || {
-                let mut work = Work::new(&options, thread_output);
-                let begun = begin(&mut work, setup);
-                let went_on = begun.is_ok();
-                opened.give(begun);
-                if went_on {
-                    run(work, asked);
+                let begun = reader_for(setup).and_then(|stream| {
+                    let mut work = Work::new(stream, &options, thread_output);
+                    begin(&mut work).map(|kind| (work, kind))
+                });
+                match begun {
+                    Ok((work, kind)) => {
+                        opened.give(Ok(kind));
+                        run(work, asked);
+                    }
+                    Err(error) => opened.give(Err(error)),
                 }
             });
         if let Err(error) = started {
@@ -458,14 +471,10 @@ impl Decoder {
     }
 }
 
-/// Takes the stream's setup on the decoder's thread, its codec made where the setup holds its
-/// parameter sets; answers where the codec runs, or why there is none.
-fn begin(work: &mut Work, setup: VideoStreamSetup) -> Result<CodecKind, DecoderError> {
-    let (framing, sets) = framing_and_sets(setup)?;
-    work.framing = framing;
-    if sets.are_complete() {
-        work.adopt(sets)?;
-    }
+/// Begins the stream on the decoder's thread, its codec made where its setup holds its whole
+/// description; answers where the codec runs, or why there is none.
+fn begin(work: &mut Work) -> Result<CodecKind, DecoderError> {
+    work.adopt_description()?;
     Ok(match &work.codec {
         Some((codec, _)) => codec.kind(),
         None => kind_before_a_codec(work.options.choice),

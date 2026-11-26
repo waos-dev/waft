@@ -1,7 +1,9 @@
 //! Android's video decoders as a Waft app has them (their GPU's, `Platform::gpu`): MediaCodec handed
-//! a short H.264 clip, and a check of each thing a decoder does, shown with the first picture
-//! decoded and written to the system's log under the tag `android_video_decoders`, so they can be
-//! checked without looking: `adb logcat -s android_video_decoders`.
+//! a short H.264 clip, and a check of each thing a decoder does, then `waft-video-codecs`' clips of
+//! HEVC (Main and Main 10), VP9 and AV1, each decoded in the order it is shown where the device
+//! has the decoder (`codecs`), shown with the first picture decoded and written to the system's
+//! log under the tag `android_video_decoders`, so they can be checked without looking:
+//! `adb logcat -s android_video_decoders`.
 //!
 //! ```text
 //! cargo waft run -d emulator-5554 -p android_video_decoders
@@ -20,6 +22,8 @@ mod android;
 mod checks;
 #[cfg(target_os = "android")]
 mod clip;
+#[cfg(target_os = "android")]
+mod codecs;
 #[cfg(target_os = "android")]
 mod log;
 

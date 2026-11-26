@@ -16,6 +16,7 @@ use waft_embedder::video_decoders::{
 use waft_embedder::{PixelRect, VideoFrame};
 
 use crate::clip::{self, PICTURE, SHOWN_AT, time_of};
+use crate::codecs;
 
 /// What one check found.
 pub(crate) struct Report {
@@ -26,7 +27,7 @@ pub(crate) struct Report {
 }
 
 impl Report {
-    fn new(title: &'static str) -> Report {
+    pub(crate) fn new(title: &'static str) -> Report {
         Report {
             title,
             lines: Vec::new(),
@@ -36,19 +37,19 @@ impl Report {
     }
 
     /// Notes `line`, marked as what was expected or not.
-    fn expect(&mut self, held: bool, line: String) {
+    pub(crate) fn expect(&mut self, held: bool, line: String) {
         self.passed &= held;
         self.lines
             .push(format!("{} {line}", if held { "ok" } else { "WRONG" }));
     }
 
     /// Notes `line`, which says what the system has rather than what is right.
-    fn note(&mut self, line: String) {
+    pub(crate) fn note(&mut self, line: String) {
         self.lines.push(format!("-- {line}"));
     }
 
     /// Notes that the check could not go on, for `reason`.
-    fn failed(mut self, reason: String) -> Report {
+    pub(crate) fn failed(mut self, reason: String) -> Report {
         self.expect(false, reason);
         self
     }
@@ -66,10 +67,15 @@ pub(crate) async fn all(decoders: &dyn VideoDecoders) -> Vec<Report> {
         reset(decoders).await,
         key_frames(decoders).await,
         unsupported(decoders).await,
+        codecs::hevc(decoders).await,
+        codecs::hevc_after_lengths(decoders).await,
+        codecs::hevc_main_10(decoders).await,
+        codecs::vp9(decoders).await,
+        codecs::av1(decoders).await,
     ]
 }
 
-fn options(decoder: CodecChoice) -> VideoDecoderOptions {
+pub(crate) fn options(decoder: CodecChoice) -> VideoDecoderOptions {
     VideoDecoderOptions {
         decoder,
         purpose: DecodingPurpose::Playback,
@@ -84,7 +90,7 @@ fn start_codes() -> VideoStreamSetup {
 }
 
 /// The times of the clip's pictures in the order they are shown.
-fn in_order() -> Vec<Option<i64>> {
+pub(crate) fn in_order() -> Vec<Option<i64>> {
     (0..12).map(|number| Some(time_of(number))).collect()
 }
 
@@ -102,15 +108,23 @@ fn support(decoders: &dyn VideoDecoders) -> Report {
         },
         frame_rate: Some(30.0),
     };
-    let h264 = decoders.support(&description(VideoCodec::H264));
+    for codec in [
+        VideoCodec::H264,
+        VideoCodec::Hevc,
+        VideoCodec::Vp9,
+        VideoCodec::Av1,
+    ] {
+        let support = decoders.support(&description(codec));
+        report.expect(
+            support.hardware == DecodeSupport::Unknown
+                && support.software == DecodeSupport::Unknown,
+            format!("{codec:?} is unknown until tried: {support:?}"),
+        );
+    }
+    let vp8 = decoders.support(&description(VideoCodec::Vp8));
     report.expect(
-        h264.hardware == DecodeSupport::Unknown && h264.software == DecodeSupport::Unknown,
-        format!("H.264 is unknown until tried: {h264:?}"),
-    );
-    let vp9 = decoders.support(&description(VideoCodec::Vp9));
-    report.expect(
-        vp9.hardware == DecodeSupport::No && vp9.software == DecodeSupport::No,
-        format!("VP9 is not handed to MediaCodec yet: {vp9:?}"),
+        vp8.hardware == DecodeSupport::No && vp8.software == DecodeSupport::No,
+        format!("VP8 is not handed to MediaCodec: {vp8:?}"),
     );
     report
 }
@@ -356,13 +370,13 @@ async fn key_frames(decoders: &dyn VideoDecoders) -> Report {
 }
 
 async fn unsupported(decoders: &dyn VideoDecoders) -> Report {
-    let mut report = Report::new("a codec not handed to MediaCodec yet");
+    let mut report = Report::new("a codec not handed to MediaCodec");
     let opened = decoders
-        .open(VideoStreamSetup::Vp9(None), options(CodecChoice::Any))
+        .open(VideoStreamSetup::Vp8, options(CodecChoice::Any))
         .await;
     report.expect(
         matches!(opened, Err(DecoderError::Unsupported(_))),
-        format!("VP9: {:?}", opened.err()),
+        format!("VP8: {:?}", opened.err()),
     );
     report
 }
@@ -370,7 +384,7 @@ async fn unsupported(decoders: &dyn VideoDecoders) -> Report {
 /// Hands every one of `chunks` to `decoder`, drains it, and answers the frames that came out, in
 /// the order they came. The chunks are all handed over first, as an app that does not wait for
 /// each does, and the frames read as the decoder puts them out.
-async fn decoded(
+pub(crate) async fn decoded(
     decoder: &dyn VideoDecoder,
     chunks: Vec<EncodedChunk>,
 ) -> Result<Vec<Arc<dyn VideoFrame>>, String> {
@@ -424,7 +438,7 @@ fn now<T>(future: impl Future<Output = T>) -> Option<T> {
 }
 
 /// Frame times counted in pictures, for the log.
-fn in_pictures(times: &[Option<i64>]) -> Vec<Option<i64>> {
+pub(crate) fn in_pictures(times: &[Option<i64>]) -> Vec<Option<i64>> {
     times
         .iter()
         .map(|time| time.map(|time| (time + PICTURE / 2) / PICTURE))

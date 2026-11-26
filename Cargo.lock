@@ -214,6 +214,7 @@ dependencies = [
  "waft-embedder",
  "waft-foundation",
  "waft-painting",
+ "waft-video-codecs",
  "waft-widgets",
 ]
 

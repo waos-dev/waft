@@ -29,9 +29,10 @@ waft-foundation.workspace = true
 waft-painting.workspace = true
 waft-widgets.workspace = true
 
-# The system's log the checks report to.
+# The system's log the checks report to, and the clips of the codecs beside H.264 the checks decode.
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.6"
+waft-video-codecs = { workspace = true, features = ["test-support"] }
 
 # Writing to the system's log needs `unsafe`, which the workspace forbids; here it is denied
 # instead, and `log.rs` alone allows it.
