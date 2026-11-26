@@ -4,12 +4,13 @@
 //! must know of the stream first is read here, once for all of them, as Chromium's and Firefox's
 //! media layers read a stream before their platform decoders see it.
 //!
-//! Each codec is a module of its own (`h264`, `hevc`) that answers the same questions of its
-//! stream:
+//! Each codec is a module of its own (`h264`, `hevc`, `vp9`) that answers the same questions of
+//! its stream:
 //! - its setup, read from what [`VideoStreamSetup`](waft_embedder::video_decoders::VideoStreamSetup)
 //!   carries: how its chunks frame their units ([`framing::Framing`]) and the parameter sets or
 //!   configuration it gives ahead;
-//! - the units of a chunk, and the parameter sets among them;
+//! - the units of a chunk (an H.264 or HEVC chunk's units, a VP9 superframe's frames), and the
+//!   parameter sets among them;
 //! - whether a chunk decodes with nothing before it (`is_key_frame`);
 //! - what the stream says of its pictures ([`StreamFacts`]);
 //! - where a picture stands in the order its stream is shown in, for a system whose decoder hands
@@ -24,7 +25,10 @@
 pub mod framing;
 pub mod h264;
 pub mod hevc;
+#[cfg(any(test, feature = "test-support"))]
+mod ivf;
 pub mod presentation_order;
+pub mod vp9;
 
 use waft_embedder::video_decoders::PictureSize;
 use waft_embedder::{PixelAspect, VideoColor};
@@ -42,6 +46,7 @@ pub struct StreamFacts {
     pub size: Option<PictureSize>,
     /// The profile as the codec numbers it.
     pub profile: u32,
-    /// The level as the codec numbers it.
-    pub level: u32,
+    /// The level as the codec numbers it, where the stream says: VP9 says it only in its file's
+    /// configuration record.
+    pub level: Option<u32>,
 }

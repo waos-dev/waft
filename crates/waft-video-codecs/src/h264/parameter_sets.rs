@@ -170,7 +170,7 @@ fn facts_of_sequence_set(unit: &[u8]) -> Result<StreamFacts, String> {
             .ok()
             .map(|(width, height)| PictureSize { width, height }),
         profile: u32::from(u8::from(set.profile_idc)),
-        level: u32::from(set.level_idc),
+        level: Some(u32::from(set.level_idc)),
     })
 }
 

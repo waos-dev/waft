@@ -174,7 +174,7 @@ fn facts_of_sequence_set(unit: &[u8]) -> Result<StreamFacts, String> {
             height: set.cropped_height() as u32,
         }),
         profile: u32::from(profile.profile_idc),
-        level: u32::from(profile.level_idc.unwrap_or_default()),
+        level: profile.level_idc.map(u32::from),
     })
 }
 
@@ -263,7 +263,7 @@ mod tests {
             })
         );
         assert_eq!(facts.profile, 1, "the Main profile");
-        assert_eq!(facts.level, 60, "level 2, thirty times its number");
+        assert_eq!(facts.level, Some(60), "level 2, thirty times its number");
         assert_eq!(
             facts.pixel_aspect,
             Some(PixelAspect {
