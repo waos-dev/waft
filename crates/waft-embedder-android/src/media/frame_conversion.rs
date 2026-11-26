@@ -28,7 +28,7 @@ use ndk::hardware_buffer::{
 };
 use ndk::hardware_buffer_format::HardwareBufferFormat;
 
-use crate::hardware_buffers::AndroidHardwareBuffer;
+use crate::hardware_buffers::{AndroidHardwareBuffer, PrivatePicture};
 
 type EglDisplay = *mut c_void;
 type EglConfig = *mut c_void;
@@ -186,7 +186,7 @@ const COVERING_TRIANGLE: [f32; 6] = [-1.0, -1.0, 3.0, -1.0, -1.0, 3.0];
 
 /// One conversion asked of the drawing thread, and where its answer goes.
 struct Conversion {
-    picture: AndroidHardwareBuffer,
+    picture: PrivatePicture,
     answer: Sender<Result<AndroidHardwareBuffer, String>>,
 }
 
@@ -195,7 +195,7 @@ struct Converter(Mutex<Sender<Conversion>>);
 
 /// `picture`, a camera's or a decoder's picture in its own format, drawn into a new RGBA8 buffer of
 /// its size; why not, where the system could not draw it.
-pub(crate) fn to_rgba(picture: AndroidHardwareBuffer) -> Result<AndroidHardwareBuffer, String> {
+pub(crate) fn to_rgba(picture: PrivatePicture) -> Result<AndroidHardwareBuffer, String> {
     let converter = converter().ok_or("the system has no OpenGL ES to convert a picture")?;
     let (answer, answered) = mpsc::channel();
     converter

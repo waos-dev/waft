@@ -12,7 +12,7 @@ use std::sync::{Arc, Weak};
 use super::image_stream::StreamImage;
 use crate::buffer_transform::BufferTransform;
 use crate::composition::{SurfaceControlLayer, SystemFrame, SystemPicture};
-use crate::hardware_buffers::AndroidHardwareBuffer;
+use crate::hardware_buffers::PrivatePicture;
 
 /// A camera's preview shown on one layer.
 pub(super) struct CameraPreview {
@@ -38,7 +38,7 @@ impl CameraPreview {
         let held = Arc::clone(image);
         self.layer.present_system_frame(
             SystemFrame {
-                buffer: AndroidHardwareBuffer::new(buffer),
+                picture: PrivatePicture::new(buffer),
                 transform,
             },
             self.picture_shown(),

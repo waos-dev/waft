@@ -7,16 +7,41 @@
 
 use std::os::fd::OwnedFd;
 
+use ndk::hardware_buffer::HardwareBufferRef;
+
 use crate::buffer_transform::BufferTransform;
-use crate::hardware_buffers::AndroidHardwareBuffer;
+use crate::hardware_buffers::{AndroidHardwareBuffer, PrivatePicture};
 
 use super::releases::Release;
+
+/// What a layer shows: a buffer a producer presented, or a frame of a picture the system draws
+/// onto the layer, in the system's own format.
+pub(super) enum ShownBuffer {
+    Presented(AndroidHardwareBuffer),
+    System(PrivatePicture),
+}
+
+impl ShownBuffer {
+    /// The `AHardwareBuffer` set on the layer's surface control.
+    pub(super) fn buffer(&self) -> &HardwareBufferRef {
+        match self {
+            ShownBuffer::Presented(buffer) => buffer.buffer(),
+            ShownBuffer::System(picture) => picture.buffer(),
+        }
+    }
+
+    /// Its size, in its own pixels.
+    pub(super) fn size(&self) -> [u32; 2] {
+        let description = self.buffer().describe();
+        [description.width, description.height]
+    }
+}
 
 /// The buffer presented last, the fence the compositor waits on before it reads it until a
 /// transaction takes it, and whether a transaction has set it on the layer's surface control yet:
 /// not while the layer has none, before its first placement.
 pub(super) struct Shown {
-    pub(super) buffer: AndroidHardwareBuffer,
+    pub(super) buffer: ShownBuffer,
     pub(super) acquire_fence: Option<OwnedFd>,
     pub(super) release: Release,
     pub(super) set: bool,
@@ -45,7 +70,7 @@ impl PresentedBuffers {
     /// until its release runs.
     pub(super) fn present(
         &mut self,
-        buffer: AndroidHardwareBuffer,
+        buffer: ShownBuffer,
         acquire_fence: Option<OwnedFd>,
         fitted: Option<BufferTransform>,
         release: Release,

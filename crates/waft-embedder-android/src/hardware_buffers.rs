@@ -3,7 +3,9 @@
 //! texture imported over it (`gpu_interop`). A buffer the app allocates is made by
 //! `AHardwareBuffer_allocate` with the usage the app names, and its pixels are read while it is
 //! locked for the CPU. A buffer's usage is what its `AHardwareBuffer` says it was allocated for
-//! (`AHardwareBuffer_describe`), whoever allocated it, mapped back to Waft's flags.
+//! (`AHardwareBuffer_describe`), whoever allocated it, mapped back to Waft's flags. A camera's and
+//! a decoder's pictures, in the system's own format, are apart ([`PrivatePicture`]): the host draws
+//! them into RGBA8 buffers or shows them on a layer, and never hands one to the app.
 //!
 //! The invariant: a buffer holds a reference on its `AHardwareBuffer` for as long as anything holds
 //! the buffer, and `read_pixels` reads only a buffer whose usage has `cpu_read`: some allocators
@@ -27,10 +29,38 @@ use waft_embedder::{
     HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat as Format, HardwareBufferUsage,
 };
 
+/// A picture in the system's own format (`AIMAGE_FORMAT_PRIVATE`, a buffer of
+/// `IMPLEMENTATION_DEFINED`), as a camera's image reader and a decoder hand pictures out: an
+/// `AHardwareBuffer` whose layout is the vendor's, which the compositor shows and OpenGL ES samples
+/// through an external texture, and no [`HardwareBufferFormat`](Format) names. The host draws it
+/// into an RGBA8 buffer (`media::frame_conversion`) or shows it on a layer (`media::preview`), and
+/// never hands it to the app.
+#[derive(Clone, Debug)]
+pub(crate) struct PrivatePicture(HardwareBufferRef);
+
+// SAFETY: an `AHardwareBuffer` is made to be shared between threads and processes: its reference
+// count is atomic, and a picture's memory is written only by the system before it is handed out.
+// `ndk` cannot say so of its pointer.
+unsafe impl Send for PrivatePicture {}
+unsafe impl Sync for PrivatePicture {}
+
+impl PrivatePicture {
+    /// The picture of `buffer`, as a camera's image reader or a decoder handed it out.
+    pub(crate) fn new(buffer: HardwareBufferRef) -> PrivatePicture {
+        PrivatePicture(buffer)
+    }
+
+    /// The `AHardwareBuffer` the picture is.
+    pub(crate) fn buffer(&self) -> &HardwareBufferRef {
+        &self.0
+    }
+}
+
 /// Bytes one pixel of RGBA8 occupies.
 const BYTES_PER_PIXEL: u32 = 4;
 
-/// A hardware buffer on Android: an `AHardwareBuffer` in RGBA8, with what it says of itself.
+/// A hardware buffer on Android: an `AHardwareBuffer` in RGBA8, with what it says of itself. A
+/// picture in the system's own format is a [`PrivatePicture`] instead.
 /// Platform code reaches the `AHardwareBuffer` from a [`HardwareBuffer`] by downcasting
 /// through `Any`:
 ///
@@ -133,15 +163,10 @@ impl HardwareBuffer for AndroidHardwareBuffer {
         self.usage
     }
 
-    /// Its format as it describes itself: `R8G8B8A8_UNORM`, `Y8Cb8Cr8_420` or `YCbCr_P010`.
-    /// Another, a camera's or a decoder's own (`IMPLEMENTATION_DEFINED`), is only drawn into RGBA8
-    /// before the app has the picture, so it answers RGBA8, the format `new` takes.
+    /// RGBA8, the one format a buffer here is in: the allocator's, a frame drawn from a picture's,
+    /// and the one `new` takes.
     fn format(&self) -> Format {
-        match self.buffer.describe().format {
-            HardwareBufferFormat::Y8Cb8Cr8_420 => Format::Nv12,
-            HardwareBufferFormat::YCbCr_P010 => Format::P010,
-            _ => Format::Rgba8,
-        }
+        Format::Rgba8
     }
 
     /// The buffer's rows as they lie, RGBA and premultiplied, copied while it is locked for

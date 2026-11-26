@@ -20,7 +20,7 @@ use super::orientation::SensorMount;
 use super::preview::CameraPreview;
 use super::video_frame::AndroidVideoFrame;
 use crate::composition::{SurfaceControlLayer, SystemPicture};
-use crate::hardware_buffers::AndroidHardwareBuffer;
+use crate::hardware_buffers::PrivatePicture;
 
 /// What a running camera's outputs take of its pictures.
 pub(super) struct CameraFrames {
@@ -97,7 +97,7 @@ impl CameraFrames {
         let drawn = picture
             .hardware_buffer()
             .map_err(|error| format!("no buffer of a camera's picture: {error}"))
-            .and_then(|buffer| to_rgba(AndroidHardwareBuffer::new(buffer)));
+            .and_then(|buffer| to_rgba(PrivatePicture::new(buffer)));
         let frame = match drawn {
             Ok(buffer) => AndroidVideoFrame::new(buffer)
                 .shown_turned(self.mount.rotation_angle(), self.mount.faces_user),

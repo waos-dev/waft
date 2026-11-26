@@ -16,8 +16,6 @@
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use waft_embedder::HardwareBuffer;
-
 /// What a producer asked to run once the compositor has released its buffer.
 pub(crate) type OnReleased = Box<dyn FnOnce() + Send + Sync>;
 
@@ -27,14 +25,14 @@ pub(crate) type OnReleased = Box<dyn FnOnce() + Send + Sync>;
 pub(crate) struct Release(Arc<Mutex<Option<Pending>>>);
 
 struct Pending {
-    _buffer: Arc<dyn HardwareBuffer>,
+    _buffer: Box<dyn Send + Sync>,
     on_released: OnReleased,
 }
 
 impl Release {
-    pub(crate) fn new(buffer: Arc<dyn HardwareBuffer>, on_released: OnReleased) -> Release {
+    pub(crate) fn new(buffer: impl Send + Sync + 'static, on_released: OnReleased) -> Release {
         Release(Arc::new(Mutex::new(Some(Pending {
-            _buffer: buffer,
+            _buffer: Box::new(buffer),
             on_released,
         }))))
     }

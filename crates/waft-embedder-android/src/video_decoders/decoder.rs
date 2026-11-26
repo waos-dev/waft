@@ -44,7 +44,7 @@ use super::codec::{Codec, CodecOptions, Coming, Input};
 use super::output::Output;
 use super::pending::{ChunkFacts, Pending};
 use crate::answer::answer;
-use crate::hardware_buffers::AndroidHardwareBuffer;
+use crate::hardware_buffers::PrivatePicture;
 use crate::media::frame_conversion::to_rgba;
 use crate::media::image_stream::StreamImage;
 use crate::media::{AndroidVideoFrame, DecodedFacts};
@@ -370,7 +370,7 @@ fn frame_of(image: &StreamImage, chunk: &ChunkFacts) -> Result<Arc<dyn VideoFram
     let picture = image
         .hardware_buffer()
         .map_err(|error| format!("no buffer of the picture: {error}"))?;
-    let frame = to_rgba(AndroidHardwareBuffer::new(picture))?;
+    let frame = to_rgba(PrivatePicture::new(picture))?;
     let visible_rect = image.visible_rect().unwrap_or(PixelRect {
         x: 0,
         y: 0,
