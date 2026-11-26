@@ -2,10 +2,10 @@
 //! VP9 is decoded on macOS alone, whose VideoToolbox adds its VP9 decoder for an app that asks,
 //! and AV1 in hardware alone, where the machine has it.
 //!
-//! What the stream says of itself is read by `waft-video-codecs`; here it reaches VideoToolbox as
-//! VideoToolbox takes it, a codec's way each (`streams`): what the stream says of itself as a
-//! format (`format`), a chunk as a sample (H.264's and HEVC's units each after four bytes of
-//! length, a VP9 or AV1 chunk whole), a picture at a time in one session (`session`).
+//! What the stream says of itself is read by `waft-video-codecs`' reader of its codec; here it
+//! reaches VideoToolbox as VideoToolbox takes it: what the stream is configured with as a format
+//! (`format`), a chunk as a sample (H.264's and HEVC's units each after four bytes of length, a
+//! VP9 or AV1 chunk whole), a picture at a time in one session (`session`).
 //! VideoToolbox hands pictures back in the order they were decoded, so they are put in the order
 //! they are shown, which is the stream's own, read from each picture, never the times an app
 //! gives its chunks; and they reach the app from the queue that decodes (`decoder`, `output`).
@@ -17,7 +17,6 @@ mod decoder;
 mod format;
 mod output;
 mod session;
-mod streams;
 #[cfg(test)]
 mod test_decoding;
 

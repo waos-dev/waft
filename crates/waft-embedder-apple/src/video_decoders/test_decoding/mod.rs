@@ -1,5 +1,11 @@
 //! What the decoders' tests share: the options a test opens a decoder with, a clip's chunks as an
-//! app hands them over, and the times and pixel buffers of the frames a decoder puts out.
+//! app hands them over, and the times and pixel buffers of the frames a decoder puts out; and the
+//! tests of the codecs other than H.264, each a module (H.264's are the decoder's and the
+//! session's own).
+
+mod av1;
+mod hevc;
+mod vp9;
 
 use std::sync::Arc;
 

@@ -2,8 +2,10 @@
 //!
 //! Each decoder decodes on a queue of its own, one chunk after another, so the app's thread
 //! never waits on VideoToolbox and pictures are decoded in the order their chunks came. What
-//! the queue works on (`Work`) is the stream as far as it is known (its codec's reader,
-//! `streams`), the session made for it, and the pictures decoded and not yet shown.
+//! the queue works on (`Work`) is the stream as far as it is known (`waft-video-codecs`' reader
+//! of its codec), the session made for it, and the pictures decoded and not yet shown. Each chunk
+//! reaches VideoToolbox as a sample: H.264's and HEVC's units each after four bytes of length,
+//! their parameter sets left to the format, and a VP9 or AV1 chunk whole.
 //!
 //! What a session is made for (a stream's format: H.264's and HEVC's parameter sets, VP9's
 //! record and the size its key frame says, AV1's sequence header) may come ahead, in its setup,
@@ -29,17 +31,20 @@ use std::time::Duration;
 
 use dispatch2::{DispatchQueue, DispatchQueueAttr, DispatchRetained};
 use waft_embedder::video_decoders::{
-    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoDecoder,
-    VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
+    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoCodec,
+    VideoDecoder, VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
 };
 use waft_embedder::{ColorRange, PixelAspect, VideoColor, VideoFrame};
 
 use waft_video_codecs::StreamFacts;
+use waft_video_codecs::framing::with_lengths;
 use waft_video_codecs::presentation_order::PresentationOrder;
 
+use waft_video_codecs::stream_reader::{Description, ReadChunk, StreamReader, reader_for};
+
+use super::format::Format;
 use super::output::Output;
-use super::session::{DecodedPicture, PictureFormat, Session};
-use super::streams::{Description, StreamReader, reader_for};
+use super::session::{DecodedPicture, PictureFormat, Session, add_vp9_decoder};
 use crate::answer::answer;
 use crate::media::CoreVideoFrame;
 use crate::media::DecodedFacts;
@@ -69,9 +74,14 @@ impl Work {
     /// is, where VideoToolbox does, and with one made for it otherwise, the pictures held shown
     /// first.
     fn adopt_description(&mut self) -> Result<(), DecoderError> {
-        let Some(Description { format, facts }) = self.stream.description()? else {
+        let Some(Description {
+            configuration,
+            facts,
+        }) = self.stream.description()?
+        else {
             return Ok(());
         };
+        let format = Format::of(&configuration)?;
         let goes_on = matches!(&self.session, Some((session, _)) if session.accepts(&format));
         let session = match self.session.take() {
             Some((session, _)) if goes_on => session,
@@ -93,6 +103,8 @@ impl Work {
     /// of its stream, and puts out the pictures that can be shown now.
     fn decode(&mut self, chunk: &EncodedChunk) -> Result<(), DecoderError> {
         let read = self.stream.read(&chunk.data)?;
+        let place = self.stream.place_of(&read)?;
+        let sample = sample_of(&read, self.stream.codec());
         if read.changed || self.session.is_none() {
             self.adopt_description()?;
         }
@@ -101,9 +113,9 @@ impl Work {
                 "what the stream's format is made of has not come".to_owned(),
             ));
         };
-        let decoded = session.decode(&read.sample, chunk.timestamp, chunk.duration)?;
+        let decoded = session.decode(&sample, chunk.timestamp, chunk.duration)?;
         if let Some(picture) = decoded {
-            let place = read.place.ok_or_else(|| {
+            let place = place.ok_or_else(|| {
                 DecoderError::BadData("a picture with nothing to tell its order by".to_owned())
             })?;
             let frame = self.frame_of(picture, chunk, facts);
@@ -186,9 +198,21 @@ impl Decoder {
         setup: VideoStreamSetup,
         options: &VideoDecoderOptions,
     ) -> Result<Decoder, DecoderError> {
+        let stream = match setup.codec() {
+            VideoCodec::Vp8 => {
+                return Err(DecoderError::Unsupported(
+                    "VideoToolbox has no VP8 decoder".to_owned(),
+                ));
+            }
+            VideoCodec::Vp9 => {
+                add_vp9_decoder();
+                reader_for(setup)?
+            }
+            _ => reader_for(setup)?,
+        };
         let output = Output::default();
         let mut work = Work {
-            stream: reader_for(setup)?,
+            stream,
             choice: options.decoder,
             default_color: options.default_color,
             session: None,
@@ -284,6 +308,16 @@ impl Drop for Decoder {
     /// The frames end; the session goes once the queue has done what it was handed.
     fn drop(&mut self) {
         self.output.close();
+    }
+}
+
+/// The sample VideoToolbox decodes of `chunk`, framed as the stream's format says: H.264's and
+/// HEVC's units but their parameter sets, which go to the format, each after its length, and a VP9
+/// or AV1 chunk whole.
+fn sample_of(chunk: &ReadChunk<'_>, codec: VideoCodec) -> Vec<u8> {
+    match codec {
+        VideoCodec::H264 | VideoCodec::Hevc => with_lengths(chunk.coded_units()),
+        VideoCodec::Vp8 | VideoCodec::Vp9 | VideoCodec::Av1 => chunk.units().concat(),
     }
 }
 

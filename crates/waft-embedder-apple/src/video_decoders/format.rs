@@ -6,7 +6,7 @@
 //! extension it is in a file, and the pictures' size.
 //!
 //! The invariant: an H.264 or HEVC format describes samples whose units follow lengths of
-//! [`LENGTH_SIZE`] bytes, the framing the stream readers (`streams`) give their samples.
+//! [`LENGTH_SIZE`] bytes, the framing the decoder (`decoder`) gives their samples.
 
 // CoreMedia is reached here to make formats, as `session` reaches VideoToolbox.
 #![allow(unsafe_code)]
@@ -28,6 +28,7 @@ use objc2_video_toolbox::kVTVideoDecoderBadDataErr;
 use waft_embedder::video_decoders::{DecoderError, PictureSize};
 
 use waft_video_codecs::framing::LENGTH_SIZE;
+use waft_video_codecs::stream_reader::Configuration;
 use waft_video_codecs::{av1, h264, hevc, vp9};
 
 use super::session::as_cf_dictionary;
@@ -45,6 +46,16 @@ pub(super) struct Format(pub(super) CFRetained<CMFormatDescription>);
 unsafe impl Send for Format {}
 
 impl Format {
+    /// The format of a stream configured with `configuration`.
+    pub(super) fn of(configuration: &Configuration<'_>) -> Result<Format, DecoderError> {
+        match configuration {
+            Configuration::H264(sets) => Format::h264(sets),
+            Configuration::Hevc(sets) => Format::hevc(sets),
+            Configuration::Vp9 { record, size } => Format::vp9(record, *size),
+            Configuration::Av1(sequence) => Format::av1(sequence),
+        }
+    }
+
     /// The format of an H.264 stream of `sets`.
     pub(super) fn h264(sets: &h264::ParameterSets) -> Result<Format, DecoderError> {
         let units: Vec<&[u8]> = sets.units().collect();
@@ -64,7 +75,7 @@ impl Format {
     }
 
     /// The format of an HEVC stream of `sets`.
-    pub(super) fn hevc(sets: &hevc::ParameterSets) -> Result<Format, DecoderError> {
+    fn hevc(sets: &hevc::ParameterSets) -> Result<Format, DecoderError> {
         let units: Vec<&[u8]> = sets.units().collect();
         // SAFETY: the function, given units of the sizes given, no extensions, and a valid place
         // for the format, as `of_parameter_sets` calls it.
@@ -83,7 +94,7 @@ impl Format {
     }
 
     /// The format of a VP9 stream `record` describes, its pictures of `size`.
-    pub(super) fn vp9(record: &vp9::Record, size: PictureSize) -> Result<Format, DecoderError> {
+    fn vp9(record: &vp9::Record, size: PictureSize) -> Result<Format, DecoderError> {
         of_record(kCMVideoCodecType_VP9, "vpcC", &record.to_bytes(), size).map_err(|status| {
             DecoderError::BadData(format!(
                 "VideoToolbox made no format of the stream's VP9 record ({status})"
@@ -93,7 +104,7 @@ impl Format {
 
     /// The format of an AV1 stream of `sequence`, its configuration record the one the header
     /// makes, its pictures of the largest size the header says.
-    pub(super) fn av1(sequence: &av1::SequenceHeader) -> Result<Format, DecoderError> {
+    fn av1(sequence: &av1::SequenceHeader) -> Result<Format, DecoderError> {
         of_record(
             kCMVideoCodecType_AV1,
             "av1C",

@@ -17,7 +17,8 @@
 //!   pictures back in the order they were decoded.
 //!
 //! What is the same for every codec is beside them: framing units after start codes or lengths
-//! ([`framing`]), and showing pictures in their order ([`presentation_order`]).
+//! ([`framing`]), showing pictures in their order ([`presentation_order`]), and a stream read as
+//! its chunks come, which a host's decoder asks all of this of ([`stream_reader`]).
 //!
 //! The invariant: nothing here names a system. A system's needs (VideoToolbox's four-byte
 //! lengths, MediaCodec's codec-specific data) are met by the host from what this crate reads.
@@ -29,6 +30,7 @@ pub mod hevc;
 #[cfg(any(test, feature = "test-support"))]
 mod ivf;
 pub mod presentation_order;
+pub mod stream_reader;
 pub mod vp9;
 
 use waft_embedder::video_decoders::PictureSize;
