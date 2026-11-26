@@ -32,12 +32,13 @@ use waft_embedder::video_decoders::{
     CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoDecoder, VideoDecoderFuture,
     VideoDecoderOptions, VideoStreamSetup,
 };
+use waft_video_codecs::framing::Framing;
 use windows::Win32::Media::MediaFoundation::{
     MF_VERSION, MFSTARTUP_NOSOCKET, MFShutdown, MFStartup,
 };
 use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoUninitialize};
 
-use super::annex_b::{Framing, framing_and_sets, in_annex_b, with_sets_ahead};
+use super::annex_b::{framing_and_sets, in_annex_b, with_sets_ahead};
 use super::device::VideoDevice;
 use super::frame::DecodedFrame;
 use super::output::Output;

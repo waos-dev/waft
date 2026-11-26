@@ -69,9 +69,10 @@ mod tests {
 
     use windows::Win32::Foundation::LUID;
 
-    use super::annex_b::tests::{
-        CLIP, is_parameter_set, record_of, units_after_start_codes, with_lengths,
-    };
+    use waft_video_codecs::framing::{units_after_start_codes, with_lengths, with_start_codes};
+    use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip, record_of};
+    use waft_video_codecs::h264::{ParameterSets, is_parameter_set};
+
     use super::decoder::MediaFoundation;
     use super::device::VideoDevice;
     use super::transform::Transform;
@@ -80,9 +81,6 @@ mod tests {
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.
     const SHOWN_AT: [i64; 12] = [0, 3, 1, 2, 5, 4, 8, 6, 7, 11, 9, 10];
-
-    /// A unit that begins a picture's units in the clip: an access unit delimiter.
-    const DELIMITER: u8 = 9;
 
     /// The time of a picture shown `number` pictures in, in nanoseconds, at thirty a second.
     fn time_of(number: i64) -> i64 {
@@ -97,20 +95,6 @@ mod tests {
             largest_size: None,
             default_color: None,
         }
-    }
-
-    /// The clip's pictures in the order they are decoded, each its units.
-    fn pictures_of_the_clip() -> Vec<Vec<&'static [u8]>> {
-        let mut pictures: Vec<Vec<&[u8]>> = Vec::new();
-        for unit in units_after_start_codes(CLIP) {
-            if unit[0] & 0x1F == DELIMITER {
-                pictures.push(Vec::new());
-            }
-            if let Some(picture) = pictures.last_mut() {
-                picture.push(unit);
-            }
-        }
-        pictures
     }
 
     /// The clip's chunks in the order they are decoded, each framed by `framed`.
@@ -129,10 +113,7 @@ mod tests {
     }
 
     pub(super) fn after_start_codes(units: &[&[u8]]) -> Vec<u8> {
-        units
-            .iter()
-            .flat_map(|unit| [&[0, 0, 0, 1][..], unit].concat())
-            .collect()
+        with_start_codes(units.iter().copied())
     }
 
     fn open(choice: CodecChoice) -> Arc<dyn VideoDecoder> {
@@ -229,11 +210,7 @@ mod tests {
 
     #[test]
     fn a_stream_after_lengths_with_its_record_comes_out_the_same() {
-        let units = units_after_start_codes(CLIP);
-        let sets: Vec<&[u8]> = units
-            .into_iter()
-            .filter(|unit| is_parameter_set(unit))
-            .collect();
+        let sets = ParameterSets::among(&units_after_start_codes(CLIP));
         let setup = VideoStreamSetup::H264(NalFormat::LengthPrefixed(record_of(&sets)));
         let decoder = block_on(MediaFoundationDecoders.open(setup, options(CodecChoice::Any)))
             .expect("a decoder");

@@ -61,6 +61,9 @@ windows-numerics = "0.3"
 png = "0.18"
 # wgpu-hal's D3D12 backend, which wraps a shared texture opened on Waft's device as one of wgpu's.
 wgpu-hal = { version = "30", features = ["dx12"] }
+# What an H.264 stream's setup and chunks say, read as on every system, before Media Foundation's
+# decoder is handed them.
+waft-video-codecs.workspace = true
 
 # The tray's StatusNotifierItems and their DBus menus, over the session bus, and a menu item's icon
 # as the PNG the DBus menu takes. zbus is pure Rust; its 5.x line keeps the blocking API that the
