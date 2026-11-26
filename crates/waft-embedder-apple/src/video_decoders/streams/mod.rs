@@ -9,6 +9,7 @@
 //! no longer be the stream's.
 
 mod h264;
+mod hevc;
 
 use waft_embedder::video_decoders::{DecoderError, VideoStreamSetup};
 use waft_video_codecs::StreamFacts;
@@ -48,8 +49,9 @@ pub(super) struct ReadChunk {
 pub(super) fn reader_for(setup: VideoStreamSetup) -> Result<Box<dyn StreamReader>, DecoderError> {
     match setup {
         VideoStreamSetup::H264(format) => Ok(Box::new(h264::H264Stream::of(format)?)),
+        VideoStreamSetup::Hevc(format) => Ok(Box::new(hevc::HevcStream::of(format)?)),
         other => Err(DecoderError::Unsupported(format!(
-            "this system's decoders are handed H.264 alone so far, not {:?}",
+            "this system's decoders are handed H.264 and HEVC alone so far, not {:?}",
             other.codec()
         ))),
     }

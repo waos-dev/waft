@@ -11,12 +11,15 @@ use std::ffi::c_int;
 use std::ptr::{self, NonNull};
 
 use objc2_core_foundation::CFRetained;
-use objc2_core_media::{CMFormatDescription, CMVideoFormatDescriptionCreateFromH264ParameterSets};
+use objc2_core_media::{
+    CMFormatDescription, CMVideoFormatDescriptionCreateFromH264ParameterSets,
+    CMVideoFormatDescriptionCreateFromHEVCParameterSets,
+};
 use objc2_video_toolbox::kVTVideoDecoderBadDataErr;
 use waft_embedder::video_decoders::DecoderError;
 
 use waft_video_codecs::framing::LENGTH_SIZE;
-use waft_video_codecs::h264;
+use waft_video_codecs::{h264, hevc};
 
 /// What VideoToolbox answers as a status.
 type Status = i32;
@@ -42,6 +45,25 @@ impl Format {
                 pointers,
                 sizes,
                 LENGTH_SIZE as c_int,
+                format,
+            )
+        })
+        .map_err(refusal_of_parameter_sets)
+    }
+
+    /// The format of an HEVC stream of `sets`.
+    pub(super) fn hevc(sets: &hevc::ParameterSets) -> Result<Format, DecoderError> {
+        let units: Vec<&[u8]> = sets.units().collect();
+        // SAFETY: the function, given units of the sizes given, no extensions, and a valid place
+        // for the format, as `of_parameter_sets` calls it.
+        of_parameter_sets(&units, |count, pointers, sizes, format| unsafe {
+            CMVideoFormatDescriptionCreateFromHEVCParameterSets(
+                None,
+                count,
+                pointers,
+                sizes,
+                LENGTH_SIZE as c_int,
+                None,
                 format,
             )
         })

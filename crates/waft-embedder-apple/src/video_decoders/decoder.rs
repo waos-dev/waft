@@ -5,11 +5,12 @@
 //! the queue works on (`Work`) is the stream as far as it is known (its codec's reader,
 //! `streams`), the session made for it, and the pictures decoded and not yet shown.
 //!
-//! What a session is made for (a stream's format: H.264's parameter sets) may come ahead, in
-//! its setup, or in its chunks, and may change. A session is made once the stream's reader has
-//! a whole description, and made again when VideoToolbox does not go on with a new one; the
-//! pictures still held then are shown first, as they come before the change. VideoToolbox's pool grows as frames are held, so the decoder holds itself back: it
-//! decodes no more while as many frames as the app said it holds at once wait to be read.
+//! What a session is made for (a stream's format: H.264's and HEVC's parameter sets) may come
+//! ahead, in its setup, or in its chunks, and may change. A session is made once the stream's
+//! reader has a whole description, and made again when VideoToolbox does not go on with a new
+//! one; the pictures still held then are shown first, as they come before the change.
+//! VideoToolbox's pool grows as frames are held, so the decoder holds itself back: it decodes no
+//! more while as many frames as the app said it holds at once wait to be read.
 //!
 //! A reset drops what the decoder holds at the moment the app asks, though chunks handed over
 //! before it may still wait on the queue, or be decoding: each carries the count of resets it
@@ -294,8 +295,11 @@ fn kind_before_a_session(choice: CodecChoice) -> CodecKind {
 mod tests {
     use pollster::block_on;
     use waft_embedder::PixelRect;
-    use waft_embedder::video_decoders::{DecodingPurpose, NalFormat};
+    use waft_embedder::video_decoders::NalFormat;
 
+    use super::super::test_decoding::{
+        after_start_codes, chunks_of, options, shown_in_order, times_decoded,
+    };
     use super::*;
     use waft_video_codecs::framing::{units_after_start_codes, with_lengths};
     use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip, record_of};
@@ -305,62 +309,13 @@ mod tests {
     /// pictures: what `ffprobe` reads of the clip's packets.
     const SHOWN_AT: [i64; 12] = [0, 3, 1, 2, 5, 4, 8, 6, 7, 11, 9, 10];
 
-    /// The time of a picture shown `number` pictures in, in nanoseconds, at thirty a second.
-    fn time_of(number: i64) -> i64 {
-        number * 33_333_333
-    }
-
-    fn options() -> VideoDecoderOptions {
-        VideoDecoderOptions {
-            decoder: CodecChoice::Any,
-            purpose: DecodingPurpose::Playback,
-            frame_limit: 4,
-            largest_size: None,
-            default_color: None,
-        }
-    }
-
     /// The clip's chunks in the order they are decoded, each framed by `framed`.
     fn chunks(framed: impl Fn(&[&[u8]]) -> Vec<u8>) -> Vec<EncodedChunk> {
-        pictures_of_the_clip()
+        let data = pictures_of_the_clip()
             .iter()
-            .zip(SHOWN_AT)
-            .enumerate()
-            .map(|(decoded, (units, shown))| EncodedChunk {
-                data: framed(units),
-                timestamp: time_of(shown),
-                duration: Some(33_333_333),
-                key_frame: decoded == 0,
-            })
-            .collect()
-    }
-
-    /// `units` each after a start code, as the clip holds them.
-    fn after_start_codes(units: &[&[u8]]) -> Vec<u8> {
-        units
-            .iter()
-            .flat_map(|unit| [&[0, 0, 0, 1][..], unit].concat())
-            .collect()
-    }
-
-    /// Hands every one of `chunks` to `decoder`, drains it, and answers the times of the frames
-    /// that came out, in the order they came. The chunks are all handed over first, as an app
-    /// that does not wait for each does, and the frames read as the decoder puts them out.
-    fn times_decoded(decoder: &Decoder, chunks: Vec<EncodedChunk>) -> Vec<Option<i64>> {
-        let count = chunks.len();
-        let decoding: Vec<_> = chunks
-            .into_iter()
-            .map(|chunk| decoder.decode(chunk))
+            .map(|units| framed(units))
             .collect();
-        let draining = decoder.drain();
-        let times = (0..count)
-            .map(|_| block_on(decoder.next_frame()).expect("a frame").timestamp())
-            .collect();
-        for decoded in decoding {
-            block_on(decoded).expect("the chunk decodes");
-        }
-        block_on(draining).expect("the decoder drains");
-        times
+        chunks_of(data, &SHOWN_AT)
     }
 
     #[test]
@@ -368,8 +323,7 @@ mod tests {
         let setup = VideoStreamSetup::H264(NalFormat::StartCodes(None));
         let decoder = Decoder::open(setup, &options()).expect("a decoder");
         let times = times_decoded(&decoder, chunks(after_start_codes));
-        let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
-        assert_eq!(times, in_order);
+        assert_eq!(times, shown_in_order(12));
     }
 
     /// The order is the stream's own: chunks whose times say the order they are decoded in, as
@@ -400,8 +354,7 @@ mod tests {
             with_lengths(units.iter().copied().filter(|unit| !is_parameter_set(unit)))
         };
         let times = times_decoded(&decoder, chunks(without_sets));
-        let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
-        assert_eq!(times, in_order);
+        assert_eq!(times, shown_in_order(12));
     }
 
     #[test]
@@ -481,9 +434,9 @@ mod tests {
             .collect();
         decoder.reset();
         let times = times_decoded(&decoder, chunks(after_start_codes));
-        let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
         assert_eq!(
-            times, in_order,
+            times,
+            shown_in_order(12),
             "only the pictures handed over after the reset"
         );
         for decoded in before {
