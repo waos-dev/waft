@@ -47,6 +47,7 @@ mod service_extensions;
 mod signed_duration;
 mod snapshot_delegate;
 mod system_context_menu;
+mod system_gpu;
 #[cfg(feature = "test-support")]
 mod test_font;
 #[cfg(feature = "test-support")]
@@ -71,7 +72,9 @@ pub use clipboard::{
     ClipboardReadFuture, ClipboardWriteFuture, Content, ContentFuture, CopyOptions, CopyRequest,
     DataTransferItem, FileSink, URI_LIST, WriteFuture,
 };
-pub use composition::{CompositionLayer, Compositor, LayerPicture};
+pub use composition::{
+    AcceptedBuffers, AcceptedFormat, CompositionLayer, Compositor, GpuMemory, LayerPicture,
+};
 pub use cue::{
     Cue, CueAnchor, CueContent, CueImage, CueLine, CueTextAlignment, CueTextEdge, CueTextRun,
     CueVertical,
@@ -97,7 +100,9 @@ pub use fragment_shader::{
     UniformMat3Slot, UniformMat4Slot, UniformVec2Slot, UniformVec3Slot, UniformVec4Slot,
 };
 pub use geometry::*;
-pub use hardware_buffers::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+pub use hardware_buffers::{
+    GpuId, HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage,
+};
 pub use http::{
     Body, BodyReadAllFuture, BodyReadFuture, BodyStream, BodyTrailersFuture, DnsErrorPayload,
     FieldSizePayload, HttpClient, HttpError, HttpFuture, RedirectPolicy, SendOptions,
@@ -164,6 +169,7 @@ pub use service_extensions::{
 pub use signed_duration::SignedDuration;
 pub use snapshot_delegate::SnapshotDelegate;
 pub use system_context_menu::SystemContextMenuItem;
+pub use system_gpu::{HostGpu, SystemGpu};
 #[cfg(feature = "test-support")]
 pub use test_font::TestFontSource;
 pub use text::*;

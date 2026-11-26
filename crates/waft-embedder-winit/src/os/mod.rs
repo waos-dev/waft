@@ -31,7 +31,7 @@
 #[cfg(not(target_os = "macos"))]
 mod absent;
 #[cfg(target_os = "linux")]
-pub use linux::DmabufBuffer;
+pub use linux::{DmabufBuffer, ShmBuffer};
 #[cfg(target_os = "macos")]
 pub(crate) use macos::set_backdrop;
 #[cfg(target_os = "macos")]

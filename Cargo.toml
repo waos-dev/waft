@@ -30,6 +30,7 @@ waft-embedder-ios = { version = "0.13.0", path = "crates/waft-embedder-ios" }
 waft-embedder-default = { version = "0.13.0", path = "crates/waft-embedder-default" }
 waft-embedder-web = { version = "0.13.0", path = "crates/waft-embedder-web" }
 waft-embedder-winit = { version = "0.13.0", path = "crates/waft-embedder-winit" }
+waft-video-codecs = { version = "0.13.0", path = "crates/waft-video-codecs" }
 waft-foundation = { version = "0.13.0", path = "crates/waft-foundation" }
 waft-gestures = { version = "0.13.0", path = "crates/waft-gestures" }
 waft-material = { version = "0.13.0", path = "crates/waft-material" }

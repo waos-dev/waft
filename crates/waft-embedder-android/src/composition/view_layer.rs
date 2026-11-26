@@ -41,7 +41,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use ndk::native_window::NativeWindow;
 use waft_embedder::{
-    HardwareBufferAllocator, HardwareBufferUsage, Picture, PreparedPrograms, Slices, ViewId,
+    HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage, Picture, PreparedPrograms,
+    Slices, ViewId,
 };
 
 use crate::frame_fence::{FrameFences, SignalledFrame};
@@ -351,7 +352,7 @@ fn drawn_buffer(gpu: &Gpu, size: [u32; 2]) -> Option<(AndroidHardwareBuffer, Arc
         .allocate(
             size[0],
             size[1],
-            waft_embedder::image_codecs::PixelFormat::Rgba8,
+            HardwareBufferFormat::Rgba8,
             DRAWN_AND_SHOWN,
         )
         .inspect_err(|error| crate::log::warn_to_log!("no buffer for the view: {error}"))

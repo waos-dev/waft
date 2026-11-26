@@ -15,15 +15,12 @@
 //! window (`../experiments/2026-11-13-wgpu-gl-in-vm`). On Windows it is D3D12's alone: a view draws
 //! on a DirectComposition visual and a composition layer copies a texture shared by NT handle, both
 //! D3D12's (`os/windows/composition.rs`), so a machine whose only hardware driver is another API's
-//! draws on WARP. The compositor is told once the device is made (`NativeComposition::device_made`).
+//! draws on WARP. Windows' compositor makes a device of its own by the same rule, on hardware alone.
 
 use std::cell::OnceCell;
 use std::rc::Rc;
 
 use winit::event_loop::OwnedDisplayHandle;
-
-use crate::os::System;
-use crate::os::capabilities::NativeComposition as _;
 
 pub(crate) struct Gpu {
     pub(crate) instance: wgpu::Instance,
@@ -55,7 +52,7 @@ impl Gpu {
 /// What the instance is made with: the event loop's display where there is one; on Windows, D3D12
 /// alone, which DirectComposition's swapchains and textures shared by NT handle need
 /// (`os/windows/composition.rs`).
-fn instance_descriptor(display: Option<OwnedDisplayHandle>) -> wgpu::InstanceDescriptor {
+pub(crate) fn instance_descriptor(display: Option<OwnedDisplayHandle>) -> wgpu::InstanceDescriptor {
     let descriptor = match display {
         Some(display) => wgpu::InstanceDescriptor::new_with_display_handle(Box::new(display)),
         None => wgpu::InstanceDescriptor::new_without_display_handle(),
@@ -102,18 +99,14 @@ impl LazyGpu {
     ///
     /// When no adapter gives a device, saying why each refused.
     pub(crate) fn get(&self) -> &Gpu {
-        self.gpu.get_or_init(|| {
-            let gpu = Gpu::acquire(&self.request);
-            System::device_made(&gpu);
-            gpu
-        })
+        self.gpu.get_or_init(|| Gpu::acquire(&self.request))
     }
 }
 
 /// A device on a hardware adapter at the best level valo draws at on it, `Core` where one is fully
 /// WebGPU-compliant; where there is none, on the software adapter; and with
 /// `force_fallback_adapter`, on the software adapter alone.
-async fn request_device(
+pub(crate) async fn request_device(
     instance: &wgpu::Instance,
     force_fallback_adapter: bool,
 ) -> Result<(wgpu::Adapter, wgpu::Device, wgpu::Queue), valo::NoDevice> {

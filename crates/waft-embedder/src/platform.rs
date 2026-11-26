@@ -705,15 +705,16 @@ pub trait Platform: Any {
         None
     }
 
-    /// `buffer`, one this host handed out, imported as a texture on `device` over its memory with
-    /// no copy, as the system's GPU API imports such memory (Metal's texture over an `IOSurface`,
-    /// Vulkan's external memory over an `AHardwareBuffer`): of the buffer's size, for what its
+    /// `buffer`, one this host handed out and of one plane, imported as a texture on `device` over
+    /// its memory with no copy, as the system's GPU API imports such memory (Metal's texture over
+    /// an `IOSurface`, Vulkan's external memory over an `AHardwareBuffer`): of the buffer's size, for what its
     /// usage names, sampled where the GPU samples it, drawn into and copied into where it draws
     /// into it, and copied from whatever its usage. The texture holds the buffer, and a video
     /// frame's buffer its frame, until the GPU is done with it. The host imports it, as the one
     /// that knows both the buffer and the device; a buffer names no GPU API. `None` for a buffer
-    /// another host handed out, and for a device that cannot take the buffer's memory: on Apple
-    /// platforms a wgpu device not on Metal. Not dart:ui's: Flutter's engine keeps its textures to
+    /// another host handed out, for a buffer of two planes, which
+    /// [`import_planes`](Self::import_planes) imports, and for a device that cannot take the
+    /// buffer's memory: on Apple platforms a wgpu device not on Metal. Not dart:ui's: Flutter's engine keeps its textures to
     /// itself.
     fn import_texture(
         &self,
@@ -724,9 +725,44 @@ pub trait Platform: Any {
         None
     }
 
-    /// The system's hardware buffer allocator, which the app allocates GPU memory the compositor
-    /// shows with, from any thread: `None` where the system allocates none.
-    fn hardware_buffer_allocator(&self) -> Option<Arc<dyn crate::HardwareBufferAllocator>> {
+    /// `buffer`, one this host handed out, imported on `device` with no copy as one texture view
+    /// per plane, brightness first, each in the format
+    /// [`HardwareBufferFormat::plane_format`](crate::HardwareBufferFormat::plane_format) names and
+    /// of the size [`plane_size`](crate::HardwareBufferFormat::plane_size) names: what a shader
+    /// samples to convert a decoder's picture to colour with the frame's
+    /// [`VideoFrame::color`](crate::VideoFrame::color). The views are of one texture per plane on
+    /// Metal, which has no texture of two planes, and the plane aspects of one NV12 or P010
+    /// texture on D3D12. A buffer of one plane is one view of its texture, as
+    /// [`import_texture`](Self::import_texture) makes it. Each view holds its texture, and the
+    /// texture the buffer, and a frame's buffer its frame, until the GPU is done with it. `None`
+    /// for a buffer another host handed out, for a device that cannot take its memory or sample
+    /// its planes' formats, and on a host that imports no planes.
+    fn import_planes(
+        &self,
+        buffer: &dyn crate::HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::TextureView>> {
+        let _ = (buffer, device);
+        None
+    }
+
+    /// The GPU `device` runs on, as its system names it: what an app that draws with `device`
+    /// asks for its decoders and allocator with, `platform.gpu(platform.gpu_id(&device))`, so
+    /// their memory opens on that device. `None` where the system names no GPU (Apple's systems,
+    /// Android), and for a device whose backend says nothing of its GPU (OpenGL, a Vulkan driver
+    /// without `VK_EXT_physical_device_drm`). Only the host reads it, as the one that knows which
+    /// backend the device is on.
+    fn gpu_id(&self, device: &wgpu::Device) -> Option<crate::GpuId> {
+        let _ = device;
+        None
+    }
+
+    /// The GPU `id` names, or the system's default where `None`, with what the system makes for
+    /// it: its video decoders and its hardware buffer allocator. `None` where the system has no
+    /// such GPU, and where it hands out nothing for any. Apple's systems and Android have one,
+    /// whatever `id` names, as their memory opens on any of the machine's GPUs.
+    fn gpu(&self, id: Option<crate::GpuId>) -> Option<Rc<dyn crate::SystemGpu>> {
+        let _ = id;
         None
     }
 
@@ -834,12 +870,6 @@ pub trait Platform: Any {
     /// The system's frame readers, which a player or a camera hands its frames to, or `None`
     /// where the system hands out no frames.
     fn video_frame_readers(&self) -> Option<&dyn crate::VideoFrameReaders> {
-        None
-    }
-
-    /// The system's video decoders, which an app hands a stream's encoded pictures, or `None`
-    /// where the system decodes no video for the app.
-    fn video_decoders(&self) -> Option<&dyn crate::video_decoders::VideoDecoders> {
         None
     }
 

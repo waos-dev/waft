@@ -3,7 +3,9 @@
 //! texture imported over it (`gpu_interop`). A buffer the app allocates is made by
 //! `AHardwareBuffer_allocate` with the usage the app names, and its pixels are read while it is
 //! locked for the CPU. A buffer's usage is what its `AHardwareBuffer` says it was allocated for
-//! (`AHardwareBuffer_describe`), whoever allocated it, mapped back to Waft's flags.
+//! (`AHardwareBuffer_describe`), whoever allocated it, mapped back to Waft's flags. A camera's and
+//! a decoder's pictures, in the system's own format, are apart ([`PrivatePicture`]): the host draws
+//! them into RGBA8 buffers or shows them on a layer, and never hands one to the app.
 //!
 //! The invariant: a buffer holds a reference on its `AHardwareBuffer` for as long as anything holds
 //! the buffer, and `read_pixels` reads only a buffer whose usage has `cpu_read`: some allocators
@@ -23,12 +25,42 @@ use ndk::hardware_buffer_format::HardwareBufferFormat;
 use waft_embedder::image_codecs::{
     AlphaType, ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat, PixelLayout,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+use waft_embedder::{
+    HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat as Format, HardwareBufferUsage,
+};
+
+/// A picture in the system's own format (`AIMAGE_FORMAT_PRIVATE`, a buffer of
+/// `IMPLEMENTATION_DEFINED`), as a camera's image reader and a decoder hand pictures out: an
+/// `AHardwareBuffer` whose layout is the vendor's, which the compositor shows and OpenGL ES samples
+/// through an external texture, and no [`HardwareBufferFormat`](Format) names. The host draws it
+/// into an RGBA8 buffer (`media::frame_conversion`) or shows it on a layer (`media::preview`), and
+/// never hands it to the app.
+#[derive(Clone, Debug)]
+pub(crate) struct PrivatePicture(HardwareBufferRef);
+
+// SAFETY: an `AHardwareBuffer` is made to be shared between threads and processes: its reference
+// count is atomic, and a picture's memory is written only by the system before it is handed out.
+// `ndk` cannot say so of its pointer.
+unsafe impl Send for PrivatePicture {}
+unsafe impl Sync for PrivatePicture {}
+
+impl PrivatePicture {
+    /// The picture of `buffer`, as a camera's image reader or a decoder handed it out.
+    pub(crate) fn new(buffer: HardwareBufferRef) -> PrivatePicture {
+        PrivatePicture(buffer)
+    }
+
+    /// The `AHardwareBuffer` the picture is.
+    pub(crate) fn buffer(&self) -> &HardwareBufferRef {
+        &self.0
+    }
+}
 
 /// Bytes one pixel of RGBA8 occupies.
 const BYTES_PER_PIXEL: u32 = 4;
 
-/// A hardware buffer on Android: an `AHardwareBuffer` in RGBA8, with what it says of itself.
+/// A hardware buffer on Android: an `AHardwareBuffer` in RGBA8, with what it says of itself. A
+/// picture in the system's own format is a [`PrivatePicture`] instead.
 /// Platform code reaches the `AHardwareBuffer` from a [`HardwareBuffer`] by downcasting
 /// through `Any`:
 ///
@@ -131,6 +163,12 @@ impl HardwareBuffer for AndroidHardwareBuffer {
         self.usage
     }
 
+    /// RGBA8, the one format a buffer here is in: the allocator's, a frame drawn from a picture's,
+    /// and the one `new` takes.
+    fn format(&self) -> Format {
+        Format::Rgba8
+    }
+
     /// The buffer's rows as they lie, RGBA and premultiplied, copied while it is locked for
     /// reading: `Unsupported` for a buffer whose usage lacks `cpu_read`.
     fn read_pixels(&self) -> ImageFuture<PixelBuffer> {
@@ -149,7 +187,7 @@ impl HardwareBufferAllocator for GrallocAllocator {
         &self,
         width: u32,
         height: u32,
-        format: PixelFormat,
+        format: Format,
         usage: HardwareBufferUsage,
     ) -> Result<Arc<dyn HardwareBuffer>, ImageError> {
         if let Some(refused) = refusal(width, height, format, self.largest_side) {
@@ -176,14 +214,14 @@ impl HardwareBufferAllocator for GrallocAllocator {
 
 /// Why a buffer of `width` by `height` in `format` is not allocated, sides past `largest_side`
 /// refused; `None` for one that is.
-fn refusal(width: u32, height: u32, format: PixelFormat, largest_side: u32) -> Option<ImageError> {
+fn refusal(width: u32, height: u32, format: Format, largest_side: u32) -> Option<ImageError> {
     if width == 0 || height == 0 {
         return Some(ImageError::new(
             ImageErrorKind::Other,
             format!("a buffer of {width} by {height} pixels, which holds none"),
         ));
     }
-    if format != PixelFormat::Rgba8 {
+    if format != Format::Rgba8 {
         return Some(ImageError::new(
             ImageErrorKind::Unsupported,
             "Android allocates hardware buffers in RGBA",
@@ -272,17 +310,18 @@ mod tests {
         let refused =
             |width, height, format| refusal(width, height, format, 4096).map(|error| error.kind);
         assert_eq!(
-            refused(8, 8, PixelFormat::Bgra8),
+            refused(8, 8, Format::Bgra8),
             Some(ImageErrorKind::Unsupported)
         );
         assert_eq!(
-            refused(4097, 8, PixelFormat::Rgba8),
-            Some(ImageErrorKind::TooLarge)
+            refused(8, 8, Format::Nv12),
+            Some(ImageErrorKind::Unsupported)
         );
         assert_eq!(
-            refused(0, 8, PixelFormat::Rgba8),
-            Some(ImageErrorKind::Other)
+            refused(4097, 8, Format::Rgba8),
+            Some(ImageErrorKind::TooLarge)
         );
-        assert_eq!(refused(4096, 8, PixelFormat::Rgba8), None);
+        assert_eq!(refused(0, 8, Format::Rgba8), Some(ImageErrorKind::Other));
+        assert_eq!(refused(4096, 8, Format::Rgba8), None);
     }
 }

@@ -6,12 +6,15 @@
 //! started a GUI program (`console`), the app's icon in its executable's resources, which app the
 //! taskbar takes the process and each window for (`app_identity`), DirectComposition's
 //! composition layers beneath a view drawn on a visual of its own (`composition`), over textures
-//! shared by NT handle (`shared_textures`), and each display's refreshes (`display_links`).
+//! shared by NT handle (`shared_textures`), each display's refreshes (`display_links`), Media
+//! Foundation's H.264 decoder (`video_decoders`), and the LUID of the adapter a device runs on
+//! (`adapters`).
 
 // Win32 is reached through system calls, which Rust reaches through `unsafe`; this module and its
 // children are the one place on Windows that writes it.
 #![allow(unsafe_code)]
 
+mod adapters;
 mod app_identity;
 mod composition;
 mod console;
@@ -23,15 +26,16 @@ mod menus;
 mod notifications;
 mod opener;
 mod shared_textures;
+mod video_decoders;
 
 pub use shared_textures::SharedTexture;
 
 use std::sync::Arc;
 
 use waft_embedder::{
-    Compositor, HardwareBuffer, IconImage, TargetPlatform, TitleBarAction, WindowConfig,
+    Compositor, GpuId, HardwareBuffer, IconImage, TargetPlatform, TitleBarAction, WindowConfig,
 };
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, LUID};
 use windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetSystemMetrics, SM_CXICON, SM_CXSMICON, SM_CYICON, SM_CYSMICON, SYSTEM_METRICS_INDEX,
@@ -46,6 +50,7 @@ use winit::window::{Window, WindowAttributes};
 use crate::clipboard::{ChangeProbe, TextClipboard};
 use crate::host_window::winit_icon;
 use crate::{LinuxSettings, WindowsSettings};
+use waft_embedder::HostGpu;
 
 use super::absent::{NoTrackpadTouchObserver, NoVisibilityNotices};
 use super::capabilities::{
@@ -56,7 +61,6 @@ use super::capabilities::{
     WindowMotion, WindowVisibility, WorkQueue,
 };
 use super::window_handle_layer::{NoWindowHold, WindowHandleLayer};
-use crate::gpu::Gpu;
 use composition::{DirectComposition, WindowsCompositor};
 use display_links::VBlankLink;
 
@@ -99,10 +103,6 @@ impl NativeComposition for Windows {
     fn compositor() -> Option<Arc<dyn Compositor>> {
         let compositor = WindowsCompositor::new()?;
         Some(Arc::new(compositor))
-    }
-
-    fn device_made(gpu: &Gpu) {
-        composition::device_made(gpu);
     }
 
     fn view_layer_in(window: &Arc<dyn Window>) -> (Self::ViewLayer, NoWindowHold) {
@@ -232,15 +232,49 @@ impl StandardStreams for Windows {
 
 impl Screens for Windows {}
 impl PointerQueries for Windows {}
-/// A shared texture opened on the device, anew for each import.
+/// A GPU for each adapter, named by its LUID (`adapters`): Media Foundation's decoders, which put their pictures
+/// in textures shared on that adapter; no allocator, as producers bring their own textures. A
+/// shared texture of one plane opened on the device, anew for each import, and a decoder's of two
+/// opened so and viewed a plane at a time (`shared_textures`).
 impl GpuInterop for Windows {
+    fn gpu_id(device: &wgpu::Device) -> Option<GpuId> {
+        adapters::luid_of(device)
+    }
+
+    fn gpu(id: Option<GpuId>) -> Option<HostGpu> {
+        let adapter = match id {
+            Some(GpuId::Luid { low, high }) => Some(LUID {
+                LowPart: low,
+                HighPart: high,
+            }),
+            Some(_) => return None,
+            None => None,
+        };
+        Some(HostGpu {
+            id,
+            video_decoders: video_decoders::video_decoders(adapter),
+            hardware_buffer_allocator: None,
+        })
+    }
+
     fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Option<wgpu::Texture> {
+        if buffer.format().plane_count() != 1 {
+            return None;
+        }
         let buffer: &dyn std::any::Any = buffer;
         let shared = buffer.downcast_ref::<SharedTexture>()?;
         shared.open_on(
             device,
             wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
         )
+    }
+
+    fn import_planes(
+        buffer: &dyn HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::TextureView>> {
+        let buffer: &dyn std::any::Any = buffer;
+        buffer.downcast_ref::<SharedTexture>()?.planes_on(device)
     }
 }
 impl ImageDecoding for Windows {}

@@ -62,7 +62,7 @@ use player::AvPlayers;
 pub use video_frame::CoreVideoFrame;
 pub(crate) use video_frame::DecodedFacts;
 #[cfg(test)]
-pub(crate) use video_frame::test_frame;
+pub(crate) use video_frame::{test_frame, test_frame_in};
 
 /// AVFoundation's players; `None` off the main thread, where none is controlled.
 pub fn players() -> Option<Rc<dyn Players>> {

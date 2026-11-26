@@ -1,0 +1,30 @@
+[package]
+name = "waft-video-codecs"
+description = "What a video stream says of itself, read the same for every system's decoder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+# A short clip of each codec and what is read of it, for the hosts' decoder tests.
+test-support = []
+
+[dependencies]
+waft-embedder.workspace = true
+# H.264's configuration record, parameter sets and slice headers.
+h264-reader = "0.9"
+# HEVC's configuration record and sequence parameter sets, and the bit reader, emulation
+# prevention and Exp-Golomb codes its picture parameter sets and slice headers, and VP9's and AV1's
+# frame headers, are read with here.
+scuffle-h265 = "0.2"
+scuffle-bytes-util = "0.1"
+scuffle-expgolomb = "0.1"
+# AV1's configuration record and sequence headers.
+scuffle-av1 = "0.1"
+
+[lints]
+workspace = true

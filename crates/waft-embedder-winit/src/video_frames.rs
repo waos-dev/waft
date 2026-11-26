@@ -182,13 +182,11 @@ mod tests {
     #[cfg(target_os = "macos")]
     mod taken {
         use waft_embedder::HardwareBuffer;
-        use waft_embedder::HardwareBufferUsage;
-        use waft_embedder::image_codecs::{
-            ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat,
-        };
+        use waft_embedder::image_codecs::{ImageError, ImageErrorKind, ImageFuture, PixelBuffer};
+        use waft_embedder::{HardwareBufferFormat, HardwareBufferUsage};
 
         use super::*;
-        use crate::os::capabilities::NativeComposition;
+        use crate::os::capabilities::GpuInterop;
 
         /// A reader handing out a new frame each time a test puts one in.
         #[derive(Default)]
@@ -214,9 +212,15 @@ mod tests {
 
         /// A 4 by 4 buffer the system allocated, which its GPU takes.
         fn allocated_buffer() -> Arc<dyn HardwareBuffer> {
-            System::hardware_buffer_allocator()
+            System::gpu(None)
+                .and_then(|gpu| gpu.hardware_buffer_allocator)
                 .expect("Apple's systems allocate hardware buffers")
-                .allocate(4, 4, PixelFormat::Bgra8, HardwareBufferUsage::GPU_SAMPLED)
+                .allocate(
+                    4,
+                    4,
+                    HardwareBufferFormat::Bgra8,
+                    HardwareBufferUsage::GPU_SAMPLED,
+                )
                 .expect("a buffer of 4 by 4")
         }
 
@@ -263,6 +267,10 @@ mod tests {
 
             fn usage(&self) -> HardwareBufferUsage {
                 HardwareBufferUsage::GPU_SAMPLED
+            }
+
+            fn format(&self) -> HardwareBufferFormat {
+                HardwareBufferFormat::Bgra8
             }
 
             fn read_pixels(&self) -> ImageFuture<PixelBuffer> {

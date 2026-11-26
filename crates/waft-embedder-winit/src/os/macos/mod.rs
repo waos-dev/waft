@@ -57,8 +57,8 @@ use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2_app_kit::{NSView, NSWindow};
 use valo_codec::Decoder;
+use waft_embedder::GpuId;
 use waft_embedder::image_codecs::ImageCodecs;
-use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Cameras, CaptionSettings, HardwareBuffer, MediaAssets, Notifications, Players, SignedDuration,
     TargetPlatform, VideoFrameReaders,
@@ -72,6 +72,7 @@ use super::capabilities::{
     WorkQueue,
 };
 use crate::notifications::NotificationActivations;
+use waft_embedder::HostGpu;
 use waft_embedder_apple::{abort_on_panic, image_io_decoders, notifications};
 
 /// macOS, as AppKit answers. A type only: never made, its answers are associated functions.
@@ -130,11 +131,6 @@ impl SystemMedia for AppKit {
         waft_embedder_apple::media::video_frame_readers()
     }
 
-    /// VideoToolbox's, which iOS shares.
-    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
-        waft_embedder_apple::video_decoders::video_decoders()
-    }
-
     /// Media Accessibility's.
     fn caption_settings() -> Option<Rc<dyn CaptionSettings>> {
         waft_embedder_apple::caption_appearance::caption_settings()
@@ -148,10 +144,29 @@ impl SystemImageCodecs for AppKit {
     }
 }
 
-/// Metal's texture over the buffer's `IOSurface`, which iOS shares (`waft-embedder-apple`'s `gpu_interop`).
+/// One GPU, as macOS names none: an `IOSurface` opens on any of the machine's. VideoToolbox's
+/// decoders and the `IOSurface` allocator, which iOS shares; Metal's texture over a buffer's
+/// `IOSurface`, and over each of its planes (`waft-embedder-apple`'s `gpu_interop`).
 impl GpuInterop for AppKit {
+    fn gpu(_id: Option<GpuId>) -> Option<HostGpu> {
+        Some(HostGpu {
+            id: None,
+            video_decoders: waft_embedder_apple::video_decoders::video_decoders(),
+            hardware_buffer_allocator: Some(Arc::new(
+                waft_embedder_apple::hardware_buffers::SurfaceBufferAllocator,
+            )),
+        })
+    }
+
     fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Option<wgpu::Texture> {
         waft_embedder_apple::gpu_interop::import_texture(buffer, device)
+    }
+
+    fn import_planes(
+        buffer: &dyn HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::TextureView>> {
+        waft_embedder_apple::gpu_interop::import_planes(buffer, device)
     }
 }
 

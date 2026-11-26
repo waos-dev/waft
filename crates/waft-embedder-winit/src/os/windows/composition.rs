@@ -1,8 +1,10 @@
 //! Composition layers on Windows, through DirectComposition on every Windows that composes, as
 //! Chromium shows a video where it cannot hand DirectComposition the decoder's texture: a layer is
 //! a visual holding its children's visuals, then on top a content visual whose content is a
-//! composition swapchain of the layer's own, a wgpu surface on a device of the compositor's own on
-//! Waft's adapter. A present copies the producer's buffer, a texture shared by NT handle
+//! composition swapchain of the layer's own, a wgpu surface on a device of the compositor's own. Its
+//! adapter is the one Waft's views take by the same rule, Valo's, which the compositor names as the
+//! GPU it shows from (`Compositor::accepted_buffers`), so a producer makes its textures there. A
+//! present copies the producer's buffer, a texture shared by NT handle
 //! (`shared_textures`), into the swapchain's next image on that device's queue and presents it;
 //! the buffer goes back to its producer once the copy is done on the GPU, which a thread of the
 //! compositor waits for. A window is a DirectComposition
@@ -28,7 +30,8 @@
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak, mpsc};
 
 use waft_embedder::{
-    CompositionLayer, Compositor, HardwareBuffer, LayerPicture, Placement, ViewId,
+    AcceptedBuffers, AcceptedFormat, CompositionLayer, Compositor, GpuId, GpuMemory,
+    HardwareBuffer, HardwareBufferFormat, LayerPicture, Placement, ViewId,
 };
 use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
@@ -40,8 +43,9 @@ use windows::core::Interface as _;
 use winit::raw_window_handle::RawWindowHandle;
 use winit::window::Window;
 
+use super::adapters::luid_of;
 use super::shared_textures::{FORMAT, SharedTexture};
-use crate::gpu::Gpu;
+use crate::gpu::{self, Gpu};
 use crate::os::window_handle_layer::WindowComposition;
 
 /// A release a producer handed with its buffer.
@@ -120,37 +124,31 @@ impl Device {
     }
 }
 
-/// What a layer's present uses of the GPU: a device of the compositor's own on Waft's adapter, and
-/// its queue, which copy and present, apart from Waft's device, since configuring a surface fails
-/// while another thread submits on its device, and producers present from threads of their own
-/// while Waft's main thread resizes its views; the lock that keeps the compositor's own configures
-/// and submissions apart; the instance its surfaces are made on; and the thread its releases wait
-/// on.
+/// What a layer's present uses of the GPU: a device of the compositor's own, and its queue, which
+/// copy and present, apart from Waft's device, since configuring a surface fails while another
+/// thread submits on its device, and producers present from threads of their own while Waft's main
+/// thread resizes its views; its adapter's LUID; the lock that keeps the compositor's own
+/// configures and submissions apart; the instance its surfaces are made on; and the thread its
+/// releases wait on.
 struct LayerGpu {
     instance: wgpu::Instance,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    luid: Option<GpuId>,
     submissions: Mutex<()>,
     releases: Mutex<mpsc::Sender<(wgpu::SubmissionIndex, Released)>>,
 }
 
 static GPU: OnceLock<Option<LayerGpu>> = OnceLock::new();
 
-/// The compositor's device, once Waft's is made.
+/// The compositor's device, made at the first call: on a hardware adapter as Waft's views take
+/// one, never on the software one an app may force for its own drawing; none, said so, where no
+/// adapter gives one.
 fn layer_gpu() -> Option<&'static LayerGpu> {
-    GPU.get()?.as_ref()
-}
-
-/// Waft's device is made: the compositor makes its own on the same adapter, which a layer copies
-/// and presents on from now on; none, said so, where the adapter gives no second device.
-pub(crate) fn device_made(gpu: &Gpu) {
     GPU.get_or_init(|| {
-        let descriptor = wgpu::DeviceDescriptor {
-            label: Some("waft composition"),
-            ..Default::default()
-        };
-        let (device, queue) = pollster::block_on(gpu.adapter.request_device(&descriptor))
-            .map_err(|error| eprintln!("waft: no device for composition layers: {error}"))
+        let instance = wgpu::Instance::new(gpu::instance_descriptor(None));
+        let (_, device, queue) = pollster::block_on(gpu::request_device(&instance, false))
+            .map_err(|no_device| eprintln!("waft: no device for composition layers: {no_device}"))
             .ok()?;
         let (releases, waits) = mpsc::channel::<(wgpu::SubmissionIndex, Released)>();
         let waiting = device.clone();
@@ -169,13 +167,15 @@ pub(crate) fn device_made(gpu: &Gpu) {
             eprintln!("waft: no thread for the layers' releases: {error}");
         }
         Some(LayerGpu {
-            instance: gpu.instance.clone(),
+            luid: luid_of(&device),
+            instance,
             device,
             queue,
             submissions: Mutex::new(()),
             releases: Mutex::new(releases),
         })
-    });
+    })
+    .as_ref()
 }
 
 /// The compositor on Windows, where DirectComposition makes a device.
@@ -190,6 +190,24 @@ impl WindowsCompositor {
 impl Compositor for WindowsCompositor {
     fn make_layer(&self, opaque: bool) -> Arc<dyn CompositionLayer> {
         Arc::new_cyclic(|me| WindowsLayer::new(me.clone(), opaque))
+    }
+
+    /// BGRA8 textures shared by NT handle, made on the compositor's adapter, which alone opens
+    /// them.
+    fn accepted_buffers(&self) -> AcceptedBuffers {
+        let Some(gpu) = layer_gpu() else {
+            return AcceptedBuffers::default();
+        };
+        AcceptedBuffers {
+            gpu_memory: vec![GpuMemory {
+                gpu: gpu.luid,
+                formats: vec![AcceptedFormat {
+                    format: HardwareBufferFormat::Bgra8,
+                    modifiers: Vec::new(),
+                }],
+            }],
+            shared_memory: false,
+        }
     }
 }
 
@@ -529,8 +547,16 @@ impl CompositionLayer for WindowsLayer {
             released();
             return;
         };
+        if shared.format() != HardwareBufferFormat::Bgra8 {
+            eprintln!(
+                "waft: a layer shows BGRA, and is presented {:?}; it is not shown",
+                shared.format()
+            );
+            released();
+            return;
+        }
         let Some(gpu) = layer_gpu() else {
-            eprintln!("waft: a layer is presented before Waft's device is made; it is not shown");
+            eprintln!("waft: a layer is presented where no device copies it; it is not shown");
             released();
             return;
         };

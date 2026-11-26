@@ -1,6 +1,7 @@
-//! One VideoToolbox decompression session: made for a stream's parameter sets, handed a picture's
-//! units as a sample, and answering the picture decoded, a `CVPixelBuffer` on an `IOSurface` in
-//! the decoder's own layout, 8-bit 4:2:0 in two planes.
+//! One VideoToolbox decompression session: made for a stream's format (`format`), handed a
+//! picture's chunk as a sample, and answering the picture decoded, a `CVPixelBuffer` on an
+//! `IOSurface` in the decoder's own layout, 4:2:0 in two planes, of 8-bit samples for a stream of
+//! eight bits and of 16-bit ones for a deeper stream (`PictureFormat`).
 //!
 //! A picture is decoded where it is asked for, the call returning once VideoToolbox has answered
 //! it, so a caller that decodes on a queue of its own sees pictures in the order it handed their
@@ -10,10 +11,10 @@
 //! reached after that.
 
 // VideoToolbox, CoreMedia and CoreVideo are reached here, and nowhere else in this module's
-// files.
+// files but `format`, which makes CoreMedia's formats.
 #![allow(unsafe_code)]
 
-use std::ffi::{c_int, c_void};
+use std::ffi::c_void;
 use std::ptr::{self, NonNull};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -23,27 +24,27 @@ use objc2::runtime::AnyObject;
 use objc2_core_foundation::{CFBoolean, CFDictionary, CFRetained, CFType};
 use objc2_core_media::{
     CMBlockBuffer, CMFormatDescription, CMSampleBuffer, CMSampleTimingInfo, CMTime,
-    CMVideoFormatDescriptionCreateFromH264ParameterSets, kCMBlockBufferAssureMemoryNowFlag,
-    kCMTimeInvalid,
+    CMVideoCodecType, kCMBlockBufferAssureMemoryNowFlag, kCMTimeInvalid,
 };
 use objc2_core_video::{
     CVImageBuffer, CVPixelBuffer, kCVPixelBufferIOSurfacePropertiesKey,
     kCVPixelBufferMetalCompatibilityKey, kCVPixelBufferPixelFormatTypeKey,
     kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
     kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+    kCVPixelFormatType_420YpCbCr10BiPlanarFullRange,
+    kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
 };
 use objc2_foundation::{NSDictionary, NSNumber, NSString};
 use objc2_video_toolbox::{
-    VTDecodeFrameFlags, VTDecodeInfoFlags, VTDecompressionSession, VTSessionCopyProperty,
-    kVTCouldNotFindVideoDecoderErr,
+    VTDecodeFrameFlags, VTDecodeInfoFlags, VTDecompressionSession, VTIsHardwareDecodeSupported,
+    VTSessionCopyProperty, kVTCouldNotFindVideoDecoderErr,
     kVTDecompressionPropertyKey_UsingHardwareAcceleratedVideoDecoder, kVTInvalidSessionErr,
     kVTVideoDecoderBadDataErr, kVTVideoDecoderNotAvailableNowErr,
     kVTVideoDecoderReferenceMissingErr, kVTVideoDecoderUnsupportedDataFormatErr,
 };
 use waft_embedder::video_decoders::{CodecChoice, CodecKind, DecoderError};
 
-use super::nal::LENGTH_SIZE;
-use super::stream::ParameterSets;
+use super::format::Format;
 use crate::media::as_ns_string;
 
 /// What VideoToolbox answers as a status.
@@ -55,29 +56,24 @@ const NANOSECONDS: i32 = 1_000_000_000;
 pub(super) struct Session {
     session: CFRetained<VTDecompressionSession>,
     /// The format the session was made for, which each of its samples names.
-    format: CFRetained<CMFormatDescription>,
+    format: Format,
 }
 
-// SAFETY: a decompression session and a format description are thread-safe Core Foundation
-// objects, made to be used from whichever queue decodes; the bindings cannot say so.
+// SAFETY: a decompression session is a thread-safe Core Foundation object, made to be used from
+// whichever queue decodes; the binding cannot say so.
 unsafe impl Send for Session {}
 
 impl Session {
-    /// A session for a stream of `sets`, of the kind `choice` accepts, its pictures over the
-    /// whole range of their samples where `full_range`, and over video's range otherwise.
+    /// A session for a stream of `format`, of the kind `choice` accepts, its pictures in
+    /// `pictures`.
     pub(super) fn open(
-        sets: &ParameterSets,
+        format: &Format,
         choice: CodecChoice,
-        full_range: bool,
+        pictures: PictureFormat,
     ) -> Result<Session, DecoderError> {
-        let format = format_of(sets).map_err(|status| {
-            DecoderError::BadData(format!(
-                "VideoToolbox made no format of the stream's parameter sets ({status})"
-            ))
-        })?;
         let specification = decoder_specification(choice)?;
         let specification = specification.as_deref().map(as_cf_dictionary);
-        let attributes = picture_attributes(full_range);
+        let attributes = picture_attributes(pictures);
         let mut session = ptr::null_mut();
         // SAFETY: a format made above, dictionaries of the keys' own value types, no callback
         // record, since each picture is answered to its own handler, and a valid place for the
@@ -85,7 +81,7 @@ impl Session {
         let status = unsafe {
             VTDecompressionSession::create(
                 None,
-                &format,
+                &format.0,
                 specification,
                 Some(as_cf_dictionary(&attributes)),
                 ptr::null(),
@@ -97,17 +93,17 @@ impl Session {
         };
         // SAFETY: created just now, handed over with its one retain.
         let session = unsafe { CFRetained::from_raw(session) };
-        Ok(Session { session, format })
+        Ok(Session {
+            session,
+            format: format.clone(),
+        })
     }
 
-    /// Whether the session goes on with a stream of `sets`, as it does with other parameter
+    /// Whether the session goes on with a stream of `format`, as it does with other parameter
     /// sets of the same size and profile.
-    pub(super) fn accepts(&self, sets: &ParameterSets) -> bool {
-        let Ok(format) = format_of(sets) else {
-            return false;
-        };
-        // SAFETY: a live session and a format made just now.
-        unsafe { self.session.can_accept_format_description(&format) }
+    pub(super) fn accepts(&self, format: &Format) -> bool {
+        // SAFETY: a live session and a format.
+        unsafe { self.session.can_accept_format_description(&format.0) }
     }
 
     /// Where the session decodes.
@@ -135,7 +131,7 @@ impl Session {
         }
     }
 
-    /// Decodes `sample`, one picture's units each after its length, shown at `timestamp` for
+    /// Decodes `sample`, one picture's chunk as its format frames it, shown at `timestamp` for
     /// `duration`, both in nanoseconds: the picture, none where VideoToolbox dropped it, or why
     /// it decoded none.
     pub(super) fn decode(
@@ -144,7 +140,7 @@ impl Session {
         timestamp: i64,
         duration: Option<u64>,
     ) -> Result<Option<DecodedPicture>, DecoderError> {
-        let buffer = sample_buffer(sample, &self.format, timestamp, duration)
+        let buffer = sample_buffer(sample, &self.format.0, timestamp, duration)
             .map_err(|status| DecoderError::Failed(format!("no sample buffer ({status})")))?;
         let answered = Arc::new(Mutex::new(None));
         let answer = Arc::clone(&answered);
@@ -190,47 +186,39 @@ impl Drop for Session {
     }
 }
 
+/// Whether the system decodes `codec` in hardware at all, as VideoToolbox says; not whether every
+/// profile or size of it is, nor that the hardware is free now.
+pub(super) fn has_hardware_decoder(codec: CMVideoCodecType) -> bool {
+    // SAFETY: a plain call with one of CoreMedia's codec types.
+    unsafe { VTIsHardwareDecodeSupported(codec) }
+}
+
+/// Asks VideoToolbox for its VP9 decoder, which macOS (from macOS 11) adds only for an app that
+/// asks, before any VP9 session is made; once is enough for the process. iOS has the call only
+/// from iOS 26.2, later than an app's lowest system (`waft-cli`'s `minimum_version`, 15.0 unless
+/// set), where linking it would keep the app from starting, so there it is not asked for and
+/// VideoToolbox has no VP9 decoder.
+pub(super) fn add_vp9_decoder() {
+    #[cfg(target_os = "macos")]
+    {
+        static ADDED: std::sync::Once = std::sync::Once::new();
+        ADDED.call_once(|| {
+            // SAFETY: a plain call with one of CoreMedia's codec types.
+            unsafe {
+                objc2_video_toolbox::VTRegisterSupplementalVideoDecoderIfAvailable(
+                    objc2_core_media::kCMVideoCodecType_VP9,
+                );
+            }
+        });
+    }
+}
+
 /// A picture VideoToolbox decoded: a pixel buffer on an `IOSurface`.
 pub(super) struct DecodedPicture(pub(super) CFRetained<CVPixelBuffer>);
 
 // SAFETY: a pixel buffer is made to be shared between threads: its retain count is atomic, and
 // nothing here writes its pixels. The binding cannot say so.
 unsafe impl Send for DecodedPicture {}
-
-/// The format VideoToolbox makes of `sets`, for a stream whose units follow lengths of
-/// [`LENGTH_SIZE`] bytes.
-fn format_of(sets: &ParameterSets) -> Result<CFRetained<CMFormatDescription>, Status> {
-    let units: Vec<&[u8]> = sets.units().collect();
-    let mut pointers: Vec<NonNull<u8>> = units
-        .iter()
-        .map(|unit| NonNull::from(*unit).cast::<u8>())
-        .collect();
-    let mut sizes: Vec<usize> = units.iter().map(|unit| unit.len()).collect();
-    let (Some(pointers), Some(sizes)) = (
-        NonNull::new(pointers.as_mut_ptr()),
-        NonNull::new(sizes.as_mut_ptr()),
-    ) else {
-        return Err(kVTVideoDecoderBadDataErr);
-    };
-    let mut format: *const CMFormatDescription = ptr::null();
-    // SAFETY: `units.len()` pointers to units of the sizes given, all alive for the call, which
-    // copies them, and a valid place for the format.
-    let status = unsafe {
-        CMVideoFormatDescriptionCreateFromH264ParameterSets(
-            None,
-            units.len(),
-            pointers,
-            sizes,
-            LENGTH_SIZE as c_int,
-            NonNull::from(&mut format),
-        )
-    };
-    match NonNull::new(format.cast_mut()) {
-        // SAFETY: created just now, handed over with its one retain.
-        Some(format) if status == 0 => Ok(unsafe { CFRetained::from_raw(format) }),
-        _ => Err(status),
-    }
-}
 
 /// Which decoder VideoToolbox is asked for: hardware where it has it, hardware or none, or
 /// never hardware. None for the system's own choice, which is the first.
@@ -281,10 +269,33 @@ fn decoder_specification(
     }
 }
 
-/// What the session's pictures are asked in: 8-bit 4:2:0 in two planes, over the range the
-/// stream's samples use, so nothing is rescaled, on an `IOSurface` a Metal texture can be made
-/// of.
-fn picture_attributes(full_range: bool) -> Retained<NSDictionary<NSString, AnyObject>> {
+/// The layout a session's pictures are asked in, as deep and over the range as the stream's
+/// samples, so nothing is rescaled: 4:2:0 in two planes, of 8-bit samples for a stream of eight
+/// bits (CoreVideo's `420v` and `420f`, NV12) and of 16-bit ones for a deeper stream, its samples
+/// in their high ten bits (`x420` and `xf20`, P010); over the whole range of their samples where
+/// `full_range`, and over video's range otherwise.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PictureFormat {
+    /// Bits in each of the stream's samples, as it says.
+    pub(super) bit_depth: u8,
+    pub(super) full_range: bool,
+}
+
+impl PictureFormat {
+    /// CoreVideo's pixel format of the layout.
+    fn pixel_format(self) -> u32 {
+        match (self.bit_depth > 8, self.full_range) {
+            (false, false) => kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+            (false, true) => kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+            (true, false) => kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+            (true, true) => kCVPixelFormatType_420YpCbCr10BiPlanarFullRange,
+        }
+    }
+}
+
+/// What the session's pictures are asked in: `pictures`, on an `IOSurface` a Metal texture can be
+/// made of.
+fn picture_attributes(pictures: PictureFormat) -> Retained<NSDictionary<NSString, AnyObject>> {
     // SAFETY: CoreVideo's constants, which it exports for the life of the process.
     let (format_key, surface_key, metal_key) = unsafe {
         (
@@ -293,11 +304,7 @@ fn picture_attributes(full_range: bool) -> Retained<NSDictionary<NSString, AnyOb
             as_ns_string(kCVPixelBufferMetalCompatibilityKey),
         )
     };
-    let format = NSNumber::new_u32(if full_range {
-        kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
-    } else {
-        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
-    });
+    let format = NSNumber::new_u32(pictures.pixel_format());
     let surface_properties = NSDictionary::<NSString, AnyObject>::new();
     let metal = NSNumber::new_bool(true);
     NSDictionary::from_slices(
@@ -311,7 +318,7 @@ fn picture_attributes(full_range: bool) -> Retained<NSDictionary<NSString, AnyOb
 }
 
 /// An `NSDictionary` as the `CFDictionary` it is toll-free bridged to.
-fn as_cf_dictionary(dictionary: &NSDictionary<NSString, AnyObject>) -> &CFDictionary {
+pub(super) fn as_cf_dictionary(dictionary: &NSDictionary<NSString, AnyObject>) -> &CFDictionary {
     let pointer: *const NSDictionary<NSString, AnyObject> = dictionary;
     // SAFETY: an NSDictionary is a CFDictionary.
     unsafe { &*pointer.cast::<CFDictionary>() }
@@ -420,38 +427,33 @@ fn refusal_to_decode(status: Status) -> DecoderError {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+mod tests {
     use objc2_core_video::{
         CVPixelBufferGetHeight, CVPixelBufferGetPixelFormatType, CVPixelBufferGetPlaneCount,
         CVPixelBufferGetWidth,
     };
 
-    use super::super::nal::{units_after_start_codes, with_lengths};
-    use super::super::stream::is_parameter_set;
-    use super::super::stream::tests::CLIP;
+    use waft_video_codecs::framing::{units_after_start_codes, with_lengths};
+    use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip};
+    use waft_video_codecs::h264::{ParameterSets, is_parameter_set};
+
     use super::*;
 
-    /// A unit that begins a picture's units in the test clip: an access unit delimiter.
-    const DELIMITER: u8 = 9;
+    /// The H.264 clip's pictures: eight bits to a sample, over video's range.
+    const EIGHT_BITS: PictureFormat = PictureFormat {
+        bit_depth: 8,
+        full_range: false,
+    };
 
-    /// The clip's pictures in the order they are decoded, each its units.
-    pub(in super::super) fn pictures_of_the_clip() -> Vec<Vec<&'static [u8]>> {
-        let mut pictures: Vec<Vec<&[u8]>> = Vec::new();
-        for unit in units_after_start_codes(CLIP) {
-            if unit[0] & 0x1F == DELIMITER {
-                pictures.push(Vec::new());
-            }
-            if let Some(picture) = pictures.last_mut() {
-                picture.push(unit);
-            }
-        }
-        pictures
+    /// The format of the H.264 clip.
+    fn h264_format() -> Format {
+        Format::h264(&ParameterSets::among(&units_after_start_codes(CLIP))).expect("a format")
     }
 
     #[test]
     fn videotoolbox_decodes_each_picture_of_a_stream_into_two_planes() {
-        let sets = ParameterSets::among(&units_after_start_codes(CLIP));
-        let session = Session::open(&sets, CodecChoice::Any, false).expect("a session");
+        let format = h264_format();
+        let session = Session::open(&format, CodecChoice::Any, EIGHT_BITS).expect("a session");
         let pictures = pictures_of_the_clip();
         assert_eq!(pictures.len(), 12);
         for (number, units) in pictures.iter().enumerate() {
@@ -472,9 +474,32 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn a_deeper_stream_is_asked_in_sixteen_bits_over_its_own_range() {
+        let pixel_format = |bit_depth, full_range| {
+            PictureFormat {
+                bit_depth,
+                full_range,
+            }
+            .pixel_format()
+        };
+        assert_eq!(
+            pixel_format(8, true),
+            kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+        );
+        assert_eq!(
+            pixel_format(10, false),
+            kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+        );
+        assert_eq!(
+            pixel_format(10, true),
+            kCVPixelFormatType_420YpCbCr10BiPlanarFullRange
+        );
+    }
+
+    #[test]
     fn a_chunk_that_is_no_picture_is_bad_data_and_the_session_goes_on() {
-        let sets = ParameterSets::among(&units_after_start_codes(CLIP));
-        let session = Session::open(&sets, CodecChoice::Any, false).expect("a session");
+        let format = h264_format();
+        let session = Session::open(&format, CodecChoice::Any, EIGHT_BITS).expect("a session");
         let damaged = with_lengths([&[0x65, 0xFF, 0xFF, 0xFF][..]]);
         assert!(matches!(
             session.decode(&damaged, 0, None),
@@ -487,9 +512,10 @@ pub(super) mod tests {
 
     #[test]
     fn a_session_says_where_it_decodes_and_goes_on_with_the_same_sets() {
-        let sets = ParameterSets::among(&units_after_start_codes(CLIP));
-        let software = Session::open(&sets, CodecChoice::Software, false).expect("a session");
+        let format = h264_format();
+        let software =
+            Session::open(&format, CodecChoice::Software, EIGHT_BITS).expect("a session");
         assert_eq!(software.kind(), CodecKind::Software);
-        assert!(software.accepts(&sets));
+        assert!(software.accepts(&h264_format()));
     }
 }

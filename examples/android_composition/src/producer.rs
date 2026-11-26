@@ -11,11 +11,10 @@ use std::sync::{Arc, Mutex, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use waft_embedder::image_codecs::PixelFormat;
 use waft_embedder::valo;
 use waft_embedder::{
-    CompositionLayer, HardwareBuffer, HardwareBufferUsage, PlatformRef, ScreenId, VsyncObserver,
-    VsyncWaiter,
+    CompositionLayer, HardwareBuffer, HardwareBufferFormat, HardwareBufferUsage, PlatformRef,
+    ScreenId, VsyncObserver, VsyncWaiter,
 };
 
 /// How many buffers the producer draws into in turn.
@@ -123,12 +122,13 @@ pub(crate) type Buffer = (Arc<dyn HardwareBuffer>, wgpu::Texture);
 /// The producer's buffers, `size` pixels large, allocated and imported on `painter`'s device.
 pub(crate) fn buffers(platform: &PlatformRef, painter: &Painter, size: [u32; 2]) -> Vec<Buffer> {
     let allocator = platform
-        .hardware_buffer_allocator()
+        .gpu(None)
+        .and_then(|gpu| gpu.hardware_buffer_allocator())
         .expect("the Android host allocates hardware buffers");
     (0..BUFFERS)
         .map(|_| {
             let buffer = allocator
-                .allocate(size[0], size[1], PixelFormat::Rgba8, PRESENTED)
+                .allocate(size[0], size[1], HardwareBufferFormat::Rgba8, PRESENTED)
                 .expect("a buffer of the layer's size");
             let texture = platform
                 .import_texture(&*buffer, &painter.device)

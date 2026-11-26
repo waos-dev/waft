@@ -3,12 +3,14 @@
 //! (`camera_metadata`, `camera_formats`) and listed and opened as Waft's `Cameras` and
 //! `CameraDevice` (`cameras`); a camera starts, on a thread of its own (`camera_queue`), as an
 //! `ACameraDevice` with a capture session (`camera_device`) feeding image readers
-//! (`camera_images`), opened once for this process's sessions and shared by them
+//! (`image_stream`), opened once for this process's sessions and shared by them
 //! (`running_camera`, `capture_session`). Its pictures, in the camera's own format, go as they are
 //! to a preview's composition layer, turned upright (`preview`, `orientation`), and drawn into
 //! RGBA8 frames for a frame reader (`camera_frames`, `frame_conversion`, `frames`,
 //! `video_frame`); its photos are JPEG from the camera's own stream (`photos`). What changed is
-//! told to the app from whichever thread Android tells it on (`changes`).
+//! told to the app from whichever thread Android tells it on (`changes`). A video decoder
+//! (`crate::video_decoders`) draws into an image stream too, its pictures drawn into frames the
+//! same way.
 //!
 //! The invariant: nothing here waits on the app's thread for Android; what Android tells on its
 //! threads is handed to the app through futures and change futures, which wake the app's loop.
@@ -18,8 +20,6 @@ mod camera_device;
 mod camera_formats;
 #[cfg(target_os = "android")]
 mod camera_frames;
-#[cfg(target_os = "android")]
-mod camera_images;
 #[cfg(target_os = "android")]
 mod camera_manager;
 #[cfg(target_os = "android")]
@@ -32,9 +32,11 @@ mod cameras;
 mod capture_session;
 mod changes;
 #[cfg(target_os = "android")]
-mod frame_conversion;
+pub(crate) mod frame_conversion;
 #[cfg(target_os = "android")]
 mod frames;
+#[cfg(target_os = "android")]
+pub(crate) mod image_stream;
 mod orientation;
 #[cfg(target_os = "android")]
 mod photos;
@@ -54,6 +56,8 @@ pub(crate) use cameras::NdkCameras;
 pub(crate) use frames::NdkFrameReaders;
 #[cfg(target_os = "android")]
 pub use video_frame::AndroidVideoFrame;
+#[cfg(target_os = "android")]
+pub(crate) use video_frame::DecodedFacts;
 
 /// The screen shows its picture turned `degrees` clockwise from now on: the cameras' sessions hear
 /// their rotation angles change.

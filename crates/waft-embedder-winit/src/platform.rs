@@ -8,7 +8,8 @@
 //! No call here calls the client. What needs the event loop is sent to it as a request, and the
 //! rest acts at once: `main_loop/` says which is which.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -34,15 +35,17 @@ use crate::view::WinitView;
 use crate::windows::RequestedWindow;
 use crate::windows_os::Windows;
 use waft_embedder::image_codecs::ImageCodecs;
-use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     AppExit, Brightness, Cameras, CaptionSettings, Clipboard, CompositionLayer, Compositor,
-    Dispatcher, DockMenu, FileDialogs, Files, FontSource, HardwareBuffer, HardwareBufferAllocator,
-    HttpClient, ImageCodecFuture, Locale, MediaAssets, MenuBar, Notifications, Opener, Platform,
-    Players, PointerReport, PopupMenus, RequestId, Screens, SignedDuration, SystemFontSource,
+    Dispatcher, DockMenu, FileDialogs, Files, FontSource, GpuId, HardwareBuffer, HttpClient,
+    ImageCodecFuture, Locale, MediaAssets, MenuBar, Notifications, Opener, Platform, Players,
+    PointerReport, PopupMenus, RequestId, Screens, SignedDuration, SystemFontSource, SystemGpu,
     TargetPlatform, TrayIcons, VideoFrame, VideoFrameReaders, ViewEmbedder, ViewError,
     ViewFocusEvent, ViewHost, ViewId, ViewMetrics, ViewRef, VsyncWaiter, WindowConfig,
 };
+
+/// A GPU the platform handed out, kept for the next ask.
+type SharedGpu = Rc<dyn SystemGpu>;
 
 /// The long-lived embedder capability held by `App`.
 ///
@@ -69,8 +72,8 @@ pub struct WinitPlatform {
     next_request_id: Cell<u64>,
     /// The system's compositor for composition layers, where it has one.
     compositor: Option<Arc<dyn Compositor>>,
-    /// The system's hardware buffer allocator, where it allocates them.
-    hardware_buffer_allocator: Option<Arc<dyn HardwareBufferAllocator>>,
+    /// The system's GPUs asked for so far, each as the system answered it.
+    gpus: RefCell<HashMap<Option<GpuId>, Option<SharedGpu>>>,
     /// Where any thread waits for a screen's next vsync.
     vsync_waiter: Arc<dyn VsyncWaiter>,
     origin: Instant,
@@ -101,8 +104,6 @@ pub struct WinitPlatform {
     /// The system's image codecs, where it has them (`waft-embedder-apple`'s `image_codecs`).
     image_codecs: Option<Rc<dyn ImageCodecs>>,
     video_frame_readers: Option<Rc<dyn VideoFrameReaders>>,
-    /// The system's video decoders, where it has them (`waft-embedder-apple`'s `video_decoders`).
-    video_decoders: Option<Rc<dyn VideoDecoders>>,
     /// The user's caption settings, where the system keeps them.
     caption_settings: Option<Rc<dyn CaptionSettings>>,
     /// What only macOS offers; `None` elsewhere.
@@ -141,11 +142,10 @@ impl WinitPlatform {
             cameras: System::cameras(),
             image_codecs: System::image_codecs(),
             video_frame_readers: System::video_frame_readers(),
-            video_decoders: System::video_decoders(),
             caption_settings: System::caption_settings(),
             state,
             compositor: System::compositor(),
-            hardware_buffer_allocator: System::hardware_buffer_allocator(),
+            gpus: RefCell::default(),
             vsync_waiter: System::vsync_waiter(&proxy),
             origin: Instant::now(),
             clipboard,
@@ -394,9 +394,33 @@ impl Platform for WinitPlatform {
         System::import_texture(buffer, device)
     }
 
-    /// The allocator of the system's `IOSurface`s on macOS (`waft-embedder-apple`'s `hardware_buffers`).
-    fn hardware_buffer_allocator(&self) -> Option<Arc<dyn HardwareBufferAllocator>> {
-        self.hardware_buffer_allocator.clone()
+    /// A view of Metal's texture over each plane of the buffer's `IOSurface` on macOS
+    /// (`waft-embedder-apple`'s `gpu_interop`), and of each plane aspect of the shared texture
+    /// opened on Windows (`shared_textures`). None on Linux, whose dmabufs here are one plane of
+    /// ARGB8888, a decoder's planes needing a multi-planar dmabuf import wgpu 30 does not make.
+    fn import_planes(
+        &self,
+        buffer: &dyn HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::TextureView>> {
+        System::import_planes(buffer, device)
+    }
+
+    /// The GPU `device` runs on (`GpuInterop::gpu_id`): on Linux the render node of a Vulkan
+    /// device's GPU, on Windows the LUID of a D3D12 device's adapter, and none on macOS, which
+    /// names no GPU.
+    fn gpu_id(&self, device: &wgpu::Device) -> Option<GpuId> {
+        System::gpu_id(device)
+    }
+
+    /// The system's GPU `id` names, made at its first call (`GpuInterop::gpu`): on macOS one,
+    /// with VideoToolbox's decoders and the `IOSurface` allocator.
+    fn gpu(&self, id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
+        self.gpus
+            .borrow_mut()
+            .entry(id)
+            .or_insert_with(|| System::gpu(id).map(|gpu| Rc::new(gpu) as Rc<dyn SystemGpu>))
+            .clone()
     }
 
     /// The system's clipboard: on macOS its pasteboard, elsewhere its plain text
@@ -470,10 +494,6 @@ impl Platform for WinitPlatform {
 
     fn video_frame_readers(&self) -> Option<&dyn VideoFrameReaders> {
         self.video_frame_readers.as_deref()
-    }
-
-    fn video_decoders(&self) -> Option<&dyn VideoDecoders> {
-        self.video_decoders.as_deref()
     }
 
     /// Media Accessibility's on macOS, and none elsewhere.

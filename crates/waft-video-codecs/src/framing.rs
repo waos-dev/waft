@@ -1,15 +1,41 @@
-//! How an H.264 or HEVC stream frames its units, and the one framing VideoToolbox takes: each
-//! unit after its length, in four bytes. A stream arrives either so, with lengths of one, two or
-//! four bytes as its configuration record says, or as Annex B, each unit after a start code.
+//! How an H.264 or HEVC stream frames its units: each after its length, of one, two or four
+//! bytes as its configuration record says, as files hold it, or as Annex B, each after a start
+//! code, as broadcasts and cameras send it. A system's decoder takes one of the two (VideoToolbox
+//! lengths, MediaCodec and Media Foundation start codes), and the host reframes a chunk into it
+//! here.
 //!
 //! The invariant: what comes out holds exactly the units that went in, in order, each whole.
 
-/// The bytes of the length VideoToolbox is told each unit follows.
-pub(super) const LENGTH_SIZE: usize = 4;
+/// The bytes of the length [`with_lengths`] puts before each unit: four, the size VideoToolbox
+/// and Media Foundation are told.
+pub const LENGTH_SIZE: usize = 4;
+
+/// The start code [`with_start_codes`] puts before each unit: four bytes, as MediaCodec and Media
+/// Foundation are handed them.
+pub const START_CODE: [u8; 4] = [0, 0, 0, 1];
+
+/// How a stream's chunks frame their units.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Framing {
+    /// Each after a length of this many bytes.
+    Lengths(usize),
+    StartCodes,
+}
+
+impl Framing {
+    /// The units of `chunk`; why not, where a length runs past it.
+    pub fn units(self, chunk: &[u8]) -> Result<Vec<&[u8]>, String> {
+        match self {
+            Framing::Lengths(size) => units_after_lengths(chunk, size)
+                .ok_or_else(|| "a unit's length runs past its chunk".to_owned()),
+            Framing::StartCodes => Ok(units_after_start_codes(chunk)),
+        }
+    }
+}
 
 /// The units of `data`, a stream in Annex B: each without its start code, of three or four
 /// bytes, or the zeros that pad before one.
-pub(super) fn units_after_start_codes(data: &[u8]) -> Vec<&[u8]> {
+pub fn units_after_start_codes(data: &[u8]) -> Vec<&[u8]> {
     let mut units = Vec::new();
     let mut unit_start = None;
     let mut at = 0;
@@ -33,7 +59,7 @@ pub(super) fn units_after_start_codes(data: &[u8]) -> Vec<&[u8]> {
 
 /// The units of `data`, each after a length of `length_size` bytes; none where a length runs
 /// past the data, or is of a size no stream has.
-pub(super) fn units_after_lengths(data: &[u8], length_size: usize) -> Option<Vec<&[u8]>> {
+pub fn units_after_lengths(data: &[u8], length_size: usize) -> Option<Vec<&[u8]>> {
     if !matches!(length_size, 1 | 2 | 4) {
         return None;
     }
@@ -51,14 +77,24 @@ pub(super) fn units_after_lengths(data: &[u8], length_size: usize) -> Option<Vec
     Some(units)
 }
 
-/// `units`, each after its length in [`LENGTH_SIZE`] bytes: a sample as VideoToolbox takes it.
-pub(super) fn with_lengths<'a>(units: impl IntoIterator<Item = &'a [u8]>) -> Vec<u8> {
+/// `units`, each after its length in [`LENGTH_SIZE`] bytes.
+pub fn with_lengths<'a>(units: impl IntoIterator<Item = &'a [u8]>) -> Vec<u8> {
     let mut sample = Vec::new();
     for unit in units {
         sample.extend_from_slice(&(unit.len() as u32).to_be_bytes());
         sample.extend_from_slice(unit);
     }
     sample
+}
+
+/// `units`, each after a [`START_CODE`]: a stream in Annex B.
+pub fn with_start_codes<'a>(units: impl IntoIterator<Item = &'a [u8]>) -> Vec<u8> {
+    let mut stream = Vec::new();
+    for unit in units {
+        stream.extend_from_slice(&START_CODE);
+        stream.extend_from_slice(unit);
+    }
+    stream
 }
 
 /// `unit` without the zeros that pad it before the next start code: a unit never ends in one.
@@ -114,6 +150,16 @@ mod tests {
         assert_eq!(
             units_after_lengths(&sample, LENGTH_SIZE),
             Some(vec![&[0x65, 4, 5][..], &[0x41][..]])
+        );
+    }
+
+    #[test]
+    fn a_stream_in_annex_b_holds_each_unit_after_a_start_code_of_four_bytes() {
+        let stream = with_start_codes([&[0x65, 4, 5][..], &[0x41][..]]);
+        assert_eq!(stream, [0, 0, 0, 1, 0x65, 4, 5, 0, 0, 0, 1, 0x41]);
+        assert_eq!(
+            units_after_start_codes(&stream),
+            [&[0x65, 4, 5][..], &[0x41][..]]
         );
     }
 }

@@ -7,13 +7,13 @@ use std::time::Duration;
 
 use waft_embedder::{
     AppExit, AppLifecycleState, Brightness, Cameras, CaptionSettings, Clipboard, CompositionLayer,
-    Compositor, Dispatcher, DockMenu, FileDialogs, Files, FontSource, Haptics, HardwareBuffer,
-    HardwareBufferAllocator, HttpClient, Image, ImageCodecFuture, ImageDecodeError, Instant,
-    MediaAssets, MenuBar, Notifications, Offset, Opener, Picture, Platform, Players, PointerReport,
-    PopupMenus, RequestId, Restoration, Screen, Screens, SignedDuration, SystemChrome,
-    SystemContextMenu, TargetPlatform, TextServices, TrayIcons, VideoFrame, VideoFrameReaders,
-    View, ViewEmbedder, ViewError, ViewFocusEvent, ViewHost, ViewId, ViewMetrics, ViewRef,
-    WindowConfig,
+    Compositor, Dispatcher, DockMenu, FileDialogs, Files, FontSource, GpuId, Haptics,
+    HardwareBuffer, HardwareBufferAllocator, HostGpu, HttpClient, Image, ImageCodecFuture,
+    ImageDecodeError, Instant, MediaAssets, MenuBar, Notifications, Offset, Opener, Picture,
+    Platform, Players, PointerReport, PopupMenus, RequestId, Restoration, Screen, Screens,
+    SignedDuration, SystemChrome, SystemContextMenu, SystemGpu, TargetPlatform, TextServices,
+    TrayIcons, VideoFrame, VideoFrameReaders, View, ViewEmbedder, ViewError, ViewFocusEvent,
+    ViewHost, ViewId, ViewMetrics, ViewRef, WindowConfig,
 };
 
 use waft_embedder::image_codecs::{ImageCodecs, ImageError, ImageErrorKind, ImageFuture};
@@ -88,6 +88,8 @@ pub struct TestPlatform {
     opener: Option<Rc<dyn Opener>>,
     notifications: Option<Rc<dyn Notifications>>,
     compositor: Option<Arc<dyn Compositor>>,
+    /// The name of the platform's one GPU, which every device runs on.
+    gpu_id: Option<GpuId>,
     hardware_buffer_allocator: Option<Arc<dyn HardwareBufferAllocator>>,
     players: Option<Rc<dyn Players>>,
     media_assets: Option<Rc<dyn MediaAssets>>,
@@ -142,6 +144,7 @@ impl TestPlatform {
             opener: None,
             notifications: None,
             compositor: None,
+            gpu_id: None,
             hardware_buffer_allocator: None,
             players: None,
             media_assets: None,
@@ -430,6 +433,14 @@ impl TestPlatform {
         self
     }
 
+    /// The platform's one GPU named `id`, as Windows names an adapter by its LUID and Linux a GPU
+    /// by its render node: what [`gpu_id`](Platform::gpu_id) answers for every device, and its GPU
+    /// says of itself. None unless set, as on Apple's systems and Android.
+    pub fn with_gpu_id(mut self, id: GpuId) -> TestPlatform {
+        self.gpu_id = Some(id);
+        self
+    }
+
     pub fn with_hardware_buffer_allocator(
         mut self,
         allocator: Arc<dyn HardwareBufferAllocator>,
@@ -453,8 +464,8 @@ impl TestPlatform {
         self
     }
 
-    /// The platform answering `video_decoders` as its video decoders: a host's own, where a test
-    /// decodes for real, as `waft-embedder-apple`'s are VideoToolbox's.
+    /// The platform's GPU answering `video_decoders` as its video decoders: a host's own, where a
+    /// test decodes for real, as `waft-embedder-apple`'s are VideoToolbox's.
     pub fn with_video_decoders(mut self, video_decoders: Rc<dyn VideoDecoders>) -> TestPlatform {
         self.video_decoders = Some(video_decoders);
         self
@@ -708,6 +719,15 @@ impl Platform for TestPlatform {
         None
     }
 
+    /// None, as for `import_texture`: no device takes this host's buffers.
+    fn import_planes(
+        &self,
+        _buffer: &dyn HardwareBuffer,
+        _device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::TextureView>> {
+        None
+    }
+
     fn screens(&self) -> Option<&dyn Screens> {
         (self.screens.screens.borrow().is_some() || self.screens.pointer_location.get().is_some())
             .then_some(&self.screens as &dyn Screens)
@@ -765,8 +785,22 @@ impl Platform for TestPlatform {
         self.compositor.clone()
     }
 
-    fn hardware_buffer_allocator(&self) -> Option<Arc<dyn HardwareBufferAllocator>> {
-        self.hardware_buffer_allocator.clone()
+    /// The GPU the test named, whatever the device.
+    fn gpu_id(&self, _device: &wgpu::Device) -> Option<GpuId> {
+        self.gpu_id
+    }
+
+    /// One GPU, whatever `id` names, under the name the test gave it, with the decoders and the
+    /// allocator the test gave it; none where it gave neither.
+    fn gpu(&self, _id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
+        if self.video_decoders.is_none() && self.hardware_buffer_allocator.is_none() {
+            return None;
+        }
+        Some(Rc::new(HostGpu {
+            id: self.gpu_id,
+            video_decoders: self.video_decoders.clone(),
+            hardware_buffer_allocator: self.hardware_buffer_allocator.clone(),
+        }))
     }
 
     fn players(&self) -> Option<&dyn Players> {
@@ -779,10 +813,6 @@ impl Platform for TestPlatform {
 
     fn image_codecs(&self) -> Option<&dyn ImageCodecs> {
         self.image_codecs.as_deref()
-    }
-
-    fn video_decoders(&self) -> Option<&dyn VideoDecoders> {
-        self.video_decoders.as_deref()
     }
 
     fn cameras(&self) -> Option<&dyn Cameras> {

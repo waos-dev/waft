@@ -1,8 +1,9 @@
 //! Where each H.264 picture stands in the order its stream is shown in: its picture order count,
 //! worked out from its first slice's header and the stream's parameter sets as the standard does
-//! (H.264, 8.2.1). VideoToolbox hands pictures back in the order they were decoded and leaves
-//! their order to its caller; the other systems' decoders order by this count, so a stream comes
-//! out the same here, whatever times an app gives its chunks.
+//! (H.264, 8.2.1). A system's decoder that hands pictures back in the order they were decoded
+//! (VideoToolbox) leaves their order to its caller, which orders by this count as the other
+//! systems' decoders do, so a stream comes out the same everywhere, whatever times an app gives
+//! its chunks.
 //!
 //! A count is told from the picture before it, so the counts stand only among the pictures of
 //! one sequence: a key picture, or one that forgets every picture before it, begins the count
@@ -21,27 +22,19 @@ use h264_reader::nal::sps::{PicOrderCntType, SeqParameterSet};
 use h264_reader::nal::{Nal, RefNal, UnitType};
 use h264_reader::rbsp::{BitReader, decode_nal};
 
-use super::stream::ParameterSets;
-
-/// Where a picture stands among those of its sequence.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Place {
-    /// Its picture order count: a picture with a smaller one is shown before it.
-    pub(super) count: i64,
-    /// Whether every picture decoded before it is shown before it, and the count begins again.
-    pub(super) begins_sequence: bool,
-}
+use super::ParameterSets;
+use crate::presentation_order::Place;
 
 /// A stream's pictures counted as they are decoded.
 #[derive(Default)]
-pub(super) struct PictureOrder {
+pub struct PictureOrder {
     sets: Context,
     previous: Previous,
 }
 
 impl PictureOrder {
     /// Counts with `sets` from now on; why not, for a set that cannot be read.
-    pub(super) fn adopt(&mut self, sets: &ParameterSets) -> Result<(), String> {
+    pub fn adopt(&mut self, sets: &ParameterSets) -> Result<(), String> {
         let mut read = Context::new();
         for unit in sets.sequence_sets() {
             let payload = decode_nal(unit).map_err(|error| format!("a parameter set: {error}"))?;
@@ -61,7 +54,7 @@ impl PictureOrder {
 
     /// The place of the picture `units` code, told from its first slice; none where no unit is
     /// a slice, and why not, for a slice whose header cannot be read.
-    pub(super) fn place_of(&mut self, units: &[&[u8]]) -> Result<Option<Place>, String> {
+    pub fn place_of(&mut self, units: &[&[u8]]) -> Result<Option<Place>, String> {
         let Some(slice) = units.iter().find_map(|unit| first_slice(unit)) else {
             return Ok(None);
         };
@@ -282,10 +275,9 @@ fn expected_count(
 
 #[cfg(test)]
 mod tests {
-    use super::super::session::tests::pictures_of_the_clip;
-    use super::super::stream::tests::CLIP;
+    use super::super::test_clip::{CLIP, pictures_of_the_clip};
     use super::*;
-    use crate::video_decoders::nal::units_after_start_codes;
+    use crate::framing::units_after_start_codes;
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.

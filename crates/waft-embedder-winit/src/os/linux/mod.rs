@@ -2,28 +2,36 @@
 //! whose icons are StatusNotifierItems with their DBus menus (`status_notifier_items`), the
 //! desktop portal's file dialogs (`file_dialogs`), the app's id on each window, by which the
 //! desktop knows whose window it is, and on Wayland composition layers as subsurfaces showing
-//! dmabufs (`composition`, `dmabuf`, `wayland`).
+//! dmabufs or shared memory (`composition`, `dmabuf`, `shm`, `wayland`), and GStreamer's video
+//! decoders, which hand their pictures over as those dmabufs (`gstreamer`, `video_decoders`), and
+//! the render node a Vulkan device runs on (`vulkan_devices`).
 //! Linux's desktops have no menu bar and no menu at a point of the system's: GTK and Qt draw
 //! theirs in the app's own surfaces, so those answer none and the app draws its own.
 
 mod composition;
 mod dmabuf;
+mod dmabuf_feedback;
 mod file_dialogs;
+mod gstreamer;
 mod local_time;
 mod notifications;
 mod opener;
 mod portal;
 mod session_bus;
+mod shm;
 mod status_notifier_items;
+mod video_decoders;
+mod vulkan_devices;
 mod wayland;
 
 pub use dmabuf::DmabufBuffer;
+pub use shm::ShmBuffer;
 
 use std::rc::Rc;
 use std::sync::Arc;
 
 use waft_embedder::{
-    Compositor, HardwareBufferAllocator, TargetPlatform, TrayIcons, ViewId, WindowConfig,
+    Compositor, GpuId, HardwareBufferAllocator, TargetPlatform, TrayIcons, ViewId, WindowConfig,
 };
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::monitor::MonitorHandle;
@@ -35,6 +43,7 @@ use winit::window::{ActivationToken, Window, WindowAttributes};
 use crate::LinuxSettings;
 use crate::clipboard::{ChangeProbe, TextClipboard};
 use crate::menus::MenuEvents;
+use waft_embedder::HostGpu;
 
 use super::absent::{NoDisplayLink, NoTrackpadTouchObserver, NoVisibilityNotices};
 use super::capabilities::{
@@ -87,11 +96,6 @@ impl NativeComposition for Linux {
     fn compositor() -> Option<Arc<dyn Compositor>> {
         let compositor = WaylandCompositor::new()?;
         Some(Arc::new(compositor))
-    }
-
-    fn hardware_buffer_allocator() -> Option<Arc<dyn HardwareBufferAllocator>> {
-        let allocator = GbmAllocator::new()?;
-        Some(Arc::new(allocator))
     }
 
     fn view_layer_in(window: &Arc<dyn Window>) -> (Self::ViewLayer, NoWindowHold) {
@@ -188,7 +192,28 @@ impl Screens for Linux {
     }
 }
 impl PointerQueries for Linux {}
-impl GpuInterop for Linux {}
+/// A Vulkan device's GPU named by its render node (`vulkan_devices`). The render node GBM opens,
+/// the first that does: GStreamer's decoders, and GBM's allocator on that node. A GPU another node
+/// names is not handed out yet.
+impl GpuInterop for Linux {
+    fn gpu_id(device: &wgpu::Device) -> Option<GpuId> {
+        vulkan_devices::render_node_of(device)
+    }
+
+    fn gpu(id: Option<GpuId>) -> Option<HostGpu> {
+        let allocator = GbmAllocator::new();
+        let node = allocator.as_ref().and_then(GbmAllocator::render_node);
+        if id.is_some() && id != node {
+            return None;
+        }
+        Some(HostGpu {
+            id: node,
+            video_decoders: video_decoders::video_decoders(),
+            hardware_buffer_allocator: allocator
+                .map(|allocator| Arc::new(allocator) as Arc<dyn HardwareBufferAllocator>),
+        })
+    }
+}
 impl ImageDecoding for Linux {}
 impl WorkQueue for Linux {}
 /// The system starts the app with what it opens on its command line, which is the app's own.

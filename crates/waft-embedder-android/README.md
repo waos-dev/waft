@@ -33,6 +33,30 @@ What is not, and how an app sees it:
 - No interruption for the background or for the system's heat: Android tells neither; a camera the app loses in the background is `InUseByAnotherApp` or interrupted with no reason.
 - Names are the host's, by which way a camera looks ("Back camera", "Front camera 2"): Android gives a camera none.
 
+## Video decoders
+
+A GPU's `video_decoders` (`Platform::gpu`; Android has one) is MediaCodec through the NDK, `AMediaCodec`, with no Java, handed H.264, HEVC, VP9 and AV1, each stream read by `waft-video-codecs` (`src/video_decoders/`). A decoder decodes on a thread of its own into an `AImageReader` of `PRIVATE` pictures, the system's own hardware buffers, and each picture is drawn into an RGBA8 frame with OpenGL ES, as a camera's are.
+
+What is there:
+
+- H.264 (`video/avc`) and HEVC (`video/hevc`) framed after start codes or after lengths with their `avcC` or `hvcC` record, their parameter sets given ahead, in the stream, or both, and changed in the stream or by `configure`: the codec is configured with them as MediaCodec's codec-specific data (H.264's sequence sets as `csd-0` and picture sets as `csd-1`, HEVC's video, sequence and picture sets as `csd-0`, each after a start code), goes on with new sets whose pictures fit the size it was made to grow to (`largest_size`), taking them in the stream or, from `configure`, as codec-specific data, and is made again otherwise, the pictures it holds let out first.
+- VP9 (`video/x-vnd.on2.vp9`), each chunk whole, a superframe and all, its codec made at the stream's first key frame, which says its size, with no codec-specific data: the file's `vpcC` record is not WebM's `CodecPrivate`, which MediaCodec takes, and a VP9 decoder needs neither.
+- AV1 (`video/av01`), each chunk whole, its codec made once a sequence header has come, from the file's `av1C` record or the first key frame, with that record as `csd-0`.
+- A new size, from new parameter sets, a key frame or a sequence header, goes on in the same codec where it fits the size the codec was made to grow to, and in a new one otherwise.
+- Frames in the order they are shown, as MediaCodec lets them out, each with its chunk's time and duration, whatever times the chunks carry: a chunk is handed to the codec with a number that its picture's image carries back. A frame's buffer is the codec's picture as it lies, padding and all, and its visible rect is the image's crop; its colour is RGB, full range, with the primaries and transfer the stream says, and the app's `default_color` where it says none.
+- Key frames: at the start, after a drain, a reset, a `configure` and a chunk MediaCodec could not decode, a chunk that is no key frame (neither marked so nor, as its units say, one: H.264's IDR slice, HEVC's intra random access point, VP9's key frame, AV1's sequence header and shown key frame) is `BadData`, and so is one before what its codec is made of has come.
+- A drain lets out every picture through the end of the stream, then flushes the codec; a reset flushes it at once, and drops the frames waiting and any picture of a chunk handed over before it. No more pictures are let out while `frame_limit` frames wait unread, and a chunk then waits for the codec to take it.
+- `CodecChoice::Software` opens Codec2's or OMX's software decoder by name; a decoder whose name is the platform's own (`c2.android.`, `OMX.google.`) is `Software`, any other `Hardware`. `Hardware` is `Unsupported` where the system's preferred decoder is its software one. `Busy` where MediaCodec has no resources for another, `Lost` where it takes the codec back.
+- `DecodingPurpose` becomes MediaCodec's `priority`, and `Live` asks for `low-latency` too.
+
+What is not, and how an app sees it:
+
+- No answer before trying: the NDK has no `MediaCodecList` (its `AMediaCodecStore` came with Android 16, API 36), so `support` says `Unknown` for H.264, HEVC, VP9 and AV1, and whether a stream decodes is found on opening.
+- No VP8: it opens `Unsupported`, and `support` says `No`.
+- No ten bits: a stream of ten bits to a sample (HEVC's Main 10, VP9's profile 2, AV1 at ten bits) decodes into the system's own pictures as deep as the codec makes them, and is drawn into an RGBA8 frame as every picture is, so the app has it in eight bits. MediaCodec's `color-format` (`COLOR_FormatYUVP010`) is not asked for: it is documented for pictures read as images, while a decoder that draws into a surface defaults to the surface's own format (Codec2's software AV1 decoder puts out ten bits there all the same), and the RGBA8 frame keeps eight bits whatever the picture holds.
+- Not the codec's own buffer: Waft's Android frames are RGBA8, which Vulkan imports, so each picture is drawn once into a new buffer, one at a time, the next rendered once the last has arrived, since a codec's surface drops a picture rendered before the last was taken.
+- `kind` is settled at opening: a decoder opened before what its codec is made of has come says where its choice asks, hardware first.
+
 ## Image codecs
 
 `Platform::image_codecs` is Android's own decoder and encoder, the NDK's `AImageDecoder` and `AndroidBitmap_compress`, and Android's own EXIF reader, the framework's `android.media.ExifInterface`, called over JNI from the codecs' threads (`src/image_codecs/`).

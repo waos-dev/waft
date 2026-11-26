@@ -20,7 +20,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use waft_embedder::image_codecs::{
     AlphaType, ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat, PixelLayout,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+use waft_embedder::{
+    GpuId, HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage,
+};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_buffer::WlBuffer;
 
@@ -120,12 +122,19 @@ impl DmabufBuffer {
         }
         let row_bytes = self.width * 4;
         let mut rows = Vec::with_capacity(row_bytes as usize * self.height as usize);
-        with_mapped(&self.fd, self.offset, self.stride, self.height, |bytes| {
-            for row in 0..self.height as usize {
-                let start = row * self.stride as usize;
-                rows.extend_from_slice(&bytes[start..start + row_bytes as usize]);
-            }
-        })?;
+        let mapping = Mapping::new(
+            &self.fd,
+            self.offset,
+            self.stride,
+            self.height,
+            Access::Read,
+        )?;
+        let bytes = mapping.bytes();
+        for row in 0..self.height as usize {
+            let start = row * self.stride as usize;
+            rows.extend_from_slice(&bytes[start..start + row_bytes as usize]);
+        }
+        drop(mapping);
         let layout = PixelLayout {
             size: [self.width, self.height],
             row_bytes,
@@ -134,6 +143,49 @@ impl DmabufBuffer {
         };
         PixelBuffer::new(layout, rows)
             .map_err(|error| ImageError::new(ImageErrorKind::Other, format!("{error:?}")))
+    }
+
+    /// Writes `height` rows of `row_bytes` each from `rows`, one after another `source_stride`
+    /// bytes apart, over the buffer's own rows from the top: what the CPU puts in a linear buffer
+    /// Waft allocated, as a picture decoded on the processor.
+    pub(crate) fn write_rows(
+        &self,
+        rows: &[u8],
+        source_stride: usize,
+        row_bytes: usize,
+        height: u32,
+    ) -> Result<(), ImageError> {
+        if self.modifier != MOD_LINEAR {
+            return Err(ImageError::new(
+                ImageErrorKind::Unsupported,
+                format!(
+                    "the CPU writes only a linear buffer, not modifier {:#x}",
+                    self.modifier
+                ),
+            ));
+        }
+        let height = height.min(self.height) as usize;
+        let row_bytes = row_bytes.min(self.width as usize * 4);
+        if rows.len() < source_stride * height.saturating_sub(1) + row_bytes {
+            return Err(ImageError::new(
+                ImageErrorKind::Other,
+                "fewer bytes than the rows written",
+            ));
+        }
+        let mut mapping = Mapping::new(
+            &self.fd,
+            self.offset,
+            self.stride,
+            self.height,
+            Access::Write,
+        )?;
+        let bytes = mapping.bytes_mut();
+        for row in 0..height {
+            let source = &rows[row * source_stride..row * source_stride + row_bytes];
+            let target = row * self.stride as usize;
+            bytes[target..target + row_bytes].copy_from_slice(source);
+        }
+        Ok(())
     }
 }
 
@@ -159,54 +211,116 @@ impl HardwareBuffer for DmabufBuffer {
         self.usage
     }
 
+    /// Its fourcc's: ARGB8888, BGRA in memory, the one a dmabuf here is in.
+    fn format(&self) -> HardwareBufferFormat {
+        HardwareBufferFormat::Bgra8
+    }
+
     fn read_pixels(&self) -> ImageFuture<PixelBuffer> {
         Box::pin(std::future::ready(self.read_mapped()))
     }
 }
 
-/// Runs `read` on the dmabuf's bytes from `offset`, mapped for the CPU between
-/// `DMA_BUF_IOCTL_SYNC`'s start and end.
-fn with_mapped(
-    fd: &OwnedFd,
-    offset: u32,
-    stride: u32,
-    height: u32,
-    read: impl FnOnce(&[u8]),
-) -> Result<(), ImageError> {
-    let length = offset as usize + stride as usize * height as usize;
-    let failed = |what: &str| {
-        ImageError::new(
-            ImageErrorKind::Other,
-            format!("{what}: {}", std::io::Error::last_os_error()),
-        )
-    };
-    // SAFETY: a live dmabuf fd at least `length` bytes long, mapped shared for reading, read only
-    // within the sync's start and end and unmapped before this returns.
-    unsafe {
-        let mapped = libc::mmap(
-            std::ptr::null_mut(),
-            length,
-            libc::PROT_READ,
-            libc::MAP_SHARED,
-            fd.as_raw_fd(),
-            0,
-        );
-        if mapped == libc::MAP_FAILED {
-            return Err(failed("mapping the dmabuf"));
+/// Whether the CPU reads a mapped buffer or writes it.
+#[derive(Clone, Copy)]
+enum Access {
+    Read,
+    Write,
+}
+
+/// A dmabuf's bytes from `offset`, mapped shared for the CPU between `DMA_BUF_IOCTL_SYNC`'s
+/// start and end, which the mapping's end ends and unmaps.
+struct Mapping<'a> {
+    fd: &'a OwnedFd,
+    address: *mut libc::c_void,
+    length: usize,
+    offset: usize,
+    access: Access,
+}
+
+impl<'a> Mapping<'a> {
+    fn new(
+        fd: &'a OwnedFd,
+        offset: u32,
+        stride: u32,
+        height: u32,
+        access: Access,
+    ) -> Result<Mapping<'a>, ImageError> {
+        let length = offset as usize + stride as usize * height as usize;
+        let protection = match access {
+            Access::Read => libc::PROT_READ,
+            Access::Write => libc::PROT_READ | libc::PROT_WRITE,
+        };
+        // SAFETY: a live dmabuf fd at least `length` bytes long, mapped shared; the mapping is
+        // unmapped when it ends.
+        let address = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                length,
+                protection,
+                libc::MAP_SHARED,
+                fd.as_raw_fd(),
+                0,
+            )
+        };
+        if address == libc::MAP_FAILED {
+            return Err(ImageError::new(
+                ImageErrorKind::Other,
+                format!("mapping the dmabuf: {}", std::io::Error::last_os_error()),
+            ));
         }
-        let mut sync = DmaBufSync {
-            flags: SYNC_START | SYNC_READ,
+        let mapping = Mapping {
+            fd,
+            address,
+            length,
+            offset: offset as usize,
+            access,
         };
-        libc::ioctl(fd.as_raw_fd(), DMA_BUF_IOCTL_SYNC as _, &mut sync);
-        let bytes = std::slice::from_raw_parts(mapped.cast::<u8>(), length);
-        read(&bytes[offset as usize..]);
-        let mut sync = DmaBufSync {
-            flags: SYNC_END | SYNC_READ,
-        };
-        libc::ioctl(fd.as_raw_fd(), DMA_BUF_IOCTL_SYNC as _, &mut sync);
-        libc::munmap(mapped, length);
+        mapping.sync(SYNC_START);
+        Ok(mapping)
     }
-    Ok(())
+
+    /// The buffer's bytes from its offset.
+    fn bytes(&self) -> &[u8] {
+        // SAFETY: `length` bytes mapped at `address`, of which `offset` lies within; the
+        // mapping lives as long as `self`.
+        unsafe {
+            &std::slice::from_raw_parts(self.address.cast::<u8>(), self.length)[self.offset..]
+        }
+    }
+
+    /// The buffer's bytes from its offset, for writing: a mapping for writing only.
+    fn bytes_mut(&mut self) -> &mut [u8] {
+        assert!(
+            matches!(self.access, Access::Write),
+            "a mapping for reading is not written"
+        );
+        // SAFETY: as `bytes`, mapped writable, and borrowed once through `&mut self`.
+        unsafe {
+            &mut std::slice::from_raw_parts_mut(self.address.cast::<u8>(), self.length)
+                [self.offset..]
+        }
+    }
+
+    fn sync(&self, step: u64) {
+        let access = match self.access {
+            Access::Read => SYNC_READ,
+            Access::Write => SYNC_READ | SYNC_WRITE,
+        };
+        let mut sync = DmaBufSync {
+            flags: step | access,
+        };
+        // SAFETY: `DMA_BUF_IOCTL_SYNC` on a live dmabuf fd, with the struct it takes.
+        unsafe { libc::ioctl(self.fd.as_raw_fd(), DMA_BUF_IOCTL_SYNC as _, &mut sync) };
+    }
+}
+
+impl Drop for Mapping<'_> {
+    fn drop(&mut self) {
+        self.sync(SYNC_END);
+        // SAFETY: the mapping `new` made, unmapped once.
+        unsafe { libc::munmap(self.address, self.length) };
+    }
 }
 
 #[repr(C)]
@@ -214,6 +328,7 @@ struct DmaBufSync {
     flags: u64,
 }
 const SYNC_READ: u64 = 1;
+const SYNC_WRITE: u64 = 2;
 const SYNC_START: u64 = 0;
 const SYNC_END: u64 = 4;
 const DMA_BUF_IOCTL_SYNC: u64 = ioctl_code(1, b'b', 0, size_of::<DmaBufSync>());
@@ -233,6 +348,31 @@ impl GbmAllocator {
     pub(crate) fn new() -> Option<GbmAllocator> {
         Gbm::get().map(|gbm| GbmAllocator { gbm })
     }
+
+    /// The render node GBM allocates on, as the GPU its buffers open on; `None` where its device
+    /// number cannot be read.
+    pub(crate) fn render_node(&self) -> Option<GpuId> {
+        use std::os::unix::fs::MetadataExt as _;
+        let device = self.gbm.node.metadata().ok()?.rdev();
+        Some(super::dmabuf_feedback::gpu_of_render_node(device))
+    }
+
+    /// A linear ARGB8888 buffer of `width` by `height`, for `usage`: what the CPU writes into,
+    /// as [`DmabufBuffer::write_rows`] does.
+    pub(crate) fn allocate_linear(
+        &self,
+        width: u32,
+        height: u32,
+        usage: HardwareBufferUsage,
+    ) -> Result<DmabufBuffer, ImageError> {
+        if width == 0 || height == 0 || width > LARGEST_SIDE || height > LARGEST_SIDE {
+            return Err(ImageError::new(
+                ImageErrorKind::TooLarge,
+                format!("a side of no pixels or past {LARGEST_SIDE}"),
+            ));
+        }
+        self.gbm.allocate(width, height, usage)
+    }
 }
 
 impl HardwareBufferAllocator for GbmAllocator {
@@ -240,10 +380,10 @@ impl HardwareBufferAllocator for GbmAllocator {
         &self,
         width: u32,
         height: u32,
-        format: PixelFormat,
+        format: HardwareBufferFormat,
         usage: HardwareBufferUsage,
     ) -> Result<Arc<dyn HardwareBuffer>, ImageError> {
-        if format != PixelFormat::Bgra8 {
+        if format != HardwareBufferFormat::Bgra8 {
             return Err(ImageError::new(
                 ImageErrorKind::Unsupported,
                 "Linux allocates hardware buffers in BGRA",

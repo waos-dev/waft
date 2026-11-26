@@ -52,14 +52,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 use waft_embedder::{
-    CompositionLayer, Compositor, HardwareBuffer, LayerPicture, Placement, VideoFrame, ViewId,
+    AcceptedBuffers, AcceptedFormat, CompositionLayer, Compositor, GpuMemory, HardwareBuffer,
+    HardwareBufferFormat, LayerPicture, Placement, VideoFrame, ViewId,
 };
 
 use crate::buffer_transform::BufferTransform;
-use crate::hardware_buffers::AndroidHardwareBuffer;
+use crate::hardware_buffers::{AndroidHardwareBuffer, PrivatePicture};
 use crate::surface_control::{Geometry, SurfaceControl, Transaction};
 
-use buffers::{PresentedBuffers, Shown};
+use buffers::{PresentedBuffers, Shown, ShownBuffer};
 use releases::{Release, Releases};
 use transaction::{LayerTransaction, Transactions};
 
@@ -92,13 +93,27 @@ impl Compositor for SurfaceControlCompositor {
     fn make_layer(&self, opaque: bool) -> Arc<dyn CompositionLayer> {
         self.layer(opaque)
     }
+
+    /// RGBA8 `AHardwareBuffer`s, which open on the device's GPU.
+    fn accepted_buffers(&self) -> AcceptedBuffers {
+        AcceptedBuffers {
+            gpu_memory: vec![GpuMemory {
+                gpu: None,
+                formats: vec![AcceptedFormat {
+                    format: HardwareBufferFormat::Rgba8,
+                    modifiers: Vec::new(),
+                }],
+            }],
+            shared_memory: false,
+        }
+    }
 }
 
 /// One frame of a picture the system draws onto a layer, such as a camera's preview: shown whole
 /// within the layer's box, centred, turned by `transform`, as Apple's preview layer shows its
 /// camera's with `resizeAspect`.
 pub(crate) struct SystemFrame {
-    pub(crate) buffer: AndroidHardwareBuffer,
+    pub(crate) picture: PrivatePicture,
     pub(crate) transform: BufferTransform,
 }
 
@@ -271,10 +286,13 @@ impl SurfaceControlLayer {
         children: Vec<(Arc<SurfaceControlLayer>, Placement)>,
         released: OnReleased,
     ) {
-        let release = Release::new(Arc::new(buffer.clone()), released);
+        let release = Release::new(buffer.clone(), released);
         let mut state = self.state();
         state.system_picture = None;
-        let replaced = state.buffers.present(buffer, acquire_fence, None, release);
+        let replaced =
+            state
+                .buffers
+                .present(ShownBuffer::Presented(buffer), acquire_fence, None, release);
         let previous_children = std::mem::replace(
             &mut state.children,
             adopted_by(children, Placer::Layer(self.number)),
@@ -300,13 +318,15 @@ impl SurfaceControlLayer {
         released: OnReleased,
     ) {
         self.transactions.transact(|transaction| {
-            let release = Release::new(Arc::new(frame.buffer.clone()), released);
+            let release = Release::new(frame.picture.clone(), released);
             let mut state = self.state();
             state.system_picture = Some(picture);
-            let replaced =
-                state
-                    .buffers
-                    .present(frame.buffer, None, Some(frame.transform), release);
+            let replaced = state.buffers.present(
+                ShownBuffer::System(frame.picture),
+                None,
+                Some(frame.transform),
+                release,
+            );
             state.show_in_place_of(transaction, replaced, self.opaque);
         });
     }
@@ -338,8 +358,10 @@ impl SurfaceControlLayer {
             drop(state);
             return picture.current_frame().map(LayerPicture::Frame);
         }
-        let shown = state.buffers.on_screen()?;
-        Some(LayerPicture::Buffer(Arc::new(shown.buffer.clone())))
+        match &state.buffers.on_screen()?.buffer {
+            ShownBuffer::Presented(buffer) => Some(LayerPicture::Buffer(Arc::new(buffer.clone()))),
+            ShownBuffer::System(_) => None,
+        }
     }
 }
 
@@ -443,7 +465,7 @@ impl LayerState {
             tx.set_visible(buffer_surface, false);
             return;
         };
-        let size = [shown.buffer.width(), shown.buffer.height()];
+        let size = shown.buffer.size();
         let (transform, geometry) = match (shown.fitted, self.box_size) {
             (Some(transform), Some(box_size)) => {
                 (transform, layer_geometry::fitted(size, transform, box_size))

@@ -1,10 +1,11 @@
 //! Hardware buffers on macOS and iOS: an `IOSurface`, in 32-bit BGRA, the memory Core Animation
 //! shows as a layer's contents (`composition`), Metal draws into and samples through a texture
 //! imported over it (`gpu_interop`), Image I/O encodes and decodes into (`image_codecs`), and a
-//! video frame's pixel buffer lies in (`media`). A buffer the app allocates is made by
-//! `IOSurfaceCreate`; a video frame's is its pixel buffer's surface, held with the pixel buffer,
-//! which keeps the frame's slot in its pool. Its pixels are read while the surface is locked
-//! (`media::locked_pixels`).
+//! video frame's pixel buffer lies in (`media`), in a decoder's two planes of 4:2:0 for a decoded
+//! frame. A buffer the app allocates is made by `IOSurfaceCreate`; a video frame's is its pixel
+//! buffer's surface, held with the pixel buffer, which keeps the frame's slot in its pool, in the
+//! format the surface says. Its pixels are read while the surface is locked
+//! (`media::locked_pixels`), in BGRA only.
 //!
 //! Any `IOSurface` can be sampled, drawn into, shown by Core Animation and read by the CPU, so a
 //! buffer of the app's own, however it was allocated, answers every usage; one the system hands
@@ -21,15 +22,21 @@
 use std::sync::Arc;
 
 use objc2_core_foundation::{CFDictionary, CFNumber, CFRetained, CFString};
-use objc2_core_video::{CVPixelBuffer, CVPixelBufferGetIOSurface, kCVPixelFormatType_32BGRA};
+use objc2_core_video::{
+    CVPixelBuffer, CVPixelBufferGetIOSurface, kCVPixelFormatType_32BGRA,
+    kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+    kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+    kCVPixelFormatType_420YpCbCr10BiPlanarFullRange,
+    kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+};
 use objc2_io_surface::{
     IOSurfaceRef, kIOSurfaceBytesPerElement, kIOSurfaceBytesPerRow, kIOSurfaceHeight,
     kIOSurfacePixelFormat, kIOSurfaceWidth,
 };
-use waft_embedder::image_codecs::{
-    ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat,
+use waft_embedder::image_codecs::{ImageError, ImageErrorKind, ImageFuture, PixelBuffer};
+use waft_embedder::{
+    HardwareBuffer, HardwareBufferAllocator, HardwareBufferFormat, HardwareBufferUsage,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
 
 use super::media::locked_pixels::read_locked;
 
@@ -48,8 +55,9 @@ const SYSTEM_GIVEN: HardwareBufferUsage = HardwareBufferUsage {
     ..HardwareBufferUsage::GPU_SAMPLED
 };
 
-/// A hardware buffer on macOS and iOS: an `IOSurface` in 32-bit BGRA, what it can be used for,
-/// and the video frame it is the memory of, where it is one's. Platform
+/// A hardware buffer on macOS and iOS: an `IOSurface`, in 32-bit BGRA or, for a decoded frame, in
+/// its decoder's planes, what it can be used for, and the video frame it is the memory of, where
+/// it is one's. Platform
 /// code reaches the surface from a [`HardwareBuffer`] by downcasting through `Any`:
 ///
 /// ```
@@ -65,6 +73,7 @@ const SYSTEM_GIVEN: HardwareBufferUsage = HardwareBufferUsage {
 #[derive(Clone)]
 pub struct SurfaceBuffer {
     surface: CFRetained<IOSurfaceRef>,
+    format: HardwareBufferFormat,
     usage: HardwareBufferUsage,
     /// The frame whose memory the surface is, held so its pool does not hand the surface out
     /// again; none for a buffer of the app's own.
@@ -95,16 +104,20 @@ impl SurfaceBuffer {
     fn for_usage(surface: CFRetained<IOSurfaceRef>, usage: HardwareBufferUsage) -> SurfaceBuffer {
         SurfaceBuffer {
             surface,
+            format: HardwareBufferFormat::Bgra8,
             usage,
             _frame: None,
         }
     }
 
-    /// The memory of `frame`, a pixel buffer on an `IOSurface`, for what the system made it for
-    /// (`SYSTEM_GIVEN`), held with the frame; `None` for a pixel buffer on no surface.
+    /// The memory of `frame`, a pixel buffer on an `IOSurface`, in the format its surface says, for
+    /// what the system made it for (`SYSTEM_GIVEN`), held with the frame; `None` for a pixel buffer
+    /// on no surface, and for one in a format no [`HardwareBufferFormat`] names.
     pub(crate) fn of_frame(frame: CFRetained<CVPixelBuffer>) -> Option<SurfaceBuffer> {
         let surface = CVPixelBufferGetIOSurface(Some(&frame))?;
+        let format = format_of(surface.pixel_format())?;
         Some(SurfaceBuffer {
+            format,
             _frame: Some(frame),
             ..SurfaceBuffer::system_given(surface)
         })
@@ -131,11 +144,32 @@ impl HardwareBuffer for SurfaceBuffer {
         self.usage
     }
 
+    /// BGRA for a buffer of the app's own and a decoded image's; a frame's as its surface's pixel
+    /// format says (`format_of`).
+    fn format(&self) -> HardwareBufferFormat {
+        self.format
+    }
+
     /// The surface's rows as they lie, BGRA and premultiplied, copied while it is locked for
     /// reading. Every buffer here has `cpu_read`, so the usage refuses none.
     fn read_pixels(&self) -> ImageFuture<PixelBuffer> {
         let read = read_locked(&self.surface, |pixels| pixels.copied()).and_then(|copied| copied);
         Box::pin(std::future::ready(read))
+    }
+}
+
+/// The format of a surface in CoreVideo's `pixel_format`: `BGRA`, `420v` and `420f` (8-bit 4:2:0 in
+/// two planes, of video and of full range), and `x420` and `xf20` (the same at 10 bits); `None` for
+/// any other.
+#[allow(non_upper_case_globals, reason = "the formats keep CoreVideo's names")]
+fn format_of(pixel_format: u32) -> Option<HardwareBufferFormat> {
+    match pixel_format {
+        kCVPixelFormatType_32BGRA => Some(HardwareBufferFormat::Bgra8),
+        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        | kCVPixelFormatType_420YpCbCr8BiPlanarFullRange => Some(HardwareBufferFormat::Nv12),
+        kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+        | kCVPixelFormatType_420YpCbCr10BiPlanarFullRange => Some(HardwareBufferFormat::P010),
+        _ => None,
     }
 }
 
@@ -148,7 +182,7 @@ impl HardwareBufferAllocator for SurfaceBufferAllocator {
         &self,
         width: u32,
         height: u32,
-        format: PixelFormat,
+        format: HardwareBufferFormat,
         _usage: HardwareBufferUsage,
     ) -> Result<Arc<dyn HardwareBuffer>, ImageError> {
         if width == 0 || height == 0 {
@@ -157,7 +191,7 @@ impl HardwareBufferAllocator for SurfaceBufferAllocator {
                 format!("a buffer of {width} by {height} pixels, which holds none"),
             ));
         }
-        if format != PixelFormat::Bgra8 {
+        if format != HardwareBufferFormat::Bgra8 {
             return Err(ImageError::new(
                 ImageErrorKind::Unsupported,
                 "Apple's systems allocate hardware buffers in BGRA",
@@ -222,7 +256,12 @@ mod tests {
     #[test]
     fn a_buffer_allocated_answers_every_use_whatever_was_asked() {
         let buffer = SurfaceBufferAllocator
-            .allocate(8, 8, PixelFormat::Bgra8, HardwareBufferUsage::GPU_SAMPLED)
+            .allocate(
+                8,
+                8,
+                HardwareBufferFormat::Bgra8,
+                HardwareBufferUsage::GPU_SAMPLED,
+            )
             .expect("an IOSurface of 8 by 8");
         assert_eq!(buffer.usage(), HardwareBufferUsage::ALL);
         assert!(pollster::block_on(buffer.read_pixels()).is_ok());
@@ -234,6 +273,18 @@ mod tests {
         let buffer = frame.hardware_buffer();
         assert_eq!(buffer.usage(), SYSTEM_GIVEN);
         assert!(!buffer.usage().gpu_color_output);
+        assert_eq!(buffer.format(), HardwareBufferFormat::Bgra8);
+    }
+
+    #[test]
+    fn a_surfaces_pixel_format_names_its_planes() {
+        let format = |code: &[u8; 4]| format_of(u32::from_be_bytes(*code));
+        assert_eq!(format(b"BGRA"), Some(HardwareBufferFormat::Bgra8));
+        assert_eq!(format(b"420v"), Some(HardwareBufferFormat::Nv12));
+        assert_eq!(format(b"420f"), Some(HardwareBufferFormat::Nv12));
+        assert_eq!(format(b"x420"), Some(HardwareBufferFormat::P010));
+        assert_eq!(format(b"xf20"), Some(HardwareBufferFormat::P010));
+        assert_eq!(format(b"y420"), None);
     }
 
     #[test]
@@ -245,15 +296,19 @@ mod tests {
                 .map(|error| error.kind)
         };
         assert_eq!(
-            refused(8, 8, PixelFormat::Rgba8),
+            refused(8, 8, HardwareBufferFormat::Rgba8),
             Some(ImageErrorKind::Unsupported)
         );
         assert_eq!(
-            refused(LARGEST_SIDE + 1, 8, PixelFormat::Bgra8),
+            refused(8, 8, HardwareBufferFormat::Nv12),
+            Some(ImageErrorKind::Unsupported)
+        );
+        assert_eq!(
+            refused(LARGEST_SIDE + 1, 8, HardwareBufferFormat::Bgra8),
             Some(ImageErrorKind::TooLarge)
         );
         assert_eq!(
-            refused(0, 8, PixelFormat::Bgra8),
+            refused(0, 8, HardwareBufferFormat::Bgra8),
             Some(ImageErrorKind::Other)
         );
     }

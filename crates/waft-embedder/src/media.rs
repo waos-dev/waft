@@ -700,7 +700,9 @@ pub trait VideoFrame: Any + Send + Sync {
     /// The frame's pixels copied into the app's memory, in the layout the frame holds them: BGRA
     /// on Apple's systems. The one way back from GPU memory to the app's;
     /// [`ImageErrorKind::Unsupported`](crate::image_codecs::ImageErrorKind::Unsupported) for a
-    /// frame whose pixels are in no [`PixelFormat`](crate::image_codecs::PixelFormat).
+    /// frame whose pixels are in no [`PixelFormat`](crate::image_codecs::PixelFormat), as a
+    /// decoder's planes ([`HardwareBufferFormat::Nv12`](crate::HardwareBufferFormat::Nv12) and
+    /// `P010`) are.
     fn read_pixels(&self) -> ImageFuture<PixelBuffer>;
 
     /// The frame's memory, for sampling, which keeps the frame, and its slot in the pool, while

@@ -7,9 +7,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use waft_embedder::image_codecs::PixelFormat;
 use waft_embedder::{
-    Color, CompositionLayer, HardwareBufferUsage, Image, PlatformRef, TextDirection,
+    Color, CompositionLayer, HardwareBufferFormat, HardwareBufferUsage, Image, PlatformRef,
+    TextDirection,
 };
 use waft_embedder_android::AndroidPlatform;
 use waft_foundation::{App, Handle, Listener, Ref, Timer, ValueListenable, ValueNotifier};
@@ -73,8 +73,9 @@ fn image_drawn_once(platform: &PlatformRef, painter: &mut Painter) -> Option<Ima
         ..HardwareBufferUsage::default()
     };
     let buffer = platform
+        .gpu(None)?
         .hardware_buffer_allocator()?
-        .allocate(IMAGE_SIDE, IMAGE_SIDE, PixelFormat::Rgba8, usage)
+        .allocate(IMAGE_SIDE, IMAGE_SIDE, HardwareBufferFormat::Rgba8, usage)
         .ok()?;
     let texture = platform.import_texture(&*buffer, &painter.device)?;
     painter.paint(&texture, &producer::quarters(IMAGE_SIDE));

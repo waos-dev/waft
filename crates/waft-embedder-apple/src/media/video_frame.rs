@@ -19,7 +19,7 @@ use crate::hardware_buffers::SurfaceBuffer;
 
 /// One picture of a player, a camera or a decoder on macOS and iOS: the `CVPixelBuffer` the
 /// system handed out, backed by an `IOSurface`: in 32-bit BGRA from a reader, and in the
-/// decoder's own layout, 8-bit 4:2:0 in two planes, from a decoder. Platform code reaches it from the
+/// decoder's own layout, 4:2:0 in two planes (NV12, or P010 for a deeper stream), from a decoder. Platform code reaches it from the
 /// [`VideoFrame`] a reader answers by downcasting through `Any`:
 ///
 /// ```
@@ -67,7 +67,7 @@ impl CoreVideoFrame {
     }
 
     /// The frame of `buffer`, a pixel buffer backed by an `IOSurface` in a decoder's own layout,
-    /// 8-bit 4:2:0 in two planes, as VideoToolbox hands it out, with what its decoder says of
+    /// 4:2:0 in two planes, NV12 or P010, as VideoToolbox hands it out, with what its decoder says of
     /// it.
     pub(crate) fn decoded(
         buffer: CFRetained<CVPixelBuffer>,
@@ -173,7 +173,7 @@ impl CoreVideoFrame {
     /// The frame's surface, which holds the frame.
     fn surface_buffer(&self) -> SurfaceBuffer {
         SurfaceBuffer::of_frame(self.buffer.clone())
-            .expect("a frame's pixel buffer is on an IOSurface, as `CoreVideoFrame::new` takes it")
+            .expect("a frame's pixel buffer is on an IOSurface in BGRA or a decoder's planes, as `CoreVideoFrame` takes it")
     }
 }
 
@@ -185,11 +185,18 @@ unsafe impl Sync for CoreVideoFrame {}
 /// A 64 by 48 frame as a frame reader hands one out: BGRA, on an `IOSurface`.
 #[cfg(test)]
 pub(crate) fn test_frame() -> CoreVideoFrame {
+    test_frame_in(objc2_core_video::kCVPixelFormatType_32BGRA)
+}
+
+/// A 64 by 48 frame on an `IOSurface` in CoreVideo's `pixel_format`, as a decoder hands one out
+/// in its own layout.
+#[cfg(test)]
+pub(crate) fn test_frame_in(pixel_format: u32) -> CoreVideoFrame {
     use std::ptr::NonNull;
 
     use objc2::rc::Retained;
     use objc2_core_foundation::CFDictionary;
-    use objc2_core_video::{CVPixelBufferCreate, kCVPixelFormatType_32BGRA, kCVReturnSuccess};
+    use objc2_core_video::{CVPixelBufferCreate, kCVReturnSuccess};
 
     let attributes = super::frames::pixel_buffer_attributes();
     let attributes: *const CFDictionary = Retained::as_ptr(&attributes).cast();
@@ -201,7 +208,7 @@ pub(crate) fn test_frame() -> CoreVideoFrame {
             None,
             64,
             48,
-            kCVPixelFormatType_32BGRA,
+            pixel_format,
             Some(&*attributes),
             NonNull::from(&mut buffer),
         )

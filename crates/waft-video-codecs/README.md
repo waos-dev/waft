@@ -1,0 +1,5 @@
+# waft-video-codecs
+
+What a video stream says of itself, read the same way for every system's decoder: a codec's setup bytes and the units of its chunks, which chunk decodes with nothing before it, what the stream says of its pictures (how far it reorders them, their bit depth, their colour, their pixels' shape), and the order pictures are shown in where a system's decoder leaves that to its caller.
+
+It takes `waft-embedder`'s video decoder types and provides, per codec, what a host's decoder asks of a stream before handing it to the system, and one reader of a stream for every codec (`stream_reader`): a chunk's units, what the system's decoder is configured with and whether a chunk changed it, key frames, the order pictures are shown in, and what the stream says of its pictures. The hosts' decoders use it (`waft-embedder-apple`'s VideoToolbox, `waft-embedder-android`'s MediaCodec and `waft-embedder-winit`'s Media Foundation), so a codec's rules are written once and a system's decoder only opens the system's session; GStreamer's decoders on Linux read the stream themselves, and only their tests use it, for its clip (`test-support`). H.264, HEVC, VP9 and AV1.

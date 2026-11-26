@@ -2,14 +2,18 @@
 //!
 //! Each decoder decodes on a queue of its own, one chunk after another, so the app's thread
 //! never waits on VideoToolbox and pictures are decoded in the order their chunks came. What
-//! the queue works on (`Work`) is the stream as far as it is known: how it frames its units, its
-//! parameter sets, the session made of them, and the pictures decoded and not yet shown.
+//! the queue works on (`Work`) is the stream as far as it is known (`waft-video-codecs`' reader
+//! of its codec), the session made for it, and the pictures decoded and not yet shown. Each chunk
+//! reaches VideoToolbox as a sample: H.264's and HEVC's units each after four bytes of length,
+//! their parameter sets left to the format, and a VP9 or AV1 chunk whole.
 //!
-//! A stream's parameter sets may come ahead, in its setup, or in its chunks, and may change. A
-//! session is made once a whole set of them is known, and made again when VideoToolbox does not
-//! go on with the new ones; the pictures still held then are shown first, as they come before
-//! the change. VideoToolbox's pool grows as frames are held, so the decoder holds itself back: it
-//! decodes no more while as many frames as the app said it holds at once wait to be read.
+//! What a session is made for (a stream's format: H.264's and HEVC's parameter sets, VP9's
+//! record and the size its key frame says, AV1's sequence header) may come ahead, in its setup,
+//! or in its chunks, and may change. A session is made once the stream's reader has a whole
+//! description, and made again when VideoToolbox does not go on with a new one; the pictures
+//! still held then are shown first, as they come before the change. VideoToolbox's pool grows as
+//! frames are held, so the decoder holds itself back: it decodes no more while as many frames as
+//! the app said it holds at once wait to be read.
 //!
 //! A reset drops what the decoder holds at the moment the app asks, though chunks handed over
 //! before it may still wait on the queue, or be decoding: each carries the count of resets it
@@ -27,61 +31,34 @@ use std::time::Duration;
 
 use dispatch2::{DispatchQueue, DispatchQueueAttr, DispatchRetained};
 use waft_embedder::video_decoders::{
-    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, NalFormat,
+    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoCodec,
     VideoDecoder, VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
 };
 use waft_embedder::{ColorRange, PixelAspect, VideoColor, VideoFrame};
 
-use super::nal::{units_after_lengths, units_after_start_codes, with_lengths};
+use waft_video_codecs::StreamFacts;
+use waft_video_codecs::framing::with_lengths;
+use waft_video_codecs::presentation_order::PresentationOrder;
+
+use waft_video_codecs::stream_reader::{Description, ReadChunk, StreamReader, reader_for};
+
+use super::format::Format;
 use super::output::Output;
-use super::picture_order::PictureOrder;
-use super::presentation_order::PresentationOrder;
-use super::session::{DecodedPicture, Session};
-use super::stream::{ParameterSets, StreamFacts, is_parameter_set};
+use super::session::{DecodedPicture, PictureFormat, Session, add_vp9_decoder};
 use crate::answer::answer;
 use crate::media::CoreVideoFrame;
 use crate::media::DecodedFacts;
 
-/// How a stream frames its units.
-#[derive(Clone, Copy)]
-enum Framing {
-    /// Each after a length of this many bytes.
-    Lengths(usize),
-    StartCodes,
-}
-
-/// A stream's setup as the decoder takes it: its framing, and the parameter sets given ahead.
-fn framing_and_sets(setup: VideoStreamSetup) -> Result<(Framing, ParameterSets), DecoderError> {
-    match setup {
-        VideoStreamSetup::H264(NalFormat::LengthPrefixed(record)) => {
-            let (sets, length_size) =
-                ParameterSets::of_record(&record).map_err(DecoderError::BadData)?;
-            Ok((Framing::Lengths(length_size), sets))
-        }
-        VideoStreamSetup::H264(NalFormat::StartCodes(ahead)) => {
-            let ahead = ahead.unwrap_or_default();
-            let sets = ParameterSets::among(&units_after_start_codes(&ahead));
-            Ok((Framing::StartCodes, sets))
-        }
-        other => Err(DecoderError::Unsupported(format!(
-            "this system's decoders are handed H.264 alone so far, not {:?}",
-            other.codec()
-        ))),
-    }
-}
-
 /// What a decoder's queue works on.
 struct Work {
-    framing: Framing,
-    /// The stream's parameter sets, as far as they have come.
-    sets: ParameterSets,
+    /// The stream, as far as it has come.
+    stream: Box<dyn StreamReader>,
     choice: CodecChoice,
     /// The colour the app gave for what the stream leaves unsaid.
     default_color: Option<VideoColor>,
-    /// The session made of `sets`, once they are whole, with what they say of the stream.
+    /// The session made for the stream's description, once it is whole, with what it says of
+    /// the stream.
     session: Option<(Session, StreamFacts)>,
-    /// Where each picture stands in the order its stream is shown in, as the stream says.
-    picture_order: PictureOrder,
     /// The pictures decoded and not yet shown.
     order: PresentationOrder<Arc<dyn VideoFrame>>,
     output: Output,
@@ -93,59 +70,53 @@ struct Work {
 }
 
 impl Work {
-    /// Goes on with `sets`: with the session there is, where VideoToolbox does, and with one
-    /// made of them otherwise, the pictures held shown first.
-    fn adopt(&mut self, sets: ParameterSets) -> Result<(), DecoderError> {
-        let facts = sets.facts().map_err(DecoderError::BadData)?;
-        self.picture_order
-            .adopt(&sets)
-            .map_err(DecoderError::BadData)?;
-        let goes_on = matches!(&self.session, Some((session, _)) if session.accepts(&sets));
+    /// Goes on with the stream's description, where it has a whole one: with the session there
+    /// is, where VideoToolbox does, and with one made for it otherwise, the pictures held shown
+    /// first.
+    fn adopt_description(&mut self) -> Result<(), DecoderError> {
+        let Some(Description {
+            configuration,
+            facts,
+        }) = self.stream.description()?
+        else {
+            return Ok(());
+        };
+        let format = Format::of(&configuration)?;
+        let goes_on = matches!(&self.session, Some((session, _)) if session.accepts(&format));
         let session = match self.session.take() {
             Some((session, _)) if goes_on => session,
             _ => {
                 self.output.put(self.order.all(), self.asked_after_resets);
-                let full_range = self.colour_of(&facts).range == Some(ColorRange::Full);
-                Session::open(&sets, self.choice, full_range)?
+                let pictures = PictureFormat {
+                    bit_depth: facts.bit_depth,
+                    full_range: self.colour_of(&facts).range == Some(ColorRange::Full),
+                };
+                Session::open(&format, self.choice, pictures)?
             }
         };
         self.order.set_depth(facts.reorder_depth);
         self.session = Some((session, facts));
-        self.sets = sets;
         Ok(())
     }
 
-    /// Decodes `chunk`, once the app has read enough of the frames put out, taking the parameter
-    /// sets it carries, and puts out the pictures that can be shown now.
+    /// Decodes `chunk`, once the app has read enough of the frames put out, taking what it says
+    /// of its stream, and puts out the pictures that can be shown now.
     fn decode(&mut self, chunk: &EncodedChunk) -> Result<(), DecoderError> {
-        let units = match self.framing {
-            Framing::Lengths(size) => units_after_lengths(&chunk.data, size).ok_or_else(|| {
-                DecoderError::BadData("a unit's length runs past its chunk".to_owned())
-            })?,
-            Framing::StartCodes => units_after_start_codes(&chunk.data),
-        };
-        let sets = self.sets.replaced_by(ParameterSets::among(&units));
-        if sets.are_complete() && (sets != self.sets || self.session.is_none()) {
-            self.adopt(sets)?;
+        let read = self.stream.read(&chunk.data)?;
+        let place = self.stream.place_of(&read)?;
+        let sample = sample_of(&read, self.stream.codec());
+        if read.changed || self.session.is_none() {
+            self.adopt_description()?;
         }
         let Some((session, facts)) = &self.session else {
             return Err(DecoderError::BadData(
-                "the stream's parameter sets have not come".to_owned(),
+                "what the stream's format is made of has not come".to_owned(),
             ));
         };
-        let coded: Vec<&[u8]> = units
-            .into_iter()
-            .filter(|unit| !is_parameter_set(unit))
-            .collect();
-        // Counted before it is decoded, so a picture VideoToolbox gives nothing for is counted.
-        let place = self
-            .picture_order
-            .place_of(&coded)
-            .map_err(DecoderError::BadData)?;
-        let decoded = session.decode(&with_lengths(coded), chunk.timestamp, chunk.duration)?;
+        let decoded = session.decode(&sample, chunk.timestamp, chunk.duration)?;
         if let Some(picture) = decoded {
             let place = place.ok_or_else(|| {
-                DecoderError::BadData("a picture with no slice to tell its order by".to_owned())
+                DecoderError::BadData("a picture with nothing to tell its order by".to_owned())
             })?;
             let frame = self.frame_of(picture, chunk, facts);
             let shown = self.order.take(place, frame);
@@ -161,18 +132,19 @@ impl Work {
 
     /// Another setup from the next chunk on.
     fn configure(&mut self, setup: VideoStreamSetup) -> Result<(), DecoderError> {
-        let (framing, sets) = framing_and_sets(setup)?;
-        self.framing = framing;
-        if sets.are_complete() && sets != self.sets {
-            self.adopt(sets)?;
+        if self.stream.configure(setup)? {
+            self.adopt_description()?;
         }
         Ok(())
     }
 
-    /// The decoder ended by itself where `result` says it cannot go on: its session goes, and
-    /// the app is told why beside its frames.
+    /// The decoder ended by itself where `result` says it cannot go on, any refusal but a damaged
+    /// chunk's (as a stream whose first chunk finds VideoToolbox has no decoder for it): its
+    /// session goes, and the app is told why beside its frames.
     fn end_if_it_cannot_go_on(&mut self, result: &Result<(), DecoderError>) {
-        if let Err(reason @ (DecoderError::Lost | DecoderError::Failed(_))) = result {
+        if let Err(reason) = result
+            && !matches!(reason, DecoderError::BadData(_))
+        {
             self.session = None;
             self.output.end(reason.clone());
         }
@@ -223,29 +195,36 @@ pub(super) struct Decoder {
 }
 
 impl Decoder {
-    /// A decoder for the stream `setup` begins, its session made at once where the setup holds
-    /// the stream's parameter sets, and with the first key frame otherwise.
+    /// A decoder for the stream `setup` begins, its session made at once where the setup says
+    /// what the stream's format is made of, and with the first key frame otherwise.
     pub(super) fn open(
         setup: VideoStreamSetup,
         options: &VideoDecoderOptions,
     ) -> Result<Decoder, DecoderError> {
-        let (framing, sets) = framing_and_sets(setup)?;
+        let stream = match setup.codec() {
+            VideoCodec::Vp8 => {
+                return Err(DecoderError::Unsupported(
+                    "VideoToolbox has no VP8 decoder".to_owned(),
+                ));
+            }
+            VideoCodec::Vp9 => {
+                add_vp9_decoder();
+                reader_for(setup)?
+            }
+            _ => reader_for(setup)?,
+        };
         let output = Output::default();
         let mut work = Work {
-            framing,
-            sets: ParameterSets::default(),
+            stream,
             choice: options.decoder,
             default_color: options.default_color,
             session: None,
-            picture_order: PictureOrder::default(),
             order: PresentationOrder::new(0),
             output: output.clone(),
             frame_limit: options.frame_limit.max(1) as usize,
             asked_after_resets: 0,
         };
-        if sets.are_complete() {
-            work.adopt(sets)?;
-        }
+        work.adopt_description()?;
         let kind = match &work.session {
             Some((session, _)) => session.kind(),
             None => kind_before_a_session(options.decoder),
@@ -335,6 +314,16 @@ impl Drop for Decoder {
     }
 }
 
+/// The sample VideoToolbox decodes of `chunk`, framed as the stream's format says: H.264's and
+/// HEVC's units but their parameter sets, which go to the format, each after its length, and a VP9
+/// or AV1 chunk whole.
+fn sample_of(chunk: &ReadChunk<'_>, codec: VideoCodec) -> Vec<u8> {
+    match codec {
+        VideoCodec::H264 | VideoCodec::Hevc => with_lengths(chunk.coded_units()),
+        VideoCodec::Vp8 | VideoCodec::Vp9 | VideoCodec::Av1 => chunk.units().concat(),
+    }
+}
+
 /// Where a decoder with no session yet is taken to run: as its choice asks, hardware first.
 fn kind_before_a_session(choice: CodecChoice) -> CodecKind {
     match choice {
@@ -347,72 +336,27 @@ fn kind_before_a_session(choice: CodecChoice) -> CodecKind {
 mod tests {
     use pollster::block_on;
     use waft_embedder::PixelRect;
-    use waft_embedder::video_decoders::DecodingPurpose;
+    use waft_embedder::video_decoders::NalFormat;
 
-    use super::super::session::tests::pictures_of_the_clip;
-    use super::super::stream::tests::{CLIP, record_of};
+    use super::super::test_decoding::{
+        after_start_codes, chunks_of, options, shown_in_order, times_decoded,
+    };
     use super::*;
+    use waft_video_codecs::framing::{units_after_start_codes, with_lengths};
+    use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip, record_of};
+    use waft_video_codecs::h264::{ParameterSets, is_parameter_set};
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.
     const SHOWN_AT: [i64; 12] = [0, 3, 1, 2, 5, 4, 8, 6, 7, 11, 9, 10];
 
-    /// The time of a picture shown `number` pictures in, in nanoseconds, at thirty a second.
-    fn time_of(number: i64) -> i64 {
-        number * 33_333_333
-    }
-
-    fn options() -> VideoDecoderOptions {
-        VideoDecoderOptions {
-            decoder: CodecChoice::Any,
-            purpose: DecodingPurpose::Playback,
-            frame_limit: 4,
-            largest_size: None,
-            default_color: None,
-        }
-    }
-
     /// The clip's chunks in the order they are decoded, each framed by `framed`.
     fn chunks(framed: impl Fn(&[&[u8]]) -> Vec<u8>) -> Vec<EncodedChunk> {
-        pictures_of_the_clip()
+        let data = pictures_of_the_clip()
             .iter()
-            .zip(SHOWN_AT)
-            .enumerate()
-            .map(|(decoded, (units, shown))| EncodedChunk {
-                data: framed(units),
-                timestamp: time_of(shown),
-                duration: Some(33_333_333),
-                key_frame: decoded == 0,
-            })
-            .collect()
-    }
-
-    /// `units` each after a start code, as the clip holds them.
-    fn after_start_codes(units: &[&[u8]]) -> Vec<u8> {
-        units
-            .iter()
-            .flat_map(|unit| [&[0, 0, 0, 1][..], unit].concat())
-            .collect()
-    }
-
-    /// Hands every one of `chunks` to `decoder`, drains it, and answers the times of the frames
-    /// that came out, in the order they came. The chunks are all handed over first, as an app
-    /// that does not wait for each does, and the frames read as the decoder puts them out.
-    fn times_decoded(decoder: &Decoder, chunks: Vec<EncodedChunk>) -> Vec<Option<i64>> {
-        let count = chunks.len();
-        let decoding: Vec<_> = chunks
-            .into_iter()
-            .map(|chunk| decoder.decode(chunk))
+            .map(|units| framed(units))
             .collect();
-        let draining = decoder.drain();
-        let times = (0..count)
-            .map(|_| block_on(decoder.next_frame()).expect("a frame").timestamp())
-            .collect();
-        for decoded in decoding {
-            block_on(decoded).expect("the chunk decodes");
-        }
-        block_on(draining).expect("the decoder drains");
-        times
+        chunks_of(data, &SHOWN_AT)
     }
 
     #[test]
@@ -420,8 +364,7 @@ mod tests {
         let setup = VideoStreamSetup::H264(NalFormat::StartCodes(None));
         let decoder = Decoder::open(setup, &options()).expect("a decoder");
         let times = times_decoded(&decoder, chunks(after_start_codes));
-        let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
-        assert_eq!(times, in_order);
+        assert_eq!(times, shown_in_order(12));
     }
 
     /// The order is the stream's own: chunks whose times say the order they are decoded in, as
@@ -452,8 +395,7 @@ mod tests {
             with_lengths(units.iter().copied().filter(|unit| !is_parameter_set(unit)))
         };
         let times = times_decoded(&decoder, chunks(without_sets));
-        let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
-        assert_eq!(times, in_order);
+        assert_eq!(times, shown_in_order(12));
     }
 
     #[test]
@@ -492,9 +434,9 @@ mod tests {
     }
 
     #[test]
-    fn a_codec_videotoolbox_is_not_handed_yet_is_unsupported() {
+    fn a_codec_videotoolbox_has_no_decoder_of_is_unsupported() {
         assert!(matches!(
-            Decoder::open(VideoStreamSetup::Vp9(None), &options()),
+            Decoder::open(VideoStreamSetup::Vp8, &options()),
             Err(DecoderError::Unsupported(_))
         ));
     }
@@ -533,9 +475,9 @@ mod tests {
             .collect();
         decoder.reset();
         let times = times_decoded(&decoder, chunks(after_start_codes));
-        let in_order: Vec<_> = (0..12).map(|number| Some(time_of(number))).collect();
         assert_eq!(
-            times, in_order,
+            times,
+            shown_in_order(12),
             "only the pictures handed over after the reset"
         );
         for decoded in before {
