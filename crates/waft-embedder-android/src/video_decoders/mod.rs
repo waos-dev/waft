@@ -1,7 +1,7 @@
 //! The system's video decoders on Android: MediaCodec, through the NDK, handed H.264 so far.
 //!
-//! A stream reaches MediaCodec as it takes one: its parameter sets as the codec's format
-//! (`stream`), its units each after a start code (`nal`), a picture at a time to one codec
+//! A stream reaches MediaCodec as it takes one, read by `waft-video-codecs`: its parameter sets
+//! as the codec's format, its units each after a start code, a picture at a time to one codec
 //! (`codec`) that draws into an image stream of `PRIVATE` pictures, the system's own hardware
 //! buffers. MediaCodec lets its pictures out in the order they are shown, which it reads from the
 //! stream itself, so nothing here orders them; each is matched to its chunk by the number the codec
@@ -15,7 +15,6 @@
 mod codec;
 #[cfg(target_os = "android")]
 mod decoder;
-mod nal;
 #[cfg_attr(
     not(target_os = "android"),
     allow(
@@ -25,7 +24,6 @@ mod nal;
 )]
 mod output;
 mod pending;
-mod stream;
 
 #[cfg(target_os = "android")]
 use std::sync::Arc;

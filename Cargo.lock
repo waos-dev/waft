@@ -5474,7 +5474,6 @@ name = "waft-embedder-android"
 version = "0.13.0"
 dependencies = [
  "ash",
- "h264-reader",
  "jni",
  "libc",
  "ndk",
@@ -5487,6 +5486,7 @@ dependencies = [
  "valo-codec-software",
  "valo-system-fonts",
  "waft-embedder",
+ "waft-video-codecs",
  "wgpu",
 ]
 

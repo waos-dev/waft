@@ -25,8 +25,9 @@ use ndk::media_error::MediaError;
 use waft_embedder::video_decoders::{
     CodecChoice, CodecKind, DecoderError, DecodingPurpose, PictureSize,
 };
+use waft_video_codecs::framing::with_start_codes;
+use waft_video_codecs::h264::ParameterSets;
 
-use super::stream::{ParameterSets, StreamFacts};
 use crate::media::image_stream::{Delivery, ImageStream, StreamImage};
 
 /// H.264's MIME type, as MediaCodec names the codec.
@@ -89,11 +90,12 @@ pub(super) struct Codec {
 }
 
 impl Codec {
-    /// A decoder of the stream `sets` begin, of the kind `options` chooses, its pictures handed to
-    /// `delivered` on the stream's thread, in the order the codec renders them.
+    /// A decoder of the stream `sets` begin, whose pictures are of `size`, of the kind `options`
+    /// chooses, each picture handed to `delivered` on the stream's thread, in the order the codec
+    /// renders them.
     pub(super) fn open(
         sets: &ParameterSets,
-        facts: &StreamFacts,
+        size: PictureSize,
         options: CodecOptions,
         delivered: impl Fn(StreamImage) + Send + 'static,
     ) -> Result<Codec, DecoderError> {
@@ -104,9 +106,9 @@ impl Codec {
                 "the system has no H.264 decoder on its video hardware".to_owned(),
             ));
         }
-        let largest = largest(facts.size, options.largest_size);
+        let largest = largest(size, options.largest_size);
         let pictures = ImageStream::new(
-            [facts.size.width, facts.size.height],
+            [size.width, size.height],
             ImageFormat::PRIVATE,
             HardwareBufferUsage::GPU_SAMPLED_IMAGE,
             PICTURES_LENT,
@@ -119,7 +121,7 @@ impl Codec {
         let window = pictures
             .window()
             .map_err(|error| DecoderError::Failed(format!("no window to draw into: {error}")))?;
-        let format = format_of(sets, facts, largest, options.purpose);
+        let format = format_of(sets, size, largest, options.purpose);
         codec
             .configure(&format, Some(&window), MediaCodecDirection::Decoder)
             .map_err(refusal_to_open)?;
@@ -251,22 +253,23 @@ fn largest(size: PictureSize, largest_size: Option<PictureSize>) -> PictureSize 
     }
 }
 
-/// The codec's format: H.264 of the stream's size with its parameter sets, able to grow to
-/// `largest`, and run as the pictures' purpose asks.
+/// The codec's format: H.264 of the stream's `size` with its parameter sets, each kind after
+/// start codes (`csd-0` the sequence sets, `csd-1` the picture sets), able to grow to `largest`,
+/// and run as the pictures' purpose asks.
 fn format_of(
     sets: &ParameterSets,
-    facts: &StreamFacts,
+    size: PictureSize,
     largest: PictureSize,
     purpose: DecodingPurpose,
 ) -> MediaFormat {
     let mut format = MediaFormat::new();
     format.set_str("mime", H264);
-    format.set_i32("width", facts.size.width as i32);
-    format.set_i32("height", facts.size.height as i32);
+    format.set_i32("width", size.width as i32);
+    format.set_i32("height", size.height as i32);
     format.set_i32("max-width", largest.width as i32);
     format.set_i32("max-height", largest.height as i32);
-    format.set_buffer("csd-0", &sets.sequence_data());
-    format.set_buffer("csd-1", &sets.picture_data());
+    format.set_buffer("csd-0", &with_start_codes(sets.sequence_sets()));
+    format.set_buffer("csd-1", &with_start_codes(sets.picture_sets()));
     // Android's `KEY_PRIORITY`: 0 is real time, 1 as fast as the codec can spare.
     let priority = match purpose {
         DecodingPurpose::Live | DecodingPurpose::Playback => 0,

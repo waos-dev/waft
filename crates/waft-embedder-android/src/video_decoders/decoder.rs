@@ -32,16 +32,17 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
 use waft_embedder::video_decoders::{
-    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, NalFormat,
-    VideoDecoder, VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
+    CodecChoice, CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoDecoder,
+    VideoDecoderFuture, VideoDecoderOptions, VideoStreamSetup,
 };
 use waft_embedder::{HardwareBuffer, PixelAspect, PixelRect, VideoColor, VideoFrame};
+use waft_video_codecs::StreamFacts;
+use waft_video_codecs::framing::{Framing, with_start_codes};
+use waft_video_codecs::h264::{self, ParameterSets};
 
 use super::codec::{Codec, CodecOptions, Coming, Input};
-use super::nal::{units_after_lengths, units_after_start_codes, with_start_codes};
 use super::output::Output;
 use super::pending::{ChunkFacts, Pending};
-use super::stream::{ParameterSets, StreamFacts, holds_key_picture};
 use crate::answer::answer;
 use crate::hardware_buffers::AndroidHardwareBuffer;
 use crate::media::frame_conversion::to_rgba;
@@ -52,27 +53,10 @@ use crate::media::{AndroidVideoFrame, DecodedFacts};
 /// chunks, before it looks again.
 const POLL: Duration = Duration::from_millis(10);
 
-/// How a stream frames its units.
-#[derive(Clone, Copy)]
-enum Framing {
-    /// Each after a length of this many bytes.
-    Lengths(usize),
-    StartCodes,
-}
-
 /// A stream's setup as the decoder takes it: its framing, and the parameter sets given ahead.
 fn framing_and_sets(setup: VideoStreamSetup) -> Result<(Framing, ParameterSets), DecoderError> {
     match setup {
-        VideoStreamSetup::H264(NalFormat::LengthPrefixed(record)) => {
-            let (sets, length_size) =
-                ParameterSets::of_record(&record).map_err(DecoderError::BadData)?;
-            Ok((Framing::Lengths(length_size), sets))
-        }
-        VideoStreamSetup::H264(NalFormat::StartCodes(ahead)) => {
-            let ahead = ahead.unwrap_or_default();
-            let sets = ParameterSets::among(&units_after_start_codes(&ahead));
-            Ok((Framing::StartCodes, sets))
-        }
+        VideoStreamSetup::H264(format) => h264::setup(format).map_err(DecoderError::BadData),
         other => Err(DecoderError::Unsupported(format!(
             "this system's decoders are handed H.264 alone so far, not {:?}",
             other.codec()
@@ -142,14 +126,17 @@ impl Work {
     /// on, and so is to be handed the sets.
     fn adopt(&mut self, sets: ParameterSets) -> Result<bool, DecoderError> {
         let facts = sets.facts().map_err(DecoderError::BadData)?;
-        let goes_on = matches!(&self.codec, Some((codec, _)) if codec.fits(facts.size));
+        let size = facts.size.ok_or_else(|| {
+            DecoderError::BadData("the sequence parameter set's size cannot be read".to_owned())
+        })?;
+        let goes_on = matches!(&self.codec, Some((codec, _)) if codec.fits(size));
         if goes_on {
             self.codec = self.codec.take().map(|(codec, _)| (codec, facts));
         } else {
             self.end_stream()?;
             self.codec = None;
             self.pending.clear();
-            let codec = Codec::open(&sets, &facts, self.options, self.delivery())?;
+            let codec = Codec::open(&sets, size, self.options, self.delivery())?;
             self.codec = Some((codec, facts));
             self.key_due = true;
         }
@@ -159,12 +146,10 @@ impl Work {
 
     /// Hands `chunk` to the codec, once it takes it, taking the parameter sets the chunk carries.
     fn decode(&mut self, chunk: &EncodedChunk) -> Result<(), DecoderError> {
-        let units = match self.framing {
-            Framing::Lengths(size) => units_after_lengths(&chunk.data, size).ok_or_else(|| {
-                DecoderError::BadData("a unit's length runs past its chunk".to_owned())
-            })?,
-            Framing::StartCodes => units_after_start_codes(&chunk.data),
-        };
+        let units = self
+            .framing
+            .units(&chunk.data)
+            .map_err(DecoderError::BadData)?;
         let sets = self.sets.replaced_by(ParameterSets::among(&units));
         if sets.are_complete() && (sets != self.sets || self.codec.is_none()) {
             self.adopt(sets)?;
@@ -174,7 +159,7 @@ impl Work {
                 "the stream's parameter sets have not come".to_owned(),
             ));
         };
-        if self.key_due && !(chunk.key_frame || holds_key_picture(&units)) {
+        if self.key_due && !(chunk.key_frame || h264::is_key_frame(&units)) {
             return Err(DecoderError::BadData(
                 "a key frame is due, and the chunk is none".to_owned(),
             ));
@@ -251,7 +236,7 @@ impl Work {
 
     /// Hands the codec the stream's parameter sets, ahead of the chunks that use them.
     fn hand_sets(&self) -> Result<(), DecoderError> {
-        let data = [self.sets.sequence_data(), self.sets.picture_data()].concat();
+        let data = with_start_codes(self.sets.units());
         self.feed(&data, Input::ParameterSets, Room::Unlimited)?;
         Ok(())
     }
