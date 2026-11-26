@@ -248,7 +248,7 @@ Ported against Flutter `9c427b5d7b`.
   Reason: platform — the host owns the event loop and knows its system's work queues, and a task completed on another thread has no other way to give the app a turn.
   Affect: a spawned task can await a future completed on any thread and runs at the next checkpoint instead of at the next input, and `run_in_background` work lands on the system's queue where there is one.
 
-- Change: `Platform::compositor` makes composition layers (`Compositor::make_layer`), nodes of the system compositor's tree that a producer feeds with `HardwareBuffer`s from any thread, each over the system's own buffer and allocated through `Platform::hardware_buffer_allocator`, in place of Flutter's texture registry and platform-view plumbing.
+- Change: `Platform::compositor` makes composition layers (`Compositor::make_layer`), nodes of the system compositor's tree that a producer feeds with `HardwareBuffer`s from any thread, each over the system's own buffer and allocated through a GPU's `SystemGpu::hardware_buffer_allocator`, in place of Flutter's texture registry and platform-view plumbing.
   Reason: platform — the framework, the host and every producer share one process, so a buffer can go to the host's compositor directly.
   Affect: a host without a compositor answers `None`, and a layer embedded in a frame there shows as an empty hole.
 

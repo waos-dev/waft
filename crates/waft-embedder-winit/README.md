@@ -15,7 +15,7 @@ What it provides:
 
 ## Video decoders on Linux
 
-`Platform::video_decoders` is GStreamer's, handed H.264 (`src/os/linux/video_decoders/`). GStreamer is loaded at run time, as GBM is, so a build needs no development package and an app starts where it is missing: there, and where no render node opens, `video_decoders` is `None`. A stream runs through a pipeline of its own, `appsrc ! <decoder> ! <conversion to ARGB8888> ! appsink`, and each picture reaches the app as a dmabuf, Waft's hardware buffer on Linux.
+A GPU's `video_decoders` (`Platform::gpu`, the render node GBM opens) is GStreamer's, handed H.264 (`src/os/linux/video_decoders/`). GStreamer is loaded at run time, as GBM is, so a build needs no development package and an app starts where it is missing: there, and where no render node opens, `video_decoders` is `None`. A stream runs through a pipeline of its own, `appsrc ! <decoder> ! <conversion to ARGB8888> ! appsink`, and each picture reaches the app as a dmabuf, Waft's hardware buffer on Linux.
 
 What is there:
 

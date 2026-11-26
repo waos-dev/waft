@@ -35,7 +35,7 @@ What is not, and how an app sees it:
 
 ## Video decoders
 
-`Platform::video_decoders` is MediaCodec through the NDK, `AMediaCodec`, with no Java, handed H.264 (`src/video_decoders/`). A decoder decodes on a thread of its own into an `AImageReader` of `PRIVATE` pictures, the system's own hardware buffers, and each picture is drawn into an RGBA8 frame with OpenGL ES, as a camera's are.
+A GPU's `video_decoders` (`Platform::gpu`; Android has one) is MediaCodec through the NDK, `AMediaCodec`, with no Java, handed H.264 (`src/video_decoders/`). A decoder decodes on a thread of its own into an `AImageReader` of `PRIVATE` pictures, the system's own hardware buffers, and each picture is drawn into an RGBA8 frame with OpenGL ES, as a camera's are.
 
 What is there:
 

@@ -47,6 +47,7 @@ mod service_extensions;
 mod signed_duration;
 mod snapshot_delegate;
 mod system_context_menu;
+mod system_gpu;
 #[cfg(feature = "test-support")]
 mod test_font;
 #[cfg(feature = "test-support")]
@@ -168,6 +169,7 @@ pub use service_extensions::{
 pub use signed_duration::SignedDuration;
 pub use snapshot_delegate::SnapshotDelegate;
 pub use system_context_menu::SystemContextMenuItem;
+pub use system_gpu::{HostGpu, SystemGpu};
 #[cfg(feature = "test-support")]
 pub use test_font::TestFontSource;
 pub use text::*;

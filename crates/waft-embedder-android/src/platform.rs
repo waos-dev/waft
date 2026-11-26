@@ -19,9 +19,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use waft_embedder::{
-    Brightness, Clipboard, Compositor, Dispatcher, FileDialogs, FontSource, HardwareBuffer,
-    HardwareBufferAllocator, ImageCodecFuture, Locale, Notifications, Offset, Opener, Platform,
-    RequestId, Screen, Screens, SignedDuration, SnapshotDelegate, SystemChrome, SystemFontSource,
+    Brightness, Clipboard, Compositor, Dispatcher, FileDialogs, FontSource, GpuId, HardwareBuffer,
+    HostGpu, ImageCodecFuture, Locale, Notifications, Offset, Opener, Platform, RequestId, Screen,
+    Screens, SignedDuration, SnapshotDelegate, SystemChrome, SystemFontSource, SystemGpu,
     TargetPlatform, ViewError, ViewRef, WindowConfig,
 };
 
@@ -66,8 +66,9 @@ pub struct AndroidPlatform {
     /// SurfaceFlinger's surface controls, where Waft's device imports hardware buffers
     /// (`composition/`).
     compositor: Option<Arc<SurfaceControlCompositor>>,
-    /// The system's allocator of the buffers the compositor shows (`hardware_buffers.rs`).
-    hardware_buffer_allocator: Arc<GrallocAllocator>,
+    /// The device's one GPU, as Android names none: MediaCodec's decoders (`video_decoders/`) and
+    /// the allocator of the buffers the compositor shows (`hardware_buffers.rs`).
+    gpu: Rc<HostGpu>,
     /// The decoders of this build, decoding into `images`; none where they could not start.
     image_loader: Option<valo_codec::ImageLoader>,
     /// The renderer's image store, on the device every view draws with.
@@ -91,8 +92,6 @@ pub struct AndroidPlatform {
     cameras: Option<NdkCameras>,
     /// The readers a camera's frames go to (`media/`).
     video_frame_readers: NdkFrameReaders,
-    /// MediaCodec's decoders (`video_decoders/`).
-    video_decoders: MediaCodecDecoders,
     /// The app's shortcuts on the home screen and its icon's menu (`shortcuts.rs`).
     pub(crate) shortcuts: Shortcuts,
     /// The application, through which the app's tasks are read (`restorable_windows.rs`).
@@ -121,7 +120,6 @@ impl AndroidPlatform {
             notifications: AndroidNotifications::new(application.clone(), Rc::clone(&views), first),
             cameras: NdkCameras::new(application.clone(), Rc::clone(&views)),
             video_frame_readers: NdkFrameReaders,
-            video_decoders: MediaCodecDecoders,
             shortcuts: Shortcuts::new(application.clone()),
             application: application.clone(),
             views,
@@ -138,8 +136,12 @@ impl AndroidPlatform {
             screen_id: Arc::new(Mutex::new(None)),
             vsync_waits: Waits::new(waker),
             compositor,
-            hardware_buffer_allocator: Arc::new(GrallocAllocator {
-                largest_side: gpu.device.limits().max_texture_dimension_2d,
+            gpu: Rc::new(HostGpu {
+                id: None,
+                video_decoders: Some(Rc::new(MediaCodecDecoders)),
+                hardware_buffer_allocator: Some(Arc::new(GrallocAllocator {
+                    largest_side: gpu.device.limits().max_texture_dimension_2d,
+                })),
             }),
             image_loader: crate::images::loader(images.clone()),
             snapshots: SnapshotDelegate::new(images.clone()),
@@ -322,11 +324,6 @@ impl Platform for AndroidPlatform {
         Some(&self.video_frame_readers)
     }
 
-    /// MediaCodec, handed H.264 (`video_decoders/`).
-    fn video_decoders(&self) -> Option<&dyn waft_embedder::video_decoders::VideoDecoders> {
-        Some(&self.video_decoders)
-    }
-
     fn system_chrome(&self) -> Option<&dyn SystemChrome> {
         Some(&self.chrome)
     }
@@ -452,9 +449,10 @@ impl Platform for AndroidPlatform {
             .map(|compositor| Arc::clone(compositor) as Arc<dyn Compositor>)
     }
 
-    /// The allocator of the system's `AHardwareBuffer`s (`hardware_buffers.rs`).
-    fn hardware_buffer_allocator(&self) -> Option<Arc<dyn HardwareBufferAllocator>> {
-        Some(Arc::clone(&self.hardware_buffer_allocator) as Arc<dyn HardwareBufferAllocator>)
+    /// The device's one GPU, whatever `id` names: MediaCodec, handed H.264 (`video_decoders/`),
+    /// and the allocator of the system's `AHardwareBuffer`s (`hardware_buffers.rs`).
+    fn gpu(&self, _id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
+        Some(Rc::clone(&self.gpu) as Rc<dyn SystemGpu>)
     }
 }
 

@@ -210,6 +210,14 @@ fn render_node(device: u64) -> Option<GpuId> {
     })
 }
 
+/// The GPU whose render node is device `device`.
+pub(super) fn gpu_of_render_node(device: u64) -> GpuId {
+    GpuId::DrmRenderNode {
+        major: device_major(device),
+        minor: device_minor(device),
+    }
+}
+
 /// glibc's `major`.
 fn device_major(device: u64) -> u32 {
     (((device >> 8) & 0xfff) | ((device >> 32) & 0xffff_f000)) as u32

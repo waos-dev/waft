@@ -9,11 +9,10 @@ use std::time::{Duration, Instant};
 
 use valo_codec::Decoder;
 use waft_embedder::image_codecs::ImageCodecs;
-use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Cameras, CaptionSettings, Clipboard, CompositionLayer, Compositor, DataTransferItem, DockMenu,
-    FileDialogs, HardwareBuffer, HardwareBufferAllocator, IconImage, KeyData, MediaAssets, MenuBar,
-    MenuEntry, MenuId, Notifications, Offset, Opener, Placement, Players, Rect, Screen, ScreenId,
+    FileDialogs, GpuId, HardwareBuffer, IconImage, KeyData, MediaAssets, MenuBar, MenuEntry,
+    MenuId, Notifications, Offset, Opener, Placement, Players, Rect, Screen, ScreenId,
     SignedDuration, TargetPlatform, TitleBarAction, TrayIcons, VideoFrameReaders, ViewId,
     ViewPadding, VsyncWaiter, WindowConfig,
 };
@@ -34,6 +33,7 @@ use crate::system_changes::SystemChange;
 use crate::system_requests::SystemRequest;
 use crate::vsync_waiter::LoopVsyncWaiter;
 use crate::{LinuxSettings, WindowsSettings};
+use waft_embedder::HostGpu;
 
 /// Everything the embedder asks of a system, as one bound: which system it is, what it lets the
 /// app do, and the concerns it answers.
@@ -306,12 +306,6 @@ pub(crate) trait NativeComposition {
         None
     }
 
-    /// The allocator of the hardware buffers producers present on the compositor's layers. `None`
-    /// where the embedder allocates none.
-    fn hardware_buffer_allocator() -> Option<Arc<dyn HardwareBufferAllocator>> {
-        None
-    }
-
     /// What a window's code does for its view as `window` opens, as an app does for a view it
     /// adds: makes the layer the view shows into and places it in the window, filling it. Answers
     /// the layer, which the view is added on, and the window's hold on it. Main thread.
@@ -491,10 +485,9 @@ pub(crate) trait SystemFileDialogs {
 }
 
 /// The system's media stack: its players, its reading of media without playing it, its cameras
-/// and the frame readers they feed (`waft-embedder-apple`'s `media` on macOS), its video decoders
-/// (`waft-embedder-apple`'s `video_decoders`, and GStreamer's on Linux in
-/// `os::linux::video_decoders`), and the user's caption settings (`waft-embedder-apple`'s
-/// `caption_appearance`).
+/// and the frame readers they feed (`waft-embedder-apple`'s `media` on macOS), and the user's
+/// caption settings (`waft-embedder-apple`'s `caption_appearance`). Video decoders are a GPU's
+/// (`GpuInterop::gpu`).
 pub(crate) trait SystemMedia {
     /// The system's players, or `None` where the embedder has none.
     fn players() -> Option<Rc<dyn Players>> {
@@ -517,11 +510,6 @@ pub(crate) trait SystemMedia {
         None
     }
 
-    /// The system's video decoders, or `None` where the embedder has none.
-    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
-        None
-    }
-
     /// The user's caption settings, or `None` where the system keeps none.
     fn caption_settings() -> Option<Rc<dyn CaptionSettings>> {
         None
@@ -537,8 +525,15 @@ pub(crate) trait SystemImageCodecs {
     }
 }
 
-/// How the system's hardware buffers meet the app's GPU device.
+/// The system's GPUs, and how their hardware buffers meet the app's GPU device.
 pub(crate) trait GpuInterop {
+    /// The GPU `id` names, or the system's default, with its video decoders and its hardware
+    /// buffer allocator: `Platform::gpu`. `None` where the system has no such GPU, and where the
+    /// embedder hands out nothing for any.
+    fn gpu(_id: Option<GpuId>) -> Option<HostGpu> {
+        None
+    }
+
     /// `buffer`, one of this system's, imported as a texture on `device` over its memory, as the
     /// system's GPU API imports it, for what its usage names: `Platform::import_texture`. `None`
     /// where the embedder imports none, and for a buffer or a device the system cannot import.

@@ -16,7 +16,9 @@ mod transform;
 
 use std::future::ready;
 use std::rc::Rc;
+
 use std::sync::Arc;
+use windows::Win32::Foundation::LUID;
 
 use waft_embedder::video_decoders::{
     DecodeSupport, VideoCodec, VideoDecodeSupport, VideoDecoder, VideoDecoderOpenFuture,
@@ -25,12 +27,20 @@ use waft_embedder::video_decoders::{
 
 use decoder::Decoder;
 
-/// The system's video decoders, as `Platform::video_decoders` answers them.
-pub(crate) fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
-    Some(Rc::new(MediaFoundationDecoders))
+/// Media Foundation's decoders on the adapter whose LUID is `adapter`, or on the default adapter:
+/// a GPU's decoders, as `SystemGpu::video_decoders` answers them. `None` where no adapter has that
+/// LUID.
+pub(crate) fn video_decoders(adapter: Option<LUID>) -> Option<Rc<dyn VideoDecoders>> {
+    if let Some(luid) = adapter {
+        device::adapter_of(luid).ok()?;
+    }
+    Some(Rc::new(MediaFoundationDecoders { adapter }))
 }
 
-struct MediaFoundationDecoders;
+/// Media Foundation's decoders, whose pictures are in textures shared on `adapter`.
+struct MediaFoundationDecoders {
+    adapter: Option<LUID>,
+}
 
 impl VideoDecoders for MediaFoundationDecoders {
     /// Media Foundation says nothing of a profile or a size before a decoder is made, so H.264 is
@@ -51,7 +61,7 @@ impl VideoDecoders for MediaFoundationDecoders {
         setup: VideoStreamSetup,
         options: VideoDecoderOptions,
     ) -> VideoDecoderOpenFuture {
-        let opened = Decoder::open(setup, &options)
+        let opened = Decoder::open(setup, &options, self.adapter)
             .map(|decoder| Arc::new(decoder) as Arc<dyn VideoDecoder>);
         Box::pin(ready(opened))
     }
@@ -118,7 +128,8 @@ mod tests {
 
     fn open(choice: CodecChoice) -> Arc<dyn VideoDecoder> {
         let setup = VideoStreamSetup::H264(NalFormat::StartCodes(None));
-        block_on(MediaFoundationDecoders.open(setup, options(choice))).expect("a decoder")
+        block_on(MediaFoundationDecoders { adapter: None }.open(setup, options(choice)))
+            .expect("a decoder")
     }
 
     /// Hands every one of `chunks` to `decoder`, drains it, and answers the times of the frames
@@ -165,7 +176,8 @@ mod tests {
             frame_limit: 12,
             ..options(CodecChoice::Any)
         };
-        let decoder = block_on(MediaFoundationDecoders.open(setup, live)).expect("a decoder");
+        let decoder = block_on(MediaFoundationDecoders { adapter: None }.open(setup, live))
+            .expect("a decoder");
         let mut chunks = chunks(after_start_codes).into_iter();
         for chunk in chunks.by_ref().take(3) {
             block_on(decoder.decode(chunk)).expect("the chunk decodes");
@@ -212,8 +224,10 @@ mod tests {
     fn a_stream_after_lengths_with_its_record_comes_out_the_same() {
         let sets = ParameterSets::among(&units_after_start_codes(CLIP));
         let setup = VideoStreamSetup::H264(NalFormat::LengthPrefixed(record_of(&sets)));
-        let decoder = block_on(MediaFoundationDecoders.open(setup, options(CodecChoice::Any)))
-            .expect("a decoder");
+        let decoder = block_on(
+            MediaFoundationDecoders { adapter: None }.open(setup, options(CodecChoice::Any)),
+        )
+        .expect("a decoder");
         let without_sets = |units: &[&[u8]]| {
             with_lengths(units.iter().copied().filter(|unit| !is_parameter_set(unit)))
         };
@@ -417,7 +431,8 @@ mod tests {
     #[test]
     fn a_codec_not_handed_yet_is_unsupported() {
         let opened = block_on(
-            MediaFoundationDecoders.open(VideoStreamSetup::Vp9(None), options(CodecChoice::Any)),
+            MediaFoundationDecoders { adapter: None }
+                .open(VideoStreamSetup::Vp9(None), options(CodecChoice::Any)),
         );
         assert!(matches!(opened, Err(DecoderError::Unsupported(_))));
     }

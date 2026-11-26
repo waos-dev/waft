@@ -72,13 +72,10 @@ pub mod test_support {
     use std::sync::Arc;
 
     use waft_embedder::image_codecs::ImageCodecs;
-    use waft_embedder::video_decoders::VideoDecoders;
-    use waft_embedder::{
-        Compositor, HardwareBufferAllocator, MediaAssets, Players, VideoFrameReaders,
-    };
+    use waft_embedder::{Compositor, GpuId, MediaAssets, Players, SystemGpu, VideoFrameReaders};
 
     use crate::os::System;
-    use crate::os::capabilities::{NativeComposition, SystemImageCodecs, SystemMedia};
+    use crate::os::capabilities::{GpuInterop, NativeComposition, SystemImageCodecs, SystemMedia};
 
     /// The system's players, as `Platform::players` answers them; on the main thread.
     pub fn players() -> Option<Rc<dyn Players>> {
@@ -100,20 +97,14 @@ pub mod test_support {
         System::video_frame_readers()
     }
 
-    /// The system's video decoders, as `Platform::video_decoders` answers them.
-    pub fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
-        System::video_decoders()
-    }
-
     /// The system's compositor, as `Platform::compositor` answers it.
     pub fn compositor() -> Option<Arc<dyn Compositor>> {
         System::compositor()
     }
 
-    /// The system's hardware buffer allocator, as `Platform::hardware_buffer_allocator` answers
-    /// it.
-    pub fn hardware_buffer_allocator() -> Option<Arc<dyn HardwareBufferAllocator>> {
-        System::hardware_buffer_allocator()
+    /// The GPU `id` names, or the system's default, as `Platform::gpu` answers it.
+    pub fn gpu(id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
+        System::gpu(id).map(|gpu| Rc::new(gpu) as Rc<dyn SystemGpu>)
     }
 }
 

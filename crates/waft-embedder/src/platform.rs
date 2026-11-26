@@ -724,9 +724,12 @@ pub trait Platform: Any {
         None
     }
 
-    /// The system's hardware buffer allocator, which the app allocates GPU memory the compositor
-    /// shows with, from any thread: `None` where the system allocates none.
-    fn hardware_buffer_allocator(&self) -> Option<Arc<dyn crate::HardwareBufferAllocator>> {
+    /// The GPU `id` names, or the system's default where `None`, with what the system makes for
+    /// it: its video decoders and its hardware buffer allocator. `None` where the system has no
+    /// such GPU, and where it hands out nothing for any. Apple's systems and Android have one,
+    /// whatever `id` names, as their memory opens on any of the machine's GPUs.
+    fn gpu(&self, id: Option<crate::GpuId>) -> Option<Rc<dyn crate::SystemGpu>> {
+        let _ = id;
         None
     }
 
@@ -834,12 +837,6 @@ pub trait Platform: Any {
     /// The system's frame readers, which a player or a camera hands its frames to, or `None`
     /// where the system hands out no frames.
     fn video_frame_readers(&self) -> Option<&dyn crate::VideoFrameReaders> {
-        None
-    }
-
-    /// The system's video decoders, which an app hands a stream's encoded pictures, or `None`
-    /// where the system decodes no video for the app.
-    fn video_decoders(&self) -> Option<&dyn crate::video_decoders::VideoDecoders> {
         None
     }
 

@@ -73,6 +73,7 @@ fn image_drawn_once(platform: &PlatformRef, painter: &mut Painter) -> Option<Ima
         ..HardwareBufferUsage::default()
     };
     let buffer = platform
+        .gpu(None)?
         .hardware_buffer_allocator()?
         .allocate(IMAGE_SIDE, IMAGE_SIDE, PixelFormat::Rgba8, usage)
         .ok()?;

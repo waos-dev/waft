@@ -28,9 +28,8 @@ pub use shm::ShmBuffer;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
-    Compositor, HardwareBufferAllocator, TargetPlatform, TrayIcons, ViewId, WindowConfig,
+    Compositor, GpuId, HardwareBufferAllocator, TargetPlatform, TrayIcons, ViewId, WindowConfig,
 };
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::monitor::MonitorHandle;
@@ -42,6 +41,7 @@ use winit::window::{ActivationToken, Window, WindowAttributes};
 use crate::LinuxSettings;
 use crate::clipboard::{ChangeProbe, TextClipboard};
 use crate::menus::MenuEvents;
+use waft_embedder::HostGpu;
 
 use super::absent::{NoDisplayLink, NoTrackpadTouchObserver, NoVisibilityNotices};
 use super::capabilities::{
@@ -96,11 +96,6 @@ impl NativeComposition for Linux {
         Some(Arc::new(compositor))
     }
 
-    fn hardware_buffer_allocator() -> Option<Arc<dyn HardwareBufferAllocator>> {
-        let allocator = GbmAllocator::new()?;
-        Some(Arc::new(allocator))
-    }
-
     fn view_layer_in(window: &Arc<dyn Window>) -> (Self::ViewLayer, NoWindowHold) {
         WindowHandleLayer::in_window(window)
     }
@@ -134,12 +129,7 @@ impl EventLoopSetup for Linux {
     }
 }
 impl WindowGeometry for Linux {}
-impl SystemMedia for Linux {
-    /// GStreamer's, where it is installed.
-    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
-        video_decoders::video_decoders()
-    }
-}
+impl SystemMedia for Linux {}
 impl SystemImageCodecs for Linux {}
 impl SystemDrags for Linux {}
 impl WindowMotion for Linux {}
@@ -200,7 +190,23 @@ impl Screens for Linux {
     }
 }
 impl PointerQueries for Linux {}
-impl GpuInterop for Linux {}
+/// The render node GBM opens, the first that does: GStreamer's decoders, and GBM's allocator on
+/// that node. A GPU another node names is not handed out yet.
+impl GpuInterop for Linux {
+    fn gpu(id: Option<GpuId>) -> Option<HostGpu> {
+        let allocator = GbmAllocator::new();
+        let node = allocator.as_ref().and_then(GbmAllocator::render_node);
+        if id.is_some() && id != node {
+            return None;
+        }
+        Some(HostGpu {
+            id: node,
+            video_decoders: video_decoders::video_decoders(),
+            hardware_buffer_allocator: allocator
+                .map(|allocator| Arc::new(allocator) as Arc<dyn HardwareBufferAllocator>),
+        })
+    }
+}
 impl ImageDecoding for Linux {}
 impl WorkQueue for Linux {}
 /// The system starts the app with what it opens on its command line, which is the app's own.

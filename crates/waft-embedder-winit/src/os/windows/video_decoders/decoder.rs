@@ -25,6 +25,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
+use windows::Win32::Foundation::LUID;
 
 use waft_embedder::VideoColor;
 use waft_embedder::VideoFrame;
@@ -186,6 +187,7 @@ impl Decoder {
     pub(super) fn open(
         setup: VideoStreamSetup,
         options: &VideoDecoderOptions,
+        adapter: Option<LUID>,
     ) -> Result<Decoder, DecoderError> {
         let (framing, sets_ahead) = framing_and_sets(setup)?;
         let output = Output::default();
@@ -197,7 +199,7 @@ impl Decoder {
             .name("waft video decoder".to_owned())
             .spawn(move || {
                 let _started = MediaFoundation::start();
-                let work = VideoDevice::new(None).and_then(|device| {
+                let work = VideoDevice::new(adapter).and_then(|device| {
                     let transform = Transform::open(&device, options.decoder, options.purpose)?;
                     Ok(Work {
                         device,
@@ -349,7 +351,7 @@ mod tests {
             purpose: DecodingPurpose::Live,
             ..options(CodecChoice::Any)
         };
-        let decoder = Decoder::open(setup, &held_at_once).expect("a decoder");
+        let decoder = Decoder::open(setup, &held_at_once, None).expect("a decoder");
         let decoding: Vec<_> = chunks(after_start_codes)
             .into_iter()
             .map(|chunk| decoder.decode(chunk))

@@ -17,13 +17,12 @@ use std::time::{Duration, Instant};
 
 use objc2_foundation::{NSLocale, NSString};
 use waft_embedder::image_codecs::ImageCodecs;
-use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
     Brightness, Cameras, CaptionSettings, Clipboard, Compositor, Dispatcher, FileDialogs, Files,
-    FontSource, HardwareBuffer, HardwareBufferAllocator, HttpClient, ImageCodecFuture, Locale,
-    MediaAssets, Notifications, Offset, Opener, Platform, Players, RequestId, Screen, Screens,
-    SignedDuration, SnapshotDelegate, SystemFontSource, TargetPlatform, VideoFrame,
-    VideoFrameReaders, ViewError, ViewId, ViewRef, VsyncWaiter, WindowConfig,
+    FontSource, GpuId, HardwareBuffer, HostGpu, HttpClient, ImageCodecFuture, Locale, MediaAssets,
+    Notifications, Offset, Opener, Platform, Players, RequestId, Screen, Screens, SignedDuration,
+    SnapshotDelegate, SystemFontSource, SystemGpu, TargetPlatform, VideoFrame, VideoFrameReaders,
+    ViewError, ViewId, ViewRef, VsyncWaiter, WindowConfig,
 };
 use waft_embedder_apple::composition::CoreAnimationCompositor;
 use waft_embedder_apple::hardware_buffers::SurfaceBufferAllocator;
@@ -56,7 +55,9 @@ pub struct IosPlatform {
     brightness: Cell<Brightness>,
     locales: RefCell<Vec<Locale>>,
     compositor: Arc<CoreAnimationCompositor>,
-    hardware_buffer_allocator: Arc<SurfaceBufferAllocator>,
+    /// The device's one GPU, as iOS names none: VideoToolbox's decoders, which macOS shares, and
+    /// the `IOSurface` allocator.
+    gpu: Rc<HostGpu>,
     /// The decoders of this build, decoding into `images`; none where they could not start.
     image_loader: Option<valo_codec::ImageLoader>,
     /// The renderer's image store, on the device every view draws with.
@@ -75,8 +76,6 @@ pub struct IosPlatform {
     media_assets: Option<Rc<dyn MediaAssets>>,
     cameras: Option<Rc<dyn Cameras>>,
     video_frame_readers: Option<Rc<dyn VideoFrameReaders>>,
-    /// VideoToolbox's decoders, which macOS shares.
-    video_decoders: Option<Rc<dyn VideoDecoders>>,
     image_codecs: Option<Rc<dyn ImageCodecs>>,
     caption_settings: Option<Rc<dyn CaptionSettings>>,
 }
@@ -101,7 +100,11 @@ impl IosPlatform {
             brightness: Cell::new(Brightness::Light),
             locales: RefCell::new(preferred_locales()),
             compositor: Arc::new(CoreAnimationCompositor),
-            hardware_buffer_allocator: Arc::new(SurfaceBufferAllocator),
+            gpu: Rc::new(HostGpu {
+                id: None,
+                video_decoders: waft_embedder_apple::video_decoders::video_decoders(),
+                hardware_buffer_allocator: Some(Arc::new(SurfaceBufferAllocator)),
+            }),
             image_loader: image_loader(images.clone()),
             snapshots: SnapshotDelegate::new(images.clone()),
             images,
@@ -111,7 +114,6 @@ impl IosPlatform {
             media_assets: waft_embedder_apple::media::media_assets(),
             cameras: waft_embedder_apple::media::cameras(),
             video_frame_readers: waft_embedder_apple::media::video_frame_readers(),
-            video_decoders: waft_embedder_apple::video_decoders::video_decoders(),
             image_codecs: waft_embedder_apple::image_codecs::image_codecs(),
             caption_settings: waft_embedder_apple::caption_appearance::caption_settings(),
         }
@@ -336,9 +338,9 @@ impl Platform for IosPlatform {
     ) -> Option<wgpu::Texture> {
         waft_embedder_apple::gpu_interop::import_texture(buffer, device)
     }
-
-    fn hardware_buffer_allocator(&self) -> Option<Arc<dyn HardwareBufferAllocator>> {
-        Some(Arc::clone(&self.hardware_buffer_allocator) as Arc<dyn HardwareBufferAllocator>)
+    /// The device's one GPU, whatever `id` names.
+    fn gpu(&self, _id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
+        Some(Rc::clone(&self.gpu) as Rc<dyn SystemGpu>)
     }
 
     /// Core Animation's, beneath each view's drawing (`picture.rs`).
@@ -398,10 +400,6 @@ impl Platform for IosPlatform {
 
     fn video_frame_readers(&self) -> Option<&dyn VideoFrameReaders> {
         self.video_frame_readers.as_deref()
-    }
-
-    fn video_decoders(&self) -> Option<&dyn VideoDecoders> {
-        self.video_decoders.as_deref()
     }
 
     fn image_codecs(&self) -> Option<&dyn ImageCodecs> {

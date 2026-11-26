@@ -1,7 +1,7 @@
 //! A hardware buffer on Windows: a D3D12 texture another device made, shared by an NT handle, in
 //! B8G8R8A8 as an app draws, or in NV12 as the system's video decoder puts out a picture
 //! (`video_decoders`), which any D3D12 device on the same adapter opens over the same memory
-//! (`ID3D12Device::OpenSharedHandle`). Waft makes none ([`Platform::hardware_buffer_allocator`]
+//! (`ID3D12Device::OpenSharedHandle`). Waft makes none ([`SystemGpu::hardware_buffer_allocator`]
 //! answers `None` here); it shows the BGRA ones a producer hands it, copying each present into the
 //! layer's own swapchain (`composition`), and imports them on a device for the app to sample: an
 //! NV12 one only on a device that samples NV12.
@@ -10,7 +10,7 @@
 //! the common state, the one another device's work on it may start from, since D3D12 tracks a
 //! resource's state per device.
 //!
-//! [`Platform::hardware_buffer_allocator`]: waft_embedder::Platform::hardware_buffer_allocator
+//! [`SystemGpu::hardware_buffer_allocator`]: waft_embedder::SystemGpu::hardware_buffer_allocator
 
 use std::os::windows::io::{AsRawHandle as _, OwnedHandle};
 use std::sync::Mutex;

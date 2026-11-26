@@ -188,7 +188,7 @@ mod tests {
         };
 
         use super::*;
-        use crate::os::capabilities::NativeComposition;
+        use crate::os::capabilities::GpuInterop;
 
         /// A reader handing out a new frame each time a test puts one in.
         #[derive(Default)]
@@ -214,7 +214,8 @@ mod tests {
 
         /// A 4 by 4 buffer the system allocated, which its GPU takes.
         fn allocated_buffer() -> Arc<dyn HardwareBuffer> {
-            System::hardware_buffer_allocator()
+            System::gpu(None)
+                .and_then(|gpu| gpu.hardware_buffer_allocator)
                 .expect("Apple's systems allocate hardware buffers")
                 .allocate(4, 4, PixelFormat::Bgra8, HardwareBufferUsage::GPU_SAMPLED)
                 .expect("a buffer of 4 by 4")

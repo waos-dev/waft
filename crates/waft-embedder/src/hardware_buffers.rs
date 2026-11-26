@@ -32,7 +32,7 @@ use crate::image_codecs::{ImageError, ImageFuture, PixelBuffer, PixelFormat};
 
 /// What makes the app's hardware buffers: the role of Android's graphics allocator (gralloc's
 /// `IAllocator`), Fuchsia's sysmem `Allocator` and a GBM device on Linux. `None` from
-/// [`Platform::hardware_buffer_allocator`](crate::Platform::hardware_buffer_allocator) where the
+/// [`SystemGpu::hardware_buffer_allocator`](crate::SystemGpu::hardware_buffer_allocator) where the
 /// system allocates none. It may be called from any thread, as a producer allocates a buffer where
 /// it draws.
 pub trait HardwareBufferAllocator: Send + Sync {

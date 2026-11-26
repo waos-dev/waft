@@ -28,14 +28,12 @@ mod video_decoders;
 
 pub use shared_textures::SharedTexture;
 
-use std::rc::Rc;
 use std::sync::Arc;
 
-use waft_embedder::video_decoders::VideoDecoders;
 use waft_embedder::{
-    Compositor, HardwareBuffer, IconImage, TargetPlatform, TitleBarAction, WindowConfig,
+    Compositor, GpuId, HardwareBuffer, IconImage, TargetPlatform, TitleBarAction, WindowConfig,
 };
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, LUID};
 use windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetSystemMetrics, SM_CXICON, SM_CXSMICON, SM_CYICON, SM_CYSMICON, SYSTEM_METRICS_INDEX,
@@ -50,6 +48,7 @@ use winit::window::{Window, WindowAttributes};
 use crate::clipboard::{ChangeProbe, TextClipboard};
 use crate::host_window::winit_icon;
 use crate::{LinuxSettings, WindowsSettings};
+use waft_embedder::HostGpu;
 
 use super::absent::{NoTrackpadTouchObserver, NoVisibilityNotices};
 use super::capabilities::{
@@ -119,12 +118,7 @@ impl TrackpadTouches for Windows {
 
 impl EventLoopSetup for Windows {}
 impl WindowGeometry for Windows {}
-impl SystemMedia for Windows {
-    /// Media Foundation's.
-    fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
-        video_decoders::video_decoders()
-    }
-}
+impl SystemMedia for Windows {}
 impl SystemImageCodecs for Windows {}
 impl SystemDrags for Windows {}
 impl WindowMotion for Windows {}
@@ -236,8 +230,26 @@ impl StandardStreams for Windows {
 
 impl Screens for Windows {}
 impl PointerQueries for Windows {}
-/// A shared texture opened on the device, anew for each import.
+/// A GPU for each adapter, named by its LUID: Media Foundation's decoders, which put their pictures
+/// in textures shared on that adapter; no allocator, as producers bring their own textures. A
+/// shared texture opened on the device, anew for each import.
 impl GpuInterop for Windows {
+    fn gpu(id: Option<GpuId>) -> Option<HostGpu> {
+        let adapter = match id {
+            Some(GpuId::Luid { low, high }) => Some(LUID {
+                LowPart: low,
+                HighPart: high,
+            }),
+            Some(_) => return None,
+            None => None,
+        };
+        Some(HostGpu {
+            id,
+            video_decoders: video_decoders::video_decoders(adapter),
+            hardware_buffer_allocator: None,
+        })
+    }
+
     fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Option<wgpu::Texture> {
         let buffer: &dyn std::any::Any = buffer;
         let shared = buffer.downcast_ref::<SharedTexture>()?;

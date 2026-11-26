@@ -22,7 +22,7 @@ use waft_embedder::video_decoders::{
 
 use decoder::Decoder;
 
-/// The system's video decoders, as `Platform::video_decoders` answers them.
+/// The system's video decoders, as its one GPU's `SystemGpu::video_decoders` answers them.
 pub fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
     Some(Rc::new(VideoToolboxDecoders))
 }

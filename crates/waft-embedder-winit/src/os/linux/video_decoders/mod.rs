@@ -28,7 +28,7 @@ use decoder::Decoder;
 use frame::FramePool;
 use pipeline::Path;
 
-/// The system's video decoders, as `Platform::video_decoders` answers them; `None` where
+/// The system's video decoders, as the GPU's `SystemGpu::video_decoders` answers them; `None` where
 /// GStreamer is missing.
 pub(crate) fn video_decoders() -> Option<Rc<dyn VideoDecoders>> {
     let gst = Gst::get()?;

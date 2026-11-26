@@ -308,7 +308,7 @@ fn device_on(
 }
 
 /// The adapter whose LUID is `luid`.
-fn adapter_of(luid: LUID) -> Result<IDXGIAdapter, DecoderError> {
+pub(super) fn adapter_of(luid: LUID) -> Result<IDXGIAdapter, DecoderError> {
     // SAFETY: a factory of this process, asked for one of its adapters.
     unsafe {
         let factory: IDXGIFactory4 = CreateDXGIFactory1().map_err(failed)?;

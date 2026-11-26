@@ -123,7 +123,8 @@ pub(crate) type Buffer = (Arc<dyn HardwareBuffer>, wgpu::Texture);
 /// The producer's buffers, `size` pixels large, allocated and imported on `painter`'s device.
 pub(crate) fn buffers(platform: &PlatformRef, painter: &Painter, size: [u32; 2]) -> Vec<Buffer> {
     let allocator = platform
-        .hardware_buffer_allocator()
+        .gpu(None)
+        .and_then(|gpu| gpu.hardware_buffer_allocator())
         .expect("the Android host allocates hardware buffers");
     (0..BUFFERS)
         .map(|_| {

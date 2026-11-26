@@ -1,4 +1,4 @@
-//! Android's video decoders as a Waft app has them (`Platform::video_decoders`): MediaCodec handed
+//! Android's video decoders as a Waft app has them (their GPU's, `Platform::gpu`): MediaCodec handed
 //! a short H.264 clip, and a check of each thing a decoder does, shown with the first picture
 //! decoded and written to the system's log under the tag `android_video_decoders`, so they can be
 //! checked without looking: `adb logcat -s android_video_decoders`.

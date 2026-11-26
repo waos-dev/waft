@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use waft_embedder::image_codecs::{
     AlphaType, ImageError, ImageErrorKind, ImageFuture, PixelBuffer, PixelFormat, PixelLayout,
 };
-use waft_embedder::{HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
+use waft_embedder::{GpuId, HardwareBuffer, HardwareBufferAllocator, HardwareBufferUsage};
 use wayland_client::Proxy;
 use wayland_client::protocol::wl_buffer::WlBuffer;
 
@@ -340,6 +340,14 @@ impl GbmAllocator {
     /// The allocator, where a render node opens and GBM makes a device on it.
     pub(crate) fn new() -> Option<GbmAllocator> {
         Gbm::get().map(|gbm| GbmAllocator { gbm })
+    }
+
+    /// The render node GBM allocates on, as the GPU its buffers open on; `None` where its device
+    /// number cannot be read.
+    pub(crate) fn render_node(&self) -> Option<GpuId> {
+        use std::os::unix::fs::MetadataExt as _;
+        let device = self.gbm.node.metadata().ok()?.rdev();
+        Some(super::dmabuf_feedback::gpu_of_render_node(device))
     }
 
     /// A linear ARGB8888 buffer of `width` by `height`, for `usage`: what the CPU writes into,

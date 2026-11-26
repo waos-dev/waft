@@ -7,13 +7,13 @@ use std::time::Duration;
 
 use waft_embedder::{
     AppExit, AppLifecycleState, Brightness, Cameras, CaptionSettings, Clipboard, CompositionLayer,
-    Compositor, Dispatcher, DockMenu, FileDialogs, Files, FontSource, Haptics, HardwareBuffer,
-    HardwareBufferAllocator, HttpClient, Image, ImageCodecFuture, ImageDecodeError, Instant,
-    MediaAssets, MenuBar, Notifications, Offset, Opener, Picture, Platform, Players, PointerReport,
-    PopupMenus, RequestId, Restoration, Screen, Screens, SignedDuration, SystemChrome,
-    SystemContextMenu, TargetPlatform, TextServices, TrayIcons, VideoFrame, VideoFrameReaders,
-    View, ViewEmbedder, ViewError, ViewFocusEvent, ViewHost, ViewId, ViewMetrics, ViewRef,
-    WindowConfig,
+    Compositor, Dispatcher, DockMenu, FileDialogs, Files, FontSource, GpuId, Haptics,
+    HardwareBuffer, HardwareBufferAllocator, HostGpu, HttpClient, Image, ImageCodecFuture,
+    ImageDecodeError, Instant, MediaAssets, MenuBar, Notifications, Offset, Opener, Picture,
+    Platform, Players, PointerReport, PopupMenus, RequestId, Restoration, Screen, Screens,
+    SignedDuration, SystemChrome, SystemContextMenu, SystemGpu, TargetPlatform, TextServices,
+    TrayIcons, VideoFrame, VideoFrameReaders, View, ViewEmbedder, ViewError, ViewFocusEvent,
+    ViewHost, ViewId, ViewMetrics, ViewRef, WindowConfig,
 };
 
 use waft_embedder::image_codecs::{ImageCodecs, ImageError, ImageErrorKind, ImageFuture};
@@ -453,8 +453,8 @@ impl TestPlatform {
         self
     }
 
-    /// The platform answering `video_decoders` as its video decoders: a host's own, where a test
-    /// decodes for real, as `waft-embedder-apple`'s are VideoToolbox's.
+    /// The platform's GPU answering `video_decoders` as its video decoders: a host's own, where a
+    /// test decodes for real, as `waft-embedder-apple`'s are VideoToolbox's.
     pub fn with_video_decoders(mut self, video_decoders: Rc<dyn VideoDecoders>) -> TestPlatform {
         self.video_decoders = Some(video_decoders);
         self
@@ -765,8 +765,17 @@ impl Platform for TestPlatform {
         self.compositor.clone()
     }
 
-    fn hardware_buffer_allocator(&self) -> Option<Arc<dyn HardwareBufferAllocator>> {
-        self.hardware_buffer_allocator.clone()
+    /// One GPU, whatever `id` names, with the decoders and the allocator the test gave it; none
+    /// where it gave neither.
+    fn gpu(&self, _id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
+        if self.video_decoders.is_none() && self.hardware_buffer_allocator.is_none() {
+            return None;
+        }
+        Some(Rc::new(HostGpu {
+            id: None,
+            video_decoders: self.video_decoders.clone(),
+            hardware_buffer_allocator: self.hardware_buffer_allocator.clone(),
+        }))
     }
 
     fn players(&self) -> Option<&dyn Players> {
@@ -779,10 +788,6 @@ impl Platform for TestPlatform {
 
     fn image_codecs(&self) -> Option<&dyn ImageCodecs> {
         self.image_codecs.as_deref()
-    }
-
-    fn video_decoders(&self) -> Option<&dyn VideoDecoders> {
-        self.video_decoders.as_deref()
     }
 
     fn cameras(&self) -> Option<&dyn Cameras> {

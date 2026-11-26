@@ -30,11 +30,11 @@ pub(crate) fn run(app: &mut App) {
     let showing = shown.clone();
     let _checking = app.spawn(async move |cx| {
         let platform = cx.update(|app| app.platform());
-        let Some(decoders) = platform.video_decoders() else {
+        let Some(decoders) = platform.gpu(None).and_then(|gpu| gpu.video_decoders()) else {
             crate::log::info("no video decoders on this host");
             return;
         };
-        let reports = checks::all(decoders).await;
+        let reports = checks::all(decoders.as_ref()).await;
         let passed = reports.iter().filter(|report| report.passed).count();
         crate::log::info(&format!("{passed} of {} checks passed", reports.len()));
         cx.update(|app| {

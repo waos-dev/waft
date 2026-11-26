@@ -27,9 +27,9 @@ use std::sync::Arc;
 
 use crate::VideoFrame;
 
-/// The system's video decoders, or `None` from
-/// [`Platform::video_decoders`](crate::Platform::video_decoders) where it decodes no video for
-/// the app.
+/// A GPU's video decoders, or `None` from
+/// [`SystemGpu::video_decoders`](crate::SystemGpu::video_decoders) where the system decodes no
+/// video for the app.
 pub trait VideoDecoders {
     /// What the system can tell, without trying, about decoding a stream like `description`.
     fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupport;

@@ -37,7 +37,7 @@ use waft_embedder::video_decoders::{
 #[cfg(target_os = "android")]
 use decoder::Decoder;
 
-/// The system's video decoders, as `Platform::video_decoders` answers them.
+/// The device's video decoders, as its GPU's `SystemGpu::video_decoders` answers them.
 #[cfg(target_os = "android")]
 pub(crate) struct MediaCodecDecoders;
 
