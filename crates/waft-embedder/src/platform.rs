@@ -724,6 +724,17 @@ pub trait Platform: Any {
         None
     }
 
+    /// The GPU `device` runs on, as its system names it: what an app that draws with `device`
+    /// asks for its decoders and allocator with, `platform.gpu(platform.gpu_id(&device))`, so
+    /// their memory opens on that device. `None` where the system names no GPU (Apple's systems,
+    /// Android), and for a device whose backend says nothing of its GPU (OpenGL, a Vulkan driver
+    /// without `VK_EXT_physical_device_drm`). Only the host reads it, as the one that knows which
+    /// backend the device is on.
+    fn gpu_id(&self, device: &wgpu::Device) -> Option<crate::GpuId> {
+        let _ = device;
+        None
+    }
+
     /// The GPU `id` names, or the system's default where `None`, with what the system makes for
     /// it: its video decoders and its hardware buffer allocator. `None` where the system has no
     /// such GPU, and where it hands out nothing for any. Apple's systems and Android have one,

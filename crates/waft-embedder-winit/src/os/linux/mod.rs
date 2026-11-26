@@ -3,7 +3,8 @@
 //! desktop portal's file dialogs (`file_dialogs`), the app's id on each window, by which the
 //! desktop knows whose window it is, and on Wayland composition layers as subsurfaces showing
 //! dmabufs or shared memory (`composition`, `dmabuf`, `shm`, `wayland`), and GStreamer's video
-//! decoders, which hand their pictures over as those dmabufs (`gstreamer`, `video_decoders`).
+//! decoders, which hand their pictures over as those dmabufs (`gstreamer`, `video_decoders`), and
+//! the render node a Vulkan device runs on (`vulkan_devices`).
 //! Linux's desktops have no menu bar and no menu at a point of the system's: GTK and Qt draw
 //! theirs in the app's own surfaces, so those answer none and the app draws its own.
 
@@ -20,6 +21,7 @@ mod session_bus;
 mod shm;
 mod status_notifier_items;
 mod video_decoders;
+mod vulkan_devices;
 mod wayland;
 
 pub use dmabuf::DmabufBuffer;
@@ -190,9 +192,14 @@ impl Screens for Linux {
     }
 }
 impl PointerQueries for Linux {}
-/// The render node GBM opens, the first that does: GStreamer's decoders, and GBM's allocator on
-/// that node. A GPU another node names is not handed out yet.
+/// A Vulkan device's GPU named by its render node (`vulkan_devices`). The render node GBM opens,
+/// the first that does: GStreamer's decoders, and GBM's allocator on that node. A GPU another node
+/// names is not handed out yet.
 impl GpuInterop for Linux {
+    fn gpu_id(device: &wgpu::Device) -> Option<GpuId> {
+        vulkan_devices::render_node_of(device)
+    }
+
     fn gpu(id: Option<GpuId>) -> Option<HostGpu> {
         let allocator = GbmAllocator::new();
         let node = allocator.as_ref().and_then(GbmAllocator::render_node);

@@ -6,7 +6,7 @@ What it provides:
 
 - Windows the app asks for, each with a view, and every view's frames, metrics, sight and focus.
 - Input: the pointer, the trackpad, touches on Windows, the keyboard, text input and the system's input methods.
-- Drawing: valo on the device every window draws with; composition layers, and buffers the system shares imported as textures, where the system has them.
+- Drawing: valo on the device every window draws with; composition layers, and buffers the system shares imported as textures, where the system has them; the GPU a device runs on (`Platform::gpu_id`), a D3D12 device's adapter LUID on Windows and a Vulkan device's render node on Linux, and none on macOS, which names no GPU.
 - The system's shell: the menu bar and pop-up menus, the Dock icon's menu and the notification area, notifications, the clipboard, file dialogs, opening files and links, and quitting through the app's answer.
 - The system's media: players, media assets and cameras, image codecs, video frame readers and video decoders, where the system has them: VideoToolbox's on macOS, Media Foundation's H.264 decoder on Windows, its pictures in NV12 textures shared by NT handle, and GStreamer's on Linux.
 - The user's appearance, languages and local time zone.

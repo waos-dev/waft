@@ -449,6 +449,11 @@ impl Platform for AndroidPlatform {
             .map(|compositor| Arc::clone(compositor) as Arc<dyn Compositor>)
     }
 
+    /// None: Android names no GPU, as an `AHardwareBuffer` opens on any of the device's.
+    fn gpu_id(&self, _device: &wgpu::Device) -> Option<GpuId> {
+        None
+    }
+
     /// The device's one GPU, whatever `id` names: MediaCodec, handed H.264 (`video_decoders/`),
     /// and the allocator of the system's `AHardwareBuffer`s (`hardware_buffers.rs`).
     fn gpu(&self, _id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {

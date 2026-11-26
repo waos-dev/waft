@@ -88,6 +88,8 @@ pub struct TestPlatform {
     opener: Option<Rc<dyn Opener>>,
     notifications: Option<Rc<dyn Notifications>>,
     compositor: Option<Arc<dyn Compositor>>,
+    /// The name of the platform's one GPU, which every device runs on.
+    gpu_id: Option<GpuId>,
     hardware_buffer_allocator: Option<Arc<dyn HardwareBufferAllocator>>,
     players: Option<Rc<dyn Players>>,
     media_assets: Option<Rc<dyn MediaAssets>>,
@@ -142,6 +144,7 @@ impl TestPlatform {
             opener: None,
             notifications: None,
             compositor: None,
+            gpu_id: None,
             hardware_buffer_allocator: None,
             players: None,
             media_assets: None,
@@ -427,6 +430,14 @@ impl TestPlatform {
 
     pub fn with_compositor(mut self, compositor: Arc<dyn Compositor>) -> TestPlatform {
         self.compositor = Some(compositor);
+        self
+    }
+
+    /// The platform's one GPU named `id`, as Windows names an adapter by its LUID and Linux a GPU
+    /// by its render node: what [`gpu_id`](Platform::gpu_id) answers for every device, and its GPU
+    /// says of itself. None unless set, as on Apple's systems and Android.
+    pub fn with_gpu_id(mut self, id: GpuId) -> TestPlatform {
+        self.gpu_id = Some(id);
         self
     }
 
@@ -765,14 +776,19 @@ impl Platform for TestPlatform {
         self.compositor.clone()
     }
 
-    /// One GPU, whatever `id` names, with the decoders and the allocator the test gave it; none
-    /// where it gave neither.
+    /// The GPU the test named, whatever the device.
+    fn gpu_id(&self, _device: &wgpu::Device) -> Option<GpuId> {
+        self.gpu_id
+    }
+
+    /// One GPU, whatever `id` names, under the name the test gave it, with the decoders and the
+    /// allocator the test gave it; none where it gave neither.
     fn gpu(&self, _id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
         if self.video_decoders.is_none() && self.hardware_buffer_allocator.is_none() {
             return None;
         }
         Some(Rc::new(HostGpu {
-            id: None,
+            id: self.gpu_id,
             video_decoders: self.video_decoders.clone(),
             hardware_buffer_allocator: self.hardware_buffer_allocator.clone(),
         }))

@@ -43,6 +43,7 @@ use windows::core::Interface as _;
 use winit::raw_window_handle::RawWindowHandle;
 use winit::window::Window;
 
+use super::adapters::luid_of;
 use super::shared_textures::{FORMAT, SharedTexture};
 use crate::gpu::{self, Gpu};
 use crate::os::window_handle_layer::WindowComposition;
@@ -146,7 +147,7 @@ static GPU: OnceLock<Option<LayerGpu>> = OnceLock::new();
 fn layer_gpu() -> Option<&'static LayerGpu> {
     GPU.get_or_init(|| {
         let instance = wgpu::Instance::new(gpu::instance_descriptor(None));
-        let (adapter, device, queue) = pollster::block_on(gpu::request_device(&instance, false))
+        let (_, device, queue) = pollster::block_on(gpu::request_device(&instance, false))
             .map_err(|no_device| eprintln!("waft: no device for composition layers: {no_device}"))
             .ok()?;
         let (releases, waits) = mpsc::channel::<(wgpu::SubmissionIndex, Released)>();
@@ -166,7 +167,7 @@ fn layer_gpu() -> Option<&'static LayerGpu> {
             eprintln!("waft: no thread for the layers' releases: {error}");
         }
         Some(LayerGpu {
-            luid: adapter_luid(&adapter),
+            luid: luid_of(&device),
             instance,
             device,
             queue,
@@ -175,20 +176,6 @@ fn layer_gpu() -> Option<&'static LayerGpu> {
         })
     })
     .as_ref()
-}
-
-/// The LUID of `adapter`, one of wgpu's D3D12 backend.
-fn adapter_luid(adapter: &wgpu::Adapter) -> Option<GpuId> {
-    // SAFETY: a live adapter of wgpu's D3D12 backend, its DXGI adapter asked only for its
-    // description.
-    let luid = unsafe {
-        let hal = adapter.as_hal::<wgpu_hal::api::Dx12>()?;
-        hal.raw_adapter().GetDesc1().ok()?.AdapterLuid
-    };
-    Some(GpuId::Luid {
-        low: luid.LowPart,
-        high: luid.HighPart,
-    })
 }
 
 /// The compositor on Windows, where DirectComposition makes a device.

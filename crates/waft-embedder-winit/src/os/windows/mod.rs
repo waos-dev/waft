@@ -6,13 +6,15 @@
 //! started a GUI program (`console`), the app's icon in its executable's resources, which app the
 //! taskbar takes the process and each window for (`app_identity`), DirectComposition's
 //! composition layers beneath a view drawn on a visual of its own (`composition`), over textures
-//! shared by NT handle (`shared_textures`), each display's refreshes (`display_links`), and Media
-//! Foundation's H.264 decoder (`video_decoders`).
+//! shared by NT handle (`shared_textures`), each display's refreshes (`display_links`), Media
+//! Foundation's H.264 decoder (`video_decoders`), and the LUID of the adapter a device runs on
+//! (`adapters`).
 
 // Win32 is reached through system calls, which Rust reaches through `unsafe`; this module and its
 // children are the one place on Windows that writes it.
 #![allow(unsafe_code)]
 
+mod adapters;
 mod app_identity;
 mod composition;
 mod console;
@@ -230,10 +232,14 @@ impl StandardStreams for Windows {
 
 impl Screens for Windows {}
 impl PointerQueries for Windows {}
-/// A GPU for each adapter, named by its LUID: Media Foundation's decoders, which put their pictures
+/// A GPU for each adapter, named by its LUID (`adapters`): Media Foundation's decoders, which put their pictures
 /// in textures shared on that adapter; no allocator, as producers bring their own textures. A
 /// shared texture opened on the device, anew for each import.
 impl GpuInterop for Windows {
+    fn gpu_id(device: &wgpu::Device) -> Option<GpuId> {
+        adapters::luid_of(device)
+    }
+
     fn gpu(id: Option<GpuId>) -> Option<HostGpu> {
         let adapter = match id {
             Some(GpuId::Luid { low, high }) => Some(LUID {

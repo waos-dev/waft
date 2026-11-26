@@ -394,6 +394,13 @@ impl Platform for WinitPlatform {
         System::import_texture(buffer, device)
     }
 
+    /// The GPU `device` runs on (`GpuInterop::gpu_id`): on Linux the render node of a Vulkan
+    /// device's GPU, on Windows the LUID of a D3D12 device's adapter, and none on macOS, which
+    /// names no GPU.
+    fn gpu_id(&self, device: &wgpu::Device) -> Option<GpuId> {
+        System::gpu_id(device)
+    }
+
     /// The system's GPU `id` names, made at its first call (`GpuInterop::gpu`): on macOS one,
     /// with VideoToolbox's decoders and the `IOSurface` allocator.
     fn gpu(&self, id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {

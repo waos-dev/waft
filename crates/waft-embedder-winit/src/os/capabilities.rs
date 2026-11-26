@@ -527,6 +527,12 @@ pub(crate) trait SystemImageCodecs {
 
 /// The system's GPUs, and how their hardware buffers meet the app's GPU device.
 pub(crate) trait GpuInterop {
+    /// The GPU `device` runs on, as the system names it: `Platform::gpu_id`. `None` where the
+    /// system names none, and for a device whose backend says nothing of its GPU.
+    fn gpu_id(_device: &wgpu::Device) -> Option<GpuId> {
+        None
+    }
+
     /// The GPU `id` names, or the system's default, with its video decoders and its hardware
     /// buffer allocator: `Platform::gpu`. `None` where the system has no such GPU, and where the
     /// embedder hands out nothing for any.

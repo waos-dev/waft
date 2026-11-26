@@ -79,6 +79,9 @@ wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging", "unstable"] }
 libloading = "0.8"
 libc = "0.2"
+# The render node a Vulkan device runs on, read through wgpu-hal's handles: the version wgpu-hal
+# uses, so its device's handles are this crate's types.
+ash = { version = "0.38", default-features = false, features = ["std"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # What macOS shares with the iOS host: the compositor, buffers, media, codecs and notifications.
@@ -208,7 +211,8 @@ objc2-core-video = { version = "0.3", default-features = false, features = ["std
 # AppKit's selectors and view hierarchy, Core Animation's layers, and Win32 and COM, the toast
 # activator's included, need `unsafe`, which the workspace forbids; here it is denied instead, and
 # `os/macos`, `os/windows`, `os/linux/wayland` and `os/linux/dmabuf` (libwayland's proxies, GBM,
-# DRM and dma-buf ioctls), `os/linux/local_time` (the C library's `localtime_r`) and the tests'
+# DRM and dma-buf ioctls), `os/linux/local_time` (the C library's `localtime_r`),
+# `os/linux/vulkan_devices` (Vulkan's properties of a device's GPU) and the tests'
 # AppKit support, for a local event monitor, alone allow it.
 [lints.rust]
 unsafe_code = "deny"

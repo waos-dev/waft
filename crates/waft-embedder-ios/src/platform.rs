@@ -338,6 +338,12 @@ impl Platform for IosPlatform {
     ) -> Option<wgpu::Texture> {
         waft_embedder_apple::gpu_interop::import_texture(buffer, device)
     }
+
+    /// None: iOS names no GPU, as an `IOSurface` opens on any of the device's.
+    fn gpu_id(&self, _device: &wgpu::Device) -> Option<GpuId> {
+        None
+    }
+
     /// The device's one GPU, whatever `id` names.
     fn gpu(&self, _id: Option<GpuId>) -> Option<Rc<dyn SystemGpu>> {
         Some(Rc::clone(&self.gpu) as Rc<dyn SystemGpu>)
