@@ -153,6 +153,7 @@ fn facts_of_sequence_set(unit: &[u8]) -> Result<StreamFacts, String> {
             .sps_max_num_reorder_pics
             .last()
             .map_or(0, |depth| *depth as usize),
+        bit_depth: set.bit_depth_luma_minus8 + 8,
         color: VideoColor {
             primaries: signal.and_then(|signal| said(signal.colour_primaries)),
             transfer: signal.and_then(|signal| said(signal.transfer_characteristics)),
@@ -255,6 +256,7 @@ mod tests {
             .facts()
             .unwrap();
         assert_eq!(facts.reorder_depth, 2);
+        assert_eq!(facts.bit_depth, 8);
         assert_eq!(
             facts.size,
             Some(PictureSize {
@@ -275,11 +277,12 @@ mod tests {
     }
 
     #[test]
-    fn a_main_10_stream_says_its_profile() {
+    fn a_main_10_stream_says_its_profile_and_depth() {
         let facts = ParameterSets::among(&units_after_start_codes(MAIN_10_CLIP))
             .facts()
             .unwrap();
         assert_eq!(facts.profile, 2, "the Main 10 profile");
+        assert_eq!(facts.bit_depth, 10);
     }
 
     /// x265 sends a video signal of video's range with no colour description, which reads as

@@ -39,6 +39,9 @@ use waft_embedder::{PixelAspect, VideoColor};
 pub struct StreamFacts {
     /// How many pictures may be decoded ahead of one shown before them.
     pub reorder_depth: usize,
+    /// Bits in each brightness sample: 8, 10 or 12, which a decoder puts out in a layout of 8 bits
+    /// or of 16.
+    pub bit_depth: u8,
     /// What its samples mean as colour, as far as the stream says.
     pub color: VideoColor,
     /// The shape of one pixel, where the stream says.

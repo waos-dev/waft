@@ -145,6 +145,7 @@ fn facts_of_sequence_set(unit: &[u8]) -> Result<StreamFacts, String> {
     let said = |code: u8| (code != UNSPECIFIED).then_some(code);
     Ok(StreamFacts {
         reorder_depth: said_depth.unwrap_or_else(|| most_depth_allowed(&set)),
+        bit_depth: set.chroma_info.bit_depth_luma_minus8 + 8,
         color: VideoColor {
             primaries: described.and_then(|color| said(color.colour_primaries)),
             transfer: described.and_then(|color| said(color.transfer_characteristics)),
@@ -219,9 +220,12 @@ mod tests {
     }
 
     #[test]
-    fn a_stream_says_how_far_it_reorders() {
-        let sets = ParameterSets::among(&units_after_start_codes(CLIP));
-        assert_eq!(sets.facts().unwrap().reorder_depth, 2);
+    fn a_stream_says_how_far_it_reorders_and_its_depth() {
+        let facts = ParameterSets::among(&units_after_start_codes(CLIP))
+            .facts()
+            .unwrap();
+        assert_eq!(facts.reorder_depth, 2);
+        assert_eq!(facts.bit_depth, 8);
     }
 
     #[test]

@@ -62,6 +62,7 @@ impl KeyFrame {
         let said = |code: u8| (code != UNSPECIFIED).then_some(code);
         StreamFacts {
             reorder_depth: 0,
+            bit_depth: self.bit_depth,
             color: VideoColor {
                 primaries: record.and_then(|record| said(record.primaries)),
                 transfer: record.and_then(|record| said(record.transfer)),
@@ -194,6 +195,7 @@ mod tests {
         let facts = key.facts(None);
         assert_eq!(facts.size, Some(key.size));
         assert_eq!(facts.reorder_depth, 0);
+        assert_eq!(facts.bit_depth, 8);
         assert_eq!(facts.color.range, Some(ColorRange::Limited));
         assert_eq!(
             facts.color.matrix, None,

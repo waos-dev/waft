@@ -93,6 +93,7 @@ impl SequenceHeader {
         let said = |code: u8| (code != UNSPECIFIED).then_some(code);
         StreamFacts {
             reorder_depth: 0,
+            bit_depth: self.bit_depth(),
             color: VideoColor {
                 primaries: said(color.color_primaries),
                 transfer: said(color.transfer_characteristics),
@@ -181,6 +182,7 @@ mod tests {
         assert_eq!(facts.profile, 0, "the Main profile");
         assert_eq!(facts.level, Some(0), "level 2.0");
         assert_eq!(facts.reorder_depth, 0);
+        assert_eq!(facts.bit_depth, 8);
         assert_eq!(facts.color.range, Some(ColorRange::Limited));
         assert_eq!(facts.color.primaries, None);
         assert_eq!(clips_header().bit_depth(), 8);
