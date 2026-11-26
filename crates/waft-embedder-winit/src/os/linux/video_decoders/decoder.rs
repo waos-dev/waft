@@ -360,18 +360,15 @@ mod tests {
     use pollster::block_on;
     use waft_embedder::PixelRect;
     use waft_embedder::video_decoders::{CodecChoice, DecodingPurpose, NalFormat};
-    use waft_video_codecs::h264::test_clip::CLIP;
+    use waft_video_codecs::framing::{units_after_start_codes, with_lengths, with_start_codes};
+    use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip, record_of};
+    use waft_video_codecs::h264::{ParameterSets, is_parameter_set};
 
     use super::*;
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.
     const SHOWN_AT: [i64; 12] = [0, 3, 1, 2, 5, 4, 8, 6, 7, 11, 9, 10];
-
-    /// An access unit delimiter's type, which begins each of the clip's pictures.
-    const DELIMITER: u8 = 9;
-    const SEQUENCE_PARAMETER_SET: u8 = 7;
-    const PICTURE_PARAMETER_SET: u8 = 8;
 
     /// The time of a picture shown `number` pictures in, in nanoseconds, at thirty a second.
     fn time_of(number: i64) -> i64 {
@@ -397,56 +394,6 @@ mod tests {
         Decoder::open(gst, Path::Software("avdec_h264"), pool, setup, options)
     }
 
-    /// The clip's units, each without its start code.
-    fn units_of_the_clip() -> Vec<&'static [u8]> {
-        let mut starts = Vec::new();
-        let mut at = 0;
-        while at + 3 <= CLIP.len() {
-            if CLIP[at..at + 3] == [0, 0, 1] {
-                starts.push(at + 3);
-                at += 3;
-            } else {
-                at += 1;
-            }
-        }
-        let ends = starts
-            .iter()
-            .skip(1)
-            .map(|start| start - 3)
-            .chain([CLIP.len()]);
-        starts
-            .iter()
-            .zip(ends)
-            .map(|(&start, end)| {
-                let unit = &CLIP[start..end];
-                let zeros = unit.iter().rev().take_while(|byte| **byte == 0).count();
-                &unit[..unit.len() - zeros]
-            })
-            .filter(|unit| !unit.is_empty())
-            .collect()
-    }
-
-    /// The clip's pictures, in the order they are decoded, each its units.
-    fn pictures_of_the_clip() -> Vec<Vec<&'static [u8]>> {
-        let mut pictures: Vec<Vec<&[u8]>> = Vec::new();
-        for unit in units_of_the_clip() {
-            if unit[0] & 0x1F == DELIMITER {
-                pictures.push(Vec::new());
-            }
-            if let Some(picture) = pictures.last_mut() {
-                picture.push(unit);
-            }
-        }
-        pictures
-    }
-
-    fn is_parameter_set(unit: &[u8]) -> bool {
-        matches!(
-            unit[0] & 0x1F,
-            SEQUENCE_PARAMETER_SET | PICTURE_PARAMETER_SET
-        )
-    }
-
     /// The clip's chunks in the order they are decoded, each framed by `framed`.
     fn chunks(framed: impl Fn(&[&[u8]]) -> Vec<u8>) -> Vec<EncodedChunk> {
         pictures_of_the_clip()
@@ -464,41 +411,18 @@ mod tests {
 
     /// `units` each after a start code, as the clip holds them.
     fn after_start_codes(units: &[&[u8]]) -> Vec<u8> {
-        units
-            .iter()
-            .flat_map(|unit| [&[0, 0, 0, 1][..], unit].concat())
-            .collect()
+        with_start_codes(units.iter().copied())
     }
 
     /// `units` other than parameter sets, each after its length in four bytes.
     fn after_lengths(units: &[&[u8]]) -> Vec<u8> {
-        units
-            .iter()
-            .filter(|unit| !is_parameter_set(unit))
-            .flat_map(|unit| [&(unit.len() as u32).to_be_bytes()[..], unit].concat())
-            .collect()
+        with_lengths(units.iter().copied().filter(|unit| !is_parameter_set(unit)))
     }
 
     /// The configuration record (`avcC`) a file holds for the clip, its units after lengths of
     /// four bytes.
     fn record_of_the_clip() -> Vec<u8> {
-        let units = units_of_the_clip();
-        let sets_of = |kind| units.iter().filter(move |unit| unit[0] & 0x1F == kind);
-        let sequence: Vec<_> = sets_of(SEQUENCE_PARAMETER_SET).collect();
-        let first = sequence[0];
-        let mut record = vec![1, first[1], first[2], first[3], 0xFF];
-        record.push(0xE0 | sequence.len() as u8);
-        for set in &sequence {
-            record.extend_from_slice(&(set.len() as u16).to_be_bytes());
-            record.extend_from_slice(set);
-        }
-        let picture: Vec<_> = sets_of(PICTURE_PARAMETER_SET).collect();
-        record.push(picture.len() as u8);
-        for set in &picture {
-            record.extend_from_slice(&(set.len() as u16).to_be_bytes());
-            record.extend_from_slice(set);
-        }
-        record
+        record_of(&ParameterSets::among(&units_after_start_codes(CLIP)))
     }
 
     /// Hands every one of `chunks` to `decoder`, drains it, and answers the frames that came out,
@@ -536,7 +460,7 @@ mod tests {
     fn the_clip_holds_twelve_pictures_and_its_sets() {
         assert_eq!(pictures_of_the_clip().len(), 12);
         assert!(
-            units_of_the_clip()
+            units_after_start_codes(CLIP)
                 .iter()
                 .any(|unit| is_parameter_set(unit))
         );
@@ -590,11 +514,9 @@ mod tests {
     #[test]
     #[ignore = "needs GStreamer with gst-libav and a render node: cargo test -- --ignored"]
     fn a_stream_in_start_codes_with_its_sets_ahead_comes_out_the_same() {
-        let sets: Vec<&[u8]> = units_of_the_clip()
-            .into_iter()
-            .filter(|unit| is_parameter_set(unit))
-            .collect();
-        let setup = VideoStreamSetup::H264(NalFormat::StartCodes(Some(after_start_codes(&sets))));
+        let sets = ParameterSets::among(&units_after_start_codes(CLIP));
+        let setup =
+            VideoStreamSetup::H264(NalFormat::StartCodes(Some(with_start_codes(sets.units()))));
         let decoder = open(setup, &options()).expect("a decoder");
         let without_sets = |units: &[&[u8]]| {
             let coded: Vec<&[u8]> = units
