@@ -2,9 +2,11 @@
 //!
 //! Each decoder decodes on a thread of its own, one job after another, so the app's thread never
 //! waits on Media Foundation and pictures come in the order their chunks did. The thread starts
-//! COM and Media Foundation for itself, and its work (`Work`) is the stream as far as it is known:
-//! how it frames its units, the parameter sets it gave ahead, the decoder, and each chunk handed
-//! over and not yet out as a picture.
+//! COM and Media Foundation for itself, and its work (`Work`) is the stream as far as it is known
+//! (`waft-video-codecs`' reader of its codec), the parameter sets it gave ahead, the decoder, and
+//! each chunk handed over and not yet out as a picture. The decoder is made as the stream opens,
+//! which settles where it runs, and told its types once the stream's description is whole: from
+//! the setup, or from the chunk that completes it.
 //!
 //! Media Foundation's decoder orders pictures itself, but carries a number, not the app's time,
 //! from a sample to its picture: each chunk is handed over numbered, and its picture is given the
@@ -33,13 +35,13 @@ use waft_embedder::video_decoders::{
     CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoDecoder, VideoDecoderFuture,
     VideoDecoderOptions, VideoStreamSetup,
 };
-use waft_video_codecs::framing::Framing;
+use waft_video_codecs::stream_reader::{StreamReader, reader_for};
 use windows::Win32::Media::MediaFoundation::{
     MF_VERSION, MFSTARTUP_NOSOCKET, MFShutdown, MFStartup,
 };
 use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoUninitialize};
 
-use super::annex_b::{framing_and_sets, in_annex_b, with_sets_ahead};
+use super::annex_b::{parameter_sets, sample_of};
 use super::device::VideoDevice;
 use super::frame::DecodedFrame;
 use super::output::Output;
@@ -59,9 +61,11 @@ enum Job {
 struct Work {
     device: VideoDevice,
     transform: Transform,
-    framing: Framing,
-    /// The parameter sets given ahead, in Annex B, put before the next key frame.
-    sets_ahead: Vec<u8>,
+    /// The stream, as far as it has come.
+    stream: Box<dyn StreamReader>,
+    /// H.264's or HEVC's parameter sets the stream held as its setup came, put into the next key
+    /// frame.
+    sets_ahead: Vec<Vec<u8>>,
     /// Whether the next chunk must be a key frame: at the stream's start, and after a drain, a
     /// reset, a new setup and a damaged chunk.
     key_frame_due: bool,
@@ -84,22 +88,29 @@ impl Work {
         if self.output.resets() != resets {
             return Ok(());
         }
-        if self.key_frame_due && !chunk.key_frame {
+        let read = self.stream.read(&chunk.data)?;
+        if read.changed || !self.transform.is_streaming() {
+            self.adopt_description()?;
+        }
+        let key_frame = chunk.key_frame || read.key_frame;
+        if self.key_frame_due && !key_frame {
             return Err(DecoderError::BadData(
                 "a key frame is due, and this chunk is none".to_owned(),
             ));
         }
-        let mut data = in_annex_b(&chunk.data, self.framing)?;
-        if chunk.key_frame && !self.sets_ahead.is_empty() {
-            data = with_sets_ahead(data, std::mem::take(&mut self.sets_ahead));
-        }
+        let sets = if key_frame {
+            std::mem::take(&mut self.sets_ahead)
+        } else {
+            Vec::new()
+        };
+        let data = sample_of(&read, self.stream.codec(), &sets);
         let number = self.next_number;
         self.next_number += 1;
         self.chunks
             .insert(number, (chunk.timestamp, chunk.duration));
         let pictures = self
             .transform
-            .decode(&data, number, chunk.key_frame, &mut self.device)?;
+            .decode(&data, number, key_frame, &mut self.device)?;
         self.key_frame_due = false;
         self.put_out(pictures, resets);
         Ok(())
@@ -115,11 +126,30 @@ impl Work {
 
     /// Another setup from the next chunk on.
     fn configure(&mut self, setup: VideoStreamSetup) -> Result<(), DecoderError> {
-        let (framing, sets) = framing_and_sets(setup)?;
-        self.framing = framing;
-        self.sets_ahead = sets;
+        if self.stream.configure(setup)? {
+            self.adopt_description()?;
+        }
+        self.sets_ahead = self.sets_held()?;
         self.key_frame_due = true;
         Ok(())
+    }
+
+    /// Goes on with the stream's description, where it has a whole one: the decoder is told its
+    /// types the first time, and what the stream says of its pictures from then on.
+    fn adopt_description(&mut self) -> Result<(), DecoderError> {
+        match self.stream.description()? {
+            Some(description) => self.transform.adopt(&description.facts),
+            None => Ok(()),
+        }
+    }
+
+    /// The parameter sets the stream holds now, where it has a whole set.
+    fn sets_held(&self) -> Result<Vec<Vec<u8>>, DecoderError> {
+        Ok(self
+            .stream
+            .description()?
+            .map(|description| parameter_sets(&description.configuration))
+            .unwrap_or_default())
     }
 
     fn reset(&mut self) {
@@ -189,7 +219,8 @@ impl Decoder {
         options: &VideoDecoderOptions,
         adapter: Option<LUID>,
     ) -> Result<Decoder, DecoderError> {
-        let (framing, sets_ahead) = framing_and_sets(setup)?;
+        let stream = reader_for(setup)?;
+        let codec = stream.codec();
         let output = Output::default();
         let (jobs, arriving) = channel();
         let (opened, opening) = channel();
@@ -200,19 +231,23 @@ impl Decoder {
             .spawn(move || {
                 let _started = MediaFoundation::start();
                 let work = VideoDevice::new(adapter).and_then(|device| {
-                    let transform = Transform::open(&device, options.decoder, options.purpose)?;
-                    Ok(Work {
+                    let transform =
+                        Transform::open(&device, codec, options.decoder, options.purpose)?;
+                    let mut work = Work {
                         device,
                         transform,
-                        framing,
-                        sets_ahead,
+                        stream,
+                        sets_ahead: Vec::new(),
                         key_frame_due: true,
                         next_number: 0,
                         chunks: HashMap::new(),
                         default_color: options.default_color,
                         output: thread_output,
                         frame_limit: options.frame_limit.max(1) as usize,
-                    })
+                    };
+                    work.adopt_description()?;
+                    work.sets_ahead = work.sets_held()?;
+                    Ok(work)
                 });
                 match work {
                     Ok(work) => {
@@ -309,18 +344,23 @@ impl Drop for Decoder {
     }
 }
 
-/// COM and Media Foundation started on the decoder's thread, and shut down as it ends.
-pub(super) struct MediaFoundation;
+/// COM and Media Foundation started on a thread, the decoder's or the app's as it asks what the
+/// system decodes, and shut down as it ends. A thread whose COM apartment is already of another
+/// kind keeps it, and COM is then not undone here.
+pub(super) struct MediaFoundation {
+    /// Whether COM was started here, and so is to be undone.
+    com_started: bool,
+}
 
 impl MediaFoundation {
     pub(super) fn start() -> MediaFoundation {
         // SAFETY: the thread's own COM apartment and Media Foundation's count of starts, each
-        // undone once by the drop below.
+        // undone once by the drop below, COM only where it was started here.
         unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let com_started = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
             let _ = MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET);
+            MediaFoundation { com_started }
         }
-        MediaFoundation
     }
 }
 
@@ -329,7 +369,9 @@ impl Drop for MediaFoundation {
         // SAFETY: undoes the starts above, on the same thread.
         unsafe {
             let _ = MFShutdown();
-            CoUninitialize();
+            if self.com_started {
+                CoUninitialize();
+            }
         }
     }
 }

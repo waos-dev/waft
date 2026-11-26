@@ -1,120 +1,121 @@
-//! An H.264 stream as Media Foundation's decoder takes it: Annex B, each unit after a start code,
-//! the parameter sets in the stream. A stream after lengths, as MP4 holds it, is rewritten so, and
-//! the parameter sets its setup gives ahead, read by `waft-video-codecs`, are put into the first
-//! picture the decoder is handed.
+//! A chunk as Media Foundation's decoders take one: H.264 and HEVC in Annex B, each unit after a
+//! start code, the parameter sets in the stream, whatever framing the chunk came in; a VP9 or AV1
+//! chunk whole. The parameter sets a setup gives ahead, as the stream's reader holds them, are put
+//! into the first key frame the decoder is handed.
 //!
-//! The invariant: parameter sets given ahead go where H.264 puts them in an access unit, after its
-//! delimiter where it has one (7.4.1.2.3). Put before the delimiter, they are an access unit of
-//! their own to Media Foundation's decoder, which then gives the pictures after it the times of
-//! the samples before.
+//! The invariant: parameter sets given ahead go where H.264 and HEVC put them in an access unit,
+//! after its delimiter where it has one (H.264 7.4.1.2.3, HEVC 7.4.2.4.4). Put before the
+//! delimiter, they are an access unit of their own to Media Foundation's H.264 decoder, which then
+//! gives the pictures after it the times of the samples before.
 
-use waft_embedder::video_decoders::{DecoderError, VideoStreamSetup};
-use waft_video_codecs::framing::{Framing, with_start_codes};
-use waft_video_codecs::h264::{self, unit_type};
+use waft_embedder::video_decoders::VideoCodec;
+use waft_video_codecs::framing::with_start_codes;
+use waft_video_codecs::stream_reader::{Configuration, ReadChunk};
+use waft_video_codecs::{h264, hevc};
 
-/// The type of a unit that begins an access unit: its delimiter.
-const DELIMITER: u8 = 9;
+/// H.264's and HEVC's types of the unit that begins an access unit: its delimiter.
+const H264_DELIMITER: u8 = 9;
+const HEVC_DELIMITER: u8 = 35;
 
-/// A stream's setup as the decoder takes it: its framing, and its parameter sets given ahead, in
-/// Annex B; `Unsupported` for a codec other than H.264.
-pub(super) fn framing_and_sets(
-    setup: VideoStreamSetup,
-) -> Result<(Framing, Vec<u8>), DecoderError> {
-    match setup {
-        VideoStreamSetup::H264(format) => {
-            let (framing, sets) = h264::setup(format).map_err(DecoderError::BadData)?;
-            Ok((framing, with_start_codes(sets.units())))
+/// The parameter sets `configuration` holds, each a unit, for a codec that has them.
+pub(super) fn parameter_sets(configuration: &Configuration<'_>) -> Vec<Vec<u8>> {
+    match configuration {
+        Configuration::H264(sets) => sets.units().map(<[u8]>::to_vec).collect(),
+        Configuration::Hevc(sets) => sets.units().map(<[u8]>::to_vec).collect(),
+        Configuration::Vp9 { .. } | Configuration::Av1(_) => Vec::new(),
+    }
+}
+
+/// What the decoder of `codec` is handed of `chunk`: an H.264 or HEVC chunk's units in Annex B,
+/// `sets` put after its delimiter, or first where it has none; a VP9 or AV1 chunk whole.
+pub(super) fn sample_of(chunk: &ReadChunk<'_>, codec: VideoCodec, sets: &[Vec<u8>]) -> Vec<u8> {
+    let units = chunk.units();
+    let is_delimiter = |unit: &[u8]| match codec {
+        VideoCodec::H264 => h264::unit_type(unit) == Some(H264_DELIMITER),
+        VideoCodec::Hevc => hevc::unit_type(unit) == Some(HEVC_DELIMITER),
+        VideoCodec::Vp8 | VideoCodec::Vp9 | VideoCodec::Av1 => false,
+    };
+    match codec {
+        VideoCodec::H264 | VideoCodec::Hevc => {
+            let at = usize::from(units.first().is_some_and(|unit| is_delimiter(unit)));
+            let ordered = units[..at]
+                .iter()
+                .copied()
+                .chain(sets.iter().map(Vec::as_slice))
+                .chain(units[at..].iter().copied());
+            with_start_codes(ordered)
         }
-        other => Err(DecoderError::Unsupported(format!(
-            "this system's decoders are handed H.264 alone so far, not {:?}",
-            other.codec()
-        ))),
+        VideoCodec::Vp8 | VideoCodec::Vp9 | VideoCodec::Av1 => units.concat(),
     }
-}
-
-/// `data`, a picture framed as `framing` says, in Annex B.
-pub(super) fn in_annex_b(data: &[u8], framing: Framing) -> Result<Vec<u8>, DecoderError> {
-    match framing {
-        Framing::StartCodes => Ok(data.to_vec()),
-        Framing::Lengths(_) => framing
-            .units(data)
-            .map(with_start_codes)
-            .map_err(DecoderError::BadData),
-    }
-}
-
-/// `picture`, in Annex B, with `sets`, parameter sets in Annex B, put where H.264 puts them: after
-/// the picture's delimiter, or first where it has none.
-pub(super) fn with_sets_ahead(mut picture: Vec<u8>, sets: Vec<u8>) -> Vec<u8> {
-    let at = after_delimiter(&picture).unwrap_or(0);
-    picture.splice(at..at, sets);
-    picture
-}
-
-/// Where the unit after `picture`'s first begins, its start code included, where the first is a
-/// delimiter.
-fn after_delimiter(picture: &[u8]) -> Option<usize> {
-    let start_code = |data: &[u8]| data.windows(3).position(|code| code == [0, 0, 1]);
-    let first = start_code(picture)? + 3;
-    if unit_type(picture.get(first..)?) != Some(DELIMITER) {
-        return None;
-    }
-    let next = first + start_code(&picture[first..])?;
-    Some(if picture[next - 1] == 0 {
-        next - 1
-    } else {
-        next
-    })
 }
 
 #[cfg(test)]
 mod tests {
-    use waft_embedder::video_decoders::NalFormat;
+    use waft_embedder::video_decoders::{NalFormat, VideoStreamSetup};
     use waft_video_codecs::framing::{units_after_start_codes, with_lengths};
-    use waft_video_codecs::h264::ParameterSets;
-    use waft_video_codecs::h264::test_clip::{CLIP, record_of};
+    use waft_video_codecs::stream_reader::reader_for;
 
     use super::*;
 
     #[test]
-    fn a_record_gives_its_sets_in_annex_b_and_the_size_of_a_length() {
-        let sets = ParameterSets::among(&units_after_start_codes(CLIP));
-        let setup = VideoStreamSetup::H264(NalFormat::LengthPrefixed(record_of(&sets)));
-        let (framing, ahead) = framing_and_sets(setup).expect("a record");
-        assert_eq!(framing, Framing::Lengths(4));
-        assert_eq!(ahead, with_start_codes(sets.units()));
-    }
-
-    #[test]
-    fn a_picture_after_lengths_is_put_after_start_codes() {
+    fn a_record_gives_its_sets_and_a_picture_after_lengths_goes_after_start_codes() {
+        let clip = h264::test_clip::CLIP;
+        let sets = h264::ParameterSets::among(&units_after_start_codes(clip));
+        let record = h264::test_clip::record_of(&sets);
+        let mut reader = reader_for(VideoStreamSetup::H264(NalFormat::LengthPrefixed(record)))
+            .expect("a reader");
+        let ahead = parameter_sets(&reader.description().unwrap().unwrap().configuration);
+        assert_eq!(ahead, sets.units().map(<[u8]>::to_vec).collect::<Vec<_>>());
         let units: [&[u8]; 2] = [&[0x65, 1, 2], &[0x06, 3]];
-        let annex_b = in_annex_b(&with_lengths(units), Framing::Lengths(4)).expect("whole");
-        assert_eq!(annex_b, [0, 0, 0, 1, 0x65, 1, 2, 0, 0, 0, 1, 0x06, 3]);
+        let picture = with_lengths(units);
+        let read = reader.read(&picture).expect("whole");
+        assert_eq!(
+            sample_of(&read, VideoCodec::H264, &[]),
+            [0, 0, 0, 1, 0x65, 1, 2, 0, 0, 0, 1, 0x06, 3]
+        );
     }
 
     #[test]
     fn sets_ahead_go_after_a_pictures_delimiter() {
-        let picture = vec![0, 0, 0, 1, 0x09, 0xF0, 0, 0, 0, 1, 0x65, 1];
-        let sets = vec![0, 0, 0, 1, 0x67, 2];
+        let mut reader =
+            reader_for(VideoStreamSetup::H264(NalFormat::StartCodes(None))).expect("a reader");
+        let sets = [vec![0x67, 2]];
+        let picture = [0, 0, 0, 1, 0x09, 0xF0, 0, 0, 0, 1, 0x65, 1];
+        let read = reader.read(&picture).expect("whole");
         assert_eq!(
-            with_sets_ahead(picture, sets.clone()),
+            sample_of(&read, VideoCodec::H264, &sets),
             [
                 0, 0, 0, 1, 0x09, 0xF0, 0, 0, 0, 1, 0x67, 2, 0, 0, 0, 1, 0x65, 1
             ]
         );
-        let without_delimiter = vec![0, 0, 1, 0x65, 1];
+        let without_delimiter = [0, 0, 1, 0x65, 1];
+        let read = reader.read(&without_delimiter).expect("whole");
         assert_eq!(
-            with_sets_ahead(without_delimiter, sets),
-            [0, 0, 0, 1, 0x67, 2, 0, 0, 1, 0x65, 1]
+            sample_of(&read, VideoCodec::H264, &sets),
+            [0, 0, 0, 1, 0x67, 2, 0, 0, 0, 1, 0x65, 1]
         );
     }
 
     #[test]
-    fn a_length_past_its_chunk_is_bad_data() {
-        let cut = [0, 0, 0, 9, 0x65];
-        assert!(matches!(
-            in_annex_b(&cut, Framing::Lengths(4)),
-            Err(DecoderError::BadData(_))
-        ));
+    fn an_hevc_pictures_delimiter_is_its_own_type() {
+        let mut reader =
+            reader_for(VideoStreamSetup::Hevc(NalFormat::StartCodes(None))).expect("a reader");
+        let sets = [vec![0x40, 0x01, 7]];
+        let picture = [0, 0, 0, 1, 0x46, 0x01, 0x50, 0, 0, 0, 1, 0x26, 0x01, 9];
+        let read = reader.read(&picture).expect("whole");
+        assert_eq!(
+            sample_of(&read, VideoCodec::Hevc, &sets),
+            [
+                0, 0, 0, 1, 0x46, 0x01, 0x50, 0, 0, 0, 1, 0x40, 0x01, 7, 0, 0, 0, 1, 0x26, 0x01, 9
+            ]
+        );
+    }
+
+    #[test]
+    fn a_vp9_chunk_goes_whole() {
+        let mut reader = reader_for(VideoStreamSetup::Vp9(None)).expect("a reader");
+        let chunk = waft_video_codecs::vp9::test_clip::chunks_of_the_clip()[1];
+        let read = reader.read(chunk).expect("whole");
+        assert_eq!(sample_of(&read, VideoCodec::Vp9, &[]), chunk);
     }
 }

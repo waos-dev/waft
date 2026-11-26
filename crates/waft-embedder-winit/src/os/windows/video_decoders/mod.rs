@@ -1,11 +1,14 @@
-//! The system's video decoders on Windows: Media Foundation's H.264 decoder, handed H.264 so far.
+//! The system's video decoders on Windows: Media Foundation's, handed H.264, HEVC, VP9 and AV1.
 //!
-//! A stream reaches the decoder as it takes one, in Annex B (`annex_b`), a picture at a time on a
-//! thread of the decoder's own (`decoder`); the decoder (`transform`) runs on the video hardware
-//! through DXVA where the D3D11 device it is handed (`device`) offers H.264, and on the processor
-//! otherwise. It puts its pictures out in the order they are shown, each in an NV12 texture of its
-//! own shared by NT handle ([`SharedTexture`](super::SharedTexture)), as a frame (`frame`) that
-//! reaches the app from the thread through `output`.
+//! A stream is read by `waft-video-codecs`' reader of its codec and reaches the decoder as it takes
+//! one (`annex_b`): H.264 and HEVC in Annex B, VP9 and AV1 each chunk whole, a picture at a time on
+//! a thread of the decoder's own (`decoder`). The decoder (`transform`) is the system's own for
+//! H.264 and VP9 and comes with Microsoft's Store extensions for HEVC and AV1; it runs on the video
+//! hardware through DXVA where the D3D11 device it is handed (`device`) offers the codec, and on
+//! the processor otherwise. It puts its pictures out in the order they are shown, each in a
+//! texture of its own shared by NT handle ([`SharedTexture`](super::SharedTexture)), NV12 for a
+//! stream of eight bits to a sample and P010 for a deeper one, as a frame (`frame`) that reaches
+//! the app from the thread through `output`.
 
 mod annex_b;
 mod decoder;
@@ -21,11 +24,11 @@ use std::sync::Arc;
 use windows::Win32::Foundation::LUID;
 
 use waft_embedder::video_decoders::{
-    DecodeSupport, VideoCodec, VideoDecodeSupport, VideoDecoder, VideoDecoderOpenFuture,
-    VideoDecoderOptions, VideoDecoders, VideoStreamDescription, VideoStreamSetup,
+    VideoDecodeSupport, VideoDecoder, VideoDecoderOpenFuture, VideoDecoderOptions, VideoDecoders,
+    VideoStreamDescription, VideoStreamSetup,
 };
 
-use decoder::Decoder;
+use decoder::{Decoder, MediaFoundation};
 
 /// Media Foundation's decoders on the adapter whose LUID is `adapter`, or on the default adapter:
 /// a GPU's decoders, as `SystemGpu::video_decoders` answers them. `None` where no adapter has that
@@ -43,13 +46,13 @@ struct MediaFoundationDecoders {
 }
 
 impl VideoDecoders for MediaFoundationDecoders {
-    /// Media Foundation says nothing of a profile or a size before a decoder is made, so H.264 is
-    /// unknown until tried, and what is not handed to it yet is not decoded.
+    /// Media Foundation says nothing of a profile or a size before a decoder is made, nor where
+    /// it runs, so a codec is unknown until tried where the system has its decoder: H.264's and
+    /// VP9's are the system's own, and HEVC's and AV1's are there where their decoders enumerate,
+    /// with Microsoft's Store extensions. VP8 is not handed to it.
     fn support(&self, description: &VideoStreamDescription) -> VideoDecodeSupport {
-        let support = match description.codec {
-            VideoCodec::H264 => DecodeSupport::Unknown,
-            _ => DecodeSupport::No,
-        };
+        let _started = MediaFoundation::start();
+        let support = transform::support_of(description.codec);
         VideoDecodeSupport {
             hardware: support,
             software: support,
@@ -79,9 +82,12 @@ mod tests {
 
     use windows::Win32::Foundation::LUID;
 
+    use waft_embedder::video_decoders::{DecodeSupport, PictureSize, VideoCodec};
     use waft_video_codecs::framing::{units_after_start_codes, with_lengths, with_start_codes};
     use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip, record_of};
     use waft_video_codecs::h264::{ParameterSets, is_parameter_set};
+    use waft_video_codecs::stream_reader::reader_for;
+    use waft_video_codecs::{av1, hevc, vp9};
 
     use super::decoder::MediaFoundation;
     use super::device::VideoDevice;
@@ -383,10 +389,21 @@ mod tests {
         };
         let _started = MediaFoundation::start();
         let mut video_device = VideoDevice::new(Some(adapter)).expect("a device on the adapter");
-        let mut transform =
-            Transform::open(&video_device, CodecChoice::Any, DecodingPurpose::Playback)
-                .expect("a decoder");
+        let mut transform = Transform::open(
+            &video_device,
+            VideoCodec::H264,
+            CodecChoice::Any,
+            DecodingPurpose::Playback,
+        )
+        .expect("a decoder");
         let first = chunks(after_start_codes).remove(0);
+        let mut reader =
+            reader_for(VideoStreamSetup::H264(NalFormat::StartCodes(None))).expect("a reader");
+        reader.read(&first.data).expect("the first chunk");
+        let facts = reader.description().unwrap().expect("its sets").facts;
+        transform
+            .adopt(&facts)
+            .expect("the decoder takes the stream");
         let mut pictures = transform
             .decode(&first.data, 0, true, &mut video_device)
             .expect("the chunk decodes");
@@ -439,10 +456,10 @@ mod tests {
     }
 
     #[test]
-    fn a_codec_not_handed_yet_is_unsupported() {
+    fn a_codec_not_handed_is_unsupported() {
         let opened = block_on(
             MediaFoundationDecoders { adapter: None }
-                .open(VideoStreamSetup::Vp9(None), options(CodecChoice::Any)),
+                .open(VideoStreamSetup::Vp8, options(CodecChoice::Any)),
         );
         assert!(matches!(opened, Err(DecoderError::Unsupported(_))));
     }
@@ -473,5 +490,196 @@ mod tests {
         let frames = decoder.next_frame();
         drop(decoder);
         assert!(block_on(frames).is_none());
+    }
+
+    /// What this system says of each codec, in the test's output: a codec is unknown where its
+    /// decoder is there, and none of VP8.
+    #[test]
+    fn support_is_what_the_systems_decoders_say() {
+        let decoders = MediaFoundationDecoders { adapter: None };
+        for codec in [
+            VideoCodec::H264,
+            VideoCodec::Hevc,
+            VideoCodec::Vp9,
+            VideoCodec::Av1,
+            VideoCodec::Vp8,
+        ] {
+            let support = decoders.support(&VideoStreamDescription {
+                codec,
+                profile: None,
+                level: None,
+                bit_depth: 8,
+                chroma: waft_embedder::video_decoders::ChromaSampling::Yuv420,
+                size: PictureSize {
+                    width: 320,
+                    height: 240,
+                },
+                frame_rate: None,
+            });
+            eprintln!("{codec:?}: {support:?}");
+            assert_eq!(support.hardware, support.software);
+            if matches!(codec, VideoCodec::H264 | VideoCodec::Vp9) {
+                assert_eq!(support.hardware, DecodeSupport::Unknown);
+            }
+            if codec == VideoCodec::Vp8 {
+                assert_eq!(support.hardware, DecodeSupport::No);
+            }
+        }
+    }
+
+    /// When each of the HEVC clips' pictures is shown, in the order they are decoded, counted in
+    /// pictures: the counts `ffmpeg -bsf:v trace_headers` reads of their slices.
+    const HEVC_SHOWN_AT: [i64; 12] = [0, 3, 2, 1, 5, 4, 8, 7, 6, 11, 10, 9];
+    const MAIN_10_SHOWN_AT: [i64; 12] = [0, 2, 1, 4, 3, 6, 5, 8, 7, 11, 10, 9];
+
+    /// VP9 and AV1 never reorder: each chunk's picture is shown after the one before.
+    const SHOWN_AS_DECODED: [i64; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+    /// A clip's chunks, each of `data` in the order they are decoded, the picture of each shown
+    /// as many pictures in as `shown_at` says, the first a key frame.
+    fn chunks_of(data: Vec<Vec<u8>>, shown_at: &[i64]) -> Vec<EncodedChunk> {
+        data.into_iter()
+            .zip(shown_at)
+            .enumerate()
+            .map(|(decoded, (data, shown))| EncodedChunk {
+                data,
+                timestamp: time_of(*shown),
+                duration: Some(33_333_333),
+                key_frame: decoded == 0,
+            })
+            .collect()
+    }
+
+    fn hevc_chunks(
+        clip: &[u8],
+        shown_at: &[i64],
+        framed: impl Fn(&[&[u8]]) -> Vec<u8>,
+    ) -> Vec<EncodedChunk> {
+        let data = hevc::test_clip::pictures_of(clip)
+            .iter()
+            .map(|units| framed(units))
+            .collect();
+        chunks_of(data, shown_at)
+    }
+
+    /// Decodes `chunks` of the stream `setup` begins, where the system has its decoder, and
+    /// checks that they come out in the order they are shown, each in `format`; says so where it
+    /// has none.
+    fn decodes_in_order(
+        setup: VideoStreamSetup,
+        chunks: Vec<EncodedChunk>,
+        format: waft_embedder::HardwareBufferFormat,
+    ) {
+        let codec = setup.codec();
+        let opened = block_on(
+            MediaFoundationDecoders { adapter: None }.open(setup, options(CodecChoice::Any)),
+        );
+        let decoder = match opened {
+            Ok(decoder) => decoder,
+            Err(DecoderError::Unsupported(why)) => {
+                eprintln!("skipped: this system has no {codec:?} decoder ({why})");
+                return;
+            }
+            Err(error) => panic!("no {codec:?} decoder: {error:?}"),
+        };
+        eprintln!("{codec:?} decoding on {:?}", decoder.kind());
+        let count = chunks.len();
+        let decoding: Vec<_> = chunks
+            .into_iter()
+            .map(|chunk| decoder.decode(chunk))
+            .collect();
+        let draining = decoder.drain();
+        let frames: Vec<_> = (0..count)
+            .map(|_| block_on(decoder.next_frame()).expect("a frame"))
+            .collect();
+        for decoded in decoding {
+            block_on(decoded).expect("the chunk decodes");
+        }
+        block_on(draining).expect("the decoder drains");
+        let times: Vec<_> = frames.iter().map(|frame| frame.timestamp()).collect();
+        assert_eq!(times, in_order());
+        for frame in &frames {
+            let visible = frame.visible_rect();
+            assert_eq!((visible.width, visible.height), (320, 240));
+            assert_eq!(
+                waft_embedder::HardwareBuffer::format(&*frame.hardware_buffer()),
+                format
+            );
+        }
+    }
+
+    #[test]
+    fn an_hevc_stream_in_start_codes_comes_out_in_the_order_it_is_shown() {
+        let chunks = hevc_chunks(hevc::test_clip::CLIP, &HEVC_SHOWN_AT, after_start_codes);
+        decodes_in_order(
+            VideoStreamSetup::Hevc(NalFormat::StartCodes(None)),
+            chunks,
+            waft_embedder::HardwareBufferFormat::Nv12,
+        );
+    }
+
+    #[test]
+    fn an_hevc_stream_after_lengths_with_its_record_comes_out_the_same() {
+        let clip = hevc::test_clip::CLIP;
+        let sets = hevc::ParameterSets::among(&units_after_start_codes(clip));
+        let setup =
+            VideoStreamSetup::Hevc(NalFormat::LengthPrefixed(hevc::test_clip::record_of(&sets)));
+        let chunks = hevc_chunks(clip, &HEVC_SHOWN_AT, |units| {
+            with_lengths(
+                units
+                    .iter()
+                    .copied()
+                    .filter(|unit| !hevc::is_parameter_set(unit)),
+            )
+        });
+        decodes_in_order(setup, chunks, waft_embedder::HardwareBufferFormat::Nv12);
+    }
+
+    /// A stream of ten bits to a sample comes out in P010, so none of its bits is lost.
+    #[test]
+    fn an_hevc_main_10_stream_comes_out_in_order_in_p010() {
+        let chunks = hevc_chunks(
+            hevc::test_clip::MAIN_10_CLIP,
+            &MAIN_10_SHOWN_AT,
+            after_start_codes,
+        );
+        decodes_in_order(
+            VideoStreamSetup::Hevc(NalFormat::StartCodes(None)),
+            chunks,
+            waft_embedder::HardwareBufferFormat::P010,
+        );
+    }
+
+    #[test]
+    fn a_vp9_stream_comes_out_in_order_from_its_first_key_frame() {
+        let data = vp9::test_clip::chunks_of_the_clip()
+            .into_iter()
+            .map(<[u8]>::to_vec)
+            .collect();
+        decodes_in_order(
+            VideoStreamSetup::Vp9(None),
+            chunks_of(data, &SHOWN_AS_DECODED),
+            waft_embedder::HardwareBufferFormat::Nv12,
+        );
+    }
+
+    #[test]
+    fn an_av1_stream_comes_out_in_order_with_and_without_its_record() {
+        let clip = av1::test_clip::chunks_of_the_clip();
+        let units = av1::obus(clip[0]).expect("the first chunk's units");
+        let sequence = av1::SequenceHeader::among(&units)
+            .expect("a header that reads")
+            .expect("the first chunk's sequence header");
+        let data: Vec<Vec<u8>> = clip.into_iter().map(<[u8]>::to_vec).collect();
+        for setup in [
+            VideoStreamSetup::Av1(None),
+            VideoStreamSetup::Av1(Some(sequence.record())),
+        ] {
+            decodes_in_order(
+                setup,
+                chunks_of(data.clone(), &SHOWN_AS_DECODED),
+                waft_embedder::HardwareBufferFormat::Nv12,
+            );
+        }
     }
 }

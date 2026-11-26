@@ -1,4 +1,4 @@
-//! A picture the system's decoder put out, as the app holds it: its texture, shared in NV12, and
+//! A picture the system's decoder put out, as the app holds it: its texture, shared in NV12 or P010, and
 //! what its stream and its chunk say of it.
 
 use std::sync::Arc;
@@ -27,12 +27,12 @@ impl VideoFrame for DecodedFrame {
         self.texture.height()
     }
 
-    /// The picture is in NV12, which no [`PixelFormat`](waft_embedder::image_codecs::PixelFormat)
+    /// The picture is in NV12 or P010, which no [`PixelFormat`](waft_embedder::image_codecs::PixelFormat)
     /// names, and in GPU memory the CPU does not map.
     fn read_pixels(&self) -> ImageFuture<PixelBuffer> {
         Box::pin(std::future::ready(Err(ImageError::new(
             ImageErrorKind::Unsupported,
-            "a decoded picture is NV12 on the GPU, read through a device".to_owned(),
+            "a decoded picture is NV12 or P010 on the GPU, read through a device".to_owned(),
         ))))
     }
 

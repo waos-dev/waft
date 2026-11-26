@@ -2,7 +2,8 @@
 //! handle opens only on a device of the adapter that made it, so the device is on the adapter
 //! asked for, the app's; on the system's default adapter where none is.
 //!
-//! Each picture is put out in a texture of its own, in NV12 and shared by NT handle
+//! Each picture is put out in a texture of its own, in the decoder's NV12 or P010 and shared by NT
+//! handle
 //! ([`SharedTexture`]), so the app holds it as long as it likes while the decoder goes on: copied
 //! on the GPU out of the decoder's own pool where the decoder runs on the video hardware, and
 //! uploaded from the decoder's memory where it runs on the processor. The copy is waited for
@@ -15,24 +16,29 @@
 use std::os::windows::io::{FromRawHandle as _, OwnedHandle};
 use std::sync::Arc;
 
-use waft_embedder::video_decoders::DecoderError;
+use waft_embedder::video_decoders::{DecoderError, VideoCodec};
 use waft_embedder::{HardwareBufferFormat, HardwareBufferUsage};
 use windows::Win32::Foundation::{E_POINTER, HMODULE, LUID};
 use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_UNKNOWN};
 use windows::Win32::Graphics::Direct3D11::{
     D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_WRITE, D3D11_CREATE_DEVICE_FLAG,
-    D3D11_CREATE_DEVICE_VIDEO_SUPPORT, D3D11_DECODER_PROFILE_H264_VLD_NOFGT, D3D11_MAP_WRITE,
-    D3D11_MAPPED_SUBRESOURCE, D3D11_QUERY_DESC, D3D11_QUERY_EVENT, D3D11_RESOURCE_MISC_SHARED,
+    D3D11_CREATE_DEVICE_VIDEO_SUPPORT, D3D11_DECODER_PROFILE_AV1_VLD_PROFILE0,
+    D3D11_DECODER_PROFILE_H264_VLD_NOFGT, D3D11_DECODER_PROFILE_HEVC_VLD_MAIN,
+    D3D11_DECODER_PROFILE_HEVC_VLD_MAIN10, D3D11_DECODER_PROFILE_VP9_VLD_10BIT_PROFILE2,
+    D3D11_DECODER_PROFILE_VP9_VLD_PROFILE0, D3D11_MAP_WRITE, D3D11_MAPPED_SUBRESOURCE,
+    D3D11_QUERY_DESC, D3D11_QUERY_EVENT, D3D11_RESOURCE_MISC_SHARED,
     D3D11_RESOURCE_MISC_SHARED_NTHANDLE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC,
     D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING, D3D11CreateDevice, ID3D11Device, ID3D11DeviceContext,
     ID3D11Multithread, ID3D11Query, ID3D11Texture2D, ID3D11VideoDevice,
 };
-use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_NV12, DXGI_SAMPLE_DESC};
+use windows::Win32::Graphics::Dxgi::Common::{
+    DXGI_FORMAT, DXGI_FORMAT_NV12, DXGI_FORMAT_P010, DXGI_SAMPLE_DESC,
+};
 use windows::Win32::Graphics::Dxgi::{
     CreateDXGIFactory1, DXGI_SHARED_RESOURCE_READ, DXGI_SHARED_RESOURCE_WRITE, IDXGIAdapter,
     IDXGIFactory4, IDXGIResource1,
 };
-use windows::core::Interface as _;
+use windows::core::{GUID, Interface as _};
 
 use super::super::shared_textures::SharedTexture;
 
@@ -44,8 +50,8 @@ pub(super) struct VideoDevice {
     device: ID3D11Device,
     context: ID3D11DeviceContext,
     /// Where pictures from the decoder's memory are written before they are copied to the GPU,
-    /// made again when the pictures change size.
-    staging: Option<(ID3D11Texture2D, [u32; 2])>,
+    /// made again when the pictures change size or format.
+    staging: Option<(ID3D11Texture2D, ([u32; 2], HardwareBufferFormat))>,
 }
 
 impl VideoDevice {
@@ -72,9 +78,10 @@ impl VideoDevice {
         &self.device
     }
 
-    /// Whether the video hardware decodes H.264 on this device: whether it offers DXVA's H.264
-    /// decoding profile.
-    pub(super) fn decodes_h264(&self) -> bool {
+    /// Whether the video hardware decodes `codec` on this device: whether it offers one of DXVA's
+    /// decoding profiles of the codec, of eight bits or of ten.
+    pub(super) fn decodes(&self, codec: VideoCodec) -> bool {
+        let profiles = decoding_profiles(codec);
         let Ok(video) = self.device.cast::<ID3D11VideoDevice>() else {
             return false;
         };
@@ -83,22 +90,23 @@ impl VideoDevice {
             (0..video.GetVideoDecoderProfileCount()).any(|index| {
                 video
                     .GetVideoDecoderProfile(index)
-                    .is_ok_and(|profile| profile == D3D11_DECODER_PROFILE_H264_VLD_NOFGT)
+                    .is_ok_and(|profile| profiles.contains(&profile))
             })
         }
     }
 
     /// `subresource` of `decoded`, a texture of the decoder's own pool, copied into a texture of
-    /// its own, `size` pixels in NV12, shared, and finished on the GPU.
+    /// its own, `size` pixels in `format`, the pool's, shared, and finished on the GPU.
     pub(super) fn copy_out(
         &mut self,
         decoded: &ID3D11Texture2D,
         subresource: u32,
         size: [u32; 2],
+        format: HardwareBufferFormat,
     ) -> Result<Arc<SharedTexture>, DecoderError> {
-        let (texture, shared) = self.shared_texture(size)?;
-        // SAFETY: both textures are live NV12 textures of this device; the source's subresource
-        // is the one the decoder named, at least `size` pixels.
+        let (texture, shared) = self.shared_texture(size, format)?;
+        // SAFETY: both textures are live textures of this device in one format; the source's
+        // subresource is the one the decoder named, at least `size` pixels.
         unsafe {
             self.context
                 .CopySubresourceRegion(&texture, 0, 0, 0, 0, decoded, subresource, None);
@@ -107,17 +115,18 @@ impl VideoDevice {
         Ok(shared)
     }
 
-    /// `planes`, a picture in the decoder's memory in NV12 (`size` pixels, its rows `pitch` bytes
-    /// apart, its chroma `chroma_offset` bytes in), uploaded into a texture of its own, shared, and
-    /// finished on the GPU.
+    /// `planes`, a picture in the decoder's memory in `format`, NV12 or P010 (`size` pixels, its
+    /// rows `pitch` bytes apart, its chroma `chroma_offset` bytes in), uploaded into a texture of
+    /// its own, shared, and finished on the GPU.
     pub(super) fn upload(
         &mut self,
         planes: &[u8],
         pitch: usize,
         chroma_offset: usize,
         size: [u32; 2],
+        format: HardwareBufferFormat,
     ) -> Result<Arc<SharedTexture>, DecoderError> {
-        let staging = self.staging_of(size)?;
+        let staging = self.staging_of(size, format)?;
         let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
         // SAFETY: the staging texture is this device's, mapped for writing on its immediate
         // context and unmapped before anything else uses it.
@@ -126,7 +135,9 @@ impl VideoDevice {
                 .Map(&staging, 0, D3D11_MAP_WRITE, 0, Some(&mut mapped))
         }
         .map_err(failed)?;
-        let row = size[0] as usize;
+        // A row of either plane: a byte or two for each brightness sample, as many for each pair
+        // of colour samples at half the width.
+        let row = size[0] as usize * sample_bytes(format);
         let rows = size[1] as usize;
         let mapped_pitch = mapped.RowPitch as usize;
         let mapped_chroma = mapped_pitch * rows;
@@ -154,25 +165,26 @@ impl VideoDevice {
         copy_plane(chroma_offset, mapped_chroma, rows / 2);
         // SAFETY: the texture mapped above.
         unsafe { self.context.Unmap(&staging, 0) };
-        let (texture, shared) = self.shared_texture(size)?;
+        let (texture, shared) = self.shared_texture(size, format)?;
         // SAFETY: both textures are this device's, of the same size and format.
         unsafe { self.context.CopyResource(&texture, &staging) };
         self.finish()?;
         Ok(shared)
     }
 
-    /// A texture of `size` pixels in NV12, shared by an NT handle, and the buffer the app holds of
-    /// it.
+    /// A texture of `size` pixels in `format`, shared by an NT handle, and the buffer the app
+    /// holds of it.
     fn shared_texture(
         &self,
         size: [u32; 2],
+        format: HardwareBufferFormat,
     ) -> Result<(ID3D11Texture2D, Arc<SharedTexture>), DecoderError> {
         let description = D3D11_TEXTURE2D_DESC {
             Width: size[0],
             Height: size[1],
             MipLevels: 1,
             ArraySize: 1,
-            Format: DXGI_FORMAT_NV12,
+            Format: dxgi_format(format)?,
             SampleDesc: DXGI_SAMPLE_DESC {
                 Count: 1,
                 Quality: 0,
@@ -203,15 +215,19 @@ impl VideoDevice {
         .map_err(failed)?;
         // SAFETY: the handle was just made for this texture and nothing else owns it.
         let handle = unsafe { OwnedHandle::from_raw_handle(handle.0) };
-        let shared =
-            SharedTexture::in_format(handle, size, HardwareBufferFormat::Nv12, PICTURE_USAGE);
+        let shared = SharedTexture::in_format(handle, size, format, PICTURE_USAGE);
         Ok((texture, Arc::new(shared)))
     }
 
-    /// The staging texture for pictures of `size`, made again for another size.
-    fn staging_of(&mut self, size: [u32; 2]) -> Result<ID3D11Texture2D, DecoderError> {
+    /// The staging texture for pictures of `size` in `format`, made again for another size or
+    /// format.
+    fn staging_of(
+        &mut self,
+        size: [u32; 2],
+        format: HardwareBufferFormat,
+    ) -> Result<ID3D11Texture2D, DecoderError> {
         if let Some((staging, made_for)) = &self.staging
-            && *made_for == size
+            && *made_for == (size, format)
         {
             return Ok(staging.clone());
         }
@@ -220,7 +236,7 @@ impl VideoDevice {
             Height: size[1],
             MipLevels: 1,
             ArraySize: 1,
-            Format: DXGI_FORMAT_NV12,
+            Format: dxgi_format(format)?,
             SampleDesc: DXGI_SAMPLE_DESC {
                 Count: 1,
                 Quality: 0,
@@ -238,7 +254,7 @@ impl VideoDevice {
         }
         .map_err(failed)?;
         let staging = staging.ok_or_else(|| DecoderError::Failed("no staging made".to_owned()))?;
-        self.staging = Some((staging.clone(), size));
+        self.staging = Some((staging.clone(), (size, format)));
         Ok(staging)
     }
 
@@ -273,6 +289,43 @@ impl VideoDevice {
                 std::thread::yield_now();
             }
         }
+    }
+}
+
+/// DXVA's decoding profiles of `codec`, of eight bits and of ten, as the video hardware offers
+/// them.
+fn decoding_profiles(codec: VideoCodec) -> &'static [GUID] {
+    match codec {
+        VideoCodec::H264 => &[D3D11_DECODER_PROFILE_H264_VLD_NOFGT],
+        VideoCodec::Hevc => &[
+            D3D11_DECODER_PROFILE_HEVC_VLD_MAIN,
+            D3D11_DECODER_PROFILE_HEVC_VLD_MAIN10,
+        ],
+        VideoCodec::Vp9 => &[
+            D3D11_DECODER_PROFILE_VP9_VLD_PROFILE0,
+            D3D11_DECODER_PROFILE_VP9_VLD_10BIT_PROFILE2,
+        ],
+        VideoCodec::Av1 => &[D3D11_DECODER_PROFILE_AV1_VLD_PROFILE0],
+        VideoCodec::Vp8 => &[],
+    }
+}
+
+/// The DXGI format of a decoder's pictures in `format`; `Failed` for one no decoder puts out.
+fn dxgi_format(format: HardwareBufferFormat) -> Result<DXGI_FORMAT, DecoderError> {
+    match format {
+        HardwareBufferFormat::Nv12 => Ok(DXGI_FORMAT_NV12),
+        HardwareBufferFormat::P010 => Ok(DXGI_FORMAT_P010),
+        other => Err(DecoderError::Failed(format!(
+            "a decoded picture in {other:?}, which is no decoder's format"
+        ))),
+    }
+}
+
+/// The bytes of one sample of a picture in `format`: two for P010, one otherwise.
+pub(super) fn sample_bytes(format: HardwareBufferFormat) -> usize {
+    match format {
+        HardwareBufferFormat::P010 => 2,
+        _ => 1,
     }
 }
 
