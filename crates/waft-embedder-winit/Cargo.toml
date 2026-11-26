@@ -191,7 +191,7 @@ harness = false
 [dev-dependencies]
 waft-embedder-winit = { path = ".", features = ["test-support"] }
 
-# The short H.264 clip the Windows and Linux decoders' tests decode, as Apple's do.
+# The short clips of each codec the Windows and Linux decoders' tests decode, as Apple's do.
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dev-dependencies]
 waft-video-codecs = { workspace = true, features = ["test-support"] }
 

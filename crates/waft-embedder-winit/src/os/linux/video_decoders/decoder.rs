@@ -603,9 +603,9 @@ mod tests {
     }
 
     #[test]
-    fn a_codec_gstreamer_is_not_handed_yet_is_unsupported() {
+    fn a_codec_gstreamer_is_not_handed_is_unsupported() {
         assert!(matches!(
-            Framing::of(&VideoStreamSetup::Vp9(None)),
+            Framing::of(&VideoStreamSetup::Vp8),
             Err(DecoderError::Unsupported(_))
         ));
     }

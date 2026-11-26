@@ -1,5 +1,7 @@
 //! One stream's GStreamer pipeline: a source the chunks are pushed into, the system's decoder,
-//! the conversion to ARGB8888, and a sink the pictures are pulled from.
+//! the conversion to ARGB8888, and a sink the pictures are pulled from. A picture of more than
+//! eight bits to a sample (HEVC's Main 10, VP9's profile 2, AV1 at ten bits) is converted to
+//! ARGB8888 too, so it reaches the app in eight.
 //!
 //! On the video hardware the conversion stays on the GPU (`vapostproc`) and the sink is handed
 //! the decoder's dmabufs; on the processor it is `videoconvert`, and the sink is handed BGRA in
@@ -18,40 +20,44 @@ use waft_embedder::video_decoders::{DecoderError, NalFormat, VideoStreamSetup};
 
 use super::super::gstreamer::{Caps, Element, Gst, Pipeline as Running, Pulled};
 
-/// Which of the system's decoders a pipeline runs, by its element's name.
+/// Which of the system's decoders a pipeline runs, by its elements' names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Path {
-    Hardware(&'static str),
+    /// VA-API's decoder, after the parser it needs, in order.
+    Hardware(&'static [&'static str]),
     Software(&'static str),
 }
 
-/// What reaches a stream's pipeline of a chunk: the chunk's bytes as the stream frames them,
-/// with the parameter sets the setup gave ahead before a key frame in start codes.
+/// What reaches a stream's pipeline of a chunk: the chunk's bytes as the stream frames them, its
+/// caps saying how (H.264 and HEVC in Annex B or after lengths with their record, VP9 each chunk
+/// whole, AV1 each temporal unit with its record where the file gave one), with the parameter sets
+/// the setup gave ahead before a key frame in start codes.
 pub(super) struct Framing {
     caps: String,
     sets_ahead: Option<Vec<u8>>,
 }
 
 impl Framing {
+    /// `Unsupported` for VP8, which GStreamer is not handed.
     pub(super) fn of(setup: &VideoStreamSetup) -> Result<Framing, DecoderError> {
+        let framing = |caps: String| Framing {
+            caps,
+            sets_ahead: None,
+        };
         match setup {
-            VideoStreamSetup::H264(NalFormat::StartCodes(ahead)) => Ok(Framing {
-                caps: "video/x-h264,stream-format=byte-stream,alignment=au".to_owned(),
-                sets_ahead: ahead.clone().filter(|ahead| !ahead.is_empty()),
-            }),
-            VideoStreamSetup::H264(NalFormat::LengthPrefixed(record)) => {
-                let hex: String = record.iter().map(|byte| format!("{byte:02x}")).collect();
-                Ok(Framing {
-                    caps: format!(
-                        "video/x-h264,stream-format=avc,alignment=au,codec_data=(buffer){hex}"
-                    ),
-                    sets_ahead: None,
-                })
+            VideoStreamSetup::H264(format) => Ok(of_units("video/x-h264", "avc", format)),
+            VideoStreamSetup::Hevc(format) => Ok(of_units("video/x-h265", "hvc1", format)),
+            VideoStreamSetup::Vp9(_) => Ok(framing("video/x-vp9".to_owned())),
+            VideoStreamSetup::Av1(record) => {
+                let mut caps = "video/x-av1,stream-format=obu-stream,alignment=tu".to_owned();
+                if let Some(record) = record {
+                    caps.push_str(&format!(",codec_data=(buffer){}", hex(record)));
+                }
+                Ok(framing(caps))
             }
-            other => Err(DecoderError::Unsupported(format!(
-                "this system's decoders are handed H.264 alone so far, not {:?}",
-                other.codec()
-            ))),
+            VideoStreamSetup::Vp8 => Err(DecoderError::Unsupported(
+                "this system's decoders are not handed VP8".to_owned(),
+            )),
         }
     }
 
@@ -63,6 +69,30 @@ impl Framing {
             _ => data.to_vec(),
         }
     }
+}
+
+/// The framing of an H.264 or HEVC stream, whose caps are named `media_type`, framed as `format`
+/// says: in Annex B, or after lengths in the stream format `with_lengths` names, its record as
+/// the caps' codec data.
+fn of_units(media_type: &str, with_lengths: &str, format: &NalFormat) -> Framing {
+    match format {
+        NalFormat::StartCodes(ahead) => Framing {
+            caps: format!("{media_type},stream-format=byte-stream,alignment=au"),
+            sets_ahead: ahead.clone().filter(|ahead| !ahead.is_empty()),
+        },
+        NalFormat::LengthPrefixed(record) => Framing {
+            caps: format!(
+                "{media_type},stream-format={with_lengths},alignment=au,codec_data=(buffer){}",
+                hex(record)
+            ),
+            sets_ahead: None,
+        },
+    }
+}
+
+/// `bytes` as GStreamer's caps write a buffer: two hexadecimal digits a byte.
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// A stream's pipeline and the elements the decoder talks to.
@@ -212,10 +242,11 @@ impl Pipeline {
 /// The pipeline of `path`, in GStreamer's launch syntax.
 fn description(path: Path) -> String {
     match path {
-        Path::Hardware(decoder) => format!(
-            "appsrc name=chunks format=time ! {decoder} ! vapostproc ! \
+        Path::Hardware(elements) => format!(
+            "appsrc name=chunks format=time ! {} ! vapostproc ! \
              video/x-raw(memory:DMABuf),format=DMA_DRM,drm-format=AR24 ! \
-             appsink name=frames sync=false"
+             appsink name=frames sync=false",
+            elements.join(" ! ")
         ),
         Path::Software(decoder) => format!(
             "appsrc name=chunks format=time ! {decoder} ! videoconvert ! \
