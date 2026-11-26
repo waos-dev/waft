@@ -394,15 +394,15 @@ impl Platform for WinitPlatform {
         System::import_texture(buffer, device)
     }
 
-    /// Metal's texture over each plane of the buffer's `IOSurface` on macOS (`waft-embedder-apple`'s
-    /// `gpu_interop`). None on Linux, whose dmabufs here are one plane of ARGB8888, a decoder's
-    /// planes needing a multi-planar dmabuf import wgpu 30 does not make; and on Windows, where
-    /// D3D12 makes the planes of an NV12 or P010 texture views of one texture, not textures.
+    /// A view of Metal's texture over each plane of the buffer's `IOSurface` on macOS
+    /// (`waft-embedder-apple`'s `gpu_interop`), and of each plane aspect of the shared texture
+    /// opened on Windows (`shared_textures`). None on Linux, whose dmabufs here are one plane of
+    /// ARGB8888, a decoder's planes needing a multi-planar dmabuf import wgpu 30 does not make.
     fn import_planes(
         &self,
         buffer: &dyn HardwareBuffer,
         device: &wgpu::Device,
-    ) -> Option<Vec<wgpu::Texture>> {
+    ) -> Option<Vec<wgpu::TextureView>> {
         System::import_planes(buffer, device)
     }
 

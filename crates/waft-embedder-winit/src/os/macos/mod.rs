@@ -165,7 +165,7 @@ impl GpuInterop for AppKit {
     fn import_planes(
         buffer: &dyn HardwareBuffer,
         device: &wgpu::Device,
-    ) -> Option<Vec<wgpu::Texture>> {
+    ) -> Option<Vec<wgpu::TextureView>> {
         waft_embedder_apple::gpu_interop::import_planes(buffer, device)
     }
 }

@@ -87,6 +87,7 @@ mod tests {
     use super::device::VideoDevice;
     use super::transform::Transform;
     use super::*;
+    use crate::os::capabilities::GpuInterop;
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.
@@ -370,7 +371,7 @@ mod tests {
     }
 
     /// The first picture, decoded on the app's adapter, opens on the app's device over the
-    /// decoder's memory, and holds what H.264 says it decodes to: the sums of its planes are those
+    /// decoder's memory as a view of each plane, and holds what H.264 says it decodes to: the sums of its planes are those
     /// of `ffmpeg`'s decoding of the clip.
     #[test]
     fn a_picture_opens_on_a_device_that_samples_nv12_as_the_stream_decodes() {
@@ -397,15 +398,21 @@ mod tests {
         let [picture] = &pictures[..] else {
             panic!("{} pictures of one chunk", pictures.len());
         };
-        let texture = picture
-            .texture
-            .open_on(&device, wgpu::TextureUsages::COPY_SRC)
-            .expect("the picture opens on the device");
+        let buffer: &dyn waft_embedder::HardwareBuffer = &*picture.texture;
+        assert!(
+            crate::os::System::import_texture(buffer, &device).is_none(),
+            "two planes are no one texture"
+        );
+        let planes = crate::os::System::import_planes(buffer, &device)
+            .expect("the picture's planes open on the device");
+        let [luma_view, chroma_view] = &planes[..] else {
+            panic!("{} planes of NV12", planes.len());
+        };
         let sum = |bytes: Vec<u8>| bytes.into_iter().map(u64::from).sum::<u64>();
         let luma = plane_of(
             &device,
             &queue,
-            &texture,
+            luma_view.texture(),
             wgpu::TextureAspect::Plane0,
             wgpu::TextureFormat::R8Unorm,
             [320, 240],
@@ -413,7 +420,7 @@ mod tests {
         let chroma = plane_of(
             &device,
             &queue,
-            &texture,
+            chroma_view.texture(),
             wgpu::TextureAspect::Plane1,
             wgpu::TextureFormat::Rg8Unorm,
             [160, 120],

@@ -724,7 +724,7 @@ impl Platform for TestPlatform {
         &self,
         _buffer: &dyn HardwareBuffer,
         _device: &wgpu::Device,
-    ) -> Option<Vec<wgpu::Texture>> {
+    ) -> Option<Vec<wgpu::TextureView>> {
         None
     }
 

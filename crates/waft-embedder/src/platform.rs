@@ -705,15 +705,16 @@ pub trait Platform: Any {
         None
     }
 
-    /// `buffer`, one this host handed out, imported as a texture on `device` over its memory with
-    /// no copy, as the system's GPU API imports such memory (Metal's texture over an `IOSurface`,
-    /// Vulkan's external memory over an `AHardwareBuffer`): of the buffer's size, for what its
+    /// `buffer`, one this host handed out and of one plane, imported as a texture on `device` over
+    /// its memory with no copy, as the system's GPU API imports such memory (Metal's texture over
+    /// an `IOSurface`, Vulkan's external memory over an `AHardwareBuffer`): of the buffer's size, for what its
     /// usage names, sampled where the GPU samples it, drawn into and copied into where it draws
     /// into it, and copied from whatever its usage. The texture holds the buffer, and a video
     /// frame's buffer its frame, until the GPU is done with it. The host imports it, as the one
     /// that knows both the buffer and the device; a buffer names no GPU API. `None` for a buffer
-    /// another host handed out, and for a device that cannot take the buffer's memory: on Apple
-    /// platforms a wgpu device not on Metal. Not dart:ui's: Flutter's engine keeps its textures to
+    /// another host handed out, for a buffer of two planes, which
+    /// [`import_planes`](Self::import_planes) imports, and for a device that cannot take the
+    /// buffer's memory: on Apple platforms a wgpu device not on Metal. Not dart:ui's: Flutter's engine keeps its textures to
     /// itself.
     fn import_texture(
         &self,
@@ -724,21 +725,23 @@ pub trait Platform: Any {
         None
     }
 
-    /// `buffer`, one this host handed out, imported on `device` with no copy as one texture per
-    /// plane, brightness first, each in the format
+    /// `buffer`, one this host handed out, imported on `device` with no copy as one texture view
+    /// per plane, brightness first, each in the format
     /// [`HardwareBufferFormat::plane_format`](crate::HardwareBufferFormat::plane_format) names and
     /// of the size [`plane_size`](crate::HardwareBufferFormat::plane_size) names: what a shader
     /// samples to convert a decoder's picture to colour with the frame's
-    /// [`VideoFrame::color`](crate::VideoFrame::color). A buffer of one plane is its one texture,
-    /// as [`import_texture`](Self::import_texture) makes it. Each texture holds the buffer, and a
-    /// frame's buffer its frame, until the GPU is done with it. `None` for a buffer another host
-    /// handed out, for a device that cannot take its memory or sample its planes' formats, and on
-    /// a host that imports no planes.
+    /// [`VideoFrame::color`](crate::VideoFrame::color). The views are of one texture per plane on
+    /// Metal, which has no texture of two planes, and the plane aspects of one NV12 or P010
+    /// texture on D3D12. A buffer of one plane is one view of its texture, as
+    /// [`import_texture`](Self::import_texture) makes it. Each view holds its texture, and the
+    /// texture the buffer, and a frame's buffer its frame, until the GPU is done with it. `None`
+    /// for a buffer another host handed out, for a device that cannot take its memory or sample
+    /// its planes' formats, and on a host that imports no planes.
     fn import_planes(
         &self,
         buffer: &dyn crate::HardwareBuffer,
         device: &wgpu::Device,
-    ) -> Option<Vec<wgpu::Texture>> {
+    ) -> Option<Vec<wgpu::TextureView>> {
         let _ = (buffer, device);
         None
     }

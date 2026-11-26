@@ -3,8 +3,9 @@
 //! (`video_decoders`), which any D3D12 device on the same adapter opens over the same memory
 //! (`ID3D12Device::OpenSharedHandle`). Waft makes none ([`SystemGpu::hardware_buffer_allocator`]
 //! answers `None` here); it shows the BGRA ones a producer hands it, copying each present into the
-//! layer's own swapchain (`composition`), and imports them on a device for the app to sample: an
-//! NV12 or P010 one only on a device that samples that format.
+//! layer's own swapchain (`composition`), and imports them on a device for the app to sample: a
+//! BGRA one as a texture, and an NV12 or P010 one as a view of each plane's aspect, only on a
+//! device that samples that format.
 //!
 //! The invariant a later editor must keep: every use of the texture on a device of Waft's ends in
 //! the common state, the one another device's work on it may start from, since D3D12 tracks a
@@ -93,6 +94,28 @@ impl SharedTexture {
         Some(texture)
     }
 
+    /// The texture opened anew on `device` for sampling, and a view of each of its planes in the
+    /// format its [`HardwareBufferFormat`] names for the plane: the aspects `Plane0` and `Plane1`
+    /// of an NV12 or P010 texture, and the whole of a texture of one plane. Each view holds the
+    /// texture. `None` where the texture does not open there (`open_on`).
+    pub(crate) fn planes_on(&self, device: &wgpu::Device) -> Option<Vec<wgpu::TextureView>> {
+        let texture = self.open_on(
+            device,
+            wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
+        )?;
+        let planes = self.format.plane_count();
+        (0..planes)
+            .map(|plane| {
+                Some(texture.create_view(&wgpu::TextureViewDescriptor {
+                    label: Some("waft shared texture plane"),
+                    format: Some(self.format.plane_format(plane)?),
+                    aspect: plane_aspect(plane, planes),
+                    ..Default::default()
+                }))
+            })
+            .collect()
+    }
+
     /// The texture opened anew on `device`, for `usage`, as it is in the common state; `None` for
     /// a device not on D3D12, an NV12 or P010 texture on a device that does not sample that
     /// format, and where the handle does not open there: another adapter's.
@@ -149,6 +172,16 @@ impl SharedTexture {
                 wgpu::TextureUses::PRESENT,
             )
         })
+    }
+}
+
+/// The aspect of a texture of `planes` planes that plane `plane` is: the whole for a texture of one
+/// plane, wgpu's `Plane0` and `Plane1` for NV12's and P010's.
+fn plane_aspect(plane: usize, planes: usize) -> wgpu::TextureAspect {
+    match (planes, plane) {
+        (1, _) => wgpu::TextureAspect::All,
+        (_, 0) => wgpu::TextureAspect::Plane0,
+        _ => wgpu::TextureAspect::Plane1,
     }
 }
 

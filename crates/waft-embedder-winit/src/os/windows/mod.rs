@@ -234,7 +234,8 @@ impl Screens for Windows {}
 impl PointerQueries for Windows {}
 /// A GPU for each adapter, named by its LUID (`adapters`): Media Foundation's decoders, which put their pictures
 /// in textures shared on that adapter; no allocator, as producers bring their own textures. A
-/// shared texture opened on the device, anew for each import.
+/// shared texture of one plane opened on the device, anew for each import, and a decoder's of two
+/// opened so and viewed a plane at a time (`shared_textures`).
 impl GpuInterop for Windows {
     fn gpu_id(device: &wgpu::Device) -> Option<GpuId> {
         adapters::luid_of(device)
@@ -257,12 +258,23 @@ impl GpuInterop for Windows {
     }
 
     fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Option<wgpu::Texture> {
+        if buffer.format().plane_count() != 1 {
+            return None;
+        }
         let buffer: &dyn std::any::Any = buffer;
         let shared = buffer.downcast_ref::<SharedTexture>()?;
         shared.open_on(
             device,
             wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
         )
+    }
+
+    fn import_planes(
+        buffer: &dyn HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::TextureView>> {
+        let buffer: &dyn std::any::Any = buffer;
+        buffer.downcast_ref::<SharedTexture>()?.planes_on(device)
     }
 }
 impl ImageDecoding for Windows {}

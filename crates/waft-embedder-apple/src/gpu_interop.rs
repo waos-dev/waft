@@ -40,16 +40,20 @@ pub fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Opt
 
 /// `buffer` as one Metal texture over each plane of its surface on `device`, brightness first,
 /// each in the format and of the size its [`HardwareBufferFormat`] names for the plane, made wgpu
-/// textures that each hold the buffer until wgpu frees them; `None` for a buffer another host
+/// textures that each hold the buffer until wgpu frees them, and a view of each, which holds its
+/// texture; `None` for a buffer another host
 /// handed out, on a device not on Metal or without the planes' formats (P010's 16-bit ones need
 /// `TEXTURE_FORMAT_16BIT_NORM`), and where Metal makes no texture of a plane.
 pub fn import_planes(
     buffer: &dyn HardwareBuffer,
     device: &wgpu::Device,
-) -> Option<Vec<wgpu::Texture>> {
+) -> Option<Vec<wgpu::TextureView>> {
     let buffer = (buffer as &dyn Any).downcast_ref::<SurfaceBuffer>()?;
     (0..buffer.format().plane_count())
-        .map(|plane| plane_texture(buffer, plane, device))
+        .map(|plane| {
+            plane_texture(buffer, plane, device)
+                .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()))
+        })
         .collect()
 }
 
@@ -327,6 +331,7 @@ mod tests {
         let planes = import_planes(&*buffer, &gpu.device).expect("a Metal device takes them");
         let shapes: Vec<_> = planes
             .iter()
+            .map(wgpu::TextureView::texture)
             .map(|plane| (plane.format(), [plane.width(), plane.height()]))
             .collect();
         assert_eq!(
@@ -338,6 +343,7 @@ mod tests {
         );
         assert!(
             planes[1]
+                .texture()
                 .usage()
                 .contains(wgpu::TextureUsages::TEXTURE_BINDING)
         );
@@ -354,7 +360,10 @@ mod tests {
         );
         let gpu = TestGpu::with_features(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM);
         let planes = import_planes(&*buffer, &gpu.device).expect("a Metal device takes them");
-        let formats: Vec<_> = planes.iter().map(wgpu::Texture::format).collect();
+        let formats: Vec<_> = planes
+            .iter()
+            .map(|plane| plane.texture().format())
+            .collect();
         assert_eq!(
             formats,
             [
@@ -370,7 +379,10 @@ mod tests {
         let planes =
             import_planes(&*test_frame().hardware_buffer(), &gpu.device).expect("one plane");
         assert_eq!(planes.len(), 1);
-        assert_eq!(planes[0].format(), wgpu::TextureFormat::Bgra8Unorm);
+        assert_eq!(
+            planes[0].texture().format(),
+            wgpu::TextureFormat::Bgra8Unorm
+        );
     }
 
     #[test]

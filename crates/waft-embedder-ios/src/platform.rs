@@ -339,13 +339,13 @@ impl Platform for IosPlatform {
         waft_embedder_apple::gpu_interop::import_texture(buffer, device)
     }
 
-    /// Metal's texture over each plane of the buffer's `IOSurface` (`waft-embedder-apple`'s
+    /// A view of Metal's texture over each plane of the buffer's `IOSurface` (`waft-embedder-apple`'s
     /// `gpu_interop`).
     fn import_planes(
         &self,
         buffer: &dyn HardwareBuffer,
         device: &wgpu::Device,
-    ) -> Option<Vec<wgpu::Texture>> {
+    ) -> Option<Vec<wgpu::TextureView>> {
         waft_embedder_apple::gpu_interop::import_planes(buffer, device)
     }
 

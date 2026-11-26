@@ -556,7 +556,7 @@ pub(crate) trait GpuInterop {
     fn import_planes(
         _buffer: &dyn HardwareBuffer,
         _device: &wgpu::Device,
-    ) -> Option<Vec<wgpu::Texture>> {
+    ) -> Option<Vec<wgpu::TextureView>> {
         None
     }
 }
