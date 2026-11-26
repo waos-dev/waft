@@ -1,6 +1,7 @@
 //! A hardware buffer imported as a texture on the app's GPU device, on macOS and iOS: a Metal
 //! texture over the buffer's `IOSurface` (`newTextureWithDescriptor:iosurface:plane:`), made a
-//! wgpu texture through wgpu-hal, for what the buffer's usage allows. A video frame's buffer is
+//! wgpu texture through wgpu-hal, for what the buffer's usage allows; and a decoder's frame as one
+//! such texture over each of its surface's planes, as wgpu has no texture of two planes on Metal. A video frame's buffer is
 //! its pixel buffer's surface (`media::video_frame`), imported the same way, so a frame is drawn
 //! with no copy on the device the app gives.
 //!
@@ -34,30 +35,71 @@ pub fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Opt
     if buffer.format() != HardwareBufferFormat::Bgra8 {
         return None;
     }
-    let surface = buffer.surface();
+    plane_texture(buffer, 0, device)
+}
+
+/// `buffer` as one Metal texture over each plane of its surface on `device`, brightness first,
+/// each in the format and of the size its [`HardwareBufferFormat`] names for the plane, made wgpu
+/// textures that each hold the buffer until wgpu frees them; `None` for a buffer another host
+/// handed out, on a device not on Metal or without the planes' formats (P010's 16-bit ones need
+/// `TEXTURE_FORMAT_16BIT_NORM`), and where Metal makes no texture of a plane.
+pub fn import_planes(
+    buffer: &dyn HardwareBuffer,
+    device: &wgpu::Device,
+) -> Option<Vec<wgpu::Texture>> {
+    let buffer = (buffer as &dyn Any).downcast_ref::<SurfaceBuffer>()?;
+    (0..buffer.format().plane_count())
+        .map(|plane| plane_texture(buffer, plane, device))
+        .collect()
+}
+
+/// Plane `plane` of `buffer` as a Metal texture over its surface on `device`, made a wgpu texture
+/// that holds the buffer until wgpu frees it; `None` past the last plane, on a device not on Metal
+/// or without the plane's format, and where Metal makes no texture of the plane.
+fn plane_texture(
+    buffer: &SurfaceBuffer,
+    plane: usize,
+    device: &wgpu::Device,
+) -> Option<wgpu::Texture> {
+    let format = buffer.format().plane_format(plane)?;
+    if !device.features().contains(format.required_features()) {
+        return None;
+    }
+    let [width, height] = buffer
+        .format()
+        .plane_size(plane, [buffer.width(), buffer.height()])?;
     // SAFETY: the device is only read, and is let go before the texture it makes is handed to
     // wgpu.
     let hal = unsafe { device.as_hal::<wgpu::hal::api::Metal>() }?;
-    let metal = metal_texture(surface, buffer.usage(), hal.raw_device())?;
+    let metal = metal_texture(
+        buffer.surface(),
+        Plane {
+            index: plane,
+            format: metal_format(format)?,
+            size: [width, height],
+        },
+        buffer.usage(),
+        hal.raw_device(),
+    )?;
     drop(hal);
     let size = wgpu::Extent3d {
-        width: surface.width() as u32,
-        height: surface.height() as u32,
+        width,
+        height,
         depth_or_array_layers: 1,
     };
     let held = buffer.clone();
-    // SAFETY: `metal` is a live 2D BGRA8 texture of exactly this size, with one mip level and one
-    // layer, made on the device's Metal device.
+    // SAFETY: `metal` is a live 2D texture in `format`, of exactly this size, with one mip level
+    // and one layer, made on the device's Metal device.
     let texture = unsafe {
         wgpu::hal::metal::Device::texture_from_raw(
             metal,
-            wgpu::TextureFormat::Bgra8Unorm,
+            format,
             MTLTextureType::Type2D,
             1,
             1,
             wgpu::hal::CopyExtent {
-                width: size.width,
-                height: size.height,
+                width,
+                height,
                 depth: 1,
             },
             Some(Box::new(move || drop(held))),
@@ -69,7 +111,7 @@ pub fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Opt
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Bgra8Unorm,
+        format,
         usage: texture_usages(buffer.usage()),
         view_formats: &[],
     };
@@ -85,25 +127,46 @@ pub fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Opt
     })
 }
 
-/// A Metal texture over `surface` on `device`, for `usage`; `None` where Metal makes none.
+/// One plane of a surface as a Metal texture sees it: which, in what pixel format, and its size.
+struct Plane {
+    index: usize,
+    format: MTLPixelFormat,
+    size: [u32; 2],
+}
+
+/// The Metal pixel format of a plane wgpu samples in `format`; `None` for one no plane is in.
+fn metal_format(format: wgpu::TextureFormat) -> Option<MTLPixelFormat> {
+    match format {
+        wgpu::TextureFormat::Bgra8Unorm => Some(MTLPixelFormat::BGRA8Unorm),
+        wgpu::TextureFormat::R8Unorm => Some(MTLPixelFormat::R8Unorm),
+        wgpu::TextureFormat::Rg8Unorm => Some(MTLPixelFormat::RG8Unorm),
+        wgpu::TextureFormat::R16Unorm => Some(MTLPixelFormat::R16Unorm),
+        wgpu::TextureFormat::Rg16Unorm => Some(MTLPixelFormat::RG16Unorm),
+        _ => None,
+    }
+}
+
+/// A Metal texture over `plane` of `surface` on `device`, for `usage`; `None` where Metal makes
+/// none.
 fn metal_texture(
     surface: &IOSurfaceRef,
+    plane: Plane,
     usage: HardwareBufferUsage,
     device: &ProtocolObject<dyn MTLDevice>,
 ) -> Option<Retained<ProtocolObject<dyn MTLTexture>>> {
     let descriptor = MTLTextureDescriptor::new();
     descriptor.setTextureType(MTLTextureType::Type2D);
-    descriptor.setPixelFormat(MTLPixelFormat::BGRA8Unorm);
-    // SAFETY: both fit an `NSUInteger`, and the surface is of this size.
+    descriptor.setPixelFormat(plane.format);
+    // SAFETY: both fit an `NSUInteger`, and the plane is of this size.
     unsafe {
-        descriptor.setWidth(surface.width());
-        descriptor.setHeight(surface.height());
+        descriptor.setWidth(plane.size[0] as usize);
+        descriptor.setHeight(plane.size[1] as usize);
     }
     // Shared is the storage mode a texture over an `IOSurface` takes: it makes the texture a view
     // of the surface rather than a private copy of it.
     descriptor.setStorageMode(MTLStorageMode::Shared);
     descriptor.setUsage(metal_usage(usage));
-    device.newTextureWithDescriptor_iosurface_plane(&descriptor, surface, 0)
+    device.newTextureWithDescriptor_iosurface_plane(&descriptor, surface, plane.index)
 }
 
 /// What a texture of a buffer of `usage` is for: sampled where the GPU samples the buffer, drawn
@@ -142,13 +205,16 @@ fn arriving_state(usage: HardwareBufferUsage) -> wgpu::wgt::TextureUses {
 
 #[cfg(test)]
 mod tests {
-    use objc2_core_video::CVPixelBufferGetIOSurface;
+    use objc2_core_video::{
+        CVPixelBufferGetIOSurface, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+        kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+    };
     use waft_embedder::image_codecs::PixelFormat;
     use waft_embedder::{HardwareBufferAllocator, VideoFrame};
 
     use super::*;
     use crate::hardware_buffers::SurfaceBufferAllocator;
-    use crate::media::test_frame;
+    use crate::media::{test_frame, test_frame_in};
 
     const DRAWN: HardwareBufferUsage = HardwareBufferUsage {
         gpu_color_output: true,
@@ -249,6 +315,65 @@ mod tests {
     }
 
     #[test]
+    fn a_decoded_frames_planes_are_imported_brightness_then_colour_at_half_size() {
+        let gpu = TestGpu::new();
+        let frame = test_frame_in(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange);
+        let buffer = frame.hardware_buffer();
+        assert_eq!(buffer.format(), HardwareBufferFormat::Nv12);
+        assert!(
+            import_texture(&*buffer, &gpu.device).is_none(),
+            "two planes are no one texture"
+        );
+        let planes = import_planes(&*buffer, &gpu.device).expect("a Metal device takes them");
+        let shapes: Vec<_> = planes
+            .iter()
+            .map(|plane| (plane.format(), [plane.width(), plane.height()]))
+            .collect();
+        assert_eq!(
+            shapes,
+            [
+                (wgpu::TextureFormat::R8Unorm, [64, 48]),
+                (wgpu::TextureFormat::Rg8Unorm, [32, 24])
+            ]
+        );
+        assert!(
+            planes[1]
+                .usage()
+                .contains(wgpu::TextureUsages::TEXTURE_BINDING)
+        );
+    }
+
+    #[test]
+    fn a_10_bit_frames_planes_need_16_bit_textures() {
+        let frame = test_frame_in(kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+        let buffer = frame.hardware_buffer();
+        assert_eq!(buffer.format(), HardwareBufferFormat::P010);
+        assert!(
+            import_planes(&*buffer, &TestGpu::new().device).is_none(),
+            "a device without 16-bit textures takes none"
+        );
+        let gpu = TestGpu::with_features(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM);
+        let planes = import_planes(&*buffer, &gpu.device).expect("a Metal device takes them");
+        let formats: Vec<_> = planes.iter().map(wgpu::Texture::format).collect();
+        assert_eq!(
+            formats,
+            [
+                wgpu::TextureFormat::R16Unorm,
+                wgpu::TextureFormat::Rg16Unorm
+            ]
+        );
+    }
+
+    #[test]
+    fn a_buffers_one_plane_is_its_texture() {
+        let gpu = TestGpu::new();
+        let planes =
+            import_planes(&*test_frame().hardware_buffer(), &gpu.device).expect("one plane");
+        assert_eq!(planes.len(), 1);
+        assert_eq!(planes[0].format(), wgpu::TextureFormat::Bgra8Unorm);
+    }
+
+    #[test]
     fn a_buffer_another_host_handed_out_is_not_imported() {
         struct Elsewhere;
 
@@ -279,6 +404,7 @@ mod tests {
 
         let gpu = TestGpu::new();
         assert!(import_texture(&Elsewhere, &gpu.device).is_none());
+        assert!(import_planes(&Elsewhere, &gpu.device).is_none());
     }
 
     /// The system's Metal device, as a host's views draw with it.
@@ -298,6 +424,24 @@ mod tests {
                 valo::FeatureLevel::Core,
             ))
             .expect("a Metal device");
+            TestGpu { device, queue }
+        }
+
+        /// The system's Metal device with `features` beyond wgpu's defaults, as an app that asks
+        /// for them has.
+        fn with_features(features: wgpu::Features) -> TestGpu {
+            let instance =
+                wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+            let adapter = pollster::block_on(
+                instance.request_adapter(&wgpu::RequestAdapterOptions::default()),
+            )
+            .expect("a Metal adapter");
+            let (device, queue) =
+                pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+                    required_features: features,
+                    ..Default::default()
+                }))
+                .expect("a Metal device with the features");
             TestGpu { device, queue }
         }
     }

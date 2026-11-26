@@ -719,6 +719,15 @@ impl Platform for TestPlatform {
         None
     }
 
+    /// None, as for `import_texture`: no device takes this host's buffers.
+    fn import_planes(
+        &self,
+        _buffer: &dyn HardwareBuffer,
+        _device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::Texture>> {
+        None
+    }
+
     fn screens(&self) -> Option<&dyn Screens> {
         (self.screens.screens.borrow().is_some() || self.screens.pointer_location.get().is_some())
             .then_some(&self.screens as &dyn Screens)

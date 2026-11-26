@@ -549,6 +549,16 @@ pub(crate) trait GpuInterop {
     ) -> Option<wgpu::Texture> {
         None
     }
+
+    /// `buffer`, one of this system's, imported on `device` over its memory as one texture per
+    /// plane: `Platform::import_planes`. `None` where the embedder imports no planes, and for a
+    /// buffer or a device the system cannot import.
+    fn import_planes(
+        _buffer: &dyn HardwareBuffer,
+        _device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::Texture>> {
+        None
+    }
 }
 
 /// The system's clipboard (`clipboard/`).

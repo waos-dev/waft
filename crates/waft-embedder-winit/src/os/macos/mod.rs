@@ -146,7 +146,7 @@ impl SystemImageCodecs for AppKit {
 
 /// One GPU, as macOS names none: an `IOSurface` opens on any of the machine's. VideoToolbox's
 /// decoders and the `IOSurface` allocator, which iOS shares; Metal's texture over a buffer's
-/// `IOSurface` (`waft-embedder-apple`'s `gpu_interop`).
+/// `IOSurface`, and over each of its planes (`waft-embedder-apple`'s `gpu_interop`).
 impl GpuInterop for AppKit {
     fn gpu(_id: Option<GpuId>) -> Option<HostGpu> {
         Some(HostGpu {
@@ -160,6 +160,13 @@ impl GpuInterop for AppKit {
 
     fn import_texture(buffer: &dyn HardwareBuffer, device: &wgpu::Device) -> Option<wgpu::Texture> {
         waft_embedder_apple::gpu_interop::import_texture(buffer, device)
+    }
+
+    fn import_planes(
+        buffer: &dyn HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::Texture>> {
+        waft_embedder_apple::gpu_interop::import_planes(buffer, device)
     }
 }
 

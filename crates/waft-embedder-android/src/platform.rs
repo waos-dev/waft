@@ -441,6 +441,17 @@ impl Platform for AndroidPlatform {
         crate::gpu_interop::import_texture(buffer, device)
     }
 
+    /// None: Android imports no planes yet, as its decoders' frames are RGBA8, drawn from the
+    /// decoder's own pictures, and Vulkan samples those only through an external format, which
+    /// wgpu has not.
+    fn import_planes(
+        &self,
+        _buffer: &dyn HardwareBuffer,
+        _device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::Texture>> {
+        None
+    }
+
     /// Surface controls beneath the view's picture (`composition/`), where Waft's device imports
     /// hardware buffers; none on OpenGL ES, whose view draws through a swapchain.
     fn compositor(&self) -> Option<Arc<dyn Compositor>> {

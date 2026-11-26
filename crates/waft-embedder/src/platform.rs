@@ -724,6 +724,25 @@ pub trait Platform: Any {
         None
     }
 
+    /// `buffer`, one this host handed out, imported on `device` with no copy as one texture per
+    /// plane, brightness first, each in the format
+    /// [`HardwareBufferFormat::plane_format`](crate::HardwareBufferFormat::plane_format) names and
+    /// of the size [`plane_size`](crate::HardwareBufferFormat::plane_size) names: what a shader
+    /// samples to convert a decoder's picture to colour with the frame's
+    /// [`VideoFrame::color`](crate::VideoFrame::color). A buffer of one plane is its one texture,
+    /// as [`import_texture`](Self::import_texture) makes it. Each texture holds the buffer, and a
+    /// frame's buffer its frame, until the GPU is done with it. `None` for a buffer another host
+    /// handed out, for a device that cannot take its memory or sample its planes' formats, and on
+    /// a host that imports no planes.
+    fn import_planes(
+        &self,
+        buffer: &dyn crate::HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::Texture>> {
+        let _ = (buffer, device);
+        None
+    }
+
     /// The GPU `device` runs on, as its system names it: what an app that draws with `device`
     /// asks for its decoders and allocator with, `platform.gpu(platform.gpu_id(&device))`, so
     /// their memory opens on that device. `None` where the system names no GPU (Apple's systems,

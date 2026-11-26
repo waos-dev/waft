@@ -185,11 +185,18 @@ unsafe impl Sync for CoreVideoFrame {}
 /// A 64 by 48 frame as a frame reader hands one out: BGRA, on an `IOSurface`.
 #[cfg(test)]
 pub(crate) fn test_frame() -> CoreVideoFrame {
+    test_frame_in(objc2_core_video::kCVPixelFormatType_32BGRA)
+}
+
+/// A 64 by 48 frame on an `IOSurface` in CoreVideo's `pixel_format`, as a decoder hands one out
+/// in its own layout.
+#[cfg(test)]
+pub(crate) fn test_frame_in(pixel_format: u32) -> CoreVideoFrame {
     use std::ptr::NonNull;
 
     use objc2::rc::Retained;
     use objc2_core_foundation::CFDictionary;
-    use objc2_core_video::{CVPixelBufferCreate, kCVPixelFormatType_32BGRA, kCVReturnSuccess};
+    use objc2_core_video::{CVPixelBufferCreate, kCVReturnSuccess};
 
     let attributes = super::frames::pixel_buffer_attributes();
     let attributes: *const CFDictionary = Retained::as_ptr(&attributes).cast();
@@ -201,7 +208,7 @@ pub(crate) fn test_frame() -> CoreVideoFrame {
             None,
             64,
             48,
-            kCVPixelFormatType_32BGRA,
+            pixel_format,
             Some(&*attributes),
             NonNull::from(&mut buffer),
         )

@@ -339,6 +339,16 @@ impl Platform for IosPlatform {
         waft_embedder_apple::gpu_interop::import_texture(buffer, device)
     }
 
+    /// Metal's texture over each plane of the buffer's `IOSurface` (`waft-embedder-apple`'s
+    /// `gpu_interop`).
+    fn import_planes(
+        &self,
+        buffer: &dyn HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::Texture>> {
+        waft_embedder_apple::gpu_interop::import_planes(buffer, device)
+    }
+
     /// None: iOS names no GPU, as an `IOSurface` opens on any of the device's.
     fn gpu_id(&self, _device: &wgpu::Device) -> Option<GpuId> {
         None

@@ -394,6 +394,18 @@ impl Platform for WinitPlatform {
         System::import_texture(buffer, device)
     }
 
+    /// Metal's texture over each plane of the buffer's `IOSurface` on macOS (`waft-embedder-apple`'s
+    /// `gpu_interop`). None on Linux, whose dmabufs here are one plane of ARGB8888, a decoder's
+    /// planes needing a multi-planar dmabuf import wgpu 30 does not make; and on Windows, where
+    /// D3D12 makes the planes of an NV12 or P010 texture views of one texture, not textures.
+    fn import_planes(
+        &self,
+        buffer: &dyn HardwareBuffer,
+        device: &wgpu::Device,
+    ) -> Option<Vec<wgpu::Texture>> {
+        System::import_planes(buffer, device)
+    }
+
     /// The GPU `device` runs on (`GpuInterop::gpu_id`): on Linux the render node of a Vulkan
     /// device's GPU, on Windows the LUID of a D3D12 device's adapter, and none on macOS, which
     /// names no GPU.
