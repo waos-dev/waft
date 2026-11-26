@@ -1,15 +1,18 @@
 //! The system's video decoders on macOS and iOS: VideoToolbox, handed H.264 so far.
 //!
 //! What the stream says of itself is read by `waft-video-codecs`; here it reaches VideoToolbox as
-//! VideoToolbox takes it: its parameter sets as a format, its units each after four bytes of
-//! length, a picture at a time in one session (`session`). VideoToolbox hands pictures back in
+//! VideoToolbox takes it, a codec's way each (`streams`): what the stream says of itself as a
+//! format (`format`), a chunk as a sample, H.264's units each after four bytes of length, a
+//! picture at a time in one session (`session`). VideoToolbox hands pictures back in
 //! the order they were decoded, so they are put in the order they are shown, which is the
 //! stream's own, read from each picture, never the times an app gives its chunks; and they reach
 //! the app from the queue that decodes (`decoder`, `output`).
 
 mod decoder;
+mod format;
 mod output;
 mod session;
+mod streams;
 
 use std::future::ready;
 use std::rc::Rc;

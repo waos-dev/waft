@@ -2,13 +2,13 @@
 //!
 //! Each decoder decodes on a queue of its own, one chunk after another, so the app's thread
 //! never waits on VideoToolbox and pictures are decoded in the order their chunks came. What
-//! the queue works on (`Work`) is the stream as far as it is known: how it frames its units, its
-//! parameter sets, the session made of them, and the pictures decoded and not yet shown.
+//! the queue works on (`Work`) is the stream as far as it is known (its codec's reader,
+//! `streams`), the session made for it, and the pictures decoded and not yet shown.
 //!
-//! A stream's parameter sets may come ahead, in its setup, or in its chunks, and may change. A
-//! session is made once a whole set of them is known, and made again when VideoToolbox does not
-//! go on with the new ones; the pictures still held then are shown first, as they come before
-//! the change. VideoToolbox's pool grows as frames are held, so the decoder holds itself back: it
+//! What a session is made for (a stream's format: H.264's parameter sets) may come ahead, in
+//! its setup, or in its chunks, and may change. A session is made once the stream's reader has
+//! a whole description, and made again when VideoToolbox does not go on with a new one; the
+//! pictures still held then are shown first, as they come before the change. VideoToolbox's pool grows as frames are held, so the decoder holds itself back: it
 //! decodes no more while as many frames as the app said it holds at once wait to be read.
 //!
 //! A reset drops what the decoder holds at the moment the app asks, though chunks handed over
@@ -33,39 +33,25 @@ use waft_embedder::video_decoders::{
 use waft_embedder::{ColorRange, PixelAspect, VideoColor, VideoFrame};
 
 use waft_video_codecs::StreamFacts;
-use waft_video_codecs::framing::{Framing, with_lengths};
-use waft_video_codecs::h264::{self, ParameterSets, PictureOrder, is_parameter_set};
 use waft_video_codecs::presentation_order::PresentationOrder;
 
 use super::output::Output;
 use super::session::{DecodedPicture, Session};
+use super::streams::{Description, StreamReader, reader_for};
 use crate::answer::answer;
 use crate::media::CoreVideoFrame;
 use crate::media::DecodedFacts;
 
-/// A stream's setup as the decoder takes it: its framing, and the parameter sets given ahead.
-fn framing_and_sets(setup: VideoStreamSetup) -> Result<(Framing, ParameterSets), DecoderError> {
-    match setup {
-        VideoStreamSetup::H264(format) => h264::setup(format).map_err(DecoderError::BadData),
-        other => Err(DecoderError::Unsupported(format!(
-            "this system's decoders are handed H.264 alone so far, not {:?}",
-            other.codec()
-        ))),
-    }
-}
-
 /// What a decoder's queue works on.
 struct Work {
-    framing: Framing,
-    /// The stream's parameter sets, as far as they have come.
-    sets: ParameterSets,
+    /// The stream, as far as it has come.
+    stream: Box<dyn StreamReader>,
     choice: CodecChoice,
     /// The colour the app gave for what the stream leaves unsaid.
     default_color: Option<VideoColor>,
-    /// The session made of `sets`, once they are whole, with what they say of the stream.
+    /// The session made for the stream's description, once it is whole, with what it says of
+    /// the stream.
     session: Option<(Session, StreamFacts)>,
-    /// Where each picture stands in the order its stream is shown in, as the stream says.
-    picture_order: PictureOrder,
     /// The pictures decoded and not yet shown.
     order: PresentationOrder<Arc<dyn VideoFrame>>,
     output: Output,
@@ -77,57 +63,43 @@ struct Work {
 }
 
 impl Work {
-    /// Goes on with `sets`: with the session there is, where VideoToolbox does, and with one
-    /// made of them otherwise, the pictures held shown first.
-    fn adopt(&mut self, sets: ParameterSets) -> Result<(), DecoderError> {
-        let facts = sets.facts().map_err(DecoderError::BadData)?;
-        self.picture_order
-            .adopt(&sets)
-            .map_err(DecoderError::BadData)?;
-        let goes_on = matches!(&self.session, Some((session, _)) if session.accepts(&sets));
+    /// Goes on with the stream's description, where it has a whole one: with the session there
+    /// is, where VideoToolbox does, and with one made for it otherwise, the pictures held shown
+    /// first.
+    fn adopt_description(&mut self) -> Result<(), DecoderError> {
+        let Some(Description { format, facts }) = self.stream.description()? else {
+            return Ok(());
+        };
+        let goes_on = matches!(&self.session, Some((session, _)) if session.accepts(&format));
         let session = match self.session.take() {
             Some((session, _)) if goes_on => session,
             _ => {
                 self.output.put(self.order.all(), self.asked_after_resets);
                 let full_range = self.colour_of(&facts).range == Some(ColorRange::Full);
-                Session::open(&sets, self.choice, full_range)?
+                Session::open(&format, self.choice, full_range)?
             }
         };
         self.order.set_depth(facts.reorder_depth);
         self.session = Some((session, facts));
-        self.sets = sets;
         Ok(())
     }
 
-    /// Decodes `chunk`, once the app has read enough of the frames put out, taking the parameter
-    /// sets it carries, and puts out the pictures that can be shown now.
+    /// Decodes `chunk`, once the app has read enough of the frames put out, taking what it says
+    /// of its stream, and puts out the pictures that can be shown now.
     fn decode(&mut self, chunk: &EncodedChunk) -> Result<(), DecoderError> {
-        let units = self
-            .framing
-            .units(&chunk.data)
-            .map_err(DecoderError::BadData)?;
-        let sets = self.sets.replaced_by(ParameterSets::among(&units));
-        if sets.are_complete() && (sets != self.sets || self.session.is_none()) {
-            self.adopt(sets)?;
+        let read = self.stream.read(&chunk.data)?;
+        if read.changed || self.session.is_none() {
+            self.adopt_description()?;
         }
         let Some((session, facts)) = &self.session else {
             return Err(DecoderError::BadData(
-                "the stream's parameter sets have not come".to_owned(),
+                "what the stream's format is made of has not come".to_owned(),
             ));
         };
-        let coded: Vec<&[u8]> = units
-            .into_iter()
-            .filter(|unit| !is_parameter_set(unit))
-            .collect();
-        // Counted before it is decoded, so a picture VideoToolbox gives nothing for is counted.
-        let place = self
-            .picture_order
-            .place_of(&coded)
-            .map_err(DecoderError::BadData)?;
-        let decoded = session.decode(&with_lengths(coded), chunk.timestamp, chunk.duration)?;
+        let decoded = session.decode(&read.sample, chunk.timestamp, chunk.duration)?;
         if let Some(picture) = decoded {
-            let place = place.ok_or_else(|| {
-                DecoderError::BadData("a picture with no slice to tell its order by".to_owned())
+            let place = read.place.ok_or_else(|| {
+                DecoderError::BadData("a picture with nothing to tell its order by".to_owned())
             })?;
             let frame = self.frame_of(picture, chunk, facts);
             let shown = self.order.take(place, frame);
@@ -143,10 +115,8 @@ impl Work {
 
     /// Another setup from the next chunk on.
     fn configure(&mut self, setup: VideoStreamSetup) -> Result<(), DecoderError> {
-        let (framing, sets) = framing_and_sets(setup)?;
-        self.framing = framing;
-        if sets.are_complete() && sets != self.sets {
-            self.adopt(sets)?;
+        if self.stream.configure(setup)? {
+            self.adopt_description()?;
         }
         Ok(())
     }
@@ -205,29 +175,24 @@ pub(super) struct Decoder {
 }
 
 impl Decoder {
-    /// A decoder for the stream `setup` begins, its session made at once where the setup holds
-    /// the stream's parameter sets, and with the first key frame otherwise.
+    /// A decoder for the stream `setup` begins, its session made at once where the setup says
+    /// what the stream's format is made of, and with the first key frame otherwise.
     pub(super) fn open(
         setup: VideoStreamSetup,
         options: &VideoDecoderOptions,
     ) -> Result<Decoder, DecoderError> {
-        let (framing, sets) = framing_and_sets(setup)?;
         let output = Output::default();
         let mut work = Work {
-            framing,
-            sets: ParameterSets::default(),
+            stream: reader_for(setup)?,
             choice: options.decoder,
             default_color: options.default_color,
             session: None,
-            picture_order: PictureOrder::default(),
             order: PresentationOrder::new(0),
             output: output.clone(),
             frame_limit: options.frame_limit.max(1) as usize,
             asked_after_resets: 0,
         };
-        if sets.are_complete() {
-            work.adopt(sets)?;
-        }
+        work.adopt_description()?;
         let kind = match &work.session {
             Some((session, _)) => session.kind(),
             None => kind_before_a_session(options.decoder),
@@ -332,8 +297,9 @@ mod tests {
     use waft_embedder::video_decoders::{DecodingPurpose, NalFormat};
 
     use super::*;
-    use waft_video_codecs::framing::units_after_start_codes;
+    use waft_video_codecs::framing::{units_after_start_codes, with_lengths};
     use waft_video_codecs::h264::test_clip::{CLIP, pictures_of_the_clip, record_of};
+    use waft_video_codecs::h264::{ParameterSets, is_parameter_set};
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
     /// pictures: what `ffprobe` reads of the clip's packets.
