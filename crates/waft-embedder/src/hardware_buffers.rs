@@ -148,8 +148,8 @@ pub enum HardwareBufferFormat {
     /// 8-bit red, green, blue and alpha in one plane: Android's `R8G8B8A8_UNORM`.
     Rgba8,
     /// 8-bit 4:2:0 in two planes: brightness, then blue and red difference interleaved at half
-    /// the size each way. CoreVideo's `420v` and `420f`, DXGI's and DRM's `NV12`, Android's
-    /// `Y8Cb8Cr8_420`.
+    /// the size each way. CoreVideo's `420v` and `420f`, DXGI's and DRM's `NV12`. Not Android's
+    /// `Y8Cb8Cr8_420`, whose planes lie as its allocator chooses.
     Nv12,
     /// 10-bit 4:2:0 laid out as [`Nv12`](Self::Nv12), each sample in the high ten bits of
     /// sixteen: CoreVideo's `x420` and `xf20`, DXGI's and DRM's `P010`, Android's `YCbCr_P010`.
