@@ -24,7 +24,9 @@ pub(super) enum Framing {
 
 /// A stream's setup as the decoder takes it: its framing, and its parameter sets given ahead, in
 /// Annex B; `Unsupported` for a codec other than H.264.
-pub(super) fn framing_and_sets(setup: VideoStreamSetup) -> Result<(Framing, Vec<u8>), DecoderError> {
+pub(super) fn framing_and_sets(
+    setup: VideoStreamSetup,
+) -> Result<(Framing, Vec<u8>), DecoderError> {
     match setup {
         VideoStreamSetup::H264(NalFormat::LengthPrefixed(record)) => {
             let (sets, length_size) = sets_of_record(&record).map_err(DecoderError::BadData)?;
@@ -67,7 +69,11 @@ fn after_delimiter(picture: &[u8]) -> Option<usize> {
         return None;
     }
     let next = first + start_code(&picture[first..])?;
-    Some(if picture[next - 1] == 0 { next - 1 } else { next })
+    Some(if picture[next - 1] == 0 {
+        next - 1
+    } else {
+        next
+    })
 }
 
 /// The units of `data`, each after a big-endian length of `size` bytes; `None` where a length
@@ -144,7 +150,11 @@ pub(super) mod tests {
             .map(|(index, &start)| {
                 let end = starts.get(index + 1).map_or(data.len(), |&next| {
                     let code = next - 3;
-                    if code > start && data[code - 1] == 0 { code - 1 } else { code }
+                    if code > start && data[code - 1] == 0 {
+                        code - 1
+                    } else {
+                        code
+                    }
                 });
                 &data[start..end]
             })
@@ -156,7 +166,9 @@ pub(super) mod tests {
         units
             .into_iter()
             .flat_map(|unit| {
-                let length = u32::try_from(unit.len()).expect("a unit under 4 GiB").to_be_bytes();
+                let length = u32::try_from(unit.len())
+                    .expect("a unit under 4 GiB")
+                    .to_be_bytes();
                 length.into_iter().chain(unit.iter().copied())
             })
             .collect()
@@ -168,7 +180,14 @@ pub(super) mod tests {
         let is_sps = |set: &&&[u8]| set[0] & 0x1F == 7;
         let (sps, pps): (Vec<&[u8]>, Vec<&[u8]>) = sets.iter().partition(is_sps);
         let first = sps.first().expect("a sequence parameter set");
-        let mut record = vec![1, first[1], first[2], first[3], 0xFF, 0xE0 | sps.len() as u8];
+        let mut record = vec![
+            1,
+            first[1],
+            first[2],
+            first[3],
+            0xFF,
+            0xE0 | sps.len() as u8,
+        ];
         for set in &sps {
             record.extend((set.len() as u16).to_be_bytes());
             record.extend(*set);
@@ -189,7 +208,10 @@ pub(super) mod tests {
     #[test]
     fn a_record_gives_its_sets_and_its_length_size() {
         let units = units_after_start_codes(CLIP);
-        let sets: Vec<&[u8]> = units.into_iter().filter(|unit| is_parameter_set(unit)).collect();
+        let sets: Vec<&[u8]> = units
+            .into_iter()
+            .filter(|unit| is_parameter_set(unit))
+            .collect();
         let record = record_of(&sets);
         let (read, length_size) = sets_of_record(&record).expect("a record");
         assert_eq!(read, sets);
@@ -209,7 +231,9 @@ pub(super) mod tests {
         let sets = vec![0, 0, 0, 1, 0x67, 2];
         assert_eq!(
             with_sets_ahead(picture, sets.clone()),
-            [0, 0, 0, 1, 0x09, 0xF0, 0, 0, 0, 1, 0x67, 2, 0, 0, 0, 1, 0x65, 1]
+            [
+                0, 0, 0, 1, 0x09, 0xF0, 0, 0, 0, 1, 0x67, 2, 0, 0, 0, 1, 0x65, 1
+            ]
         );
         let without_delimiter = vec![0, 0, 1, 0x65, 1];
         assert_eq!(
@@ -221,6 +245,9 @@ pub(super) mod tests {
     #[test]
     fn a_length_past_its_chunk_is_bad_data() {
         let cut = [0, 0, 0, 9, 0x65];
-        assert!(matches!(in_annex_b(&cut, Framing::Lengths(4)), Err(DecoderError::BadData(_))));
+        assert!(matches!(
+            in_annex_b(&cut, Framing::Lengths(4)),
+            Err(DecoderError::BadData(_))
+        ));
     }
 }

@@ -561,7 +561,10 @@ impl CompositionLayer for WindowsLayer {
             return;
         };
         if shared.format() != FORMAT {
-            eprintln!("waft: a layer shows BGRA, and is presented {:?}; it is not shown", shared.format());
+            eprintln!(
+                "waft: a layer shows BGRA, and is presented {:?}; it is not shown",
+                shared.format()
+            );
             released();
             return;
         }

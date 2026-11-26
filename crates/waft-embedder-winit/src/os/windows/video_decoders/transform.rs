@@ -34,8 +34,8 @@ use windows::Win32::Media::MediaFoundation::{
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
 use windows::core::Interface as _;
 
-use super::device::VideoDevice;
 use super::super::shared_textures::SharedTexture;
+use super::device::VideoDevice;
 
 /// A picture the decoder gave, put out in a texture of its own.
 pub(super) struct DecodedPicture {
@@ -116,7 +116,8 @@ impl Transform {
         // SAFETY: calls on the decoder, its stream 0 the one an H.264 decoder has.
         let info = unsafe { decoder.GetOutputStreamInfo(0) }.map_err(failed)?;
         let provides_samples = info.dwFlags
-            & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES.0 | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES.0) as u32
+            & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES.0 | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES.0)
+                as u32
             != 0;
         // SAFETY: messages the decoder takes with no parameter.
         unsafe {
@@ -340,8 +341,11 @@ fn hand_device(
     // manager, which the decoder reaches it through from here on.
     unsafe {
         MFCreateDXGIDeviceManager(&mut token, &mut manager).map_err(failed)?;
-        let manager = manager.ok_or_else(|| DecoderError::Failed("no device manager".to_owned()))?;
-        manager.ResetDevice(device.device(), token).map_err(failed)?;
+        let manager =
+            manager.ok_or_else(|| DecoderError::Failed("no device manager".to_owned()))?;
+        manager
+            .ResetDevice(device.device(), token)
+            .map_err(failed)?;
         decoder
             .ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize)
             .map_err(failed)?;
@@ -373,7 +377,8 @@ fn choose_output_type(decoder: &IMFTransform) -> Result<Pictures, DecoderError> 
             break;
         };
         // SAFETY: a call on a media type the decoder offered.
-        if unsafe { offered.GetGUID(&MF_MT_SUBTYPE) }.is_ok_and(|subtype| subtype == MFVideoFormat_NV12)
+        if unsafe { offered.GetGUID(&MF_MT_SUBTYPE) }
+            .is_ok_and(|subtype| subtype == MFVideoFormat_NV12)
         {
             // SAFETY: the type the decoder offered, set on its stream 0.
             unsafe { decoder.SetOutputType(0, &offered, 0) }.map_err(failed)?;
@@ -449,12 +454,12 @@ fn colour_of(media_type: &IMFMediaType) -> VideoColor {
     // SAFETY: reads of the type's own attributes.
     let read = |key| unsafe { media_type.GetUINT32(key) }.ok();
     let primaries = read(&MF_MT_VIDEO_PRIMARIES).and_then(|value| match value {
-        2 => Some(1),  // BT.709
-        3 => Some(4),  // BT.470 System M
-        4 => Some(5),  // BT.470 System B, G
-        5 => Some(6),  // SMPTE 170M
-        6 => Some(7),  // SMPTE 240M
-        9 => Some(9),  // BT.2020
+        2 => Some(1), // BT.709
+        3 => Some(4), // BT.470 System M
+        4 => Some(5), // BT.470 System B, G
+        5 => Some(6), // SMPTE 170M
+        6 => Some(7), // SMPTE 240M
+        9 => Some(9), // BT.2020
         _ => None,
     });
     let transfer = read(&MF_MT_TRANSFER_FUNCTION).and_then(|value| match value {

@@ -69,12 +69,12 @@ mod tests {
 
     use windows::Win32::Foundation::LUID;
 
-    use super::decoder::MediaFoundation;
-    use super::device::VideoDevice;
-    use super::transform::Transform;
     use super::annex_b::tests::{
         CLIP, is_parameter_set, record_of, units_after_start_codes, with_lengths,
     };
+    use super::decoder::MediaFoundation;
+    use super::device::VideoDevice;
+    use super::transform::Transform;
     use super::*;
 
     /// When each of the clip's pictures is shown, in the order they are decoded, counted in
@@ -144,7 +144,10 @@ mod tests {
     /// that came out, in the order they came, read as the decoder puts them out.
     fn times_decoded(decoder: &dyn VideoDecoder, chunks: Vec<EncodedChunk>) -> Vec<Option<i64>> {
         let count = chunks.len();
-        let decoding: Vec<_> = chunks.into_iter().map(|chunk| decoder.decode(chunk)).collect();
+        let decoding: Vec<_> = chunks
+            .into_iter()
+            .map(|chunk| decoder.decode(chunk))
+            .collect();
         let draining = decoder.drain();
         let times = (0..count)
             .map(|_| block_on(decoder.next_frame()).expect("a frame").timestamp())
@@ -164,7 +167,10 @@ mod tests {
     fn a_stream_in_start_codes_comes_out_in_the_order_it_is_shown() {
         let decoder = open(CodecChoice::Any);
         eprintln!("decoding on {:?}", decoder.kind());
-        assert_eq!(times_decoded(&*decoder, chunks(after_start_codes)), in_order());
+        assert_eq!(
+            times_decoded(&*decoder, chunks(after_start_codes)),
+            in_order()
+        );
     }
 
     /// For playback, Media Foundation's decoder holds all of this clip's pictures until it drains;
@@ -199,7 +205,10 @@ mod tests {
     fn the_processor_decodes_the_stream_the_same() {
         let decoder = open(CodecChoice::Software);
         assert_eq!(decoder.kind(), CodecKind::Software);
-        assert_eq!(times_decoded(&*decoder, chunks(after_start_codes)), in_order());
+        assert_eq!(
+            times_decoded(&*decoder, chunks(after_start_codes)),
+            in_order()
+        );
     }
 
     /// The order is the stream's own: chunks whose times say the order they are decoded in come
@@ -221,7 +230,10 @@ mod tests {
     #[test]
     fn a_stream_after_lengths_with_its_record_comes_out_the_same() {
         let units = units_after_start_codes(CLIP);
-        let sets: Vec<&[u8]> = units.into_iter().filter(|unit| is_parameter_set(unit)).collect();
+        let sets: Vec<&[u8]> = units
+            .into_iter()
+            .filter(|unit| is_parameter_set(unit))
+            .collect();
         let setup = VideoStreamSetup::H264(NalFormat::LengthPrefixed(record_of(&sets)));
         let decoder = block_on(MediaFoundationDecoders.open(setup, options(CodecChoice::Any)))
             .expect("a decoder");
@@ -266,10 +278,13 @@ mod tests {
             backends: wgpu::Backends::DX12,
             ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
-        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-            .ok()?;
+        let adapter =
+            block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).ok()?;
         eprintln!("the app's adapter: {}", adapter.get_info().name);
-        if !adapter.features().contains(wgpu::Features::TEXTURE_FORMAT_NV12) {
+        if !adapter
+            .features()
+            .contains(wgpu::Features::TEXTURE_FORMAT_NV12)
+        {
             return None;
         }
         // SAFETY: the adapter is a live one of wgpu's D3D12 backend, its DXGI adapter asked only
@@ -343,9 +358,16 @@ mod tests {
             extent,
         );
         queue.submit([encoder.finish()]);
-        buffer.slice(..).map_async(wgpu::MapMode::Read, |mapped| mapped.expect("mapped"));
-        device.poll(wgpu::PollType::wait_indefinitely()).expect("the copy finishes");
-        let mapped = buffer.slice(..).get_mapped_range().expect("the mapped bytes");
+        buffer
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, |mapped| mapped.expect("mapped"));
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("the copy finishes");
+        let mapped = buffer
+            .slice(..)
+            .get_mapped_range()
+            .expect("the mapped bytes");
         mapped
             .chunks(padded as usize)
             .flat_map(|line| &line[..row as usize])
@@ -373,7 +395,11 @@ mod tests {
         let mut pictures = transform
             .decode(&first.data, 0, true, &mut video_device)
             .expect("the chunk decodes");
-        pictures.extend(transform.drain(&mut video_device).expect("the decoder drains"));
+        pictures.extend(
+            transform
+                .drain(&mut video_device)
+                .expect("the decoder drains"),
+        );
         let [picture] = &pictures[..] else {
             panic!("{} pictures of one chunk", pictures.len());
         };
@@ -405,7 +431,10 @@ mod tests {
     fn a_chunk_that_is_no_key_frame_at_the_start_is_bad_data() {
         let decoder = open(CodecChoice::Any);
         let later = chunks(after_start_codes).remove(1);
-        assert!(matches!(block_on(decoder.decode(later)), Err(DecoderError::BadData(_))));
+        assert!(matches!(
+            block_on(decoder.decode(later)),
+            Err(DecoderError::BadData(_))
+        ));
     }
 
     #[test]
@@ -426,7 +455,11 @@ mod tests {
             .collect();
         decoder.reset();
         let times = times_decoded(&*decoder, chunks(after_start_codes));
-        assert_eq!(times, in_order(), "only the pictures handed over after the reset");
+        assert_eq!(
+            times,
+            in_order(),
+            "only the pictures handed over after the reset"
+        );
         for decoded in before {
             block_on(decoded).expect("a chunk dropped by a reset is answered as taken");
         }

@@ -32,7 +32,9 @@ use waft_embedder::video_decoders::{
     CodecKind, DecodedFrameFuture, DecoderError, EncodedChunk, VideoDecoder, VideoDecoderFuture,
     VideoDecoderOptions, VideoStreamSetup,
 };
-use windows::Win32::Media::MediaFoundation::{MF_VERSION, MFSTARTUP_NOSOCKET, MFShutdown, MFStartup};
+use windows::Win32::Media::MediaFoundation::{
+    MF_VERSION, MFSTARTUP_NOSOCKET, MFShutdown, MFStartup,
+};
 use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoUninitialize};
 
 use super::annex_b::{Framing, framing_and_sets, in_annex_b, with_sets_ahead};
@@ -91,7 +93,8 @@ impl Work {
         }
         let number = self.next_number;
         self.next_number += 1;
-        self.chunks.insert(number, (chunk.timestamp, chunk.duration));
+        self.chunks
+            .insert(number, (chunk.timestamp, chunk.duration));
         let pictures = self
             .transform
             .decode(&data, number, chunk.key_frame, &mut self.device)?;

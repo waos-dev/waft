@@ -21,12 +21,11 @@ use windows::Win32::Foundation::{E_POINTER, HMODULE, LUID};
 use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_UNKNOWN};
 use windows::Win32::Graphics::Direct3D11::{
     D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_WRITE, D3D11_CREATE_DEVICE_FLAG,
-    D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
-    D3D11_DECODER_PROFILE_H264_VLD_NOFGT, D3D11_MAP_WRITE, D3D11_MAPPED_SUBRESOURCE,
-    D3D11_QUERY_DESC, D3D11_QUERY_EVENT, D3D11_RESOURCE_MISC_SHARED,
+    D3D11_CREATE_DEVICE_VIDEO_SUPPORT, D3D11_DECODER_PROFILE_H264_VLD_NOFGT, D3D11_MAP_WRITE,
+    D3D11_MAPPED_SUBRESOURCE, D3D11_QUERY_DESC, D3D11_QUERY_EVENT, D3D11_RESOURCE_MISC_SHARED,
     D3D11_RESOURCE_MISC_SHARED_NTHANDLE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC,
-    D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING, D3D11CreateDevice, ID3D11Device,
-    ID3D11DeviceContext, ID3D11Multithread, ID3D11Query, ID3D11Texture2D, ID3D11VideoDevice,
+    D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING, D3D11CreateDevice, ID3D11Device, ID3D11DeviceContext,
+    ID3D11Multithread, ID3D11Query, ID3D11Texture2D, ID3D11VideoDevice,
 };
 use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_NV12, DXGI_SAMPLE_DESC};
 use windows::Win32::Graphics::Dxgi::{
@@ -122,8 +121,11 @@ impl VideoDevice {
         let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
         // SAFETY: the staging texture is this device's, mapped for writing on its immediate
         // context and unmapped before anything else uses it.
-        unsafe { self.context.Map(&staging, 0, D3D11_MAP_WRITE, 0, Some(&mut mapped)) }
-            .map_err(failed)?;
+        unsafe {
+            self.context
+                .Map(&staging, 0, D3D11_MAP_WRITE, 0, Some(&mut mapped))
+        }
+        .map_err(failed)?;
         let row = size[0] as usize;
         let rows = size[1] as usize;
         let mapped_pitch = mapped.RowPitch as usize;
@@ -139,7 +141,10 @@ impl VideoDevice {
                 unsafe {
                     std::ptr::copy_nonoverlapping(
                         source.as_ptr(),
-                        mapped.pData.cast::<u8>().add(mapped_at + line * mapped_pitch),
+                        mapped
+                            .pData
+                            .cast::<u8>()
+                            .add(mapped_at + line * mapped_pitch),
                         row,
                     );
                 }
@@ -180,8 +185,11 @@ impl VideoDevice {
         };
         let mut texture = None;
         // SAFETY: the description is a live local, and the out pointer one.
-        unsafe { self.device.CreateTexture2D(&description, None, Some(&mut texture)) }
-            .map_err(failed)?;
+        unsafe {
+            self.device
+                .CreateTexture2D(&description, None, Some(&mut texture))
+        }
+        .map_err(failed)?;
         let texture = texture.ok_or_else(|| DecoderError::Failed("no texture made".to_owned()))?;
         let resource: IDXGIResource1 = texture.cast().map_err(failed)?;
         // SAFETY: a call on the texture's own interface; the handle it answers is owned from here.
@@ -224,8 +232,11 @@ impl VideoDevice {
         };
         let mut staging = None;
         // SAFETY: the description is a live local, and the out pointer one.
-        unsafe { self.device.CreateTexture2D(&description, None, Some(&mut staging)) }
-            .map_err(failed)?;
+        unsafe {
+            self.device
+                .CreateTexture2D(&description, None, Some(&mut staging))
+        }
+        .map_err(failed)?;
         let staging = staging.ok_or_else(|| DecoderError::Failed("no staging made".to_owned()))?;
         self.staging = Some((staging.clone(), size));
         Ok(staging)
@@ -291,7 +302,9 @@ fn device_on(
             Some(&mut context),
         )?;
     }
-    device.zip(context).ok_or_else(|| windows::core::Error::from(E_POINTER))
+    device
+        .zip(context)
+        .ok_or_else(|| windows::core::Error::from(E_POINTER))
 }
 
 /// The adapter whose LUID is `luid`.
