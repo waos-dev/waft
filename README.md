@@ -8,34 +8,43 @@
 <h1 align="center">Waft</h1>
 
 <p align="center">
-  A UI framework for writing solid, fluent cross-platform apps.
+  A pure Rust, GPU-accelerated UI framework for building fast, fluid apps.
 </p>
 
-Waft is a full-stack Rust framework. Everything from app logic down to the render engine, [valo](https://github.com/seedeai/valo), is written in Rust and works like a normal Rust package.
+Waft is a cross-platform UI framework in Rust targeting macOS, Windows, Linux, iOS, Android, and the web — with a clean embedder interface for bringing your own platform.
 
-The framework layer is a port of [Flutter](https://github.com/flutter/flutter). Everything the framework needs from the platform sits behind a clear interface, which makes porting to a new platform easy.
+## Why Waft
 
-The project is in alpha, while is ready to build apps on. Waft currently has two widget libraries ready to use:
-- Cupertino: for mobile apps
-- [WinUI](https://github.com/waos-dev/waft/tree/main/crates/waft-winui): for desktop and web apps
+- **Solid foundation:** Built on [Flutter](https://github.com/flutter/flutter)'s proven architecture, Waft ships with rich layout, gestures, animations, and ready to use widget kits from day one.
+- **Pure Rust, easy to embed:** Everything including the [render engine](https://github.com/seedeai/valo) builds with a single `cargo` command, behind a clean embedder interface for custom platforms.
+- **Fast & GPU-accelerated:** Compiles to a native binary with GPU acceleration — small footprint, fast rendering, and instant startup.
+- **Cross-platform:** One codebase for macOS, Windows, Linux, iOS, Android, and the web, with an easy-to-use CLI to run and package for each target.
+- **First-class desktop:** Built for real desktop apps with native menus, multi-window support, single-instance locking, and packaging for DMG, MSI, DEB, and AppImage.
+- **Hardware compositing & media:** Video, camera previews, and cross-process surfaces run as native OS compositor layers with zero app repaints.
+- **Built for coding agents:** Built-in debugging and UI-driving tools (`cargo waft ext`) so agents never need to leave the terminal ([waft.rs/agents.md](https://waft.rs/agents.md)).
 
 ## Apps built with Waft
 
 <table>
   <tr>
-    <td align="center" valign="bottom" width="33%">
+    <td align="center" valign="bottom" width="25%">
       <a href="https://edged2.app">
         <img src="https://edged2.app/edged.png" alt="Edged 2" width="72" height="72">
       </a>
     </td>
-    <td align="center" valign="bottom" width="33%">
-      <a href="https://cupertino-gallery.inset.rs">
+    <td align="center" valign="bottom" width="25%">
+      <a href="https://cupertino-gallery.waft.rs">
         <img src="assets/cupertino-gallery.png" alt="Cupertino gallery" width="140">
       </a>
     </td>
-    <td align="center" valign="bottom" width="33%">
-      <a href="https://winui-gallery.inset.rs">
+    <td align="center" valign="bottom" width="25%">
+      <a href="https://winui-gallery.waft.rs">
         <img src="assets/winui-gallery.png" alt="WinUI gallery" width="180">
+      </a>
+    </td>
+    <td align="center" valign="bottom" width="25%">
+      <a href="https://material-gallery.waft.rs">
+        <img src="assets/material-gallery.png" alt="Material gallery" width="180">
       </a>
     </td>
   </tr>
@@ -44,10 +53,13 @@ The project is in alpha, while is ready to build apps on. Waft currently has two
       <a href="https://edged2.app"><strong>Edged 2</strong></a>
     </td>
     <td align="center" valign="top">
-      <a href="https://cupertino-gallery.inset.rs"><strong>Cupertino gallery</strong></a>
+      <a href="https://cupertino-gallery.waft.rs"><strong>Cupertino gallery</strong></a>
     </td>
     <td align="center" valign="top">
-      <a href="https://winui-gallery.inset.rs"><strong>WinUI gallery</strong></a>
+      <a href="https://winui-gallery.waft.rs"><strong>WinUI gallery</strong></a>
+    </td>
+    <td align="center" valign="top">
+      <a href="https://material-gallery.waft.rs"><strong>Material gallery</strong></a>
     </td>
   </tr>
   <tr>
@@ -62,12 +74,16 @@ The project is in alpha, while is ready to build apps on. Waft currently has two
       Desktop and web widgets, from<br>
       <a href="https://github.com/waos-dev/waft/tree/main/crates/waft-winui">waft-winui</a>
     </td>
+    <td align="center" valign="top">
+      Material Design 3 widgets, from<br>
+      <a href="https://github.com/waos-dev/waft/tree/main/crates/waft-material">waft-material</a>
+    </td>
   </tr>
 </table>
 
 ## Start an app
 
-`cargo waft` is a convenient CLI for scaffolding and running app with Waft:
+`cargo waft` is a CLI for scaffolding, running, and packaging Waft apps:
 
 ```sh
 cargo install waft-cli
@@ -82,11 +98,9 @@ cargo waft build dmg                  # and macos, ios, ipa, apk, msi, nsis, deb
 
 > For more details, see [`waft-cli`](crates/waft-cli/README.md).
 
-> Support of mobile platforms is experimental.
-
 ## Building an app with Waft
 
-Waft keeps a clean interface between the framework and the platform (the embedder). The usual way to start an app is creating an embedder and providing a root widget to it:
+Waft keeps a clean interface between the framework and the platform (the embedder). The usual way to start an app is to create an embedder and provide a root widget:
 
 ```rust
 use waft::{DefaultEmbedder, IntoWidget, Shell, run_app};
@@ -101,7 +115,7 @@ fn main() {
 }
 ```
 
-Or you can also use the `#[waft::main]` macro to write the main function:
+Or use the `#[waft::main]` macro to write the main function:
 
 ```rust
 use waft::{App, IntoWidget, run_app};
