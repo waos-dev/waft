@@ -33,7 +33,7 @@ valo.workspace = true
 valo-codec = { workspace = true, optional = true }
 # Pixels read back encoded as a PNG, in software on every host (`encode_png`): the inspector's
 # screenshots and a test's. `test-support` adds the decoders a test opens pictures with.
-valo-codec-software = { version = "0.26.0", default-features = false, features = ["png"] }
+valo-codec-software = { version = "0.26.1", default-features = false, features = ["png"] }
 valo-geometry.workspace = true
 valo-system-fonts.workspace = true
 web-time.workspace = true
