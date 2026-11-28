@@ -129,7 +129,7 @@ impl WinitView {
     /// Draws the last scene again if the surface does not show it: an owed frame, paid
     /// without the framework.
     pub(crate) fn draw_last_scene(&self) {
-        self.rasterizer.borrow_mut().draw_last_scene();
+        self.draw(Rasterizer::draw_last_scene);
     }
 
     /// The view owes the compositor a present of its last scene, for a layer a producer presented.
@@ -144,7 +144,7 @@ impl WinitView {
 
     /// Draws and presents the last scene again, however it was shown.
     pub(crate) fn redraw_last_scene(&self) {
-        self.rasterizer.borrow_mut().redraw_last_scene();
+        self.draw(Rasterizer::redraw_last_scene);
     }
 
     /// Whether the next vsync should draw the owed scene again.
@@ -154,7 +154,7 @@ impl WinitView {
 
     /// Draws the owed scene again, at a vsync.
     pub(crate) fn retry_owed_scene(&self) {
-        self.rasterizer.borrow_mut().retry_owed_scene();
+        self.draw(Rasterizer::retry_owed_scene);
     }
 
     /// The picture the view draws now reaches the screen at `display_time`.
@@ -169,13 +169,27 @@ impl WinitView {
 
     /// Draws the last scene again with its videos' new frames, at a vsync, where any came.
     pub(crate) fn draw_new_video_frames(&self) {
-        self.rasterizer.borrow_mut().draw_new_video_frames();
+        self.draw(Rasterizer::draw_new_video_frames);
     }
 
     /// Presents through the window's own transaction until the answer is dropped: for the
     /// frame a resize draws.
     pub(crate) fn present_in_transaction(&self) -> PresentingInTransaction<'_> {
         PresentingInTransaction::begin(&self.rasterizer)
+    }
+
+    /// Draws with the rasterizer through `draw`, then tells the window, once, that the view's
+    /// first frame was presented: where a window shows only then, this is when it shows.
+    fn draw(&self, draw: impl FnOnce(&mut Rasterizer)) {
+        let first_frame_presented = {
+            let mut rasterizer = self.rasterizer.borrow_mut();
+            let had_presented = rasterizer.has_presented_a_frame();
+            draw(&mut rasterizer);
+            !had_presented && rasterizer.has_presented_a_frame()
+        };
+        if first_frame_presented && let Some(handle) = self.window_handle.borrow().upgrade() {
+            handle.first_frame_presented();
+        }
     }
 
     /// `handle` is the app's handle on the view's window from now on: the view answers it as its
@@ -213,13 +227,14 @@ impl View for WinitView {
     }
 
     fn present(&self, scene: Arc<Scene>) {
-        let mut rasterizer = self.rasterizer.borrow_mut();
-        if rasterizer.shows(&scene) {
-            return;
-        }
-        let slices = rasterizer.slices_of(&scene);
-        rasterizer.place_composition_layers(slices.composition_layers(), self.id);
-        rasterizer.draw(&scene, &slices);
+        self.draw(|rasterizer| {
+            if rasterizer.shows(&scene) {
+                return;
+            }
+            let slices = rasterizer.slices_of(&scene);
+            rasterizer.place_composition_layers(slices.composition_layers(), self.id);
+            rasterizer.draw(&scene, &slices);
+        });
     }
 
     fn host(&self) -> &dyn ViewHost {

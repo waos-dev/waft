@@ -80,7 +80,25 @@ pub fn take_opened_windows(
     });
 }
 
+/// What the tests ask of Win32 that the embedder offers no call for.
+#[cfg(target_os = "windows")]
+pub mod win32 {
+    use waft_embedder::{RawWindowHandle, WindowRef};
+    use windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+
+    /// Whether the system shows `window`: Win32's visible style, which a hidden window lacks.
+    #[expect(unsafe_code, reason = "Win32's calls are unsafe")]
+    pub fn is_shown(window: &WindowRef) -> bool {
+        let Some(RawWindowHandle::Win32(handle)) = window.native_handle() else {
+            return false;
+        };
+        // SAFETY: the call reads a window's style, and answers false for a handle to none.
+        unsafe { IsWindowVisible(handle.hwnd.get() as _) != 0 }
+    }
+}
+
 /// What the tests ask of AppKit that the embedder offers no call for.
+#[cfg(target_os = "macos")]
 pub mod appkit {
     use std::cell::Cell;
     use std::ptr::{self, NonNull};

@@ -112,6 +112,10 @@ name = "a_hidden_window_takes_no_frames_while_a_shown_one_draws"
 harness = false
 
 [[test]]
+name = "a_window_shows_once_its_first_frame_is_presented"
+harness = false
+
+[[test]]
 name = "a_vsync_waiter_calls_once_per_wait"
 harness = false
 
@@ -213,6 +217,7 @@ objc2-core-video = { version = "0.3", default-features = false, features = ["std
 # `os/macos`, `os/windows`, `os/linux/wayland` and `os/linux/dmabuf` (libwayland's proxies, GBM,
 # DRM and dma-buf ioctls), `os/linux/local_time` (the C library's `localtime_r`),
 # `os/linux/vulkan_devices` (Vulkan's properties of a device's GPU) and the tests'
-# AppKit support, for a local event monitor, alone allow it.
+# AppKit support, for a local event monitor, and Win32 support, for a window's style, alone allow
+# it.
 [lints.rust]
 unsafe_code = "deny"

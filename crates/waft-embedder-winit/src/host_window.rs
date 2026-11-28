@@ -6,6 +6,19 @@
 //! by giving it a title bar for a moment, which the system reports as moves and resizes, so
 //! reading it at each report would never stop. A window maximized or returned moves, and the app
 //! hears of that.
+//!
+//! The handle keeps what the app asked about showing the window. Where the system shows a window
+//! at its view's first frame (`WindowChrome::SHOWS_WINDOW_AT_FIRST_FRAME`, Windows), the window is
+//! made hidden and shows once that frame is presented, as Flutter's Windows embedder has it; until
+//! then `show` and `hide` only say whether it shows then, and from then on they act at once. A
+//! window made with `visible: false` stays hidden until the app shows it. There is no timeout: a
+//! view that never presents a frame keeps its window hidden, as in Flutter.
+//!
+//! The invariant a later editor could break: frames follow whether a view is in sight, and a view
+//! out of sight is served none (`frame_scheduler.rs`), so a window held hidden for its first frame
+//! must count as in sight. Its view is about to be shown and is served that frame; only the
+//! system's window stays hidden until it is presented. Were it out of sight, it would wait for a
+//! frame it is never served, and never show.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -32,6 +45,7 @@ use crate::view::WinitView;
 pub(crate) struct WinitWindow {
     id: WindowId,
     window: Weak<dyn Window>,
+    showing: Cell<Showing>,
     view: Rc<WinitView>,
     requests: Rc<AppRequests>,
     /// winit's last `Occluded` event: whether the window is occluded where the system cannot be
@@ -39,6 +53,16 @@ pub(crate) struct WinitWindow {
     occluded: Cell<bool>,
     /// How the window was when the app last heard of it.
     reported: Cell<WindowState>,
+}
+
+/// When the app's asking to show or hide the window acts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Showing {
+    /// The view's first frame is not presented yet: the window is hidden, and shows then if the
+    /// app last asked for it `visible`.
+    AtFirstFrame { visible: bool },
+    /// At once: the first frame was presented, or the system shows a window as it is made.
+    AtOnce,
 }
 
 /// Whether a window is minimized, occluded and full screen.
@@ -50,15 +74,24 @@ struct WindowState {
 }
 
 impl WinitWindow {
+    /// The handle on `window`, made `visible` or not as the app asked: shown already, or to show
+    /// at its view's first frame where the system shows a window then.
     pub(crate) fn new(
         id: WindowId,
         window: Weak<dyn Window>,
+        visible: bool,
         view: Rc<WinitView>,
         requests: Rc<AppRequests>,
     ) -> WinitWindow {
+        let showing = if System::SHOWS_WINDOW_AT_FIRST_FRAME {
+            Showing::AtFirstFrame { visible }
+        } else {
+            Showing::AtOnce
+        };
         let window = WinitWindow {
             id,
             window,
+            showing: Cell::new(showing),
             view,
             requests,
             occluded: Cell::new(false),
@@ -66,6 +99,28 @@ impl WinitWindow {
         };
         window.reported.set(window.state());
         window
+    }
+
+    /// The view's first frame was presented: a window waiting for it shows if the app asked for
+    /// it, activating as its configuration says, and the app's asking acts at once from now on.
+    pub(crate) fn first_frame_presented(&self) {
+        if let Showing::AtFirstFrame { visible } = self.showing.replace(Showing::AtOnce) {
+            self.set_visible(visible);
+        }
+    }
+
+    /// Shows or hides the window, as the app asks: at once, or at its view's first frame.
+    fn ask_visible(&self, visible: bool) {
+        match self.showing.get() {
+            Showing::AtFirstFrame { .. } => self.showing.set(Showing::AtFirstFrame { visible }),
+            Showing::AtOnce => self.set_visible(visible),
+        }
+    }
+
+    fn set_visible(&self, visible: bool) {
+        if let Some(window) = self.window.upgrade() {
+            window.set_visible(visible);
+        }
     }
 
     /// winit says the window is occluded, or shown: what it answers where the system cannot be
@@ -144,15 +199,11 @@ impl HostWindow for WinitWindow {
     }
 
     fn show(&self) {
-        if let Some(window) = self.window.upgrade() {
-            window.set_visible(true);
-        }
+        self.ask_visible(true);
     }
 
     fn hide(&self) {
-        if let Some(window) = self.window.upgrade() {
-            window.set_visible(false);
-        }
+        self.ask_visible(false);
     }
 
     /// winit's answer, the system's: never on Wayland, which does not tell a client.
@@ -173,11 +224,10 @@ impl HostWindow for WinitWindow {
     }
 
     fn close(&self) {
-        // Off screen at once; the embedder drops the window when it next turns, and the
-        // framework lets go of the view when its `View` widget goes.
-        if let Some(window) = self.window.upgrade() {
-            window.set_visible(false);
-        }
+        // Off screen at once, and not shown by a first frame presented meanwhile; the embedder
+        // drops the window when it next turns, and the framework lets go of the view when its
+        // `View` widget goes.
+        self.ask_visible(false);
         self.requests
             .send(AppRequest::Window(WindowRequest::Close(self.id)));
     }
