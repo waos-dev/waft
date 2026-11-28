@@ -1,0 +1,33 @@
+# Temporary: how VideoToolbox answers the VP9 clip on this runner. Removed before review.
+name: Probe
+on:
+  pull_request:
+jobs:
+  vp9:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: VP9 test, many times
+        run: |
+          cargo test -p waft-embedder-apple --lib --no-run 2>&1 | tee build.log
+          bin=$(grep -o 'target/[^ )]*waft_embedder_apple-[0-9a-f]*' build.log | head -1)
+          test=video_decoders::test_decoding::vp9::a_stream_with_no_record_comes_out_in_order_from_its_first_key_frame
+          pass=0; fail=0
+          for i in $(seq 1 20); do
+            for j in 1 2 3; do "$bin" --exact "$test" --nocapture > run-$i-$j.log 2>&1 & done
+            wait
+          done
+          for f in run-*.log; do if grep -q "test result: ok" $f; then pass=$((pass+1)); else fail=$((fail+1)); fi; done
+          echo "pass $pass fail $fail"
+          cat run-*.log | grep -E "PROBE|drained|ended after" | sed 's/ts=[0-9]*/ts=T/' | sort | uniq -c
+          grep -h "PROBE" run-*.log | sort | uniq -c | head -40
+          for i in $(seq 1 60); do
+            for t in holding_every_frame holding_none; do
+              for j in 1 2; do "$bin" --exact video_decoders::test_decoding::vp9::probe_$t --nocapture 2>&1 | grep PROBE2 & done
+            done
+            wait
+          done > probe2.log
+          sed 's/errors=.*[0-9]: \(.*\)(.*/errors=\1/' probe2.log | sed 's/read=12 errors=\[\]/clean/' | sort | uniq -c
+          grep -v 'errors=\[\]' probe2.log | sort | uniq -c | head -30
+          "$bin" --exact video_decoders::tests::support_is_what_videotoolbox_says_of_its_hardware --nocapture

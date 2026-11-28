@@ -144,12 +144,15 @@ impl Session {
             .map_err(|status| DecoderError::Failed(format!("no sample buffer ({status})")))?;
         let answered = Arc::new(Mutex::new(None));
         let answer = Arc::clone(&answered);
+        let calls = Arc::new(Mutex::new(Vec::<(i32, u32, bool)>::new()));
+        let probe_calls = Arc::clone(&calls);
         let handler = RcBlock::new(
             move |status: Status,
-                  _flags: VTDecodeInfoFlags,
+                  flags: VTDecodeInfoFlags,
                   image: *mut CVImageBuffer,
                   _time: CMTime,
                   _duration: CMTime| {
+                probe_calls.lock().unwrap().push((status, flags.0, image.is_null()));
                 // SAFETY: VideoToolbox hands the picture over for the length of the call; it is
                 // retained here to outlive it.
                 let picture = NonNull::new(image)
@@ -171,6 +174,10 @@ impl Session {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .take();
+        let seen = calls.lock().unwrap().clone();
+        if seen.len() != 1 || seen[0].2 {
+            eprintln!("PROBE ts={timestamp} returned={status} calls(status,flags,image_null)={seen:?}");
+        }
         match (status, answered) {
             (0, Some((0, picture))) => Ok(picture),
             (0, None) => Ok(None),
