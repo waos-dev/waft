@@ -128,9 +128,14 @@ impl WindowMotion for Windows {}
 /// taskbar's and the task switcher's, larger. Where it names none, each is the executable's at its
 /// own size, which Windows picks out of the icon's images as it does a window class's icon. A
 /// caption's double-click maximizes or restores the window, which Windows has no setting for. A
-/// window with an AppUserModelID of its own is made hidden, given it, and only then shown
-/// (`app_identity`).
+/// window shows DirectComposition's visuals alone, with no redirection bitmap for Windows to paint,
+/// so it would show empty and see-through until its view's first frame: it is made hidden and
+/// shown once that frame is presented, as Flutter's is. Hidden, not cloaked: a cloaked window
+/// counts as shown, with a taskbar button and the focus. A window with an AppUserModelID of its
+/// own is given it while hidden (`app_identity`).
 impl WindowChrome for Windows {
+    const SHOWS_WINDOW_AT_FIRST_FRAME: bool = true;
+
     fn extend_attributes(
         _event_loop: &dyn ActiveEventLoop,
         attributes: WindowAttributes,
@@ -141,23 +146,16 @@ impl WindowChrome for Windows {
         let windows = WindowAttributesWindows::default()
             .with_taskbar_icon(taskbar_icon(config.icon.as_ref()))
             .with_no_redirection_bitmap(true);
-        let attributes = attributes.with_platform_attributes(Box::new(windows));
-        if has_identity(config) {
-            attributes.with_visible(false)
-        } else {
-            attributes
-        }
+        attributes.with_platform_attributes(Box::new(windows))
     }
 
     fn configure(window: &dyn Window, config: &WindowConfig) {
-        if !has_identity(config) {
+        if config.windows.app_user_model_id.is_none() {
             return;
         }
         if let Some(hwnd) = hwnd(window) {
             app_identity::label(hwnd, &config.windows);
         }
-        // winit shows it as it would have at creation, without activating it where it may not.
-        window.set_visible(config.visible);
     }
 
     fn before_close(window: &dyn Window) {
@@ -177,11 +175,6 @@ impl WindowChrome for Windows {
     fn title_bar_double_click_action() -> TitleBarAction {
         TitleBarAction::Maximize
     }
-}
-
-/// Whether `config` gives the window an AppUserModelID of its own.
-fn has_identity(config: &WindowConfig) -> bool {
-    config.windows.app_user_model_id.is_some()
 }
 
 /// The window's handle; `None` for a window winit gives none.

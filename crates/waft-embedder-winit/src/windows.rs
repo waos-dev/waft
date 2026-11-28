@@ -223,6 +223,7 @@ impl ViewMaker {
         let handle = Rc::new(WinitWindow::new(
             window.id(),
             Arc::downgrade(&window),
+            config.visible,
             Rc::clone(&view),
             Rc::clone(&self.requests),
         ));
@@ -318,7 +319,8 @@ fn attributes_for(
         .with_resizable(config.resizable)
         .with_transparent(config.background.sees_through())
         .with_window_level(level)
-        .with_visible(config.visible)
+        // Where a window shows at its view's first frame, its handle shows it then (`host_window.rs`).
+        .with_visible(config.visible && !System::SHOWS_WINDOW_AT_FIRST_FRAME)
         .with_active(config.activating);
     if let Some([x, y]) = config.position {
         attributes = attributes.with_position(LogicalPosition::new(x, y));

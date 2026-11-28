@@ -250,7 +250,8 @@ fn metrics_on_screen_of(open: &OpenWindow) -> ViewMetrics {
 }
 
 /// Whether the window of `open` is in sight: neither minimized nor occluded, as the app's handle
-/// on it answers.
+/// on it answers. A window held hidden until its view's first frame is in sight, so that it is
+/// served that frame (`host_window.rs`).
 fn is_in_sight(open: &OpenWindow) -> bool {
     !open.handle.is_minimized() && !open.handle.is_occluded()
 }

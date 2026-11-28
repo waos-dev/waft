@@ -70,6 +70,9 @@ pub(crate) struct Rasterizer {
     /// Whether the surface shows a frame that painted, which the next frame that paints nothing
     /// replaces with an empty one.
     shows_painted_frame: bool,
+    /// Whether a frame has been presented since the view was made: the first is when a window
+    /// that waits for it shows (`host_window.rs`).
+    presented_a_frame: bool,
     last_scene: LastScene,
     /// The videos the view's scenes draw, and the frame each shows now.
     video_frames: ShownVideoFrames,
@@ -114,6 +117,7 @@ impl Rasterizer {
             clear,
             content_alpha,
             shows_painted_frame: false,
+            presented_a_frame: false,
             last_scene: LastScene::default(),
             video_frames: ShownVideoFrames::default(),
             display_time: None,
@@ -163,6 +167,12 @@ impl Rasterizer {
     /// the first.
     fn display_time(&self) -> Instant {
         self.display_time.unwrap_or_else(Instant::now)
+    }
+
+    /// Whether a frame has been presented since the view was made, drawn or left undrawn as
+    /// it looks the same.
+    pub(crate) fn has_presented_a_frame(&self) -> bool {
+        self.presented_a_frame
     }
 
     /// Whether the last scene draws a video, whose new frames are taken at each vsync.
@@ -300,6 +310,7 @@ impl Rasterizer {
                 .inspect(|()| self.shows_painted_frame = false),
             FrameDrawing::Undrawn => self.leave_undrawn(),
         };
+        self.presented_a_frame |= shown.is_ok();
         self.last_scene.presented(shown);
     }
 

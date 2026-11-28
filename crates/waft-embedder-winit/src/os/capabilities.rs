@@ -124,6 +124,12 @@ pub(crate) trait WindowMotion {
 
 /// What a window's configuration asks for beyond what winit's attributes carry.
 pub(crate) trait WindowChrome {
+    /// Whether a window is made hidden and shown, as the app asked, once its view's first frame
+    /// is presented, as Flutter's Windows embedder does: where a window shown at once would show
+    /// empty until then, as a Windows window drawn through DirectComposition alone does. Not
+    /// where the system refuses a frame for a window off screen, as macOS does.
+    const SHOWS_WINDOW_AT_FIRST_FRAME: bool = false;
+
     /// winit's attributes with the system's own for `config` and the app's `linux` settings, made
     /// once: winit takes one set of a system's attributes per window, so they are all made here.
     fn extend_attributes(
