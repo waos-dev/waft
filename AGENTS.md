@@ -25,7 +25,6 @@ cargo clippy --workspace
 cargo run -p <example>
 ```
 
-Run affected tests during ordinary work. Full workspace tests and clippy only for a finished cross-cutting batch if needed.
 
 ## Two layers
 
@@ -85,4 +84,6 @@ A Flutter-shaped name on a different mechanism is a bug.
 - Aim for a sensible design, not one that fits the existing code. When existing code would force an ugly design, don't follow it: raise it with the lead.
 - An API or mechanism agents use often should explain itself in its docs and shape; when an agent has to read Waft's source to use one, that is a bug to fix (in the docs or the API), and finding and fixing such issues is ongoing work.
 - Ask rather than invent when a special case appears. The rules may be wrong too.
-- Time matters: Rust builds and tests are slow. Run the checks a change needs rather than every suite at every step (the affected tests, as above), and add a test only where it guards behaviour that could break, not one that restates the code. When something wastes time (a slow check, a redundant test, a long wait), raise it with the lead instead of accepting it.
+- Time matters. Run only the checks a change needs; raise a slow check or a long wait with the lead.
+- Tests follow Clean Code's F.I.R.S.T., one concept each.
+- No test passes by a patch (a sleep, a retry, a longer timeout, a fake of our own code). Use the tests' shared helpers; raise what they lack with the lead.
