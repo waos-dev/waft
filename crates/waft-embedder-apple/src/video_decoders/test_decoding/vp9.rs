@@ -57,3 +57,47 @@ fn a_chunk_before_the_first_key_frame_is_bad_data() {
         Err(DecoderError::BadData(_))
     ));
 }
+
+/// Probe: decodes the clip a chunk at a time, keeping every frame read where `hold`, dropping
+/// each otherwise, and answers the decode errors and the frames read.
+fn probe(hold: bool) -> (Vec<String>, usize) {
+    use std::future::Future;
+    use std::task::{Context, Poll, Waker};
+    let decoder = Decoder::open(VideoStreamSetup::Vp9(None), &options()).expect("a decoder");
+    let mut held = Vec::new();
+    let mut errors = Vec::new();
+    let mut read = 0;
+    let mut read_ready = |held: &mut Vec<_>, read: &mut usize| loop {
+        let mut next = decoder.next_frame();
+        match next.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Ready(Some(frame)) => {
+                *read += 1;
+                if hold {
+                    held.push(frame);
+                }
+            }
+            _ => break,
+        }
+    };
+    for (number, chunk) in chunks().into_iter().enumerate() {
+        if let Err(error) = block_on(decoder.decode(chunk)) {
+            errors.push(format!("{number}: {error:?}"));
+        }
+        read_ready(&mut held, &mut read);
+    }
+    let _ = block_on(decoder.drain());
+    read_ready(&mut held, &mut read);
+    (errors, read)
+}
+
+#[test]
+fn probe_holding_every_frame() {
+    let (errors, read) = probe(true);
+    eprintln!("PROBE2 hold=all read={read} errors={errors:?}");
+}
+
+#[test]
+fn probe_holding_none() {
+    let (errors, read) = probe(false);
+    eprintln!("PROBE2 hold=none read={read} errors={errors:?}");
+}
